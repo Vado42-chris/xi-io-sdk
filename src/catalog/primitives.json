@@ -1,0 +1,55 @@
+{
+  "schema": "xiio.sdk.primitive-catalog/v1",
+  "catalog_id": "XIIO-SDK-PRIMITIVES-001",
+  "component_source_of_truth": "Vado42-chris/xi-io-sdk",
+  "management_authority": "Vado42-chris/xi-io.net",
+  "management_contracts": [
+    "currentness",
+    "qualification",
+    "promotion",
+    "adoption",
+    "retirement",
+    "effect-admission"
+  ],
+  "hard": [
+    "SDK_COMPONENT_SOURCE != FRAMEWORK_MANAGEMENT_AUTHORITY",
+    "COMPONENT_CURRENT != QUALIFIED_STABLE",
+    "PLAYGROUND_RENDER != OWNER_ACCEPTANCE",
+    "FRAMEWORK_MANAGER != SECOND_COMPONENT_IMPLEMENTATION"
+  ],
+  "primitives": [
+    {"id":"page-shell","family":"core","kind":"component","export":"renderPageShell","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"section","family":"core","kind":"component","export":"renderSection","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"panel","family":"core","kind":"component","export":"renderPanel","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"grid","family":"core","kind":"component","export":"renderGrid","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"stack","family":"core","kind":"component","export":"renderStack","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"status-badge","family":"core","kind":"component","export":"renderStatusBadge","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"action-button","family":"core","kind":"component","export":"renderActionButton","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"evidence-panel","family":"core","kind":"component","export":"renderEvidencePanel","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"context-inspector","family":"core","kind":"component","export":"renderContextInspector","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"receipt-row","family":"core","kind":"component","export":"renderReceiptRow","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"confirmation-dialog","family":"core","kind":"component","export":"renderConfirmationDialog","behavior":"openXiDialog|closeXiDialog|bindXiDialogs","source":"src/components/core.mjs","behavior_source":"src/components/behavior.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"empty-state","family":"core","kind":"component","export":"renderEmptyState","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"next-action-strip","family":"core","kind":"component","export":"renderNextActionStrip","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"selectable-list","family":"core","kind":"component","export":"renderSelectableList","behavior":"bindXiSelectableLists","source":"src/components/core.mjs","behavior_source":"src/components/behavior.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","provenance":"framework:UI-CONSUMER-EXPORT-001A"},
+    {"id":"icon-button","family":"shell","kind":"component","export":"renderIconButton","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"drawer-shell","family":"shell","kind":"component","export":"renderDrawerShell","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"scroll-region","family":"shell","kind":"component","export":"renderScrollRegion","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"drawer-footer","family":"shell","kind":"component","export":"renderDrawerFooter","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"toast","family":"shell","kind":"component","export":"renderToastStack","behavior":"bindXiToasts","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"route-header","family":"shell","kind":"component","export":"renderRouteHeader","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"breadcrumbs","family":"shell","kind":"component","export":"renderBreadcrumbs","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"form-field","family":"shell","kind":"component","export":"renderFormField","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"select-field","family":"shell","kind":"component","export":"renderSelectField","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"},
+    {"id":"tabs","family":"shell","kind":"component","export":"renderTabs","behavior":"bindXiTabs|syncXiTabSelection","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","provenance":"product-donor:Inbox+HEX"}
+  ],
+  "known_gaps": [
+    "search-field",
+    "search-band",
+    "menu-button",
+    "popover-menu",
+    "progressive-disclosure",
+    "choice-group",
+    "inline-status"
+  ]
+}
