@@ -11,6 +11,19 @@ function cls(value) {
   return text ? ` class="${escapeHtml(text)}"` : '';
 }
 
+function dataAttrs(value = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('data must be an object');
+  const attrs = [];
+  for (const [rawKey, rawValue] of Object.entries(value)) {
+    const key = String(rawKey).trim();
+    if (!/^[a-z][a-z0-9-]*$/.test(key)) throw new TypeError(`invalid data attribute key: ${key}`);
+    if (rawValue === false || rawValue === null || rawValue === undefined) continue;
+    if (rawValue === true) attrs.push(` data-${key}`);
+    else attrs.push(` data-${key}="${escapeHtml(rawValue)}"`);
+  }
+  return attrs.join('');
+}
+
 export function renderPageShell({ bodyHtml = '', className = '' } = {}) {
   return `<div data-xiui-root data-xiui="page-shell"${cls(className)}>${bodyHtml}</div>`;
 }
@@ -37,8 +50,8 @@ export function renderStatusBadge({ label = '', tone = 'unknown', className = ''
   return `<span data-xiui="status-badge" data-tone="${resolvedTone}"${cls(className)}>${escapeHtml(label)}</span>`;
 }
 
-export function renderActionButton({ label = '', disabled = false, className = '', attributes = '' } = {}) {
-  return `<button type="button" data-xiui="action-button"${cls(className)}${disabled ? ' disabled aria-disabled="true"' : ''}${attributes ? ` ${attributes}` : ''}>${escapeHtml(label)}</button>`;
+export function renderActionButton({ label = '', disabled = false, className = '', dialogTarget = '', data = {} } = {}) {
+  return `<button type="button" data-xiui="action-button"${cls(className)}${disabled ? ' disabled aria-disabled="true"' : ''}${dialogTarget ? ` data-xiui-dialog-target="${escapeHtml(dialogTarget)}"` : ''}${dataAttrs(data)}>${escapeHtml(label)}</button>`;
 }
 
 export function renderEvidencePanel({ rows = [], className = '', title = '' } = {}) {
