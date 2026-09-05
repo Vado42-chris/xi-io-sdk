@@ -7,6 +7,7 @@
     "./components": "./src/components/core.mjs",
     "./behavior": "./src/components/behavior.mjs",
     "./shell": "./src/components/shell.mjs",
+    "./callables": "./src/callables/resolve.mjs",
     "./styles/core.css": "./src/styles/core.css",
     "./styles/shell.css": "./src/styles/shell.css",
     "./catalog": "./src/catalog/primitives.json"
