@@ -7,12 +7,13 @@
     "./components": "./src/components/core.mjs",
     "./behavior": "./src/components/behavior.mjs",
     "./shell": "./src/components/shell.mjs",
+    "./render": "./src/render/product-surface.mjs",
     "./callables": "./src/callables/resolve.mjs",
     "./styles/core.css": "./src/styles/core.css",
     "./styles/shell.css": "./src/styles/shell.css",
     "./catalog": "./src/catalog/primitives.json"
   },
   "scripts": {
-    "check": "node scripts/validate-sdk-playground.mjs"
+    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-product-surface-renderer.mjs"
   }
 }
