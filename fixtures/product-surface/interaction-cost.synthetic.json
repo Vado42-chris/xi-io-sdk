@@ -1,0 +1,56 @@
+{
+  "schema": "xiio.sdk.product-surface/v1",
+  "surface_id": "interaction-cost-demo",
+  "title": "Interaction Cost Delta",
+  "subtitle": "Public-safe render-on-the-fly fixture",
+  "environment": "TEST",
+  "notice": "Measurement is proposal-only until the host supplies a qualified ACK and action handler.",
+  "statuses": [
+    {"label": "TEST", "tone": "warning"},
+    {"label": "ACK required", "tone": "unknown"}
+  ],
+  "sections": [
+    {
+      "id": "baseline",
+      "title": "Baseline",
+      "summary": "Normalized cost components for the prior revolution.",
+      "fields": [
+        {"id": "baseline-human", "label": "Human cost", "type": "number", "value": 10, "min": 0, "step": 0.1, "required": true},
+        {"id": "baseline-machine", "label": "Machine cost", "type": "number", "value": 2, "min": 0, "step": 0.1, "required": true},
+        {"id": "baseline-coordination", "label": "Coordination cost", "type": "number", "value": 5, "min": 0, "step": 0.1, "required": true},
+        {"id": "baseline-rework", "label": "Semantic loss / rework", "type": "number", "value": 3, "min": 0, "step": 0.1, "required": true}
+      ],
+      "rows": []
+    },
+    {
+      "id": "candidate",
+      "title": "Candidate",
+      "summary": "Normalized cost components for the current revolution.",
+      "fields": [
+        {"id": "candidate-human", "label": "Human cost", "type": "number", "value": 4, "min": 0, "step": 0.1, "required": true},
+        {"id": "candidate-machine", "label": "Machine cost", "type": "number", "value": 4, "min": 0, "step": 0.1, "required": true},
+        {"id": "candidate-coordination", "label": "Coordination cost", "type": "number", "value": 2, "min": 0, "step": 0.1, "required": true},
+        {"id": "candidate-rework", "label": "Semantic loss / rework", "type": "number", "value": 1, "min": 0, "step": 0.1, "required": true}
+      ],
+      "rows": []
+    },
+    {
+      "id": "guards",
+      "title": "Required invariants",
+      "summary": "Lower cost cannot override a broken invariant.",
+      "fields": [
+        {"id": "quality-preserved", "label": "Quality preserved", "type": "checkbox", "value": true},
+        {"id": "safety-preserved", "label": "Safety preserved", "type": "checkbox", "value": true},
+        {"id": "authority-preserved", "label": "Authority preserved", "type": "checkbox", "value": true},
+        {"id": "evidence-preserved", "label": "Evidence preserved", "type": "checkbox", "value": true}
+      ],
+      "rows": [
+        {"label": "Effect ceiling", "value": "MEASURE_ONLY"},
+        {"label": "Result", "value": "WAIT_ACK", "status": {"label": "WAIT", "tone": "unknown"}}
+      ]
+    }
+  ],
+  "actions": [
+    {"id": "measure", "label": "Measure delta", "kind": "primary", "disabled": false}
+  ]
+}
