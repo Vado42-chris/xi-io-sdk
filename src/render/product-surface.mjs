@@ -86,6 +86,7 @@ function normalizeField(field, label) {
   if (field.hint !== undefined) assertText(field.hint, `${label}.hint`, { optional: true });
   if (field.required !== undefined && typeof field.required !== 'boolean') throw new TypeError(`${label}.required must be boolean`);
   if (field.disabled !== undefined && typeof field.disabled !== 'boolean') throw new TypeError(`${label}.disabled must be boolean`);
+  const normalized = structuredClone(field);
   if (field.type === 'number') {
     for (const key of ['min', 'max', 'step']) {
       if (field[key] !== undefined && (typeof field[key] !== 'number' || !Number.isFinite(field[key]))) throw new TypeError(`${label}.${key} must be a finite number`);
@@ -94,20 +95,21 @@ function normalizeField(field, label) {
   } else if (field.type === 'checkbox') {
     if (field.value !== undefined && typeof field.value !== 'boolean') throw new TypeError(`${label}.value must be boolean`);
   } else if (field.type === 'select') {
-    field.options = normalizeOptions(field.options, `${label}.options`);
-    if (field.value !== undefined && !field.options.some((option) => option.value === String(field.value))) throw new TypeError(`${label}.value must match an option`);
+    normalized.options = normalizeOptions(field.options, `${label}.options`);
+    if (field.value !== undefined && !normalized.options.some((option) => option.value === String(field.value))) throw new TypeError(`${label}.value must match an option`);
   } else if (field.value !== undefined && typeof field.value !== 'string') {
     throw new TypeError(`${label}.value must be string`);
   }
-  return structuredClone(field);
+  return normalized;
 }
 
 function normalizeRow(row, label) {
   assertClosedShape(row, ROW_KEYS, label);
   assertText(row.label, `${label}.label`);
   if (!['string', 'number', 'boolean'].includes(typeof row.value)) throw new TypeError(`${label}.value must be scalar`);
-  if (row.status !== undefined) row.status = normalizeStatus(row.status, `${label}.status`);
-  return structuredClone(row);
+  const normalized = { label: row.label, value: row.value };
+  if (row.status !== undefined) normalized.status = normalizeStatus(row.status, `${label}.status`);
+  return normalized;
 }
 
 function normalizeSection(section, index) {
@@ -184,9 +186,14 @@ function renderInput(field) {
   return Shell.renderFormField({ id, label: field.label, hint: field.hint, inputHtml: `<input type="${type}"${common}${numeric} value="${escapeHtml(value)}">` });
 }
 
+function renderRow(row) {
+  const statusHtml = row.status ? Core.renderStatusBadge(row.status) : '';
+  return Core.renderReceiptRow({ label: row.label, value: row.value, statusHtml });
+}
+
 function renderSection(section) {
   const fields = section.fields.length ? `<div data-xiio-surface-fields>${section.fields.map(renderInput).join('')}</div>` : '';
-  const rows = section.rows.length ? Core.renderEvidencePanel({ title: `${section.title} details`, rows: section.rows.map((row) => ({ label: row.label, value: row.value })) }) : '';
+  const rows = section.rows.length ? `<div data-xiio-surface-rows>${section.rows.map(renderRow).join('')}</div>` : '';
   return Core.renderPanel({ className: 'xiio-product-surface-section', bodyHtml: `<h2>${escapeHtml(section.title)}</h2>${section.summary ? `<p>${escapeHtml(section.summary)}</p>` : ''}${fields}${rows}` });
 }
 
