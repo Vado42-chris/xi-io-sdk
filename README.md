@@ -2,8 +2,10 @@
 
 Public component and primitive source for xi-io.
 
-This repository owns reusable xi-io components, primitive descriptors, and the public playground surface. Framework-side lifecycle, currentness, qualification, promotion, adoption, and management interactions remain owned by `Vado42-chris/xi-io.net`.
+This repository owns the public reusable component implementations, primitive contracts, callable UUID anchors, and playground surface.
 
-Genesis authority: owner direction, 2026-09-05.
+The proprietary xi-io management machinery is not mirrored here. Currentness, qualification, promotion, adoption, retirement, security policy, orchestration, evidence, and effect admission remain behind the protected framework/Ward boundary.
 
-Status: GENESIS_ONLY. Substantive source lands through reviewed branches after this commit.
+A callable UUID is a public discovery and invocation anchor only. It is not canonical identity, truth, authority, qualification, provenance, or provider-effect evidence.
+
+The SDK is the car. The protected framework is the gas and management system.
