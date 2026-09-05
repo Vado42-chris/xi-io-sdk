@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>xi-io SDK Playground</title>
+  <link rel="stylesheet" href="../src/styles/core.css">
+  <link rel="stylesheet" href="../src/styles/shell.css">
+  <link rel="stylesheet" href="./playground.css">
+</head>
+<body>
+  <main data-xiui-root data-xiui="page-shell" class="playground-shell">
+    <header class="playground-hero">
+      <p class="eyebrow">xi-io SDK</p>
+      <h1>Primitive Playground</h1>
+      <p>Component source lives here. Framework lifecycle, currentness, qualification, promotion, adoption and retirement remain external management interactions.</p>
+      <div class="playground-controls">
+        <label for="primitive-search">Filter primitives</label>
+        <input id="primitive-search" type="search" placeholder="tabs, evidence, drawer…" autocomplete="off">
+      </div>
+    </header>
+    <section class="ownership-band" aria-label="Ownership model">
+      <div><strong>Component source</strong><span id="component-source">loading…</span></div>
+      <div><strong>Management authority</strong><span id="management-authority">loading…</span></div>
+      <div><strong>Catalog</strong><span id="catalog-state">loading…</span></div>
+    </section>
+    <section id="primitive-grid" class="primitive-grid" aria-live="polite"></section>
+    <section class="gap-panel" aria-labelledby="gap-heading">
+      <h2 id="gap-heading">Known gaps</h2>
+      <div id="known-gaps"></div>
+    </section>
+  </main>
+  <script type="module" src="./playground.mjs"></script>
+</body>
+</html>
