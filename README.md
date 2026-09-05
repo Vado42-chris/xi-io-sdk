@@ -6,6 +6,8 @@ This repository owns the public reusable component implementations, primitive co
 
 The proprietary xi-io management machinery is not mirrored here. Currentness, qualification, promotion, adoption, retirement, security policy, orchestration, evidence, and effect admission remain behind the protected framework/Ward boundary.
 
-A callable UUID is a public discovery and invocation anchor only. It is not canonical identity, truth, authority, qualification, provenance, or provider-effect evidence.
+A callable UUID is a public discovery and invocation anchor only. It is not canonical identity, truth, authority, qualification, provenance, or provider-effect evidence. Catalog entries are the SSOT for these anchors; `callable_namespace_uuid` is documentation-only on this tip and does not mint matching handles.
+
+HTML composition slots such as `bodyHtml` / `iconHtml` are caller-trusted input, not a sanitizer.
 
 The SDK is the car. The protected framework is the gas and management system.

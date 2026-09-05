@@ -46,6 +46,68 @@ assert.equal(listCallablePrimitives(catalog).length, catalog.primitives.length, 
 assert.equal(resolveCallable(catalog, 'not-a-uuid'), null, 'invalid callable must not resolve');
 assert.equal(callableUuidFor(catalog, 'does-not-exist'), null, 'unknown primitive must not mint UUID');
 
+// HOSTILE: UUID resolve / list is discovery-only — success must NOT grant authority/management/effect.
+{
+  const sample = catalog.primitives[0];
+  const hit = resolveCallable(catalog, sample.callable_uuid);
+  assert.equal(hit?.id, sample.id, 'authority-hostile: discovery resolve');
+  const admissionKeys = [
+    'authority',
+    'qualified',
+    'qualification',
+    'current',
+    'currentness',
+    'provider_effect',
+    'effect_admission',
+    'management',
+    'truth',
+    'canonical_identity',
+    'provenance',
+    'promotion',
+    'adoption',
+    'owner_acceptance',
+  ];
+  for (const key of admissionKeys) {
+    assert.equal(Object.hasOwn(hit, key), false, `resolveCallable must not grant ${key}`);
+  }
+  const listed = listCallablePrimitives(catalog).find(item => item.id === sample.id);
+  assert(listed, 'authority-hostile: list projection present');
+  for (const key of admissionKeys) {
+    assert.equal(Object.hasOwn(listed, key), false, `listCallablePrimitives must not grant ${key}`);
+  }
+  assert.equal(
+    catalog.public_contract.callable_uuid_role,
+    'DISCOVERY_AND_CALL_ANCHOR_ONLY',
+    'callable_uuid_role must stay discovery-only',
+  );
+  for (const hard of [
+    'CALLABLE_UUID != AUTHORITY',
+    'CALLABLE_UUID != PROVIDER_EFFECT',
+    'CALLABLE_UUID != TRUTH',
+    'CALLABLE_UUID != CANONICAL_IDENTITY',
+    'PLAYGROUND_RENDER != QUALIFICATION_OR_OWNER_ACCEPTANCE',
+  ]) {
+    assert(catalog.hard.includes(hard), `hard missing ${hard}`);
+  }
+  const resolveSource = read('src/callables/resolve.mjs');
+  assert(
+    !resolveSource.includes('callable_namespace_uuid'),
+    'callable_namespace_uuid must remain unused by resolve (opaque catalog literals)',
+  );
+  const fabricated = { ...hit, authority: true, qualified: true, provider_effect: true };
+  assert.throws(
+    () => {
+      assert.deepEqual(
+        Object.keys(hit).sort(),
+        Object.keys(fabricated).sort(),
+        'fabricated admission must not match discovery keys',
+      );
+    },
+    /fabricated admission must not match discovery keys/,
+    'hostile fabricated authority claim must diverge from resolve surface',
+  );
+}
+
 /** Opaque disclosure probes: packed bytes + digests only (no private plaintext in tip tree). */
 const DISCLOSURE_PACK_KEY = Buffer.from('xiio.sdk.disclosure/v1');
 const DISCLOSURE_PACKS = Object.freeze([
@@ -172,6 +234,10 @@ assert(tabs.includes('disabled aria-disabled="true"'));
 assert(playground.includes('resolveCallable(catalog, item.callable_uuid)'), 'playground must resolve public UUID');
 assert(playground.includes("[item.id, item.family, item.export, item.callable_uuid]"), 'playground search must include UUID');
 assert(index.includes('protected Ward boundary'), 'public boundary copy missing');
+assert(/discovery and invocation anchor only/i.test(readme), 'README UUID discovery-only note');
+assert(/not canonical identity, truth, authority/i.test(readme), 'README UUID≠authority note');
+assert(/callable_namespace_uuid.*documentation-only/i.test(readme), 'README namespace non-generative note');
+assert(/caller-trusted/i.test(readme), 'README HTML slots caller-trusted note');
 assert(Array.isArray(catalog.known_gaps) && catalog.known_gaps.length > 0, 'known gaps must remain explicit');
 
 console.log(`XIIO_SDK_PLAYGROUND PASS primitives=${catalog.primitives.length} uuids=${uuids.size} gaps=${catalog.known_gaps.length} internal_topology_leaks=0`);
