@@ -15,6 +15,7 @@ assert.match(html, /data-xiui="page-shell"/);
 assert.match(html, /data-xiio-field="baseline-human"/);
 assert.match(html, /data-xiio-action="measure"/);
 assert.match(html, /aria-live="polite"/);
+assert.match(html, /data-tone="unknown">WAIT<\/span>/, 'row status must survive render contraction');
 assert.ok(!html.includes('<script'));
 assert.ok(!html.includes('xi-io.net#'));
 assert.ok(!html.includes('evidence_ref'));
@@ -73,6 +74,7 @@ console.log(JSON.stringify({
   status: 'PASS',
   positive_cases: 1,
   hostile_cases: 12,
+  semantic_status_preserved: true,
   transport_authority: false,
   management_topology_exposed: false,
   render_on_the_fly_adapter: 'CANDIDATE'
