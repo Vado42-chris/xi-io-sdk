@@ -1,0 +1,17 @@
+{
+  "name": "@xi-io/sdk",
+  "version": "0.1.0-candidate.1",
+  "private": false,
+  "type": "module",
+  "exports": {
+    "./components": "./src/components/core.mjs",
+    "./behavior": "./src/components/behavior.mjs",
+    "./shell": "./src/components/shell.mjs",
+    "./styles/core.css": "./src/styles/core.css",
+    "./styles/shell.css": "./src/styles/shell.css",
+    "./catalog": "./src/catalog/primitives.json"
+  },
+  "scripts": {
+    "check": "node scripts/validate-sdk-playground.mjs"
+  }
+}
