@@ -1,0 +1,47 @@
+{
+  "schema": "xiio.sdk.primitive-catalog/v2",
+  "catalog_id": "XIIO-SDK-PRIMITIVES-001",
+  "callable_namespace_uuid": "7c6f66c1-2db7-4f3f-9f34-2e2d6e0b4b2c",
+  "public_contract": {
+    "component_source": "THIS_REPOSITORY",
+    "callable_uuid_role": "DISCOVERY_AND_CALL_ANCHOR_ONLY",
+    "internal_management_surface": "OPAQUE_WARD_PROTECTED",
+    "internal_provenance_disclosed": false,
+    "internal_topology_disclosed": false
+  },
+  "hard": [
+    "CALLABLE_UUID != CANONICAL_IDENTITY",
+    "CALLABLE_UUID != TRUTH",
+    "CALLABLE_UUID != AUTHORITY",
+    "CALLABLE_UUID != PROVIDER_EFFECT",
+    "PUBLIC_COMPONENT != PRIVATE_MANAGEMENT_TOPOLOGY",
+    "PLAYGROUND_RENDER != QUALIFICATION_OR_OWNER_ACCEPTANCE"
+  ],
+  "primitives": [
+    {"id":"page-shell","callable_uuid":"e3fd9a8a-c1cf-5e9a-9b52-55479318e6b0","family":"core","kind":"component","export":"renderPageShell","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"section","callable_uuid":"f23e4103-18da-5585-a97a-c41bacd57642","family":"core","kind":"component","export":"renderSection","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"panel","callable_uuid":"4b3fa24a-e818-5013-884e-e0e5e33caf50","family":"core","kind":"component","export":"renderPanel","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"grid","callable_uuid":"e9d4a733-5e37-5b91-9f4b-c31cc2ee2367","family":"core","kind":"component","export":"renderGrid","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"stack","callable_uuid":"b1c9be6e-ebc7-5273-90c3-8b2f44832160","family":"core","kind":"component","export":"renderStack","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"status-badge","callable_uuid":"3314c364-ec5c-572a-a449-cc3452b29a70","family":"core","kind":"component","export":"renderStatusBadge","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"action-button","callable_uuid":"858f0cd8-dd6e-5e70-bbe8-d38a2e93635f","family":"core","kind":"component","export":"renderActionButton","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"evidence-panel","callable_uuid":"76f533e4-643c-5abc-a3bd-046d6cc7951f","family":"core","kind":"component","export":"renderEvidencePanel","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"context-inspector","callable_uuid":"d9aa1218-871d-5f48-a454-a2097b556889","family":"core","kind":"component","export":"renderContextInspector","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"receipt-row","callable_uuid":"f90c6921-b465-5577-9bcb-fdf8351b7f9d","family":"core","kind":"component","export":"renderReceiptRow","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"confirmation-dialog","callable_uuid":"509399fc-5202-52e4-a4f5-d97780e9c3a8","family":"core","kind":"component","export":"renderConfirmationDialog","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","behavior":"openXiDialog|closeXiDialog|bindXiDialogs"},
+    {"id":"empty-state","callable_uuid":"4f0daa27-42a9-5716-9355-0b4ddc6d9d89","family":"core","kind":"component","export":"renderEmptyState","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"next-action-strip","callable_uuid":"c1c0a8a7-55b4-5cd0-ba9b-d2efc137b7c9","family":"core","kind":"component","export":"renderNextActionStrip","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
+    {"id":"selectable-list","callable_uuid":"77c219ce-0201-54b0-8038-9f205db5aa44","family":"core","kind":"component","export":"renderSelectableList","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","behavior":"bindXiSelectableLists"},
+    {"id":"icon-button","callable_uuid":"f0ccb5cf-ba09-55d7-9e7c-2a0196f86945","family":"shell","kind":"component","export":"renderIconButton","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"drawer-shell","callable_uuid":"043f5c27-3e5b-5c10-9d41-42a41f337c4c","family":"shell","kind":"component","export":"renderDrawerShell","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"scroll-region","callable_uuid":"5a659e21-c0d2-561a-a23f-59ea7498c172","family":"shell","kind":"component","export":"renderScrollRegion","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"drawer-footer","callable_uuid":"d508c99a-3f4d-5a9f-8740-71c30986cac8","family":"shell","kind":"component","export":"renderDrawerFooter","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"toast","callable_uuid":"34d5e6da-64ab-55ad-8698-86776177ead5","family":"shell","kind":"component","export":"renderToastStack","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","behavior":"bindXiToasts"},
+    {"id":"route-header","callable_uuid":"3a85736b-518e-5565-95af-a163577cefad","family":"shell","kind":"component","export":"renderRouteHeader","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"breadcrumbs","callable_uuid":"04243444-9260-5c5a-86e0-8a0f29a54821","family":"shell","kind":"component","export":"renderBreadcrumbs","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"form-field","callable_uuid":"6e71e00b-9b10-5db9-990d-f75e03828946","family":"shell","kind":"component","export":"renderFormField","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"select-field","callable_uuid":"9e135223-9e25-5cf1-87dc-8fac91244179","family":"shell","kind":"component","export":"renderSelectField","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
+    {"id":"tabs","callable_uuid":"628a4445-12b7-584c-baa1-b3cee910e266","family":"shell","kind":"component","export":"renderTabs","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","behavior":"bindXiTabs|syncXiTabSelection"}
+  ],
+  "known_gaps": ["search-field","search-band","menu-button","popover-menu","progressive-disclosure","choice-group","inline-status"]
+}

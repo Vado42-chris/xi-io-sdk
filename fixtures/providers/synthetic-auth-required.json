@@ -1,0 +1,7 @@
+{
+  "provider": "Synthetic Provider B",
+  "operation": "generate",
+  "http_status": 401,
+  "provider_status": "UNAUTHENTICATED",
+  "headers": {}
+}

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>xi-io SDK Playground</title>
+  <link rel="stylesheet" href="../src/styles/core.css">
+  <link rel="stylesheet" href="../src/styles/shell.css">
+  <link rel="stylesheet" href="./playground.css">
+</head>
+<body>
+  <main data-xiui-root data-xiui="page-shell" class="playground-shell">
+    <header class="playground-hero">
+      <p class="eyebrow">xi-io SDK</p>
+      <h1>Primitive Playground</h1>
+      <p>Public component source, callable UUIDs, and visual behavior live here. Proprietary management, qualification, orchestration, evidence, and effect controls remain behind the protected Ward boundary.</p>
+      <div class="playground-controls">
+        <label for="primitive-search">Filter by name, family, export, or callable UUID</label>
+        <input id="primitive-search" type="search" placeholder="tabs, drawer, 628a4445…" autocomplete="off">
+      </div>
+    </header>
+    <section class="ownership-band" aria-label="Public boundary">
+      <div><strong>Component source</strong><span id="component-source">loading…</span></div>
+      <div><strong>Management surface</strong><span id="management-surface">loading…</span></div>
+      <div><strong>Catalog</strong><span id="catalog-state">loading…</span></div>
+    </section>
+    <section id="primitive-grid" class="primitive-grid" aria-live="polite"></section>
+    <section class="gap-panel" aria-labelledby="gap-heading">
+      <h2 id="gap-heading">Known gaps</h2>
+      <div id="known-gaps"></div>
+    </section>
+  </main>
+  <script type="module" src="./playground.mjs"></script>
+</body>
+</html>
