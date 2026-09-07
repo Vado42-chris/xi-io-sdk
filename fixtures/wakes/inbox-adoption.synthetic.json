@@ -1,0 +1,15 @@
+{
+  "schema": "xiio.sdk.wake-envelope/v1",
+  "wake_id": "sdk-wake-canary-001",
+  "generation": "sdk-playground-0e7e879b",
+  "intent_ref": "studio-baseline-evening-001",
+  "target": {
+    "product_id": "xi-io-inbox",
+    "repository": "Vado42-chris/xi-io-Inbox"
+  },
+  "state": "INTENDED",
+  "effect_ceiling": "NO_EFFECT",
+  "authority": "PROPOSAL_ONLY",
+  "payload_ref": "fixture:product-surface:interaction-cost",
+  "return_target": "studio:baseline-return"
+}
