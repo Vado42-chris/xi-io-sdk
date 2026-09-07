@@ -1,0 +1,46 @@
+{
+  "schema": "xiio.sdk.ibal-canary/v1",
+  "root": {
+    "work_ref": "work:studio-switchboard-canary-001",
+    "generation": "sdk-pr13-canary",
+    "product_id": "xi-io-studio"
+  },
+  "bridge": {
+    "switchboard_ref": "switchboard:api-bridge:canary",
+    "glass_box_ref": "framework:api-glass-box",
+    "operation_ref": "operation:provider-lesson-roundtrip",
+    "bins_custody_ref": "bins:lesson-corpus:provider-family",
+    "effect_ceiling": "NO_EFFECT"
+  },
+  "provider_lessons": [
+    {"provider":"CHATGPT","lesson_ref":"lesson:chatgpt:current","adapter_ref":"adapter:chatgpt:unknown-version","state":"CANDIDATE"},
+    {"provider":"CLAUDE","lesson_ref":"lesson:claude:current","adapter_ref":"adapter:claude:unknown-version","state":"CANDIDATE"},
+    {"provider":"GROK","lesson_ref":"lesson:grok:future","adapter_ref":"adapter:grok:not-yet-qualified","state":"FUTURE"},
+    {"provider":"CURSOR","lesson_ref":"lesson:cursor:current","adapter_ref":"adapter:cursor:unknown-version","state":"CANDIDATE"},
+    {"provider":"ANTIGRAVITY","lesson_ref":"lesson:antigravity:current","adapter_ref":"adapter:antigravity:unknown-version","state":"CURRENT"},
+    {"provider":"OLLAMA","lesson_ref":"lesson:ollama:current","adapter_ref":"adapter:ollama:unknown-version","state":"CANDIDATE"}
+  ],
+  "lesson_fractal": {
+    "root_lesson_ref": "lesson-root:studio-switchboard-canary",
+    "skill_refs": ["skill:ibal:explain", "skill:glass-box:trace", "skill:cadence:exit-loop"],
+    "recursion_depth": 0,
+    "max_recursion_depth": 8
+  },
+  "exit_loop": {
+    "exit_condition_ref": "condition:qualified-return-or-typed-wait",
+    "next_action_ref": "action:switchboard-preflight",
+    "blast_counter": 0,
+    "max_blasts": 21,
+    "timeout_ms": 300000,
+    "on_exhaustion": "RETURN"
+  },
+  "email": {
+    "inbox_primitive_ref": "inbox:email-command-bus",
+    "ingress_capability_ref": "inbox:email-ingress",
+    "egress_capability_ref": "inbox:email-result-egress",
+    "receipt_ref": "inbox:email-roundtrip-receipt",
+    "access_state": "REFERENCE_ONLY",
+    "provider_write_authorized": false
+  },
+  "return_target_ref": "studio:canary:apply-return"
+}
