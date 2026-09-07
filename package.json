@@ -11,11 +11,12 @@
     "./callables": "./src/callables/resolve.mjs",
     "./providers": "./src/providers/state.mjs",
     "./wakes": "./src/wakes/envelope.mjs",
+    "./ibal": "./src/ibal/canary.mjs",
     "./styles/core.css": "./src/styles/core.css",
     "./styles/shell.css": "./src/styles/shell.css",
     "./catalog": "./src/catalog/primitives.json"
   },
   "scripts": {
-    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs"
+    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs"
   }
 }
