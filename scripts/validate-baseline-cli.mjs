@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap, BASELINE_CELLS } from '../src/baseline/compiler.mjs';
+import { normalizeBaselineCommand, BASELINE_COMMANDS, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
+import { validateDistributedAck } from '../src/acks/distributed.mjs';
 
 const snapshot = JSON.parse(fs.readFileSync(new URL('../fixtures/baseline/portfolio.synthetic.json', import.meta.url), 'utf8'));
 const baseline = compilePortfolioBaseline(snapshot);
@@ -50,4 +53,45 @@ const duplicate = structuredClone(snapshot);
 duplicate.repositories.push(structuredClone(duplicate.repositories[0]));
 assert.throws(() => compilePortfolioBaseline(duplicate), /duplicate repo_ref/);
 
-console.log(`XIIO_SDK_BASELINE_CLI PASS repos=${baseline.repository_denominator} cells=${baseline.cell_denominator} pass=${baseline.state_counts.PASS} partial=${baseline.state_counts.PARTIAL} blocked=${baseline.state_counts.BLOCKED} ack_packets=${ackSet.ack_denominator} current_returns=${burn.current_returns}`);
+const catalog = commandCatalog();
+assert.equal(catalog.schema, 'xiio.sdk.command-lexicon/v1');
+assert.equal(catalog.commands.length, 15);
+assert.equal(Object.keys(BASELINE_COMMANDS).length, 12);
+assert.equal(normalizeBaselineCommand('100s').verb, 'score');
+assert.equal(normalizeBaselineCommand('inventory').verb, 'census');
+assert.equal(normalizeBaselineCommand('do-whatever').state, 'UNKNOWN_COMMAND');
+
+const futureProviderAck = {
+  ack_id: 'ack:1',
+  root_ref: 'root:1',
+  work_ref: 'work:1',
+  baseline_generation: baseline.baseline_generation,
+  target_ref: 'repo:alpha',
+  provider_family: 'FUTURE_PROVIDER',
+  agent_ref: 'external-agent:1',
+  capability_profile_ref: 'baseline-probe/v1',
+  subject_generation: 'subject:g1',
+  effect_ceiling: 'NO_EFFECT',
+  ack_state: 'ACK',
+  attempt: 0,
+  return_target_ref: 'return:root:1',
+  observed_at: '2026-09-08T10:00:00Z',
+};
+assert.equal(validateDistributedAck(futureProviderAck).ok, true);
+assert.equal(validateDistributedAck({ ...futureProviderAck, attempt: 1 }).ok, false);
+assert.equal(validateDistributedAck({ ...futureProviderAck, provider_family: 'CLAUDE' }).ok, true);
+assert.equal(validateDistributedAck({ ...futureProviderAck, provider_family: 'CHATGPT' }).ok, true);
+assert.equal(validateDistributedAck({ ...futureProviderAck, provider_family: 'OLLAMA' }).ok, true);
+
+const cli = spawnSync(process.execPath, [new URL('../bin/xi.mjs', import.meta.url).pathname, 'baseline', 'census', '--subject', 'account:fixture'], { encoding: 'utf8' });
+assert.equal(cli.status, 0, cli.stderr);
+const envelope = JSON.parse(cli.stdout);
+assert.equal(envelope.schema, 'xiio.sdk.baseline-command-envelope/v1');
+assert.equal(envelope.command.id, 'baseline.census');
+assert.equal(envelope.subject_ref, 'account:fixture');
+assert.equal(envelope.provider_family, 'ANY_QUALIFIED');
+assert.equal(envelope.attempt, 0);
+assert.equal(envelope.authority.provider_effect, false);
+assert.equal(envelope.state, 'COMPILED_NOT_EXECUTED');
+
+console.log(`XIIO_SDK_BASELINE_CLI PASS repos=${baseline.repository_denominator} cells=${baseline.cell_denominator} pass=${baseline.state_counts.PASS} partial=${baseline.state_counts.PARTIAL} blocked=${baseline.state_counts.BLOCKED} ack_packets=${ackSet.ack_denominator} current_returns=${burn.current_returns} commands=${catalog.commands.length} provider_agnostic_ack=PASS`);
