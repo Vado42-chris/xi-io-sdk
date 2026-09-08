@@ -29,7 +29,7 @@ function escapeHtml(value) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/\"/g, '&quot;');
 }
 
 function assertObject(value, label) {
@@ -67,6 +67,11 @@ function normalizeStatus(status, label) {
   assertClosedShape(status, STATUS_KEYS, label);
   assertText(status.label, `${label}.label`);
   if (!STATUS_TONES.has(status.tone)) throw new TypeError(`${label}.tone unsupported`);
+  if (status.tone === 'verified') {
+    const suffix = ' (supplied, unverified)';
+    if (status.label.length + suffix.length > MAX_TEXT) throw new TypeError(`${label}.label exceeds bounded unverified render length`);
+    return { label: `${status.label}${suffix}`, tone: 'unknown' };
+  }
   return { label: status.label, tone: status.tone };
 }
 
