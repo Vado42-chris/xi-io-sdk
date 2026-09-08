@@ -34,6 +34,45 @@ function commandForms(entry) {
   return forms;
 }
 
+function rawDecoratedMatches(requested) {
+  const raw = requested.toLowerCase();
+  if (!/^[#/@]/.test(raw)) return [];
+  return catalog.commands.filter((entry) =>
+    [...(entry.aliases || []), ...(entry.hashtags || [])]
+      .some((value) => text(value).toLowerCase() === raw));
+}
+
+function shapeMatch(entry, matchedBy) {
+  return {
+    id: entry.id,
+    cli: entry.cli,
+    effect: entry.effect,
+    matched_by: matchedBy,
+    aliases: [...(entry.aliases || [])],
+    hashtags: [...(entry.hashtags || [])],
+  };
+}
+
+function resolved(requested, match, matches) {
+  return {
+    schema: 'xiio.sdk.lexicon-resolution/v1',
+    requested,
+    state: 'RESOLVED',
+    command: match,
+    matches,
+    authority_granted: false,
+    provider_effect: false,
+    hard: [
+      'ALIAS != SEMANTIC_OWNER',
+      'LEXICON_RESOLUTION != AUTHORITY',
+      'HASHTAG != EFFECT',
+      'AT_REFERENCE != PRINCIPAL',
+      'SLASH_COMMAND != ATTEMPT',
+      'BBCODE_TOKEN != AUTHORITY',
+    ],
+  };
+}
+
 export function resolveLexiconCommand(input) {
   const requested = text(input);
   if (!requested) {
@@ -47,42 +86,35 @@ export function resolveLexiconCommand(input) {
     };
   }
 
+  // Decorated tokens are explicit grammar. Preserve their exact meaning before
+  // stripping prefixes for human-friendly alias fallback. If multiple commands
+  // intentionally share the same exact tag (for example #baseline), fail closed.
+  const exact = rawDecoratedMatches(requested)
+    .map((entry) => shapeMatch(entry, requested.toLowerCase()))
+    .sort((a, b) => a.id.localeCompare(b.id, 'en'));
+  if (exact.length === 1) return resolved(requested, exact[0], exact);
+  if (exact.length > 1) {
+    return {
+      schema: 'xiio.sdk.lexicon-resolution/v1',
+      requested,
+      state: 'AMBIGUOUS_COMMAND',
+      matches: exact,
+      authority_granted: false,
+      provider_effect: false,
+    };
+  }
+
   const requestedForms = new Set(normalizedForms(requested));
   const matches = [];
   for (const entry of catalog.commands) {
     const forms = commandForms(entry);
     if (![...requestedForms].some((form) => forms.has(form))) continue;
     const matchedBy = [...requestedForms].find((form) => forms.has(form)) ?? requested.toLowerCase();
-    matches.push({
-      id: entry.id,
-      cli: entry.cli,
-      effect: entry.effect,
-      matched_by: matchedBy,
-      aliases: [...(entry.aliases || [])],
-      hashtags: [...(entry.hashtags || [])],
-    });
+    matches.push(shapeMatch(entry, matchedBy));
   }
 
   matches.sort((a, b) => a.id.localeCompare(b.id, 'en'));
-  if (matches.length === 1) {
-    return {
-      schema: 'xiio.sdk.lexicon-resolution/v1',
-      requested,
-      state: 'RESOLVED',
-      command: matches[0],
-      matches,
-      authority_granted: false,
-      provider_effect: false,
-      hard: [
-        'ALIAS != SEMANTIC_OWNER',
-        'LEXICON_RESOLUTION != AUTHORITY',
-        'HASHTAG != EFFECT',
-        'AT_REFERENCE != PRINCIPAL',
-        'SLASH_COMMAND != ATTEMPT',
-        'BBCODE_TOKEN != AUTHORITY',
-      ],
-    };
-  }
+  if (matches.length === 1) return resolved(requested, matches[0], matches);
 
   return {
     schema: 'xiio.sdk.lexicon-resolution/v1',
