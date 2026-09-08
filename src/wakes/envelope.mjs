@@ -12,6 +12,11 @@ const STATES = Object.freeze([
   'BLOCKED',
 ]);
 
+const REPOSITORY_STATES = Object.freeze([
+  'UNBOUND',
+  'N_A_WITH_EVIDENCE',
+]);
+
 const clone = value => JSON.parse(JSON.stringify(value));
 
 export function normalizeWakeEnvelope(input) {
@@ -33,11 +38,21 @@ export function normalizeWakeEnvelope(input) {
     throw new TypeError('target must be an object');
   }
   const targetKeys = Object.keys(input.target);
-  if (targetKeys.some(key => !['product_id', 'repository'].includes(key))) {
+  if (targetKeys.some(key => !['product_id', 'repository', 'repository_state'].includes(key))) {
     throw new TypeError('target contains unsupported keys');
   }
-  if (!NONBLANK(input.target.product_id, 128) || !NONBLANK(input.target.repository, 256)) {
-    throw new TypeError('target product_id and repository are required');
+  if (!NONBLANK(input.target.product_id, 128)) {
+    throw new TypeError('target product_id is required');
+  }
+  const hasRepository = Object.hasOwn(input.target, 'repository');
+  const hasRepositoryState = Object.hasOwn(input.target, 'repository_state');
+  if (hasRepository) {
+    if (!NONBLANK(input.target.repository, 256)) throw new TypeError('target repository must be a bounded nonblank string');
+    if (hasRepositoryState) throw new TypeError('repository_state is only valid when repository is absent');
+  } else {
+    if (!hasRepositoryState || !REPOSITORY_STATES.includes(input.target.repository_state)) {
+      throw new TypeError('repo-less target requires repository_state UNBOUND or N_A_WITH_EVIDENCE');
+    }
   }
   if (!STATES.includes(input.state)) throw new TypeError('state unsupported');
   if (input.effect_ceiling !== 'NO_EFFECT') throw new TypeError('public wake envelope effect ceiling must be NO_EFFECT');
