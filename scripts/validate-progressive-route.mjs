@@ -30,6 +30,15 @@ const fixture = {
 const normalized = normalizeProgressiveRouteCard(fixture);
 assert.equal(normalized.detailsOpen, false);
 assert.equal(normalized.status.tone, 'warning');
+
+// Caller-supplied positive status must never mint a verified presentation state.
+const forgedVerified = normalizeProgressiveRouteCard({ ...fixture, status: { label: 'CURRENT', tone: 'verified' } });
+assert.equal(forgedVerified.status.label, 'CURRENT');
+assert.equal(forgedVerified.status.tone, 'unknown');
+const forgedHtml = renderProgressiveRouteCard({ ...fixture, status: { label: 'CURRENT', tone: 'verified' } });
+assert(forgedHtml.includes('data-xiio-route-status-qualification="supplied-unverified"'));
+assert(!forgedHtml.includes('xiui-status-badge--verified'));
+
 const html = renderProgressiveRouteCard({ ...fixture, work: '<script>alert(1)</script>' });
 assert(html.includes('data-xiui="panel"'));
 assert(html.includes('data-xiui="next-action-strip"'));
@@ -54,4 +63,4 @@ assert.throws(() => normalizeProgressiveRouteCard({ ...fixture, proof: '' }), /p
 assert.throws(() => normalizeProgressiveRouteCard({ ...fixture, extra: 'nope' }), /unsupported keys/);
 assert.throws(() => normalizeProgressiveRouteCard({ ...fixture, detailsOpen: 'yes' }), /detailsOpen must be boolean/);
 
-console.log(`XIIO_SDK_PROGRESSIVE_ROUTE PASS primitive=progressive-disclosure pattern=progressive-route-card hooks=${PROGRESSIVE_ROUTE_FIELDS.length} owner_authority=0`);
+console.log(`XIIO_SDK_PROGRESSIVE_ROUTE PASS primitive=progressive-disclosure pattern=progressive-route-card hooks=${PROGRESSIVE_ROUTE_FIELDS.length} caller_verified_blocked=1 owner_authority=0`);
