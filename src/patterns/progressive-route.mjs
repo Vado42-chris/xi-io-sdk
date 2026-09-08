@@ -18,7 +18,9 @@ function text(value, label) {
 
 function routeField(name, html) {
   if (!PROGRESSIVE_ROUTE_FIELDS.includes(name)) throw new TypeError(`unsupported route field hook: ${name}`);
-  return `<div data-xiio-route-field="${name}">${html}</div>`;
+  // Keep receipt rows as siblings so their first/last-child styling survives
+  // stable adopter hooks. The markup comes only from Core.renderReceiptRow.
+  return html.replace('<div data-xiui="receipt-row"', `<div data-xiui="receipt-row" data-xiio-route-field="${name}"`);
 }
 
 export function normalizeProgressiveRouteCard(model = {}) {

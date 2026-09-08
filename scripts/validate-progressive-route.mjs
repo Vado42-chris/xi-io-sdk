@@ -41,7 +41,10 @@ assert(html.includes('Why this route / proof / return'));
 assert(html.includes('SIMULATED'));
 for (const field of PROGRESSIVE_ROUTE_FIELDS) {
   assert(html.includes(`data-xiio-route-field="${field}"`), `missing stable adopter hook ${field}`);
+  assert.equal(html.split(`data-xiio-route-field="${field}"`).length - 1, 1, `duplicate stable adopter hook ${field}`);
+  assert(html.includes(`data-xiui="receipt-row" data-xiio-route-field="${field}"`), `hook ${field} must stay on the receipt row, preserving sibling CSS selectors`);
 }
+assert(!html.includes('<div data-xiio-route-field='), 'route hooks must not insert wrappers between receipt-row siblings');
 assert.equal(new Set(PROGRESSIVE_ROUTE_FIELDS).size, PROGRESSIVE_ROUTE_FIELDS.length, 'route hook names must be unique');
 assert(html.includes('data-xiio-route-status'), 'status hook missing');
 for (const forbidden of ['data-xiio-route-authority', 'data-xiio-route-currentness', 'data-xiio-route-effect']) {
