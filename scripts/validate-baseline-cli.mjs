@@ -55,7 +55,12 @@ assert.throws(() => compilePortfolioBaseline(duplicate), /duplicate repo_ref/);
 
 const catalog = commandCatalog();
 assert.equal(catalog.schema, 'xiio.sdk.command-lexicon/v1');
-assert.equal(catalog.commands.length, 15);
+const commandIds = new Set(catalog.commands.map((entry) => entry.id));
+for (const requiredId of [
+  'baseline.compile','baseline.census','baseline.classify','baseline.hydrate','baseline.qualify',
+  'baseline.main','baseline.destew','baseline.sdk','baseline.score','baseline.burn',
+  'baseline.return','baseline.ratchet','ack.distribute','ack.validate','burnmap.compile','lesson.promote',
+]) assert(commandIds.has(requiredId), `missing command ${requiredId}`);
 assert.equal(Object.keys(BASELINE_COMMANDS).length, 12);
 assert.equal(normalizeBaselineCommand('100s').verb, 'score');
 assert.equal(normalizeBaselineCommand('inventory').verb, 'census');
