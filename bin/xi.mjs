@@ -2,13 +2,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
+import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
+import { compileFourScaleScorecard } from '../src/scorecards/four-scale.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateDistributedAck } from '../src/acks/distributed.mjs';
 import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 import { runCli } from '../src/cli/public-exports.mjs';
 
 function usage(code = 0) {
-  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi ack distribute --baseline <baseline.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n  xi lesson promote --input <lesson.json> [--out <promotion.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nPublic SDK calculations:\n  xi sdk commands\n  xi sdk call <export>  # JSON stdin: {"args":[...]}\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
+  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi product compile --input <products.json> [--out <product-baseline.json>]\n  xi 100s compile --input <four-scale.json> [--out <scorecard.json>]\n  xi ack distribute --baseline <baseline.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n  xi lesson promote --input <lesson.json> [--out <promotion.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nPublic SDK calculations:\n  xi sdk commands\n  xi sdk call <export>  # JSON stdin: {"args":[...]}\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
   (code ? process.stderr : process.stdout).write(text);
   process.exit(code);
 }
@@ -75,6 +77,10 @@ try {
 
   if (family === 'baseline' && action === 'compile') {
     writeOutput(compilePortfolioBaseline(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'product' && action === 'compile') {
+    writeOutput(compileProductCapabilityBaseline(readJson(flags.input, '--input')), flags.out);
+  } else if (family === '100s' && action === 'compile') {
+    writeOutput(compileFourScaleScorecard(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'baseline') {
     const command = normalizeBaselineCommand(action);
     if (!command.verb || command.verb === 'compile') usage(1);
