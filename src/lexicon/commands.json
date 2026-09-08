@@ -1,0 +1,35 @@
+{
+  "schema": "xiio.sdk.command-lexicon/v1",
+  "namespace": "xi",
+  "commands": [
+    {
+      "id": "baseline.compile",
+      "cli": "xi baseline compile",
+      "hashtags": ["#baseline", "#classify", "#tally-100s"],
+      "purpose": "Compile a provider-neutral repository portfolio snapshot into comparable baseline punch cards.",
+      "effect": "PROJECTION_ONLY"
+    },
+    {
+      "id": "ack.distribute",
+      "cli": "xi ack distribute",
+      "hashtags": ["#ack", "#handoff", "#hydrate"],
+      "purpose": "Compile one bounded distributed ACK packet per repository from a baseline without performing provider delivery.",
+      "effect": "PROJECTION_ONLY"
+    },
+    {
+      "id": "burnmap.compile",
+      "cli": "xi burnmap compile",
+      "hashtags": ["#burnmap", "#bug-wrangle", "#tally-100s"],
+      "purpose": "Compile an organization burn-map projection from baseline punch cards and current return receipts.",
+      "effect": "PROJECTION_ONLY"
+    }
+  ],
+  "hard": [
+    "CLI_COMMAND != AUTHORITY",
+    "ACK_PACKET != DELIVERY",
+    "DISTRIBUTED_ACK != PROVIDER_ASSIGNMENT",
+    "BASELINE_ACCOUNTING != CLOSURE_100",
+    "BURNMAP != WORK_AUTHORITY",
+    "EXTERNAL_AI_PROVIDER != CANONICAL_STATE_OWNER"
+  ]
+}
