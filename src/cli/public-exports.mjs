@@ -5,6 +5,7 @@ import * as Providers from '../providers/state.mjs';
 import * as Wakes from '../wakes/envelope.mjs';
 import * as Ibal from '../ibal/canary.mjs';
 import * as Cadence from '../cadence/continuation.mjs';
+import * as Lexicon from '../lexicon/resolve-token.mjs';
 import * as Adoption from '../adoption/primitive-plan.mjs';
 import * as Callables from '../callables/resolve.mjs';
 
@@ -14,6 +15,7 @@ const modules = [
   ['@xi-io/sdk/wakes', Wakes],
   ['@xi-io/sdk/ibal', Ibal],
   ['@xi-io/sdk/cadence', Cadence],
+  ['@xi-io/sdk/command-lexicon/resolve', Lexicon],
   ['@xi-io/sdk/adoption', Adoption],
   ['@xi-io/sdk/callables', Callables],
 ];
@@ -23,6 +25,7 @@ const arity = {
   evaluateWakeProgress: [1, 2],
   compileIbalCanary: [1, 1],
   compileContinuationCycle: [1, 1],
+  resolveLexiconCommand: [1, 1],
   derivePrimitiveAdoptionPlan: [1, 1],
   deriveAffectedPrimitiveConsumers: [1, 1],
   resolveCallable: [2, 2],
@@ -46,7 +49,7 @@ export function commandLexicon() {
     command_id: 'sdk.call',
     version: manifest.version,
     vocabulary: 'EXACT_PUBLIC_EXPORT_NAMES',
-    semantic_aliases: 'UNBOUND',
+    semantic_aliases: 'RESOLVABLE_THROUGH_COMMAND_LEXICON',
     provider_effect: false,
     authority_granted: false,
     commands: [...commands].sort(([a], [b]) => a.localeCompare(b, 'en')).map(([name, entry]) => ({
@@ -58,8 +61,6 @@ export function commandLexicon() {
   };
 }
 
-// Inputs are public-safe projections. Never echo arbitrary exception messages,
-// provider credentials, HTTP authorization headers, or unknown payload fields.
 function checkInputTree(value) {
   const stack = [[value, 0]];
   let visited = 0;
@@ -68,9 +69,7 @@ function checkInputTree(value) {
     if (++visited > 20_000 || depth > 32) throw new Error('INPUT_BOUNDS');
     if (!item || typeof item !== 'object') continue;
     for (const [key, child] of Object.entries(item)) {
-      if (/authorization|api[-_]?key|password|secret|token|cookie/i.test(key) || ['__proto__', 'constructor', 'prototype'].includes(key)) {
-        throw new Error('SENSITIVE_INPUT');
-      }
+      if (/authorization|api[-_]?key|password|secret|token|cookie/i.test(key) || ['__proto__', 'constructor', 'prototype'].includes(key)) throw new Error('SENSITIVE_INPUT');
       stack.push([child, depth + 1]);
     }
   }
@@ -86,8 +85,7 @@ async function readInput(stream) {
     chunks.push(buffer);
   }
   const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  if (!input || typeof input !== 'object' || Array.isArray(input) ||
-      Object.keys(input).length !== 1 || !Array.isArray(input.args)) throw new Error('INVALID_INPUT');
+  if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length !== 1 || !Array.isArray(input.args)) throw new Error('INVALID_INPUT');
   checkInputTree(input);
   return input.args;
 }
@@ -108,18 +106,8 @@ export async function runCli(argv, { stdin = process.stdin, stdout = process.std
     const args = await readInput(stdin);
     if (args.length < binding.arity[0] || args.length > binding.arity[1]) throw new Error('INVALID_INPUT');
     const result = binding.callable(...args);
-    // Apply the same public-safe bounds to output before anything is emitted.
     checkInputTree(result);
-    emit({
-      schema: 'xiio.sdk.command-result/v1',
-      status: 'COMPUTED',
-      command,
-      callable: `${binding.specifier}#${command}`,
-      lexicon: { namespace: commandCatalog().namespace, command_id: 'sdk.call', version: manifest.version },
-      provider_effect: false,
-      authority_granted: false,
-      result,
-    });
+    emit({ schema: 'xiio.sdk.command-result/v1', status: 'COMPUTED', command, callable: `${binding.specifier}#${command}`, lexicon: { namespace: commandCatalog().namespace, command_id: 'sdk.call', version: manifest.version }, provider_effect: false, authority_granted: false, result });
     return 0;
   } catch {
     emit({ schema: 'xiio.sdk.command-result/v1', status: 'REJECTED', reason: 'INVALID_INPUT', provider_effect: false });
