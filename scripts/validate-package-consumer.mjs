@@ -30,20 +30,42 @@ try {
 
   writeFileSync(path.join(consumer, 'consumer.mjs'), `
 import assert from 'node:assert/strict';
-import { renderProgressiveDisclosure } from '@xi-io/sdk/progressive-disclosure';
-import { renderProgressiveRouteCard } from '@xi-io/sdk/patterns/progressive-route';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import catalog from '@xi-io/sdk/catalog' with { type: 'json' };
+import { resolveCallable } from '@xi-io/sdk/callables';
+import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 
-const disclosure = renderProgressiveDisclosure({ summary: 'More', bodyHtml: '<p>detail</p>' });
-assert(disclosure.includes('data-xiui="progressive-disclosure"'));
+const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
+assert(routeRecord, 'catalog route primitive missing');
+const resolved = resolveCallable(catalog, routeRecord.callable_uuid);
+assert.equal(resolved.id, 'progressive-route-card');
+assert.equal(resolved.specifier, '@xi-io/sdk/patterns/progressive-route');
 
-const html = renderProgressiveRouteCard({
+const moduleFromCatalog = await import(resolved.specifier);
+assert.equal(typeof moduleFromCatalog[resolved.export], 'function');
+for (const styleSpecifier of resolved.styles) {
+  const styleUrl = import.meta.resolve(styleSpecifier);
+  assert(existsSync(fileURLToPath(styleUrl)), 'catalog style dependency must resolve from packed package');
+}
+
+const plan = derivePrimitiveAdoptionPlan({
+  catalog,
+  requiredPrimitiveIds: ['panel', 'progressive-route-card'],
+  observedPrimitiveIds: ['panel'],
+});
+assert.equal(plan.state, 'MISSING_REQUIRED');
+assert.deepEqual(plan.missing.map((item) => item.id), ['progressive-route-card']);
+const missing = plan.missing[0];
+const missingModule = await import(missing.specifier);
+const html = missingModule[missing.export]({
   root: 'CONSUMER-CANARY-001',
   work: 'Consume SDK package',
   role: 'clean external app',
   generation: 'packed candidate',
-  affectedReason: 'Prove public exports work without repository-relative imports.',
+  affectedReason: 'Controlled omission must be rediscovered through public catalog data.',
   next: 'Return package-consumer proof.',
-  proof: 'package install + public import + render',
+  proof: 'package install + UUID resolve + public specifier import + style resolution + omission recovery',
   returnTo: 'SDK PR qualification',
   wake: 'SDK candidate generation changes',
   status: { label: 'CANDIDATE', tone: 'warning' },
@@ -65,7 +87,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package public_imports=2 repo_relative_imports=0');
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
