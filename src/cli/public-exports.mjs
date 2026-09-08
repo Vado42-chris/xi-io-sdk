@@ -4,6 +4,7 @@ import manifest from '../../package.json' with { type: 'json' };
 import * as Providers from '../providers/state.mjs';
 import * as Wakes from '../wakes/envelope.mjs';
 import * as Ibal from '../ibal/canary.mjs';
+import * as ImpactFormation from '../ibal/impact-formation.mjs';
 import * as Cadence from '../cadence/continuation.mjs';
 import * as Lexicon from '../lexicon/resolve-token.mjs';
 import * as Adoption from '../adoption/primitive-plan.mjs';
@@ -14,6 +15,7 @@ const modules = [
   ['@xi-io/sdk/providers', Providers],
   ['@xi-io/sdk/wakes', Wakes],
   ['@xi-io/sdk/ibal', Ibal],
+  ['@xi-io/sdk/ibal/impact-formation', ImpactFormation],
   ['@xi-io/sdk/cadence', Cadence],
   ['@xi-io/sdk/command-lexicon/resolve', Lexicon],
   ['@xi-io/sdk/adoption', Adoption],
@@ -24,6 +26,7 @@ const arity = {
   normalizeWakeEnvelope: [1, 1],
   evaluateWakeProgress: [1, 2],
   compileIbalCanary: [1, 1],
+  compileImpactFormation: [1, 1],
   compileContinuationCycle: [1, 1],
   resolveLexiconCommand: [1, 1],
   derivePrimitiveAdoptionPlan: [1, 1],
