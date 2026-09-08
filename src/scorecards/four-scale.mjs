@@ -14,17 +14,19 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 function digest(value) { return `sha256:${crypto.createHash('sha256').update(canonical(value)).digest('hex')}`; }
-function required(value, field) { if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${field} required`); return value.trim(); }
+function required(value, field) { if (typeof value !== 'string' || !value.trim() || value.length > 512) throw new TypeError(`${field} requires bounded text`); return value.trim(); }
+function optionalText(value) { return typeof value === 'string' && value.trim() && value.length <= 512 ? value.trim() : null; }
 function normalize(value = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { state:'UNKNOWN', declared_state:'UNKNOWN', verified:false, proof_ref:null, blocker:'OBSERVATION_NOT_SUPPLIED' };
   const declared = STATES.has(value?.state) ? value.state : 'UNKNOWN';
-  const proof_ref = typeof value?.proof_ref === 'string' && value.proof_ref.trim() ? value.proof_ref.trim() : null;
+  const proof_ref = optionalText(value.proof_ref);
   if (POSITIVE.has(declared) && !proof_ref) return { state:'UNKNOWN', declared_state:'UNKNOWN', verified:false, proof_ref:null, blocker:'POSITIVE_STATE_WITHOUT_PROOF' };
   return {
     state:POSITIVE.has(declared)?'SUPPLIED_UNVERIFIED':declared,
     declared_state:declared,
     verified:false,
     proof_ref,
-    blocker:value?.blocker || null,
+    blocker:optionalText(value.blocker),
   };
 }
 
@@ -57,6 +59,9 @@ export function compileFourScaleScorecard(input) {
     evidence_state:'SUPPLIED_UNVERIFIED',
     authority_granted:false,
     provider_effect:false,
+    subject_binding_state:/^(UNKNOWN|UNBOUND|PENDING)$/i.test(input.subject_generation.trim()) ? 'UNBOUND' : 'SUPPLIED_UNVERIFIED',
+    source_currentness:'UNVERIFIED',
+    live_claim:false,
     layers,
     compound_display:layers.map(l=>`${l.layer}:${l.display}`).join(' | '),
     supplied_compound_display:layers.map(l=>`${l.layer}:${l.supplied_display}`).join(' | '),
