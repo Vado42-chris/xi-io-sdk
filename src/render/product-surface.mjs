@@ -9,7 +9,8 @@ const FORBIDDEN_KEYS = new Set([
   'host', 'hostname', 'token', 'secret', 'api_key', 'password', 'physical_path', 'raw_html',
   'body_html', 'icon_html', 'framework_ref', 'issue_ref', 'work_ref', 'assignment_ref'
 ]);
-const TOP_KEYS = new Set(['schema', 'surface_id', 'title', 'subtitle', 'environment', 'statuses', 'sections', 'actions', 'notice']);
+const TOP_KEYS = new Set(['schema', 'surface_id', 'title', 'subtitle', 'environment', 'host_observation', 'statuses', 'sections', 'actions', 'notice']);
+const OBSERVATION_KEYS = new Set(['id', 'generation', 'digest', 'observed_at']);
 const SECTION_KEYS = new Set(['id', 'title', 'summary', 'fields', 'rows']);
 const FIELD_KEYS = new Set(['id', 'label', 'type', 'value', 'hint', 'min', 'max', 'step', 'required', 'disabled', 'options']);
 const ACTION_KEYS = new Set(['id', 'label', 'disabled', 'kind']);
@@ -21,6 +22,7 @@ const MAX_FIELDS_PER_SECTION = 50;
 const MAX_ROWS_PER_SECTION = 100;
 const MAX_ACTIONS = 20;
 const MAX_TEXT = 2000;
+const activeBindings = new WeakMap();
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -68,6 +70,18 @@ function normalizeStatus(status, label) {
   return { label: status.label, tone: status.tone };
 }
 
+function normalizeHostObservation(value) {
+  if (value === undefined) return undefined;
+  assertClosedShape(value, OBSERVATION_KEYS, 'host_observation');
+  for (const key of ['id', 'generation']) {
+    assertId(value[key], `host_observation.${key}`);
+    if (value[key].length > 128) throw new TypeError(`host_observation.${key} exceeds 128 characters`);
+  }
+  if (typeof value.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(value.digest)) throw new TypeError('host_observation.digest must be a SHA-256 digest');
+  if (typeof value.observed_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.observed_at) || !Number.isFinite(Date.parse(value.observed_at)) || new Date(value.observed_at).toISOString() !== value.observed_at) throw new TypeError('host_observation.observed_at must be a canonical UTC timestamp');
+  return { id: value.id, generation: value.generation, digest: value.digest, observed_at: value.observed_at };
+}
+
 function normalizeOptions(options, label) {
   if (!Array.isArray(options) || !options.length) throw new TypeError(`${label} must be a non-empty array`);
   return options.map((option, index) => {
@@ -92,6 +106,8 @@ function normalizeField(field, label) {
       if (field[key] !== undefined && (typeof field[key] !== 'number' || !Number.isFinite(field[key]))) throw new TypeError(`${label}.${key} must be a finite number`);
     }
     if (field.value !== undefined && (typeof field.value !== 'number' || !Number.isFinite(field.value))) throw new TypeError(`${label}.value must be a finite number`);
+    if (field.min !== undefined && field.max !== undefined && field.min > field.max) throw new TypeError(`${label}.min must not exceed max`);
+    if (field.step !== undefined && field.step <= 0) throw new TypeError(`${label}.step must be positive`);
   } else if (field.type === 'checkbox') {
     if (field.value !== undefined && typeof field.value !== 'boolean') throw new TypeError(`${label}.value must be boolean`);
   } else if (field.type === 'select') {
@@ -158,6 +174,8 @@ export function normalizeProductSurface(model) {
     sections: model.sections.map(normalizeSection),
     actions: model.actions.map(normalizeAction),
   };
+  const observation = normalizeHostObservation(model.host_observation);
+  if (observation) normalized.host_observation = observation;
   const ids = [
     ...normalized.sections.map((section) => `section:${section.id}`),
     ...normalized.sections.flatMap((section) => section.fields.map((field) => `field:${field.id}`)),
@@ -202,9 +220,9 @@ export function renderProductSurface(model) {
   const statuses = surface.statuses.map((status) => Core.renderStatusBadge(status)).join('');
   const actions = surface.actions.map((action) => Core.renderActionButton({
     label: action.label,
-    disabled: action.disabled,
+    disabled: true,
     className: action.kind === 'primary' ? 'xiio-surface-action-primary' : '',
-    data: { 'xiio-action': action.id },
+    data: { 'xiio-action': action.id, 'xiio-action-disabled': String(action.disabled), 'xiio-action-pending': 'true' },
   })).join('');
   const header = Shell.renderRouteHeader({
     title: surface.title,
@@ -212,22 +230,31 @@ export function renderProductSurface(model) {
     actionHtml: statuses ? `<div data-xiio-surface-statuses>${statuses}</div>` : '',
   });
   const environment = Core.renderReceiptRow({
-    label: 'Environment',
+    label: 'Declared environment',
     value: surface.environment,
     statusHtml: Core.renderStatusBadge({
-      label: surface.environment,
-      tone: surface.environment === 'TEST' ? 'warning' : surface.environment === 'LIVE' ? 'critical' : surface.environment === 'DEV' ? 'verified' : 'unknown',
+      label: 'Unverified',
+      tone: 'unknown',
     }),
   });
+  // Host metadata is a public projection input, not authenticated currentness.
+  const observation = surface.host_observation ? renderProgressiveObservation(surface.host_observation) : '';
   const notice = surface.notice ? Core.renderNextActionStrip({ bodyHtml: `<span>${escapeHtml(surface.notice)}</span>` }) : '';
-  const body = `${header}${environment}${notice}<div data-xiio-surface-sections>${surface.sections.map(renderSection).join('')}</div>${actions ? `<footer data-xiio-surface-actions>${actions}</footer>` : ''}<section data-xiio-surface-result aria-live="polite"></section>`;
+  const body = `${header}${environment}${observation}${notice}<div data-xiio-surface-sections>${surface.sections.map(renderSection).join('')}</div>${actions ? `<footer data-xiio-surface-actions>${actions}</footer>` : ''}<section data-xiio-surface-result aria-live="polite"></section>`;
   return Core.renderPageShell({ className: 'xiio-product-surface', bodyHtml: body });
+}
+
+function renderProgressiveObservation(observation) {
+  return `<details data-xiio-host-observation data-evidence-state="SUPPLIED_UNVERIFIED"><summary>Host observation (unverified)</summary>${[
+    ['Observation', observation.id], ['Generation', observation.generation], ['Digest', observation.digest], ['Observed at', observation.observed_at],
+  ].map(([label, value]) => Core.renderReceiptRow({ label, value })).join('')}</details>`;
 }
 
 export function collectProductSurfaceValues(root) {
   if (!root || typeof root.querySelectorAll !== 'function') throw new TypeError('root must support querySelectorAll');
   const values = {};
   for (const field of root.querySelectorAll('[data-xiio-field]')) {
+    if (field.disabled) continue;
     const id = field.getAttribute('data-xiio-field');
     if (!id) continue;
     if (field.type === 'checkbox') values[id] = Boolean(field.checked);
@@ -237,18 +264,74 @@ export function collectProductSurfaceValues(root) {
   return values;
 }
 
+export function validateProductSurfaceValues(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') throw new TypeError('root must support querySelectorAll');
+  const invalidFieldIds = [];
+  for (const field of root.querySelectorAll('[data-xiio-field]')) {
+    if (field.disabled) continue;
+    const id = field.getAttribute('data-xiio-field');
+    let valid = Boolean(id) && typeof field.checkValidity === 'function' && field.checkValidity();
+    const value = field.value;
+    if (field.required && (field.type === 'checkbox' ? !field.checked : value === '')) valid = false;
+    if (field.type === 'number' && value !== '') {
+      const number = Number(value);
+      if (!Number.isFinite(number)) valid = false;
+      for (const [key, outside] of [['min', n => number < n], ['max', n => number > n]]) {
+        const bound = field.getAttribute(key);
+        if (bound !== null && (!Number.isFinite(Number(bound)) || outside(Number(bound)))) valid = false;
+      }
+    }
+    if (!valid) invalidFieldIds.push(id || 'unknown');
+  }
+  return { valid: invalidFieldIds.length === 0, invalidFieldIds };
+}
+
 export function bindProductSurface(root, { onAction = null } = {}) {
   if (!root || typeof root.querySelectorAll !== 'function') throw new TypeError('root must support querySelectorAll');
+  if (onAction !== null && typeof onAction !== 'function') throw new TypeError('onAction must be a function or null');
+  activeBindings.get(root)?.();
   const cleanups = [];
+  let active = true;
   for (const button of root.querySelectorAll('[data-xiio-action]')) {
+    const pending = button.getAttribute('data-xiio-action-pending') === 'true';
+    const hostDisabled = button.getAttribute('data-xiio-action-disabled') === 'true' || (button.disabled && !pending);
+    const bindingDisabled = hostDisabled || !onAction;
+    button.disabled = bindingDisabled;
+    button.setAttribute('aria-disabled', String(button.disabled));
+    button.setAttribute('data-xiio-action-pending', String(!onAction));
     const handler = async () => {
-      if (button.disabled) return;
+      if (!active || button.disabled || !onAction) return;
+      const validation = validateProductSurfaceValues(root);
+      if (!validation.valid) {
+        for (const field of root.querySelectorAll('[data-xiio-field]')) {
+          if (validation.invalidFieldIds.includes(field.getAttribute('data-xiio-field'))) field.reportValidity?.();
+        }
+        const result = root.querySelector?.('[data-xiio-surface-result]');
+        if (result) result.textContent = 'Correct the invalid fields before continuing.';
+        return;
+      }
+      const result = root.querySelector?.('[data-xiio-surface-result]');
+      if (result?.textContent === 'Correct the invalid fields before continuing.') result.textContent = '';
       const actionId = button.getAttribute('data-xiio-action');
       const values = collectProductSurfaceValues(root);
-      await onAction?.({ actionId, values, button, root });
+      await onAction({ actionId, values, button, root });
     };
     button.addEventListener('click', handler);
-    cleanups.push(() => button.removeEventListener('click', handler));
+    cleanups.push(() => {
+      button.removeEventListener('click', handler);
+      const hostDisabledNow = hostDisabled || (!bindingDisabled && button.disabled);
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.setAttribute('data-xiio-action-disabled', String(hostDisabledNow));
+      button.setAttribute('data-xiio-action-pending', String(!hostDisabledNow));
+    });
   }
-  return () => cleanups.splice(0).forEach((cleanup) => cleanup());
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    cleanups.splice(0).forEach((dispose) => dispose());
+    if (activeBindings.get(root) === cleanup) activeBindings.delete(root);
+  };
+  activeBindings.set(root, cleanup);
+  return cleanup;
 }

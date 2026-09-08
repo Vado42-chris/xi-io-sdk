@@ -1,5 +1,25 @@
 # xi-io SDK
 
+## Public product surface observations and actions
+
+`@xi-io/sdk/render` preserves the host's environment declaration and labels it
+unverified. An optional `host_observation` carries only a public opaque `id`,
+`generation`, `sha256:`-prefixed digest, and canonical UTC `observed_at` timestamp
+(for example `2026-09-08T13:00:00.000Z`). IDs and generations are bounded to 128
+characters and use the existing alphanumeric/dot/underscore/colon/hyphen ID
+grammar. The observation renders as `SUPPLIED_UNVERIFIED`; the SDK does not
+authenticate it, establish currentness, or grant qualification or authority.
+Private evidence, work, provider, credential and endpoint fields remain forbidden.
+
+Rendered actions start disabled. `bindProductSurface(root, { onAction })` enables
+only actions the host allowed once a real callback is present. Model-disabled or
+host-disabled controls stay disabled; rebinding replaces listeners; cleanup
+removes listeners and disables actions. Before calling the host, the binder checks
+native field validity and numeric/required constraints, excludes disabled fields,
+and reports invalid input in the existing accessible result area. This is generic
+UI validation and callback binding, not ACK or effect admission. Domain validation
+and runtime authority remain the host's responsibility.
+
 Public component and primitive source for xi-io.
 
 This repository owns the public reusable component implementations, primitive contracts, callable UUID anchors, and playground surface.

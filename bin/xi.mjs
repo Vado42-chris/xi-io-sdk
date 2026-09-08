@@ -64,6 +64,8 @@ function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []
   };
 }
 
+if (process.argv.length === 3 && ['--help', '-h'].includes(process.argv[2])) usage(0);
+
 if (process.argv[2] === 'sdk') {
   const argv = process.argv.slice(3);
   const call = argv.length === 1 && argv[0] === 'commands' ? ['--commands']
