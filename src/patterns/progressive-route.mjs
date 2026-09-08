@@ -6,10 +6,19 @@ const ALLOWED = new Set([...REQUIRED, 'status', 'detailsOpen']);
 const TONES = new Set(['critical', 'warning', 'verified', 'unknown']);
 const MAX_TEXT = 1200;
 
+export const PROGRESSIVE_ROUTE_FIELDS = Object.freeze([
+  'root', 'work', 'role', 'generation', 'next', 'affected-reason', 'proof', 'return', 'wake',
+]);
+
 function text(value, label) {
   if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${label} must be a non-empty string`);
   if (value.length > MAX_TEXT) throw new TypeError(`${label} exceeds ${MAX_TEXT} characters`);
   return value.trim();
+}
+
+function routeField(name, html) {
+  if (!PROGRESSIVE_ROUTE_FIELDS.includes(name)) throw new TypeError(`unsupported route field hook: ${name}`);
+  return `<div data-xiio-route-field="${name}">${html}</div>`;
 }
 
 export function normalizeProgressiveRouteCard(model = {}) {
@@ -31,26 +40,26 @@ export function normalizeProgressiveRouteCard(model = {}) {
 
 export function renderProgressiveRouteCard(model) {
   const route = normalizeProgressiveRouteCard(model);
-  const status = Core.renderStatusBadge(route.status);
+  const status = `<span data-xiio-route-status>${Core.renderStatusBadge(route.status)}</span>`;
   const primary = Core.renderStack({ bodyHtml: [
-    Core.renderReceiptRow({ label: 'Root', value: route.root }),
-    Core.renderReceiptRow({ label: 'Work', value: route.work, statusHtml: status }),
-    Core.renderReceiptRow({ label: 'Role', value: route.role }),
-    Core.renderReceiptRow({ label: 'Generation', value: route.generation }),
+    routeField('root', Core.renderReceiptRow({ label: 'Root', value: route.root })),
+    routeField('work', Core.renderReceiptRow({ label: 'Work', value: route.work, statusHtml: status })),
+    routeField('role', Core.renderReceiptRow({ label: 'Role', value: route.role })),
+    routeField('generation', Core.renderReceiptRow({ label: 'Generation', value: route.generation })),
   ].join('') });
   const next = Core.renderNextActionStrip({
     label: 'Next action',
-    bodyHtml: Core.renderReceiptRow({ label: 'Next', value: route.next }),
+    bodyHtml: routeField('next', Core.renderReceiptRow({ label: 'Next', value: route.next })),
   });
   const details = renderProgressiveDisclosure({
     summary: 'Why this route / proof / return',
     label: 'Route details',
     open: route.detailsOpen,
     bodyHtml: Core.renderStack({ bodyHtml: [
-      Core.renderReceiptRow({ label: 'Affected reason', value: route.affectedReason }),
-      Core.renderReceiptRow({ label: 'Proof', value: route.proof }),
-      Core.renderReceiptRow({ label: 'Return', value: route.returnTo }),
-      Core.renderReceiptRow({ label: 'Wake', value: route.wake }),
+      routeField('affected-reason', Core.renderReceiptRow({ label: 'Affected reason', value: route.affectedReason })),
+      routeField('proof', Core.renderReceiptRow({ label: 'Proof', value: route.proof })),
+      routeField('return', Core.renderReceiptRow({ label: 'Return', value: route.returnTo })),
+      routeField('wake', Core.renderReceiptRow({ label: 'Wake', value: route.wake })),
     ].join('') }),
   });
   return Core.renderPanel({

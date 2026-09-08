@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { renderProgressiveDisclosure } from '../src/components/progressive-disclosure.mjs';
-import { normalizeProgressiveRouteCard, renderProgressiveRouteCard } from '../src/patterns/progressive-route.mjs';
+import { PROGRESSIVE_ROUTE_FIELDS, normalizeProgressiveRouteCard, renderProgressiveRouteCard } from '../src/patterns/progressive-route.mjs';
 
 const collapsed = renderProgressiveDisclosure({
   summary: '<More>',
@@ -39,8 +39,16 @@ assert(!html.includes('<script>alert(1)</script>'));
 assert(html.includes('Safe Resource Recovery') === false);
 assert(html.includes('Why this route / proof / return'));
 assert(html.includes('SIMULATED'));
+for (const field of PROGRESSIVE_ROUTE_FIELDS) {
+  assert(html.includes(`data-xiio-route-field="${field}"`), `missing stable adopter hook ${field}`);
+}
+assert.equal(new Set(PROGRESSIVE_ROUTE_FIELDS).size, PROGRESSIVE_ROUTE_FIELDS.length, 'route hook names must be unique');
+assert(html.includes('data-xiio-route-status'), 'status hook missing');
+for (const forbidden of ['data-xiio-route-authority', 'data-xiio-route-currentness', 'data-xiio-route-effect']) {
+  assert(!html.includes(forbidden), `${forbidden} must not be minted by presentation hooks`);
+}
 assert.throws(() => normalizeProgressiveRouteCard({ ...fixture, proof: '' }), /proof must be a non-empty string/);
 assert.throws(() => normalizeProgressiveRouteCard({ ...fixture, extra: 'nope' }), /unsupported keys/);
 assert.throws(() => normalizeProgressiveRouteCard({ ...fixture, detailsOpen: 'yes' }), /detailsOpen must be boolean/);
 
-console.log('XIIO_SDK_PROGRESSIVE_ROUTE PASS primitive=progressive-disclosure pattern=progressive-route-card owner_authority=0');
+console.log(`XIIO_SDK_PROGRESSIVE_ROUTE PASS primitive=progressive-disclosure pattern=progressive-route-card hooks=${PROGRESSIVE_ROUTE_FIELDS.length} owner_authority=0`);
