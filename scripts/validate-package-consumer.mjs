@@ -13,16 +13,12 @@ mkdirSync(consumer, { recursive: true });
 
 try {
   const packed = execFileSync('npm', ['pack', '--silent', '--pack-destination', tmp], {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   }).trim().split(/\r?\n/).filter(Boolean).at(-1);
   assert(packed, 'npm pack did not return a tarball');
 
   writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({
-    name: 'xiio-sdk-clean-consumer-canary',
-    private: true,
-    type: 'module',
+    name: 'xiio-sdk-clean-consumer-canary', private: true, type: 'module',
     dependencies: { '@xi-io/sdk': `file:../${packed}` },
   }, null, 2));
 
@@ -33,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import catalog from '@xi-io/sdk/catalog' with { type: 'json' };
 import { resolveCallable } from '@xi-io/sdk/callables';
 import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
+import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
 
@@ -60,6 +57,20 @@ assert(html.includes('Consume SDK package'));
 assert(html.includes('data-xiui="progressive-disclosure"'));
 assert(html.includes('data-xiui="next-action-strip"'));
 
+const impact = compileImpactFormation({
+  schema: 'xiio.sdk.impact-formation/v1',
+  root: { root_ref: 'root:package-canary', generation: 'g1', golden_priority_ref: 'golden:package-canary', formation_profile_ref: 'formation:TRINITY_V1' },
+  nodes: [{
+    ref: 'subject:package-canary', direction: 'CURRENT', state: 'AFFECTED', currentness: 'CURRENT', priority: 'P1',
+    risk: 1, user_impact: 1, time_pressure: 1, fanout: 1, cognitive_load: 1,
+    human_facing: true, independent_review_required: true, ux_review_required: true,
+    parallel_safe: true, runnable: true, dependencies: [],
+  }],
+});
+assert.equal(impact.detonation_denominator, 3);
+assert.equal(impact.semantic_cube.denominator, 27);
+assert.equal(impact.exact_materializable_principal_count, null);
+
 const continuation = compileContinuationCycle({
   root_ref: 'root:package-canary', worker_ref: 'worker:package-canary', subject_generation: 'g1', current_generation: 'g1',
   phase_event: 'POST_RESULT', pass_state: 'PASS', four_scale: { MICRO: '100', MESO: '100', MACRO: '100', META: '100' },
@@ -78,7 +89,8 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 11);
+  assert.equal(discovery.commands.length, 12);
+  assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
   assert(discovery.commands.some((entry) => entry.command === 'resolveLexiconCommand'));
   const cliResult = JSON.parse(execFileSync(cli, ['sdk', 'call', 'resolveLexiconCommand'], {
@@ -86,7 +98,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   }));
   assert.equal(cliResult.result.command.id, 'cadence.continue');
   assert.equal(cliResult.authority_granted, false);
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 cadence_continuation=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
