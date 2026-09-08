@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 
 const base = () => ({
@@ -158,12 +161,25 @@ test('INVALID_PHASE_EVENT_REJECTS', () => {
   assert.throws(() => compileContinuationCycle(input), /INVALID_INPUT/);
 });
 
+test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
+  const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
+  const fixturePath = fileURLToPath(new URL('../fixtures/cadence/continuation.synthetic.json', import.meta.url));
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+  const run = spawnSync(process.execPath, [binary, 'cadence', 'continue', '--input', fixturePath], { encoding: 'utf8', timeout: 10_000 });
+  assert.equal(run.error, undefined);
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stderr, '');
+  assert.deepEqual(JSON.parse(run.stdout), compileContinuationCycle(fixture));
+  assert.equal(JSON.parse(run.stdout).disposition, 'CONTINUE_WORK');
+});
+
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 16,
+  cases: 17,
   effects: 0,
   terminal_requires_four_scale_current: true,
   pass_does_not_stop: true,
   reap_eat_backlog_refresh: true,
-  worker_inbox_authority: false
+  worker_inbox_authority: false,
+  direct_cli: true
 }));
