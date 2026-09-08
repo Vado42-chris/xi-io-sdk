@@ -87,7 +87,17 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 repo_relative_imports=0');
+  const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
+  const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
+  assert.equal(discovery.commands.length, 9);
+  const cliResult = JSON.parse(execFileSync(cli, ['sdk', 'call', 'normalizeProviderFailure'], {
+    cwd: consumer,
+    encoding: 'utf8',
+    input: JSON.stringify({ args: [{ provider: 'External consumer', http_status: 429 }] }),
+  }));
+  assert.equal(cliResult.result.operation_state, 'WAIT_PROVIDER_CAPACITY');
+  assert.equal(cliResult.authority_granted, false);
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 installed_cli_executed=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

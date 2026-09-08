@@ -1,19 +1,57 @@
+import { compileLessonLearningCoverage } from '../lessons/promotion.mjs';
 const NONBLANK = (value, max = 256) =>
   typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 
-const PROVIDERS = Object.freeze(['CHATGPT', 'CLAUDE', 'GROK', 'CURSOR', 'ANTIGRAVITY', 'OLLAMA']);
 const LESSON_STATES = Object.freeze(['CURRENT', 'CANDIDATE', 'FUTURE', 'UNKNOWN']);
 const ACCESS_STATES = Object.freeze(['QUALIFIED', 'REFERENCE_ONLY', 'BLOCKED', 'UNKNOWN']);
 const clone = value => JSON.parse(JSON.stringify(value));
+const PROVIDER_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
+
+function providerCoverage(input) {
+  const supplied = input.provider_registry;
+  let registry = null;
+  if (supplied != null) {
+    if (typeof supplied !== 'object' || Array.isArray(supplied)) throw new TypeError('provider registry must be an object');
+    requiredRef(supplied.ref, 'provider_registry.ref');
+    requiredRef(supplied.generation, 'provider_registry.generation');
+    const ids = supplied.required_provider_ids;
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 256 ||
+        ids.some(id => typeof id !== 'string' || !PROVIDER_ID.test(id)) || new Set(ids).size !== ids.length) {
+      throw new TypeError('provider registry denominator invalid');
+    }
+    registry = { ref: supplied.ref, generation: supplied.generation, required_provider_ids: [...ids] };
+  }
+  if (input.schema === 'xiio.sdk.ibal-canary/v2' && !registry) throw new TypeError('v2 requires supplied provider registry');
+  if (!Array.isArray(input.provider_lessons) || input.provider_lessons.length > 256) throw new TypeError('provider lessons must be a bounded array');
+  const seen = new Set();
+  for (const item of input.provider_lessons) {
+    if (typeof item?.provider !== 'string' || !PROVIDER_ID.test(item.provider) || seen.has(item.provider)) throw new TypeError('provider lesson identity invalid');
+    if (registry && !registry.required_provider_ids.includes(item.provider)) throw new TypeError('provider lesson outside supplied denominator');
+    seen.add(item.provider);
+    requiredRef(item.lesson_ref, 'provider lesson ref');
+    requiredRef(item.adapter_ref, 'provider adapter ref');
+    if (!LESSON_STATES.includes(item.state)) throw new TypeError('provider lesson state unsupported');
+  }
+  return {
+    registry,
+    binding_state: registry ? 'SUPPLIED_UNVERIFIED' : 'UNBOUND',
+    required_count: registry?.required_provider_ids.length ?? null,
+    observed_count: seen.size,
+    missing_provider_ids: registry ? registry.required_provider_ids.filter(id => !seen.has(id)) : null,
+    unknown_provider_ids: input.provider_lessons.filter(item => item.state === 'UNKNOWN').map(item => item.provider),
+    authenticated_registry_proof: false,
+  };
+}
 
 function requiredRef(value, name) {
   if (!NONBLANK(value)) throw new TypeError(`${name} must be a bounded nonblank ref`);
   return value;
 }
 
+
 export function compileIbalCanary(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('ibal canary must be an object');
-  if (input.schema !== 'xiio.sdk.ibal-canary/v1') throw new TypeError('schema unsupported');
+  if (!['xiio.sdk.ibal-canary/v1', 'xiio.sdk.ibal-canary/v2'].includes(input.schema)) throw new TypeError('schema unsupported');
 
   const root = input.root || {};
   ['work_ref', 'generation', 'product_id'].forEach(key => requiredRef(root[key], `root.${key}`));
@@ -22,18 +60,7 @@ export function compileIbalCanary(input) {
   ['switchboard_ref', 'glass_box_ref', 'operation_ref', 'bins_custody_ref'].forEach(key => requiredRef(bridge[key], `bridge.${key}`));
   if (bridge.effect_ceiling !== 'NO_EFFECT') throw new TypeError('SDK canary effect ceiling must be NO_EFFECT');
 
-  if (!Array.isArray(input.provider_lessons) || input.provider_lessons.length !== PROVIDERS.length) {
-    throw new TypeError('provider_lessons must contain the complete six-provider denominator');
-  }
-  const seen = new Set();
-  for (const item of input.provider_lessons) {
-    if (!PROVIDERS.includes(item?.provider) || seen.has(item.provider)) throw new TypeError('provider lesson denominator invalid');
-    seen.add(item.provider);
-    requiredRef(item.lesson_ref, `provider_lessons.${item.provider}.lesson_ref`);
-    requiredRef(item.adapter_ref, `provider_lessons.${item.provider}.adapter_ref`);
-    if (!LESSON_STATES.includes(item.state)) throw new TypeError('provider lesson state unsupported');
-  }
-  if (PROVIDERS.some(provider => !seen.has(provider))) throw new TypeError('provider lesson denominator incomplete');
+  const coverage = providerCoverage(input);
 
   const fractal = input.lesson_fractal || {};
   requiredRef(fractal.root_lesson_ref, 'lesson_fractal.root_lesson_ref');
@@ -64,28 +91,38 @@ export function compileIbalCanary(input) {
   if (email.provider_write_authorized !== false) throw new TypeError('SDK canary cannot grant email provider write authority');
 
   requiredRef(input.return_target_ref, 'return_target_ref');
+  const learning = compileLessonLearningCoverage(input);
 
-  const providerUnknown = input.provider_lessons.filter(item => item.state === 'UNKNOWN').map(item => item.provider);
   const recursionExhausted = fractal.recursion_depth === fractal.max_recursion_depth;
   const blastExhausted = exit.blast_counter === exit.max_blasts;
   const blockers = [];
-  if (providerUnknown.length) blockers.push('PROVIDER_LESSON_UNKNOWN');
+  if (!coverage.registry) blockers.push('PROVIDER_REGISTRY_UNBOUND');
+  if (coverage.missing_provider_ids?.length) blockers.push('PROVIDER_LESSON_MISSING');
+  if (coverage.unknown_provider_ids.length) blockers.push('PROVIDER_LESSON_UNKNOWN');
+  if (learning.missing_stages.length) blockers.push(...learning.missing_stages.map(stage => `LEARNING_${stage}_UNKNOWN`));
   if (email.access_state !== 'QUALIFIED') blockers.push('EMAIL_ACCESS_NOT_QUALIFIED');
   if (recursionExhausted) blockers.push('RECURSION_LIMIT_REACHED');
   if (blastExhausted) blockers.push('BLAST_COUNTER_EXHAUSTED');
 
   return Object.freeze(clone({
-    schema: 'xiio.sdk.ibal-canary-projection/v1',
+    schema: 'xiio.sdk.ibal-canary-projection/v2',
     root,
     bridge,
     provider_lessons: input.provider_lessons,
-    lesson_fractal: fractal,
+    provider_coverage: coverage,
+    lesson_fractal: {
+      root_lesson_ref: fractal.root_lesson_ref,
+      skill_refs: [...fractal.skill_refs],
+      recursion_depth: fractal.recursion_depth,
+      max_recursion_depth: fractal.max_recursion_depth,
+      learning,
+    },
     exit_loop: exit,
     email,
     return_target_ref: input.return_target_ref,
     readiness: blockers.length ? 'WAIT' : 'READY_FOR_SWITCHBOARD_PREFLIGHT',
     blockers,
-    provider_denominator: PROVIDERS.length,
+    provider_denominator: coverage.required_count,
     effects: 0,
     authority_granted: false,
   }));

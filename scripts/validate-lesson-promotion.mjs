@@ -5,10 +5,10 @@ import { compileLessonPromotion, assertLessonNotFlatplaned } from '../src/lesson
 const fixture = JSON.parse(fs.readFileSync(new URL('../fixtures/lessons/meta-pattern-under-technical-fix.synthetic.json', import.meta.url), 'utf8'));
 const first = compileLessonPromotion(fixture);
 assert.equal(first.punchcard.denominator, 7);
-assert.equal(first.punchcard.pass, 3);
+assert.equal(first.punchcard.pass, 0);
 assert.equal(first.punchcard.blocked, 4);
 assert.equal(first.punchcard.closure_100, false);
-assert.throws(() => assertLessonNotFlatplaned(first), /LESSON_FLATPLANED:BINS_RECORDED,ACK_DISTRIBUTED,ADOPTER_PROVEN,RETURN_REJOINED/);
+assert.throws(() => assertLessonNotFlatplaned(first), /LESSON_FLATPLANED:AUTHENTICATED_EVIDENCE_REQUIRED/);
 
 const closedInput = structuredClone(fixture);
 closedInput.proof_tier = 'ADOPTED';
@@ -33,9 +33,34 @@ closedInput.return = {
   current_readback: true,
 };
 const closed = compileLessonPromotion(closedInput);
-assert.equal(closed.punchcard.pass, 7);
+assert.equal(closed.punchcard.pass, 0);
 assert.equal(closed.punchcard.blocked, 0);
-assert.equal(closed.punchcard.closure_100, true);
-assert.equal(assertLessonNotFlatplaned(closed), true);
+assert.equal(closed.punchcard.closure_100, false);
+assert.throws(() => assertLessonNotFlatplaned(closed), /AUTHENTICATED_EVIDENCE_REQUIRED/);
+assert.equal(closed.punchcard.supplied, 7);
+assert(closed.blockers.includes('OWNER_RELAY_REQUIRED'));
+assert.equal(closed.proof_tier, 'UNVERIFIED');
+assert.equal(closed.declared_proof_tier, 'ADOPTED');
 
-console.log(`XIIO_SDK_LESSON_PROMOTION PASS open=${first.punchcard.pass}/7 closed=${closed.punchcard.pass}/7 owner_relay_is_blocker=${first.origin.owner_relay_required}`);
+const canary = JSON.parse(fs.readFileSync(new URL('../fixtures/ibal/switchboard-glass-box-canary.synthetic.json', import.meta.url), 'utf8'));
+closedInput.learning = canary.lesson_fractal.learning;
+closedInput.generalized.skill_refs = canary.lesson_fractal.skill_refs;
+closedInput.return.target_ref = canary.return_target_ref;
+closedInput.cadence = { next_action_ref: canary.exit_loop.next_action_ref };
+const method = compileLessonPromotion(closedInput);
+assert.equal(method.learning.supplied_stages, 6);
+assert.equal(method.learning.verified_stages, 0);
+assert.equal(method.learning.state, 'WAIT_VERIFICATION');
+assert.equal(method.punchcard.closure_100, false);
+assert(method.blockers.includes('OWNER_RELAY_REQUIRED'));
+closedInput.origin.owner_relay_required = false;
+const noRelay = compileLessonPromotion(closedInput);
+assert.equal(noRelay.punchcard.closure_100, false);
+assert(!noRelay.blockers.includes('OWNER_RELAY_REQUIRED'));
+assert.throws(() => assertLessonNotFlatplaned({ ...noRelay, punchcard: { ...noRelay.punchcard, closure_100: true } }), /AUTHENTICATED_EVIDENCE_REQUIRED/);
+delete closedInput.learning.peer_replay;
+const missingPeer = compileLessonPromotion(closedInput);
+assert.equal(missingPeer.learning.state, 'WAIT_EVIDENCE');
+assert(missingPeer.blockers.includes('LEARNING_INDEPENDENT_PEER_REPLAY_UNKNOWN'));
+
+console.log(`XIIO_SDK_LESSON_PROMOTION PASS open=${first.punchcard.pass}/7 unverified=${closed.punchcard.supplied}/7 owner_relay_is_blocker=${first.origin.owner_relay_required}`);

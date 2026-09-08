@@ -5,9 +5,10 @@ import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } f
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateDistributedAck } from '../src/acks/distributed.mjs';
 import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
+import { runCli } from '../src/cli/public-exports.mjs';
 
 function usage(code = 0) {
-  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi ack distribute --baseline <baseline.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n  xi lesson promote --input <lesson.json> [--out <promotion.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
+  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi ack distribute --baseline <baseline.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n  xi lesson promote --input <lesson.json> [--out <promotion.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nPublic SDK calculations:\n  xi sdk commands\n  xi sdk call <export>  # JSON stdin: {"args":[...]}\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
   (code ? process.stderr : process.stdout).write(text);
   process.exit(code);
 }
@@ -61,6 +62,12 @@ function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []
   };
 }
 
+if (process.argv[2] === 'sdk') {
+  const argv = process.argv.slice(3);
+  const call = argv.length === 1 && argv[0] === 'commands' ? ['--commands']
+    : argv[0] === 'call' ? argv.slice(1) : [];
+  process.exitCode = await runCli(call);
+} else {
 try {
   const { flags, positionals } = args(process.argv.slice(2));
   if (positionals.length < 2) usage(1);
@@ -87,6 +94,7 @@ try {
     writeOutput(commandCatalog(), flags.out);
   } else usage(1);
 } catch (error) {
-  process.stderr.write(`xi: ${error.message}\n`);
+  process.stderr.write('xi: invalid input or unsupported command\n');
   process.exit(2);
+}
 }

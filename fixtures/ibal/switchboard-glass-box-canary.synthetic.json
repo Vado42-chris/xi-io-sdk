@@ -1,5 +1,10 @@
 {
-  "schema": "xiio.sdk.ibal-canary/v1",
+  "schema": "xiio.sdk.ibal-canary/v2",
+  "provider_registry": {
+    "ref": "synthetic:provider-roster:studio-canary",
+    "generation": "synthetic:g1",
+    "required_provider_ids": ["CHATGPT", "CLAUDE", "GROK", "CURSOR", "ANTIGRAVITY", "OLLAMA"]
+  },
   "root": {
     "work_ref": "work:studio-switchboard-canary-001",
     "generation": "sdk-pr13-canary",
@@ -24,7 +29,17 @@
     "root_lesson_ref": "lesson-root:studio-switchboard-canary",
     "skill_refs": ["skill:ibal:explain", "skill:glass-box:trace", "skill:cadence:exit-loop"],
     "recursion_depth": 0,
-    "max_recursion_depth": 8
+    "max_recursion_depth": 8,
+    "learning": {
+      "generation": "synthetic:lesson:g1",
+      "author_worker_ref": "synthetic:worker:author",
+      "observation_ref": "synthetic:observation:provider-friction",
+      "shared_primitive_ref": "synthetic:primitive:provider-neutral-projection",
+      "bins_receipt": {"ref":"synthetic:bins:lesson-receipt","generation":"synthetic:lesson:g1"},
+      "peer_replay": {"ref":"synthetic:peer:replay-receipt","generation":"synthetic:lesson:g1","worker_ref":"synthetic:worker:peer"},
+      "affected_return": {"ref":"synthetic:return:affected-consumers","generation":"synthetic:lesson:g1","target_ref":"studio:canary:apply-return"},
+      "cadence_wake": {"ref":"synthetic:cadence:next-wake","generation":"synthetic:lesson:g1","next_action_ref":"action:switchboard-preflight"}
+    }
   },
   "exit_loop": {
     "exit_condition_ref": "condition:qualified-return-or-typed-wait",

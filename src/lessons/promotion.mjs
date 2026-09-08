@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 
 export const LESSON_SCHEMA = 'xiio.sdk.lesson-promotion/v1';
 export const LESSON_STATES = Object.freeze([
+  'UNVERIFIED',
   'DISCOVERED',
   'SIMULATED',
   'PROVEN',
@@ -43,7 +44,7 @@ function bool(value) {
 }
 
 function pass(id, ok, blocker) {
-  return { id, state: ok ? 'PASS' : 'BLOCKED', blocker: ok ? null : blocker };
+  return { id, state: ok ? 'SUPPLIED_UNVERIFIED' : 'BLOCKED', supplied: ok, verified: false, blocker: ok ? 'AUTHENTICATED_EVIDENCE_REQUIRED' : blocker };
 }
 
 export function compileLessonPromotion(input) {
@@ -69,10 +70,29 @@ export function compileLessonPromotion(input) {
     pass('RETURN_REJOINED', !!returned.return_ref && !!returned.apply_return_ref && bool(returned.current_readback), 'RETURN_REJOIN_INCOMPLETE'),
   ];
 
+  const learning = compileLessonLearningCoverage({
+    lesson_fractal: { root_lesson_ref: lessonId, skill_refs: Array.isArray(generalized.skill_refs) ? generalized.skill_refs.map(ref => text(ref, 'skill_ref')) : [], learning: input.learning },
+    bridge: { bins_custody_ref: bins.ledger_target_ref || null },
+    return_target_ref: returned.target_ref || null,
+    exit_loop: { next_action_ref: input.cadence?.next_action_ref || null },
+  });
+  const blockers = [
+    ...(origin.owner_relay_required === true ? ['OWNER_RELAY_REQUIRED'] : []),
+    ...cells.filter(cell => !cell.supplied).map(cell => cell.blocker),
+    ...learning.missing_stages.map(stage => `LEARNING_${stage}_UNKNOWN`),
+    'LESSON_VERIFICATION_REQUIRED',
+  ];
+
   const payload = {
     schema: LESSON_SCHEMA,
     lesson_id: lessonId,
-    proof_tier: proofTier,
+    proof_tier: 'UNVERIFIED',
+    declared_proof_tier: proofTier,
+    evidence_state: 'SUPPLIED_UNVERIFIED',
+    authority_granted: false,
+    provider_effect: false,
+    learning,
+    blockers,
     origin: {
       canary_ref: origin.canary_ref || null,
       repo_ref: origin.repo_ref || null,
@@ -116,7 +136,9 @@ export function compileLessonPromotion(input) {
       blocked: cells.filter((cell) => cell.state === 'BLOCKED').length,
       cells,
       accounting_100: cells.length === LESSON_CELLS.length,
-      closure_100: cells.every((cell) => cell.state === 'PASS'),
+      supplied: cells.filter((cell) => cell.supplied).length,
+      unverified: cells.filter((cell) => cell.state === 'SUPPLIED_UNVERIFIED').length,
+      closure_100: false,
     },
     hard: [
       'DISCOVERY != LESSON',
@@ -136,9 +158,73 @@ export function compileLessonPromotion(input) {
 
 export function assertLessonNotFlatplaned(lesson) {
   if (!lesson || lesson.schema !== LESSON_SCHEMA) throw new TypeError('lesson schema invalid');
-  if (!lesson.punchcard?.closure_100) {
-    const blockers = lesson.punchcard?.cells?.filter((cell) => cell.state !== 'PASS').map((cell) => cell.id) || [];
-    throw new Error(`LESSON_FLATPLANED:${blockers.join(',')}`);
+  // This public module has no authenticated evidence verifier. A caller cannot
+  // turn its supplied projection into closure by editing booleans or digests.
+  throw new Error('LESSON_FLATPLANED:AUTHENTICATED_EVIDENCE_REQUIRED');
+}
+
+const NONBLANK = (value, max = 256) => typeof value === "string" && value.trim().length > 0 && value.length <= max;
+function requiredRef(value, name) { if (!NONBLANK(value)) throw new TypeError(`${name} must be a bounded nonblank ref`); return value.trim(); }
+export function compileLessonLearningCoverage(input) {
+  const fractal = input.lesson_fractal;
+  const supplied = fractal.learning;
+  if (supplied != null && (typeof supplied !== 'object' || Array.isArray(supplied))) {
+    throw new TypeError('lesson learning must be an object');
   }
-  return true;
+  const learning = supplied || {};
+  const optionalRef = value => value == null ? null : requiredRef(value, 'learning evidence');
+  const generation = optionalRef(learning.generation);
+  const author = optionalRef(learning.author_worker_ref);
+  const stages = [];
+  function stage(id, ref, fields = {}, prerequisites = true) {
+    const knownRef = optionalRef(ref);
+    const supplied = Boolean(generation && knownRef && prerequisites);
+    stages.push({
+      stage: id,
+      state: supplied ? 'SUPPLIED_UNVERIFIED' : 'UNKNOWN',
+      reason: supplied ? 'AUTHENTICATED_EVIDENCE_REQUIRED' : `${id}_BINDING_MISSING`,
+      ref: knownRef,
+      generation,
+      ...fields,
+      verified: false,
+    });
+  }
+  function receipt(value) {
+    if (value == null) return { ref: null, generation: null };
+    if (typeof value !== 'object' || Array.isArray(value)) throw new TypeError('learning receipt must be an object');
+    const ref = optionalRef(value.ref);
+    const evidenceGeneration = optionalRef(value.generation);
+    if (generation && evidenceGeneration && generation !== evidenceGeneration) throw new TypeError('learning receipt generation mismatch');
+    return { ref, generation: evidenceGeneration };
+  }
+  stage('OBSERVATION', learning.observation_ref);
+  stage('SHARED_PRIMITIVE', learning.shared_primitive_ref, { root_lesson_ref: fractal.root_lesson_ref, skill_refs: [...fractal.skill_refs] }, fractal.skill_refs.length > 0);
+  const bins = receipt(learning.bins_receipt);
+  stage('BINS_PERSISTENCE', bins.ref, { custody_ref: input.bridge.bins_custody_ref }, Boolean(bins.generation));
+  const peer = receipt(learning.peer_replay);
+  const peerWorker = optionalRef(learning.peer_replay?.worker_ref);
+  if (author && peerWorker && author === peerWorker) throw new TypeError('peer replay requires a distinct worker');
+  stage('INDEPENDENT_PEER_REPLAY', peer.ref, { author_worker_ref: author, peer_worker_ref: peerWorker }, Boolean(peer.generation && author && peerWorker));
+  const returned = receipt(learning.affected_return);
+  const target = optionalRef(learning.affected_return?.target_ref);
+  if (target && target !== input.return_target_ref) throw new TypeError('learning return target mismatch');
+  stage('AFFECTED_RETURN', returned.ref, { target_ref: input.return_target_ref }, Boolean(returned.generation && target));
+  const wake = receipt(learning.cadence_wake);
+  const next = optionalRef(learning.cadence_wake?.next_action_ref);
+  if (next && next !== input.exit_loop.next_action_ref) throw new TypeError('learning cadence action mismatch');
+  stage('NEXT_CADENCE_WAKE', wake.ref, { next_action_ref: input.exit_loop.next_action_ref }, Boolean(wake.generation && next));
+  const missing = stages.filter(item => item.state === 'UNKNOWN').map(item => item.stage);
+  return {
+    schema: 'xiio.sdk.lesson-learning-coverage/v1',
+    root_lesson_ref: fractal.root_lesson_ref,
+    generation,
+    stage_denominator: stages.length,
+    supplied_stages: stages.length - missing.length,
+    verified_stages: 0,
+    missing_stages: missing,
+    state: missing.length ? 'WAIT_EVIDENCE' : 'WAIT_VERIFICATION',
+    closed: false,
+    authority_granted: false,
+    stages,
+  };
 }

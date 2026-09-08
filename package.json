@@ -4,7 +4,8 @@
   "private": false,
   "type": "module",
   "bin": {
-    "xi": "./bin/xi.mjs"
+    "xi": "./bin/xi.mjs",
+    "xi-io": "./bin/xi.mjs"
   },
   "exports": {
     "./components": "./src/components/core.mjs",
@@ -29,6 +30,6 @@
     "./catalog": "./src/catalog/primitives.json"
   },
   "scripts": {
-    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-primitive-adoption.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-progressive-route.mjs && node scripts/validate-baseline-cli.mjs && node scripts/validate-lesson-promotion.mjs && node scripts/validate-package-consumer.mjs"
+    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-primitive-adoption.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-progressive-route.mjs && node scripts/validate-baseline-cli.mjs && node scripts/validate-lesson-promotion.mjs && node scripts/validate-sdk-cli.mjs && node scripts/validate-package-consumer.mjs"
   }
 }
