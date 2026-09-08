@@ -3,7 +3,9 @@ import { renderProgressiveDisclosure } from '../components/progressive-disclosur
 
 const REQUIRED = ['root', 'work', 'role', 'generation', 'affectedReason', 'next', 'proof', 'returnTo', 'wake'];
 const ALLOWED = new Set([...REQUIRED, 'status', 'detailsOpen']);
-const TONES = new Set(['critical', 'warning', 'verified', 'unknown']);
+// This public route receives supplied projection data, not authenticated qualification.
+// Positive/verified presentation must come from a qualified higher-level consumer.
+const CALLER_SAFE_TONES = new Set(['critical', 'warning', 'unknown']);
 const MAX_TEXT = 1200;
 
 export const PROGRESSIVE_ROUTE_FIELDS = Object.freeze([
@@ -34,7 +36,9 @@ export function normalizeProgressiveRouteCard(model = {}) {
   if (!status || typeof status !== 'object' || Array.isArray(status)) throw new TypeError('status must be an object');
   out.status = {
     label: text(status.label, 'status.label'),
-    tone: TONES.has(status.tone) ? status.tone : 'unknown',
+    // `verified` is intentionally excluded. This renderer cannot authenticate a
+    // caller-supplied qualification/currentness claim, so positive tone fails closed.
+    tone: CALLER_SAFE_TONES.has(status.tone) ? status.tone : 'unknown',
   };
   out.detailsOpen = model.detailsOpen === true;
   return out;
@@ -42,7 +46,7 @@ export function normalizeProgressiveRouteCard(model = {}) {
 
 export function renderProgressiveRouteCard(model) {
   const route = normalizeProgressiveRouteCard(model);
-  const status = `<span data-xiio-route-status>${Core.renderStatusBadge(route.status)}</span>`;
+  const status = `<span data-xiio-route-status data-xiio-route-status-qualification="supplied-unverified">${Core.renderStatusBadge(route.status)}</span>`;
   const primary = Core.renderStack({ bodyHtml: [
     routeField('root', Core.renderReceiptRow({ label: 'Root', value: route.root })),
     routeField('work', Core.renderReceiptRow({ label: 'Work', value: route.work, statusHtml: status })),
