@@ -1,6 +1,7 @@
 import catalog from './commands.json' with { type: 'json' };
 
 const RESERVED_PREFIX = /^[#/@]+/;
+const BRACKET_TOKEN = /^\[\s*\/?\s*([^\]]+?)\s*\]$/;
 
 function text(value) {
   return String(value ?? '').trim();
@@ -9,10 +10,20 @@ function text(value) {
 function normalizedForms(value) {
   const raw = text(value).toLowerCase();
   if (!raw) return [];
-  const stripped = raw.replace(RESERVED_PREFIX, '').trim();
-  const dashed = stripped.replace(/[\s_]+/g, '-');
-  const forms = new Set([raw, stripped, dashed]);
-  return [...forms].filter(Boolean);
+
+  const candidates = [raw];
+  const bracket = raw.match(BRACKET_TOKEN);
+  if (bracket?.[1]) candidates.push(bracket[1]);
+
+  const forms = new Set();
+  for (const candidate of candidates) {
+    const stripped = candidate.replace(RESERVED_PREFIX, '').trim();
+    const dashed = stripped.replace(/[\s_]+/g, '-');
+    for (const form of [candidate, stripped, dashed]) {
+      if (form) forms.add(form);
+    }
+  }
+  return [...forms];
 }
 
 function commandForms(entry) {
@@ -68,6 +79,7 @@ export function resolveLexiconCommand(input) {
         'HASHTAG != EFFECT',
         'AT_REFERENCE != PRINCIPAL',
         'SLASH_COMMAND != ATTEMPT',
+        'BBCODE_TOKEN != AUTHORITY',
       ],
     };
   }
