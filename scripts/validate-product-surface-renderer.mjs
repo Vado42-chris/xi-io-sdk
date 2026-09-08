@@ -64,7 +64,11 @@ assert.throws(() => normalizeProductSurface(badTone), /tone unsupported/);
 
 const callerVerified = structuredClone(fixture);
 callerVerified.statuses = [{ label: 'Qualified', tone: 'verified' }];
-callerVerified.sections[0].rows[0].status = { label: 'Current', tone: 'verified' };
+callerVerified.sections[0].rows = [{
+  label: 'State',
+  value: 'current',
+  status: { label: 'Current', tone: 'verified' },
+}];
 const callerVerifiedNormalized = normalizeProductSurface(callerVerified);
 assert.deepEqual(callerVerifiedNormalized.statuses[0], { label: 'Qualified (supplied, unverified)', tone: 'unknown' });
 assert.deepEqual(callerVerifiedNormalized.sections[0].rows[0].status, { label: 'Current (supplied, unverified)', tone: 'unknown' });
