@@ -34,8 +34,10 @@ function requiredString(value, field) {
   return value.trim();
 }
 
-function normalizeBool(value) {
-  return value === true;
+function observedBool(value) {
+  if (value === true) return true;
+  if (value === false) return false;
+  return null;
 }
 
 function state(value, fallback = 'UNKNOWN') {
@@ -43,7 +45,7 @@ function state(value, fallback = 'UNKNOWN') {
 }
 
 function branchState(repo) {
-  if (repo.branch_census_state === 'UNKNOWN') return { state: 'UNKNOWN', reason: 'BRANCH_CENSUS_UNKNOWN' };
+  if (repo.branch_census_state !== 'COMPLETE') return { state: 'UNKNOWN', reason: 'BRANCH_CENSUS_UNKNOWN' };
   const branches = Array.isArray(repo.branches) ? repo.branches : [];
   const nonDefault = branches.filter((b) => b?.name && b.name !== repo.default_branch);
   const undispositioned = nonDefault.filter((b) => !['KEEP', 'ACTIVE', 'MERGED', 'RETIRE_CANDIDATE', 'DONOR', 'HOLD'].includes(b.disposition));
@@ -53,30 +55,83 @@ function branchState(repo) {
 }
 
 function cell(id, value, reason, evidence = []) {
-  return { id, state: state(value), reason, evidence_refs: [...new Set(evidence.filter(Boolean))].sort() };
+  return { id, state: state(value), reason, evidence_refs: [...new Set((evidence || []).filter(Boolean))].sort() };
+}
+
+function pairState(a, b, passReason, aMissingReason, bMissingReason, bothMissingReason) {
+  if (a === null || b === null) {
+    return { state: 'UNKNOWN', reason: 'OBSERVATION_INCOMPLETE' };
+  }
+  if (a && b) return { state: 'PASS', reason: passReason };
+  if (a || b) return { state: 'PARTIAL', reason: a ? bMissingReason : aMissingReason };
+  return { state: 'BLOCKED', reason: bothMissingReason };
+}
+
+function unaryState(value, trueReason, falseReason) {
+  if (value === null) return { state: 'UNKNOWN', reason: 'OBSERVATION_NOT_RUN' };
+  return value ? { state: 'PASS', reason: trueReason } : { state: 'BLOCKED', reason: falseReason };
 }
 
 function compileRepo(repo) {
   const repoRef = requiredString(repo.repo_ref, 'repo_ref');
   const defaultBranch = requiredString(repo.default_branch || 'main', `${repoRef}.default_branch`);
   const head = typeof repo.head_sha === 'string' && repo.head_sha.trim() ? repo.head_sha.trim() : null;
-  const managedManifest = normalizeBool(repo.managed_manifest_current);
-  const hydration = normalizeBool(repo.hydration_current);
-  const workerProjection = normalizeBool(repo.worker_capability_current);
-  const ackCurrent = normalizeBool(repo.ack_current);
-  const returnCurrent = normalizeBool(repo.return_readback_current);
-  const sdkCli = normalizeBool(repo.sdk_cli_adopted);
+  const managedManifest = observedBool(repo.managed_manifest_current);
+  const hydration = observedBool(repo.hydration_current);
+  const workerProjection = observedBool(repo.worker_capability_current);
+  const ackCurrent = observedBool(repo.ack_current);
+  const returnCurrent = observedBool(repo.return_readback_current);
+  const sdkCli = observedBool(repo.sdk_cli_adopted);
   const b = branchState(repo);
+
+  const integration = pairState(
+    managedManifest,
+    sdkCli,
+    'MANAGED_AND_SDK_CLI_ADOPTED',
+    'MANAGED_MANIFEST_MISSING',
+    'SDK_CLI_MISSING',
+    'MANAGED_INTEGRATION_MISSING',
+  );
+
+  let hydrationCell;
+  if (hydration === null || managedManifest === null) hydrationCell = { state: 'UNKNOWN', reason: 'OBSERVATION_INCOMPLETE' };
+  else if (hydration) hydrationCell = { state: 'PASS', reason: 'HYDRATION_CURRENT' };
+  else if (managedManifest) hydrationCell = { state: 'PARTIAL', reason: 'HYDRATION_MISSING_OR_STALE' };
+  else hydrationCell = { state: 'BLOCKED', reason: 'UNMANAGED_CANNOT_HYDRATE' };
+
+  let workerCell;
+  if (workerProjection === null || managedManifest === null) workerCell = { state: 'UNKNOWN', reason: 'OBSERVATION_INCOMPLETE' };
+  else if (workerProjection) workerCell = { state: 'PASS', reason: 'WORKER_CAPABILITY_CURRENT' };
+  else if (managedManifest) workerCell = { state: 'PARTIAL', reason: 'WORKER_CAPABILITY_UNQUALIFIED' };
+  else workerCell = { state: 'BLOCKED', reason: 'WORKER_CAPABILITY_NOT_BOUND' };
+
+  let ackCell;
+  if (ackCurrent === null || managedManifest === null) ackCell = { state: 'UNKNOWN', reason: 'OBSERVATION_INCOMPLETE' };
+  else if (ackCurrent) ackCell = { state: 'PASS', reason: 'ACK_CURRENT' };
+  else if (managedManifest) ackCell = { state: 'PARTIAL', reason: 'ACK_MISSING_OR_STALE' };
+  else ackCell = { state: 'BLOCKED', reason: 'ACK_NOT_ADMITTED' };
+
+  let returnCell;
+  if (returnCurrent === null || ackCurrent === null) returnCell = { state: 'UNKNOWN', reason: 'OBSERVATION_INCOMPLETE' };
+  else if (returnCurrent) returnCell = { state: 'PASS', reason: 'RETURN_READBACK_CURRENT' };
+  else if (ackCurrent) returnCell = { state: 'PARTIAL', reason: 'RETURN_READBACK_MISSING' };
+  else returnCell = { state: 'BLOCKED', reason: 'NO_CURRENT_ACK_RETURN_CHAIN' };
+
+  const mainCell = head
+    ? defaultBranch === 'main'
+      ? { state: 'PASS', reason: 'MAIN_HEAD_OBSERVED' }
+      : { state: 'PARTIAL', reason: 'DEFAULT_BRANCH_NOT_MAIN' }
+    : { state: 'UNKNOWN', reason: 'HEAD_NOT_OBSERVED' };
 
   const cells = [
     cell('REGISTRATION', 'PASS', 'REPOSITORY_REGISTERED', repo.registration_evidence_refs),
-    cell('INTEGRATION', managedManifest && sdkCli ? 'PASS' : managedManifest || sdkCli ? 'PARTIAL' : 'BLOCKED', managedManifest && sdkCli ? 'MANAGED_AND_SDK_CLI_ADOPTED' : managedManifest ? 'SDK_CLI_MISSING' : sdkCli ? 'MANAGED_MANIFEST_MISSING' : 'MANAGED_INTEGRATION_MISSING', repo.integration_evidence_refs),
-    cell('HYDRATION', hydration ? 'PASS' : managedManifest ? 'PARTIAL' : 'BLOCKED', hydration ? 'HYDRATION_CURRENT' : managedManifest ? 'HYDRATION_MISSING_OR_STALE' : 'UNMANAGED_CANNOT_HYDRATE', repo.hydration_evidence_refs),
-    cell('WORKER_CAPABILITY', workerProjection ? 'PASS' : managedManifest ? 'PARTIAL' : 'BLOCKED', workerProjection ? 'WORKER_CAPABILITY_CURRENT' : managedManifest ? 'WORKER_CAPABILITY_UNQUALIFIED' : 'WORKER_CAPABILITY_NOT_BOUND', repo.worker_evidence_refs),
-    cell('MAIN_STATUS', head && defaultBranch === 'main' ? 'PASS' : head ? 'PARTIAL' : 'UNKNOWN', head && defaultBranch === 'main' ? 'MAIN_HEAD_OBSERVED' : head ? 'DEFAULT_BRANCH_NOT_MAIN' : 'HEAD_NOT_OBSERVED', repo.main_evidence_refs),
+    cell('INTEGRATION', integration.state, integration.reason, repo.integration_evidence_refs),
+    cell('HYDRATION', hydrationCell.state, hydrationCell.reason, repo.hydration_evidence_refs),
+    cell('WORKER_CAPABILITY', workerCell.state, workerCell.reason, repo.worker_evidence_refs),
+    cell('MAIN_STATUS', mainCell.state, mainCell.reason, repo.main_evidence_refs),
     cell('BRANCH_STEW', b.state, b.reason, repo.branch_evidence_refs),
-    cell('ACK_CURRENTNESS', ackCurrent ? 'PASS' : managedManifest ? 'PARTIAL' : 'BLOCKED', ackCurrent ? 'ACK_CURRENT' : managedManifest ? 'ACK_MISSING_OR_STALE' : 'ACK_NOT_ADMITTED', repo.ack_evidence_refs),
-    cell('RETURN_READBACK', returnCurrent ? 'PASS' : ackCurrent ? 'PARTIAL' : 'BLOCKED', returnCurrent ? 'RETURN_READBACK_CURRENT' : ackCurrent ? 'RETURN_READBACK_MISSING' : 'NO_CURRENT_ACK_RETURN_CHAIN', repo.return_evidence_refs),
+    cell('ACK_CURRENTNESS', ackCell.state, ackCell.reason, repo.ack_evidence_refs),
+    cell('RETURN_READBACK', returnCell.state, returnCell.reason, repo.return_evidence_refs),
   ];
 
   const counts = Object.fromEntries(['PASS', 'PARTIAL', 'BLOCKED', 'UNKNOWN', 'N_A'].map((s) => [s, cells.filter((c) => c.state === s).length]));
@@ -127,10 +182,12 @@ export function compilePortfolioBaseline(snapshot) {
       'INTEGRATED != HYDRATED',
       'HYDRATED != WORKER_QUALIFIED',
       'DEFAULT_BRANCH_PRESENT != MAIN_CURRENT',
-      'BRANCH_EXISTS != STEW',
+      'BRANCH_CENSUS_NOT_RUN != NO_STEW',
       'ACK_PRESENT != ACK_CURRENT',
       'RESULT != RETURN != APPLY_RETURN',
       'ACCOUNTING_100 != CLOSURE_100',
+      'UNOBSERVED != FALSE',
+      'UNKNOWN != NO_EFFECT',
       'EXTERNAL_AI != AUTHORITY',
     ],
   };
