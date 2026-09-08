@@ -15,8 +15,18 @@
     "CALLABLE_UUID != AUTHORITY",
     "CALLABLE_UUID != PROVIDER_EFFECT",
     "PUBLIC_COMPONENT != PRIVATE_MANAGEMENT_TOPOLOGY",
-    "PLAYGROUND_RENDER != QUALIFICATION_OR_OWNER_ACCEPTANCE"
+    "PLAYGROUND_RENDER != QUALIFICATION_OR_OWNER_ACCEPTANCE",
+    "DISPATCH_COUNTER != BINS_CURRENT",
+    "CATALOG_COUNT != LIVE_ADOPTION"
   ],
+  "dispatch": {
+    "expected": 40,
+    "materialized_primitives": 26,
+    "known_gaps": 6,
+    "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
+    "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
+    "live_claim": false
+  },
   "primitives": [
     {"id":"page-shell","callable_uuid":"e3fd9a8a-c1cf-5e9a-9b52-55479318e6b0","family":"core","kind":"component","export":"renderPageShell","source":"src/components/core.mjs","specifier":"@xi-io/sdk/components","style":"src/styles/core.css","styles":["@xi-io/sdk/styles/core.css"],"maturity":"CANDIDATE"},
     {"id":"section","callable_uuid":"f23e4103-18da-5585-a97a-c41bacd57642","family":"core","kind":"component","export":"renderSection","source":"src/components/core.mjs","specifier":"@xi-io/sdk/components","style":"src/styles/core.css","styles":["@xi-io/sdk/styles/core.css"],"maturity":"CANDIDATE"},

@@ -13,13 +13,15 @@ const catalog = await fetch('../src/catalog/primitives.json').then(r => {
 const sourceEl = document.querySelector('#component-source');
 const managementEl = document.querySelector('#management-surface');
 const stateEl = document.querySelector('#catalog-state');
+const dispatchEl = document.querySelector('#dispatch-counter');
+const currentnessEl = document.querySelector('#catalog-currentness');
 const grid = document.querySelector('#primitive-grid');
 const gaps = document.querySelector('#known-gaps');
 const search = document.querySelector('#primitive-search');
 
 sourceEl.textContent = catalog.public_contract.component_source;
 managementEl.textContent = catalog.public_contract.internal_management_surface;
-stateEl.textContent = `${catalog.primitives.length} primitives · ${catalog.known_gaps.length} known gaps`;
+stateEl.textContent = `${catalog.primitives.length} primitives · ${catalog.known_gaps.length} known gaps · ${catalog.catalog_id}`;
 gaps.innerHTML = catalog.known_gaps.map(gap => `<span class="gap-chip">${gap}</span>`).join('');
 
 const routeFixture = {
@@ -94,3 +96,9 @@ function wireDrawer() {
 
 search.addEventListener('input', () => renderAll(search.value));
 renderAll();
+
+const expected = Number(catalog.dispatch?.expected) || 40;
+const materialized = catalog.primitives.length;
+const fixtureCount = Object.keys(examples).length;
+dispatchEl.textContent = `${materialized}/${expected} catalog · ${fixtureCount}/${expected} playground fixtures (DISPATCH≠BINS_CURRENT)`;
+currentnessEl.textContent = catalog.dispatch?.catalog_currentness_vs_bins || 'UNPROVEN_SOFT_JOIN';

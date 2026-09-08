@@ -239,5 +239,13 @@ assert(/not canonical identity, truth, authority/i.test(readme), 'README UUID≠
 assert(/callable_namespace_uuid.*documentation-only/i.test(readme), 'README namespace non-generative note');
 assert(/caller-trusted/i.test(readme), 'README HTML slots caller-trusted note');
 assert(Array.isArray(catalog.known_gaps) && catalog.known_gaps.length > 0, 'known gaps must remain explicit');
+assert(catalog.dispatch && typeof catalog.dispatch === 'object', 'dispatch counter block required');
+assert.equal(Number(catalog.dispatch.expected), 40, 'dispatch.expected must be 40');
+assert.equal(Number(catalog.dispatch.materialized_primitives), catalog.primitives.length, 'dispatch.materialized must match primitives');
+assert(index.includes('dispatch-counter'), 'playground must surface dispatch counter');
+assert(index.includes('catalog-currentness'), 'playground must surface catalog vs bins currentness');
+assert(playground.includes('dispatchEl') || playground.includes('dispatch-counter'), 'playground binds dispatch counter');
+assert(catalog.dispatch.catalog_currentness_vs_bins === 'UNPROVEN_SOFT_JOIN', 'catalog!=bins CURRENT until proven');
+assert.equal(catalog.dispatch.live_claim, false, 'dispatch must not claim LIVE');
 
 console.log(`XIIO_SDK_PLAYGROUND PASS primitives=${catalog.primitives.length} uuids=${uuids.size} gaps=${catalog.known_gaps.length} internal_topology_leaks=0`);
