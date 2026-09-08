@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { normalizeProviderFailure } from '../src/providers/state.mjs';
 import { compileIbalCanary } from '../src/ibal/canary.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
+import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 
 const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
 function invoke(command, input) {
@@ -22,11 +23,12 @@ function invoke(command, input) {
 
 const discovery = invoke(['--commands'], '');
 assert.equal(discovery.code, 0);
-assert.equal(discovery.value.commands.length, 10);
-assert.equal(discovery.value.semantic_aliases, 'UNBOUND');
+assert.equal(discovery.value.commands.length, 11);
+assert.equal(discovery.value.semantic_aliases, 'RESOLVABLE_THROUGH_COMMAND_LEXICON');
 assert.equal(discovery.value.vocabulary, 'EXACT_PUBLIC_EXPORT_NAMES');
-assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 10);
+assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 11);
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationCycle' && x.specifier === '@xi-io/sdk/cadence'));
+assert(discovery.value.commands.some(x => x.command === 'resolveLexiconCommand' && x.specifier === '@xi-io/sdk/command-lexicon/resolve'));
 assert.equal(discovery.output, invoke(['--commands'], '').output);
 
 const failure = { provider: 'External provider', http_status: 429, provider_status: 'RESOURCE_EXHAUSTED' };
@@ -64,6 +66,14 @@ assert.deepEqual(continuation.value.result, compileContinuationCycle(continuatio
 assert.equal(continuation.value.result.disposition, 'CONTINUE_WORK');
 assert.equal(continuation.value.result.terminal, false);
 
+for (const token of ['burn', 'overnight burn', '/babysit', '#babysit']) {
+  const lex = invoke(['resolveLexiconCommand'], { args: [token] });
+  assert.equal(lex.code, 0);
+  assert.deepEqual(lex.value.result, resolveLexiconCommand(token));
+  assert.equal(lex.value.result.state, 'RESOLVED');
+  assert.equal(lex.value.authority_granted, false);
+}
+
 const wake = JSON.parse(fs.readFileSync(new URL('../fixtures/wakes/inbox-adoption.synthetic.json', import.meta.url)));
 const progress = invoke(['evaluateWakeProgress'], { args: [wake, { returned: true }] });
 assert.equal(progress.code, 0);
@@ -93,4 +103,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 10, positive_cases: 6, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 11, positive_cases: 10, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
