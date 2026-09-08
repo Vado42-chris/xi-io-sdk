@@ -4,6 +4,7 @@ import manifest from '../../package.json' with { type: 'json' };
 import * as Providers from '../providers/state.mjs';
 import * as Wakes from '../wakes/envelope.mjs';
 import * as Ibal from '../ibal/canary.mjs';
+import * as Cadence from '../cadence/continuation.mjs';
 import * as Adoption from '../adoption/primitive-plan.mjs';
 import * as Callables from '../callables/resolve.mjs';
 
@@ -12,6 +13,7 @@ const modules = [
   ['@xi-io/sdk/providers', Providers],
   ['@xi-io/sdk/wakes', Wakes],
   ['@xi-io/sdk/ibal', Ibal],
+  ['@xi-io/sdk/cadence', Cadence],
   ['@xi-io/sdk/adoption', Adoption],
   ['@xi-io/sdk/callables', Callables],
 ];
@@ -20,6 +22,7 @@ const arity = {
   normalizeWakeEnvelope: [1, 1],
   evaluateWakeProgress: [1, 2],
   compileIbalCanary: [1, 1],
+  compileContinuationCycle: [1, 1],
   derivePrimitiveAdoptionPlan: [1, 1],
   deriveAffectedPrimitiveConsumers: [1, 1],
   resolveCallable: [2, 2],
