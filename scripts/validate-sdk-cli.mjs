@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { normalizeProviderFailure } from '../src/providers/state.mjs';
 import { compileIbalCanary } from '../src/ibal/canary.mjs';
+import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 
 const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
 function invoke(command, input) {
@@ -21,10 +22,11 @@ function invoke(command, input) {
 
 const discovery = invoke(['--commands'], '');
 assert.equal(discovery.code, 0);
-assert.equal(discovery.value.commands.length, 9);
+assert.equal(discovery.value.commands.length, 10);
 assert.equal(discovery.value.semantic_aliases, 'UNBOUND');
 assert.equal(discovery.value.vocabulary, 'EXACT_PUBLIC_EXPORT_NAMES');
-assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 9);
+assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 10);
+assert(discovery.value.commands.some(x => x.command === 'compileContinuationCycle' && x.specifier === '@xi-io/sdk/cadence'));
 assert.equal(discovery.output, invoke(['--commands'], '').output);
 
 const failure = { provider: 'External provider', http_status: 429, provider_status: 'RESOURCE_EXHAUSTED' };
@@ -47,6 +49,20 @@ assert.equal(learning.value.status, 'COMPUTED');
 assert.equal(learning.value.result.readiness, 'WAIT');
 assert.equal(learning.value.result.lesson_fractal.learning.closed, false);
 assert(learning.value.result.blockers.includes('LEARNING_INDEPENDENT_PEER_REPLAY_UNKNOWN'));
+
+const continuationInput = {
+  root_ref: 'root:cli-canary', worker_ref: 'worker:cli-canary',
+  subject_generation: 'g1', current_generation: 'g1', phase_event: 'POST_RESULT', pass_state: 'PASS',
+  four_scale: { MICRO: '100', MESO: '100', MACRO: '100', META: '100' },
+  backlog: [{ id: 'next:work', state: 'RUNNABLE', priority: 1 }],
+  returns: [], residue: [], occurrences: [],
+  worker_inbox: { ref: 'inbox:worker/cli-canary', current: true, actionable_count: 0 },
+};
+const continuation = invoke(['compileContinuationCycle'], { args: [continuationInput] });
+assert.equal(continuation.code, 0);
+assert.deepEqual(continuation.value.result, compileContinuationCycle(continuationInput));
+assert.equal(continuation.value.result.disposition, 'CONTINUE_WORK');
+assert.equal(continuation.value.result.terminal, false);
 
 const wake = JSON.parse(fs.readFileSync(new URL('../fixtures/wakes/inbox-adoption.synthetic.json', import.meta.url)));
 const progress = invoke(['evaluateWakeProgress'], { args: [wake, { returned: true }] });
@@ -77,4 +93,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 9, positive_cases: 5, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 10, positive_cases: 6, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
