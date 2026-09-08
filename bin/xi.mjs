@@ -4,9 +4,10 @@ import path from 'node:path';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateDistributedAck } from '../src/acks/distributed.mjs';
+import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 
 function usage(code = 0) {
-  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi ack distribute --baseline <baseline.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
+  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi ack distribute --baseline <baseline.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n  xi lesson promote --input <lesson.json> [--out <promotion.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
   (code ? process.stderr : process.stdout).write(text);
   process.exit(code);
 }
@@ -41,14 +42,7 @@ function writeOutput(value, out) {
 function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []) {
   return {
     schema: 'xiio.sdk.baseline-command-envelope/v1',
-    command: {
-      id: command.id,
-      verb: command.verb,
-      cli: command.cli,
-      aliases: command.aliases,
-      hashtags: command.hashtags,
-      effect_class: command.effect,
-    },
+    command: { id: command.id, verb: command.verb, cli: command.cli, aliases: command.aliases, hashtags: command.hashtags, effect_class: command.effect },
     subject_ref: flags.subject || null,
     baseline_ref: flags.baseline || null,
     resource_ref: flags.resource || null,
@@ -58,12 +52,7 @@ function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []
     args: trailingPositionals,
     state: 'COMPILED_NOT_EXECUTED',
     attempt: 0,
-    authority: {
-      source_mutation: false,
-      provider_effect: false,
-      merge: false,
-      deploy: false,
-    },
+    authority: { source_mutation: false, provider_effect: false, merge: false, deploy: false },
     required_return: {
       schema: 'xiio.sdk.distributed-return/v1',
       fields: ['subject_ref', 'baseline_generation', 'ack_state', 'attempt', 'result_ref', 'return_target_ref', 'blockers', 'observed_at'],
@@ -92,6 +81,8 @@ try {
     const baseline = readJson(flags.baseline, '--baseline');
     const returns = flags.returns ? readJson(flags.returns, '--returns') : [];
     writeOutput(compileOrgBurnMap(baseline, returns), flags.out);
+  } else if (family === 'lesson' && action === 'promote') {
+    writeOutput(compileLessonPromotion(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'lexicon' && action === 'commands') {
     writeOutput(commandCatalog(), flags.out);
   } else usage(1);
