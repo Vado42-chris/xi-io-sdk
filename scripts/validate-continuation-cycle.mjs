@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
+import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 
 const base = () => ({
   root_ref: 'root:G193',
@@ -161,6 +162,14 @@ test('INVALID_PHASE_EVENT_REJECTS', () => {
   assert.throws(() => compileContinuationCycle(input), /INVALID_INPUT/);
 });
 
+test('BABYSIT_LEXICON_ALIASES_ONE_CONTINUATION_OWNER', () => {
+  const cadence = commandCatalog().commands.find((entry) => entry.id === 'cadence.continue');
+  assert(cadence, 'cadence.continue lexicon entry missing');
+  for (const alias of ['babysit', '/babysit', '@babysit']) assert(cadence.aliases.includes(alias));
+  assert(cadence.hashtags.includes('#babysit'));
+  assert.equal(cadence.effect, 'PROJECTION_ONLY');
+});
+
 test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
   const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
   const fixturePath = fileURLToPath(new URL('../fixtures/cadence/continuation.synthetic.json', import.meta.url));
@@ -175,11 +184,12 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 17,
+  cases: 18,
   effects: 0,
   terminal_requires_four_scale_current: true,
   pass_does_not_stop: true,
   reap_eat_backlog_refresh: true,
   worker_inbox_authority: false,
+  dynamic_babysit_alias: true,
   direct_cli: true
 }));
