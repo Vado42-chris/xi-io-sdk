@@ -14,6 +14,7 @@
       "sdk_cli_adopted": true,
       "ack_current": true,
       "return_readback_current": true,
+      "branch_census_state": "COMPLETE",
       "branches": [{"name":"main","disposition":"KEEP"}]
     },
     {
@@ -28,6 +29,7 @@
       "sdk_cli_adopted": false,
       "ack_current": false,
       "return_readback_current": false,
+      "branch_census_state": "COMPLETE",
       "branches": [
         {"name":"feature-old","disposition":"KEEP"},
         {"name":"stale-a"}
@@ -45,6 +47,7 @@
       "sdk_cli_adopted": true,
       "ack_current": false,
       "return_readback_current": false,
+      "branch_census_state": "COMPLETE",
       "branches": [
         {"name":"main","disposition":"KEEP"},
         {"name":"feature-c","disposition":"ACTIVE"}
