@@ -102,6 +102,37 @@ const normalized = normalizeWakeEnvelope(mutable);
 mutable.target.product_id = 'tampered';
 assert.equal(normalized.target.product_id, 'xi-io-inbox');
 
+// Product identity is independent from repository identity. A registered product
+// may legitimately have no repository binding yet, but that absence must be typed.
+const repoLessArticles = normalizeWakeEnvelope({
+  ...fixture,
+  wake_id: 'b50a8e1c-2d98-522a-9d72-87f7099b1089',
+  target: { product_id: 'xi-io-articles', repository_state: 'UNBOUND' },
+});
+assert.deepEqual(repoLessArticles.target, {
+  product_id: 'xi-io-articles',
+  repository_state: 'UNBOUND',
+});
+assert.equal(evaluateWakeProgress(repoLessArticles, {}).verified, false);
+assert.equal(evaluateWakeProgress(repoLessArticles, {}).authority_granted, false);
+
+const repoLessNA = normalizeWakeEnvelope({
+  ...fixture,
+  wake_id: 'repo-less-n-a-known-answer',
+  target: { product_id: 'xi-io-planned-product', repository_state: 'N_A_WITH_EVIDENCE' },
+});
+assert.equal(repoLessNA.target.repository_state, 'N_A_WITH_EVIDENCE');
+
+for (const [name, target] of [
+  ['repo-less target without explicit state', { product_id: 'xi-io-articles' }],
+  ['repo and repo-less state conflict', { product_id: 'xi-io-inbox', repository: 'Vado42-chris/xi-io-Inbox', repository_state: 'UNBOUND' }],
+  ['blank repository', { product_id: 'xi-io-inbox', repository: '   ' }],
+  ['invalid repository state', { product_id: 'xi-io-articles', repository_state: 'MISSING' }],
+  ['repository without product ownership', { repository: 'Vado42-chris/xi-io-Inbox' }],
+]) {
+  assert.throws(() => normalizeWakeEnvelope({ ...fixture, target }), undefined, name);
+}
+
 for (const [name, mutate] of [
   ['blank generation', x => { x.generation = '   '; }],
   ['effect authority', x => { x.effect_ceiling = 'WRITE'; }],
@@ -120,6 +151,8 @@ console.log(JSON.stringify({
   supplied_progress_separated: true,
   terminal_false_promotion: 0,
   command_distribution_false_green: 0,
+  repo_less_product_targets: 2,
+  repo_less_target_hostiles: 5,
   effect_authority: false,
   adoption_state_separated: true,
   authenticated_delivery_or_application_claimed: false,
