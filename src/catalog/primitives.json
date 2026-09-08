@@ -32,6 +32,8 @@
     {"id":"empty-state","callable_uuid":"4f0daa27-42a9-5716-9355-0b4ddc6d9d89","family":"core","kind":"component","export":"renderEmptyState","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
     {"id":"next-action-strip","callable_uuid":"c1c0a8a7-55b4-5cd0-ba9b-d2efc137b7c9","family":"core","kind":"component","export":"renderNextActionStrip","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE"},
     {"id":"selectable-list","callable_uuid":"77c219ce-0201-54b0-8038-9f205db5aa44","family":"core","kind":"component","export":"renderSelectableList","source":"src/components/core.mjs","style":"src/styles/core.css","maturity":"CANDIDATE","behavior":"bindXiSelectableLists"},
+    {"id":"progressive-disclosure","callable_uuid":"9152d6ba-0d49-4752-8729-1f5831dca1ca","family":"core","kind":"component","export":"renderProgressiveDisclosure","source":"src/components/progressive-disclosure.mjs","style":"src/styles/progressive-disclosure.css","maturity":"CANDIDATE"},
+    {"id":"progressive-route-card","callable_uuid":"2ef590eb-6f4e-4ba2-99c0-ab1806c1106d","family":"pattern","kind":"component","export":"renderProgressiveRouteCard","source":"src/patterns/progressive-route.mjs","style":"src/styles/progressive-disclosure.css","maturity":"CANDIDATE"},
     {"id":"icon-button","callable_uuid":"f0ccb5cf-ba09-55d7-9e7c-2a0196f86945","family":"shell","kind":"component","export":"renderIconButton","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
     {"id":"drawer-shell","callable_uuid":"043f5c27-3e5b-5c10-9d41-42a41f337c4c","family":"shell","kind":"component","export":"renderDrawerShell","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
     {"id":"scroll-region","callable_uuid":"5a659e21-c0d2-561a-a23f-59ea7498c172","family":"shell","kind":"component","export":"renderScrollRegion","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
@@ -43,5 +45,5 @@
     {"id":"select-field","callable_uuid":"9e135223-9e25-5cf1-87dc-8fac91244179","family":"shell","kind":"component","export":"renderSelectField","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE"},
     {"id":"tabs","callable_uuid":"628a4445-12b7-584c-baa1-b3cee910e266","family":"shell","kind":"component","export":"renderTabs","source":"src/components/shell.mjs","style":"src/styles/shell.css","maturity":"CANDIDATE","behavior":"bindXiTabs|syncXiTabSelection"}
   ],
-  "known_gaps": ["search-field","search-band","menu-button","popover-menu","progressive-disclosure","choice-group","inline-status"]
+  "known_gaps": ["search-field","search-band","menu-button","popover-menu","choice-group","inline-status"]
 }
