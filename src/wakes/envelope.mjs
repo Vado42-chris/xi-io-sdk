@@ -59,25 +59,50 @@ export function normalizeWakeEnvelope(input) {
 
 export function evaluateWakeProgress(envelope, observations = {}) {
   const wake = normalizeWakeEnvelope(envelope);
-  const ordered = ['delivered', 'acked', 'started', 'returned', 'consumed'];
+  if (!observations || typeof observations !== 'object' || Array.isArray(observations)) {
+    throw new TypeError('wake observations must be an object');
+  }
+  const ordered = ['delivered', 'acked', 'started', 'returned', 'consumed', 'applied'];
+  const fields = [...ordered, 'not_applicable'];
+  const declared = Object.fromEntries(fields.map(key =>
+    [key, Object.hasOwn(observations, key) && observations[key] === true]));
+  const invalidFields = fields.filter(key => Object.hasOwn(observations, key) && typeof observations[key] !== 'boolean');
   let previous = true;
   const result = {};
   for (const key of ordered) {
-    const evidenced = observations[key] === true;
-    result[key] = previous && evidenced;
+    result[key] = previous && declared[key];
     previous = result[key];
   }
   const falseGreen = ordered.some((key, index) =>
-    observations[key] === true && ordered.slice(0, index).some(parent => observations[parent] !== true)
-  );
+    declared[key] && ordered.slice(0, index).some(parent => !declared[parent])
+  ) || (declared.not_applicable && ordered.some(key => declared[key]));
+  // Supplied booleans describe a claim and its ordering only. This pure reducer
+  // has no delivery/ACK/consumer verifier and grants no completion or authority.
   return Object.freeze({
     schema: 'xiio.sdk.wake-progress/v1',
     wake_id: wake.wake_id,
     generation: wake.generation,
     target: wake.target,
-    ...result,
-    applied: result.consumed && observations.applied === true,
+    ...Object.fromEntries(ordered.map(key => [key, false])),
+    not_applicable: false,
     false_green: falseGreen,
-    terminal: observations.not_applicable === true ? 'NOT_APPLICABLE' : result.consumed && observations.applied === true ? 'APPLIED' : 'OPEN',
+    terminal: 'OPEN',
+    evidence_state: 'SUPPLIED_UNVERIFIED',
+    verified: false,
+    authority_granted: false,
+    provider_effect: false,
+    supplied_coverage: {
+      declared,
+      ordered_progress: result,
+      declared_count: ordered.filter(key => declared[key]).length,
+      ordered_count: ordered.filter(key => result[key]).length,
+      denominator: ordered.length,
+      coverage_complete: result.applied && !falseGreen && !invalidFields.length,
+      terminal_claim: declared.not_applicable ? 'NOT_APPLICABLE' : result.applied ? 'APPLIED' : 'OPEN',
+      invalid_fields: invalidFields,
+    },
+    next: 'AUTHENTICATED_WAKE_AND_CONSUMER_READBACK_REQUIRED',
+    hard: ['SUPPLIED_PROGRESS != VERIFIED_DELIVERY', 'SUPPLIED_ACK != AUTHENTICATED_ACK',
+      'SUPPLIED_APPLICATION != CONSUMER_READBACK', 'SUPPLIED_NOT_APPLICABLE != EXEMPTION_EVIDENCE'],
   });
 }
