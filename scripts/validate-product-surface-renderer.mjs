@@ -62,6 +62,17 @@ const badTone = structuredClone(fixture);
 badTone.statuses[0].tone = 'success';
 assert.throws(() => normalizeProductSurface(badTone), /tone unsupported/);
 
+const callerVerified = structuredClone(fixture);
+callerVerified.statuses = [{ label: 'Qualified', tone: 'verified' }];
+callerVerified.sections[0].rows[0].status = { label: 'Current', tone: 'verified' };
+const callerVerifiedNormalized = normalizeProductSurface(callerVerified);
+assert.deepEqual(callerVerifiedNormalized.statuses[0], { label: 'Qualified (supplied, unverified)', tone: 'unknown' });
+assert.deepEqual(callerVerifiedNormalized.sections[0].rows[0].status, { label: 'Current (supplied, unverified)', tone: 'unknown' });
+const callerVerifiedHtml = renderProductSurface(callerVerified);
+assert.doesNotMatch(callerVerifiedHtml, /data-tone="verified"/);
+assert.match(callerVerifiedHtml, /Qualified \(supplied, unverified\)/);
+assert.match(callerVerifiedHtml, /Current \(supplied, unverified\)/);
+
 const invalidEnvironment = structuredClone(fixture);
 invalidEnvironment.environment = 'PROD';
 assert.throws(() => normalizeProductSurface(invalidEnvironment), /environment unsupported/);
@@ -155,7 +166,8 @@ assert.throws(() => bindProductSurface(root, { onAction: true }), /onAction must
 console.log(JSON.stringify({
   status: 'PASS',
   positive_cases: 1,
-  hostile_cases: 12,
+  hostile_cases: 13,
+  caller_verified_downgraded: true,
   host_observation_and_action_regressions: 'PASS',
   source_dom_contract_tests: true,
   browser_or_runtime_qualification_claim: false,
