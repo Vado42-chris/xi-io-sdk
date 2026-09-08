@@ -12,11 +12,14 @@
     "./providers": "./src/providers/state.mjs",
     "./wakes": "./src/wakes/envelope.mjs",
     "./ibal": "./src/ibal/canary.mjs",
+    "./progressive-disclosure": "./src/components/progressive-disclosure.mjs",
+    "./patterns/progressive-route": "./src/patterns/progressive-route.mjs",
     "./styles/core.css": "./src/styles/core.css",
     "./styles/shell.css": "./src/styles/shell.css",
+    "./styles/progressive-disclosure.css": "./src/styles/progressive-disclosure.css",
     "./catalog": "./src/catalog/primitives.json"
   },
   "scripts": {
-    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs"
+    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-progressive-route.mjs"
   }
 }
