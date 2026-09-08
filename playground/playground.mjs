@@ -1,7 +1,9 @@
 import * as Core from '../src/components/core.mjs';
+import { renderProgressiveDisclosure } from '../src/components/progressive-disclosure.mjs';
 import { initXiUi } from '../src/components/behavior.mjs';
 import * as Shell from '../src/components/shell.mjs';
 import { resolveCallable } from '../src/callables/resolve.mjs';
+import { renderProgressiveRouteCard } from '../src/patterns/progressive-route.mjs';
 
 const catalog = await fetch('../src/catalog/primitives.json').then(r => {
   if (!r.ok) throw new Error(`catalog fetch failed: ${r.status}`);
@@ -20,6 +22,19 @@ managementEl.textContent = catalog.public_contract.internal_management_surface;
 stateEl.textContent = `${catalog.primitives.length} primitives · ${catalog.known_gaps.length} known gaps`;
 gaps.innerHTML = catalog.known_gaps.map(gap => `<span class="gap-chip">${gap}</span>`).join('');
 
+const routeFixture = {
+  root: 'UTR-DEMO-001',
+  work: 'Safe Resource Recovery',
+  role: 'Ibal learner',
+  generation: 'candidate:abc123',
+  affectedReason: 'Current worker needs one bounded route, not the whole backlog.',
+  next: 'Resolve the current resource and read or reject it safely.',
+  proof: 'Typed readback with owner relay = 0',
+  returnTo: 'parent ACK/RCP',
+  wake: 'resource generation moves or proof arrives',
+  status: { label: 'SIMULATED', tone: 'warning' },
+};
+
 const examples = {
   'page-shell': () => Core.renderPageShell({ bodyHtml: '<div>Page shell content</div>' }),
   section: () => Core.renderSection({ label: 'Example section', bodyHtml: '<strong>Section</strong><span>Semantic grouping</span>' }),
@@ -35,6 +50,8 @@ const examples = {
   'empty-state': () => Core.renderEmptyState({ title: 'Nothing here yet', summary: 'Empty states remain explicit.' }),
   'next-action-strip': () => Core.renderNextActionStrip({ bodyHtml: '<strong>Next:</strong> continue to the next step.' }),
   'selectable-list': () => Core.renderSelectableList({ selectedId: 'b', items: [{ id: 'a', label: 'Alpha' }, { id: 'b', label: 'Beta' }, { id: 'c', label: 'Gamma' }] }),
+  'progressive-disclosure': () => renderProgressiveDisclosure({ summary: 'Show supporting context', bodyHtml: '<p>Secondary detail stays available without dominating the first view.</p>' }),
+  'progressive-route-card': () => renderProgressiveRouteCard(routeFixture),
   'icon-button': () => Shell.renderIconButton({ label: 'More options', iconHtml: '•••' }),
   'drawer-shell': () => Core.renderActionButton({ label: 'Open drawer', data: { 'playground-open-drawer': true } }) + Shell.renderDrawerShell({ id: 'playground-drawer', title: 'Drawer shell', ariaLabel: 'Drawer shell', bodyHtml: '<p>Contained scroll body.</p><p>Reusable shell content.</p>', footerHtml: Core.renderActionButton({ label: 'Done', data: { 'playground-close-drawer': true } }), closeButtonHtml: Shell.renderIconButton({ label: 'Close drawer', iconHtml: '×', className: 'drawer-close' }), scrollContained: true }),
   'scroll-region': () => Shell.renderScrollRegion({ label: 'Scrollable example', bodyHtml: '<p>Focusable region</p><p>Second row</p>' }),
