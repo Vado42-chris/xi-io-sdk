@@ -3,6 +3,9 @@
   "version": "0.1.0-candidate.1",
   "private": false,
   "type": "module",
+  "bin": {
+    "xi": "./bin/xi.mjs"
+  },
   "exports": {
     "./components": "./src/components/core.mjs",
     "./behavior": "./src/components/behavior.mjs",
@@ -13,6 +16,8 @@
     "./providers": "./src/providers/state.mjs",
     "./wakes": "./src/wakes/envelope.mjs",
     "./ibal": "./src/ibal/canary.mjs",
+    "./baseline": "./src/baseline/compiler.mjs",
+    "./command-lexicon": "./src/lexicon/commands.json",
     "./progressive-disclosure": "./src/components/progressive-disclosure.mjs",
     "./patterns/progressive-route": "./src/patterns/progressive-route.mjs",
     "./styles/core.css": "./src/styles/core.css",
@@ -21,6 +26,6 @@
     "./catalog": "./src/catalog/primitives.json"
   },
   "scripts": {
-    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-primitive-adoption.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-progressive-route.mjs && node scripts/validate-package-consumer.mjs"
+    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-primitive-adoption.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-progressive-route.mjs && node scripts/validate-baseline-cli.mjs && node scripts/validate-package-consumer.mjs"
   }
 }
