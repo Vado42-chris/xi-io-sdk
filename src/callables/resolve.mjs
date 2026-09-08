@@ -1,4 +1,4 @@
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
 export function resolveCallable(catalog, callableUuid) {
   if (!catalog || !Array.isArray(catalog.primitives)) throw new TypeError('catalog.primitives is required');
@@ -15,12 +15,14 @@ export function callableUuidFor(catalog, primitiveId) {
 
 export function listCallablePrimitives(catalog) {
   if (!catalog || !Array.isArray(catalog.primitives)) throw new TypeError('catalog.primitives is required');
-  return catalog.primitives.map(({ id, callable_uuid, family, kind, export: exportName, maturity }) => ({
+  return catalog.primitives.map(({ id, callable_uuid, family, kind, export: exportName, specifier, styles = [], maturity }) => ({
     id,
     callable_uuid,
     family,
     kind,
     export: exportName,
+    specifier,
+    styles: [...styles],
     maturity,
   }));
 }
