@@ -5,6 +5,7 @@ export const FLEET_DELIVERY_GATES=Object.freeze(['LIVE_BINS_CHECKOUT','HEX_LINUX
 const STATES=new Set(['PASS','FAIL','WAIT','BLOCKED','UNKNOWN']);
 const REQUIRED_5WH=Object.freeze(['who_ref','what_ref','where_ref','when_ref','why_ref','how_ref']);
 const REQUIRED_HOST_ABI=Object.freeze(['host_ref','subject_ref','generation','receipt_ref','observed_at']);
+const NON_LIVE_EVIDENCE=/^(UNKNOWN|SYNTHETIC|FIXTURE|LOCAL_SANDBOX|CONTAINER_SANDBOX|UNVERIFIED_PASTE)$/i;
 
 function canonical(value){
   if(Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -13,6 +14,7 @@ function canonical(value){
 }
 function digest(value){return `sha256:${crypto.createHash('sha256').update(canonical(value)).digest('hex')}`;}
 function text(value,field,max=512){if(typeof value!=='string'||!value.trim()||value.length>max) throw new TypeError(`${field} requires bounded text`);return value.trim();}
+function timestamp(value,field='observed_at'){const out=text(value,field,64);if(Number.isNaN(Date.parse(out))) throw new TypeError(`${field} requires valid timestamp`);return new Date(out).toISOString();}
 function optionalText(value){return typeof value==='string'&&value.trim()&&value.length<=512?value.trim():null;}
 function finiteNonNegative(value){return Number.isFinite(value)&&value>=0?value:null;}
 function normalizeEvidence(value={}){
@@ -25,6 +27,7 @@ function normalizeHostAbi(value={}){
   for(const field of REQUIRED_HOST_ABI) out[field]=optionalText(value?.[field]);
   if(out.observed_at && Number.isNaN(Date.parse(out.observed_at))) out.observed_at=null;
   out.evidence_class=optionalText(value?.evidence_class)||'UNKNOWN';
+  out.live_evidence_claim=!NON_LIVE_EVIDENCE.test(out.evidence_class);
   return out;
 }
 function normalizeGate(value={}){
@@ -34,12 +37,13 @@ function normalizeGate(value={}){
   const hostAbi=normalizeHostAbi(value?.host_abi);
   const fiveWHComplete=REQUIRED_5WH.every(k=>Boolean(fiveWH[k]));
   const hostAbiComplete=REQUIRED_HOST_ABI.every(k=>Boolean(hostAbi[k]));
-  const suppliedPass=declared==='PASS'&&Boolean(proofRef)&&fiveWHComplete&&hostAbiComplete;
   let state=declared;
   let blocker=optionalText(value?.blocker);
   if(declared==='PASS'&&!proofRef){state='UNKNOWN';blocker='PASS_WITHOUT_PROOF_REF';}
   else if(declared==='PASS'&&!fiveWHComplete){state='UNKNOWN';blocker='PASS_WITHOUT_COMPLETE_5W_H';}
   else if(declared==='PASS'&&!hostAbiComplete){state='UNKNOWN';blocker='PASS_WITHOUT_HOST_ABI_COORDINATES';}
+  else if(declared==='PASS'&&!hostAbi.live_evidence_claim){state='UNKNOWN';blocker='NON_LIVE_HOST_ABI_EVIDENCE';}
+  const suppliedPass=state==='PASS'&&Boolean(proofRef)&&fiveWHComplete&&hostAbiComplete&&hostAbi.live_evidence_claim;
   return {
     state,
     declared_state:declared,
@@ -95,7 +99,7 @@ export function compileFleetDeliveryGate(input){
   const payload={
     schema:FLEET_DELIVERY_SCHEMA,
     source_generation:text(input.source_generation,'source_generation'),
-    observed_at:text(input.observed_at,'observed_at'),
+    observed_at:timestamp(input.observed_at),
     project_denominator:projects.length,
     gates_per_project:FLEET_DELIVERY_GATES.length,
     gate_denominator:projects.length*FLEET_DELIVERY_GATES.length,
@@ -109,13 +113,14 @@ export function compileFleetDeliveryGate(input){
     provider_effect:false,
     deploy_eligible:false,
     projects,
-    game:{candidate_ticks:suppliedPass,open_cogs:openCogCount,hope_unknown:unknownCount,closure_credit:0},
+    game:{candidate_ticks:suppliedPass,verified_ticks:0,open_cogs:openCogCount,hope_unknown:unknownCount,closure_credit:0},
     economics:{state:projects.some(p=>p.economics.state!=='UNMEASURED')?'OBSERVED_PARTIAL_OR_COMPLETE':'UNMEASURED',money_delta:'UNMEASURED_NO_VALUE_RATE'},
     hard:[
       'LIVE_BINS_CHECKOUT_AND_HEX_LINUX_FLATPAK_EQUIVALENT_REQUIRED_FOR_PROJECT_100S',
       'ONE_GATE_PASS!=PROJECT_100S',
       'SUPPLIED_PASS!=VERIFIED_PASS',
       'HOST_ABI_COORDINATES!=PROVIDER_AUTHENTICATION',
+      'SYNTHETIC_OR_SANDBOX_HOST_ABI!=LIVE_GATE_EVIDENCE',
       '5W_H_COMPLETE!=RUNTIME_EFFECT',
       'FIXTURE_PASS!=LIVE_BINS_CHECKOUT',
       'HEX_SOURCE_PRESENT!=LINUX_INSTALL_FUNCTIONAL',
