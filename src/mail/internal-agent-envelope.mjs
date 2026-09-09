@@ -4,7 +4,6 @@ import { validateDistributedAck } from '../acks/distributed.mjs';
 const TRANSPORTS = new Set(['SLACK','GITHUB_COMMENT','INBOX_LOCAL','SMTP']);
 const STATES = new Set(['UNPROVEN','REGISTERED','DISPATCHED','DELIVERED','READ_BACK']);
 const text = (v) => String(v ?? '').trim();
-const bool = (v) => v === true;
 
 function required(v, code) {
   const out = text(v);
@@ -36,7 +35,7 @@ export function compileInternalAgentEndpoint(input = {}) {
     transport,
     state,
     provider_receipt_ref: providerReceiptRef,
-    provider_native_proven: bool(providerReceiptRef),
+    provider_native_proven: providerReceiptRef !== null,
     effect_authority: false,
   });
 }
@@ -54,6 +53,7 @@ export function compileInternalAgentMessage(input = {}) {
   const messageId = `msg_${stableId([ack.ack_id,sourceOccurrenceRef,sender.endpoint_ref,...recipients.map(r=>r.endpoint_ref).sort()])}`;
   const providerDelivered = recipients.every(r => r.state === 'DELIVERED' || r.state === 'READ_BACK');
   const providerReadBack = recipients.every(r => r.state === 'READ_BACK');
+  const smtpRecipients = recipients.filter(r=>r.transport==='SMTP');
   return Object.freeze({
     schema: 'xiio.sdk.internal-agent-message/v1',
     message_id: messageId,
@@ -68,7 +68,7 @@ export function compileInternalAgentMessage(input = {}) {
     transport_summary: {
       provider_delivered: providerDelivered,
       provider_readback: providerReadBack,
-      smtp_proven: recipients.filter(r=>r.transport==='SMTP').every(r=>r.provider_native_proven),
+      smtp_proven: smtpRecipients.length > 0 && smtpRecipients.every(r=>r.provider_native_proven),
     },
     authority: { provider_write:false, work_assignment:false, legal_effect:false },
     hard: [
