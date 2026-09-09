@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
 
-const evidence=(state='FAIL',suffix='x')=>({
+const evidence=(state='FAIL',suffix='x',evidenceClass='SUPPLIED_LIVE_CLAIM')=>({
   state,
   proof_ref:`proof:${suffix}`,
   five_w_h:{
@@ -11,7 +11,7 @@ const evidence=(state='FAIL',suffix='x')=>({
   },
   host_abi:{
     host_ref:`host:${suffix}`,subject_ref:`subject:${suffix}`,generation:`gen:${suffix}`,
-    receipt_ref:`receipt:${suffix}`,observed_at:'2026-09-09T15:30:00.000Z',evidence_class:'SUPPLIED',
+    receipt_ref:`receipt:${suffix}`,observed_at:'2026-09-09T15:30:00.000Z',evidence_class:evidenceClass,
   },
 });
 
@@ -34,6 +34,7 @@ assert.equal(red.verified_truth_percent,0);
 assert.equal(red.fleet_requirements_100,false);
 assert.equal(red.deploy_eligible,false);
 assert.equal(red.game.closure_credit,0);
+assert.equal(red.game.verified_ticks,0);
 assert.equal(red.economics.money_delta,'UNMEASURED_NO_VALUE_RATE');
 
 const supplied=compileFleetDeliveryGate({
@@ -49,6 +50,18 @@ assert.equal(supplied.projects[0].supplied_gate_pass,true);
 assert.equal(supplied.projects[0].requirements_100,false);
 assert.equal(supplied.projects[0].closure_state,'WAIT_AUTHENTICATED_LIVE_READBACK');
 assert.equal(supplied.deploy_eligible,false);
+
+const synthetic=compileFleetDeliveryGate({
+  source_generation:'fleet-g2s',observed_at:'2026-09-09T15:32:30.000Z',
+  projects:[{project_ref:'project:synthetic',observations:{
+    LIVE_BINS_CHECKOUT:evidence('PASS','bins-synth','CONTAINER_SANDBOX'),
+    HEX_LINUX_FLATPAK_EQUIVALENT:evidence('PASS','hex-synth','FIXTURE'),
+  }}],
+});
+assert.equal(synthetic.supplied_gate_pass_projects,0);
+assert.equal(synthetic.projects[0].gates[0].state,'UNKNOWN');
+assert.equal(synthetic.projects[0].gates[0].blocker,'NON_LIVE_HOST_ABI_EVIDENCE');
+assert.equal(synthetic.projects[0].gates[1].blocker,'NON_LIVE_HOST_ABI_EVIDENCE');
 
 const missing5w=compileFleetDeliveryGate({
   source_generation:'fleet-g3',observed_at:'2026-09-09T15:33:00.000Z',projects:[{
@@ -74,5 +87,6 @@ assert.equal(missingHost.projects[0].gates[0].state,'UNKNOWN');
 assert.equal(missingHost.projects[0].gates[0].blocker,'PASS_WITHOUT_HOST_ABI_COORDINATES');
 
 assert.throws(()=>compileFleetDeliveryGate({source_generation:'g',observed_at:'x',projects:[]}));
-assert.throws(()=>compileFleetDeliveryGate({source_generation:'g',observed_at:'x',projects:[{project_ref:'p'},{project_ref:'p'}]}));
-console.log('FLEET_DELIVERY_GATE_PASS 18_PROJECT_RED supplied_pass_never_verified 5W_H+HOST_ABI_FAIL_CLOSED deploy=0 money=UNMEASURED');
+assert.throws(()=>compileFleetDeliveryGate({source_generation:'g',observed_at:'not-a-time',projects:[{project_ref:'p'}]}),/valid timestamp/);
+assert.throws(()=>compileFleetDeliveryGate({source_generation:'g',observed_at:'2026-09-09T15:35:00.000Z',projects:[{project_ref:'p'},{project_ref:'p'}]}));
+console.log('FLEET_DELIVERY_GATE_PASS 18_PROJECT_RED synthetic_host_rejected supplied_pass_never_verified 5W_H+HOST_ABI_FAIL_CLOSED deploy=0 money=UNMEASURED');
