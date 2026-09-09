@@ -1,0 +1,55 @@
+:where([data-xiui-root]) {
+  --xiui-surface: #111820;
+  --xiui-surface-raised: #17212b;
+  --xiui-text: #f4f6f8;
+  --xiui-muted: #aeb7c0;
+  --xiui-line: #34404c;
+  --xiui-accent: #7aa2f7;
+  --xiui-accent-soft: color-mix(in srgb, var(--xiui-accent) 14%, transparent);
+  --xiui-status-critical: #ff6b78;
+  --xiui-status-warning: #f1bd68;
+  --xiui-status-verified: #61d39a;
+  --xiui-status-unknown: #a8b0bd;
+  --xiui-radius: 12px;
+  color: var(--xiui-text);
+}
+
+[data-xiui="page-shell"] { min-width: 0; }
+[data-xiui="section"] { display: grid; gap: .75rem; min-width: 0; }
+[data-xiui="stack"] { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+[data-xiui="grid"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: .75rem; min-width: 0; }
+
+[data-xiui="panel"],
+[data-xiui="evidence-panel"],
+[data-xiui="context-inspector"],
+[data-xiui="empty-state"],
+[data-xiui="next-action-strip"] {
+  border: 1px solid var(--xiui-line);
+  border-radius: var(--xiui-radius);
+  background: var(--xiui-surface-raised);
+}
+[data-xiui="panel"], [data-xiui="evidence-panel"], [data-xiui="empty-state"], [data-xiui="next-action-strip"] { padding: 1rem; }
+[data-xiui="context-inspector"] { padding: 1rem; position: sticky; top: .75rem; align-self: start; max-height: calc(100vh - 1.5rem); overflow: auto; }
+[data-xiui="status-badge"] { display: inline-flex; align-items: center; width: fit-content; gap: .35rem; border: 1px solid var(--xiui-line); border-radius: 999px; padding: .28rem .55rem; font-size: .78rem; font-weight: 700; line-height: 1; }
+[data-xiui="status-badge"][data-tone="critical"] { color: var(--xiui-status-critical); }
+[data-xiui="status-badge"][data-tone="warning"] { color: var(--xiui-status-warning); }
+[data-xiui="status-badge"][data-tone="verified"] { color: var(--xiui-status-verified); }
+[data-xiui="status-badge"][data-tone="unknown"] { color: var(--xiui-status-unknown); }
+[data-xiui="action-button"] { appearance: none; border: 1px solid color-mix(in srgb, var(--xiui-accent) 55%, var(--xiui-line)); border-radius: .65rem; background: var(--xiui-accent-soft); color: var(--xiui-text); padding: .55rem .8rem; font: inherit; font-weight: 700; cursor: pointer; }
+[data-xiui="action-button"]:disabled { cursor: not-allowed; opacity: .5; }
+[data-xiui="action-button"]:focus-visible, [data-xiui-selectable]:focus-visible, [data-xiui-dialog-close]:focus-visible { outline: 3px solid color-mix(in srgb, var(--xiui-accent) 70%, white); outline-offset: 2px; }
+[data-xiui="evidence-panel"] dl { display: grid; grid-template-columns: minmax(7rem, auto) 1fr; gap: .45rem .8rem; margin: 0; }
+[data-xiui="evidence-panel"] dt { color: var(--xiui-muted); }
+[data-xiui="evidence-panel"] dd { margin: 0; overflow-wrap: anywhere; }
+[data-xiui="receipt-row"] { display: grid; grid-template-columns: minmax(8rem, auto) 1fr auto; gap: .75rem; align-items: center; padding: .65rem 0; border-bottom: 1px solid var(--xiui-line); }
+[data-xiui="receipt-row"]:last-child { border-bottom: 0; }
+[data-xiui-selectable] { cursor: pointer; padding: .55rem .75rem; }
+[data-xiui-selectable][aria-selected="true"] { box-shadow: inset 3px 0 var(--xiui-accent); background: var(--xiui-accent-soft); }
+[data-xiui="confirmation-dialog"] { width: min(38rem, calc(100vw - 2rem)); border: 1px solid var(--xiui-line); border-radius: var(--xiui-radius); background: var(--xiui-surface); color: var(--xiui-text); padding: 0; }
+[data-xiui="confirmation-dialog"]::backdrop { background: rgb(0 0 0 / .62); }
+[data-xiui="confirmation-dialog"] [data-xiui-dialog-body] { padding: 1rem; }
+[data-xiui="confirmation-dialog"] [data-xiui-dialog-actions] { display: flex; justify-content: flex-end; gap: .5rem; padding: .8rem 1rem; border-top: 1px solid var(--xiui-line); }
+[data-xiui="empty-state"] { color: var(--xiui-muted); text-align: center; }
+[data-xiui="next-action-strip"] { border-color: color-mix(in srgb, var(--xiui-accent) 45%, var(--xiui-line)); }
+@media (max-width: 720px) { [data-xiui="context-inspector"] { position: static; max-height: none; } [data-xiui="receipt-row"] { grid-template-columns: 1fr; } [data-xiui="evidence-panel"] dl { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { [data-xiui-root] *, [data-xiui-root] *::before, [data-xiui-root] *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; } }

@@ -1,0 +1,11 @@
+{
+  "provider": "Google Antigravity",
+  "operation": "agent_execution",
+  "http_status": 429,
+  "provider_status": "RESOURCE_EXHAUSTED",
+  "headers": {
+    "content-type": "text/event-stream",
+    "server": "ESF"
+  },
+  "provider_trace_id": "synthetic-antigravity-trace"
+}

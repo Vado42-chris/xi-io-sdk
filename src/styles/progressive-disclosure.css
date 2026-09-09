@@ -1,0 +1,26 @@
+[data-xiui="progressive-disclosure"] {
+  border: 1px solid var(--xiui-line, currentColor);
+  border-radius: var(--xiui-radius, .75rem);
+  background: var(--xiui-surface-raised, transparent);
+  min-width: 0;
+}
+
+[data-xiui="progressive-disclosure"] > summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: .8rem 1rem;
+  list-style-position: inside;
+}
+
+[data-xiui="progressive-disclosure"] > summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--xiui-accent, currentColor) 70%, white);
+  outline-offset: 2px;
+}
+
+[data-xiui="progressive-disclosure"] [data-xiui-disclosure-body] {
+  padding: 0 1rem 1rem;
+}
+
+[data-xiui="progressive-disclosure"] [data-xiui="receipt-row"]:first-child {
+  padding-top: 0;
+}

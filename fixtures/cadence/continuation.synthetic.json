@@ -1,0 +1,27 @@
+{
+  "root_ref": "root:G193",
+  "worker_ref": "worker:future-agent",
+  "subject_generation": "g3",
+  "current_generation": "g3",
+  "phase_event": "POST_RESULT",
+  "pass_state": "PASS",
+  "four_scale": {
+    "MICRO": "100",
+    "MESO": "100",
+    "MACRO": "100",
+    "META": "100"
+  },
+  "backlog": [
+    { "id": "work:next-golden", "state": "RUNNABLE", "priority": 1 },
+    { "id": "work:true-wait", "state": "TRUE_WAIT", "priority": 2 }
+  ],
+  "returns": [],
+  "residue": [],
+  "occurrences": [],
+  "worker_inbox": {
+    "ref": "inbox:worker/future-agent",
+    "current": true,
+    "actionable_count": 0
+  },
+  "async_continuation_required": true
+}

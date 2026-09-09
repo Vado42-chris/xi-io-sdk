@@ -1,0 +1,57 @@
+{
+  "source_generation": "github-installation:synthetic:g1",
+  "observed_at": "2026-09-08T10:00:00.000Z",
+  "repositories": [
+    {
+      "repo_ref": "repo:alpha",
+      "visibility": "private",
+      "classification": "STUDIO_CHILD",
+      "default_branch": "main",
+      "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "managed_manifest_current": true,
+      "hydration_current": true,
+      "worker_capability_current": true,
+      "sdk_cli_adopted": true,
+      "ack_current": true,
+      "return_readback_current": true,
+      "branch_census_state": "COMPLETE",
+      "branches": [{"name":"main","disposition":"KEEP"}]
+    },
+    {
+      "repo_ref": "repo:beta",
+      "visibility": "private",
+      "classification": "LEGACY_DONOR",
+      "default_branch": "feature-old",
+      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "managed_manifest_current": false,
+      "hydration_current": false,
+      "worker_capability_current": false,
+      "sdk_cli_adopted": false,
+      "ack_current": false,
+      "return_readback_current": false,
+      "branch_census_state": "COMPLETE",
+      "branches": [
+        {"name":"feature-old","disposition":"KEEP"},
+        {"name":"stale-a"}
+      ]
+    },
+    {
+      "repo_ref": "repo:gamma",
+      "visibility": "public",
+      "classification": "PRODUCT_CANDIDATE",
+      "default_branch": "main",
+      "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "managed_manifest_current": true,
+      "hydration_current": false,
+      "worker_capability_current": false,
+      "sdk_cli_adopted": true,
+      "ack_current": false,
+      "return_readback_current": false,
+      "branch_census_state": "COMPLETE",
+      "branches": [
+        {"name":"main","disposition":"KEEP"},
+        {"name":"feature-c","disposition":"ACTIVE"}
+      ]
+    }
+  ]
+}

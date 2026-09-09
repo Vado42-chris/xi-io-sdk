@@ -1,0 +1,41 @@
+{
+  "lesson_id": "lesson:meta-pattern-under-technical-fix",
+  "proof_tier": "PROVEN",
+  "origin": {
+    "canary_ref": "canary:owner-relay-force-reducer",
+    "repo_ref": "repo:synthetic-child",
+    "subject_generation": "generation:synthetic-001",
+    "failure_signature": "DISCOVERY_STOPS_IN_CHAT_OR_LOCAL_ARTIFACT",
+    "owner_relay_required": true
+  },
+  "generalized": {
+    "invariant": "DISCOVERY_MUST_PROMOTE_THROUGH_SDK_BINS_DISTRIBUTED_ACK_ADOPTION_RETURN",
+    "applies_to": ["ingress", "analysis", "egress", "maths", "heuristics", "baseline", "triage"],
+    "anti_pattern": "FLATPLANED_DISCOVERY"
+  },
+  "sdk": {
+    "change_type": "CLI_COMMAND",
+    "change_ref": "sdk:lesson.promote",
+    "command_ref": "xi lesson promote"
+  },
+  "bins": {
+    "ledger_target_ref": "bins:lesson-ledger",
+    "record_ref": null,
+    "record_generation": null
+  },
+  "distributed_ack": {
+    "required": true,
+    "ack_set_ref": null,
+    "target_denominator": 100
+  },
+  "adopter": {
+    "adopter_ref": "repo:synthetic-child",
+    "state": null,
+    "proof_ref": null
+  },
+  "return": {
+    "return_ref": null,
+    "apply_return_ref": null,
+    "current_readback": false
+  }
+}

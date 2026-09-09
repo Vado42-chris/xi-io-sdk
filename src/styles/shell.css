@@ -1,0 +1,32 @@
+[data-xiui="icon-button"] { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-width: 2.5rem; min-height: 2.5rem; border: 1px solid var(--xiui-line, currentColor); border-radius: .65rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+[data-xiui="icon-button"]:disabled { cursor: not-allowed; opacity: .5; }
+[data-xiui="icon-button"]:focus-visible, [data-xiui="tabs"] [role="tab"]:focus-visible, [data-xiui="scroll-region"]:focus-visible, [data-xiui-toast-dismiss]:focus-visible { outline: 3px solid color-mix(in srgb, var(--xiui-accent, currentColor) 70%, white); outline-offset: 2px; }
+[data-xiui="drawer"] { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+[data-xiui="drawer"][aria-hidden="true"] { visibility: hidden; }
+[data-xiui="drawer"][aria-hidden="false"] { pointer-events: auto; visibility: visible; }
+[data-xiui="drawer-backdrop"] { position: absolute; inset: 0; background: rgb(0 0 0 / .48); }
+[data-xiui="drawer-panel"] { position: absolute; inset-block: 0; inset-inline-end: 0; width: min(34rem, 100vw); max-width: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--xiui-surface, Canvas); color: var(--xiui-text, CanvasText); border-inline-start: 1px solid var(--xiui-line, currentColor); }
+[data-xiui="drawer-header"] { flex: 0 0 auto; display: flex; align-items: start; justify-content: space-between; gap: .75rem; padding: 1rem; border-bottom: 1px solid var(--xiui-line, currentColor); }
+[data-xiui="drawer-body"] { min-height: 0; overflow: auto; padding: 1rem; }
+[data-xiui="drawer-panel"][data-xiui-scroll-layout="contained"] > [data-xiui="scroll-region"] { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1rem; }
+[data-xiui="drawer-footer"] { flex: 0 0 auto; display: flex; justify-content: flex-end; gap: .5rem; padding: .8rem 1rem; border-top: 1px solid var(--xiui-line, currentColor); background: inherit; }
+[data-xiui="scroll-region"] { min-width: 0; min-height: 0; overflow: auto; }
+[data-xiui="toast-stack"] { display: grid; gap: .5rem; width: min(28rem, calc(100vw - 2rem)); }
+[data-xiui="toast"] { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: start; border: 1px solid var(--xiui-line, currentColor); border-radius: var(--xiui-radius, .75rem); background: var(--xiui-surface-raised, Canvas); color: var(--xiui-text, CanvasText); padding: .75rem; }
+[data-xiui-toast-dismiss] { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+[data-xiui="route-header"] { display: grid; gap: .55rem; min-width: 0; }
+[data-xiui="route-header-main"] { display: flex; align-items: start; justify-content: space-between; gap: 1rem; min-width: 0; }
+[data-xiui="route-header"] h1 { margin: 0; }
+[data-xiui="route-header-subtitle"] { margin: .25rem 0 0; color: var(--xiui-muted, inherit); }
+[data-xiui="breadcrumbs"] { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; min-width: 0; }
+[data-xiui="breadcrumb-separator"] { opacity: .6; }
+[data-xiui="form-field"] { display: grid; gap: .35rem; min-width: 0; }
+[data-xiui="form-field"] label { font-weight: 700; }
+[data-xiui="form-hint"] { margin: 0; color: var(--xiui-muted, inherit); font-size: .875rem; }
+[data-xiui="select-field"] { max-width: 100%; font: inherit; }
+[data-xiui="tabs"] { display: flex; gap: .25rem; overflow-x: auto; min-width: 0; }
+[data-xiui="tabs"] [role="tab"] { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: inherit; padding: .55rem .75rem; font: inherit; font-weight: 700; white-space: nowrap; cursor: pointer; }
+[data-xiui="tabs"] [role="tab"][aria-selected="true"] { border-bottom-color: var(--xiui-accent, currentColor); }
+[data-xiui="tabs"] [role="tab"]:disabled { cursor: not-allowed; opacity: .5; }
+@media (max-width: 720px) { [data-xiui="drawer-panel"] { width: 100vw; } [data-xiui="route-header-main"] { flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { [data-xiui="drawer"], [data-xiui="toast"], [data-xiui="tabs"] * { transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; } }
