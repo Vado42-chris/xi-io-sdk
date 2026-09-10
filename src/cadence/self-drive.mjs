@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { compileContinuationCycle } from './continuation.mjs';
+import { compileRejoinSeams } from '../seams/rejoin.mjs';
 
 export const SELF_DRIVE_DIRECTIVE_SCHEMA = 'xiio.sdk.continuation-directive/v1';
 export const SELF_DRIVE_LOOP_SCHEMA = 'xiio.sdk.continuation-loop/v1';
@@ -114,7 +115,48 @@ function waitDisposition(cycle, backlog, action) {
   return { stop_class: 'CONTINUE', yield_allowed: false, action: 'RECOMPUTE_FRONTIER', waits: [] };
 }
 
-function nextPacket(cycle, action) {
+function compileRejoinState(input) {
+  if (!Array.isArray(input.rejoin_seams)) return null;
+  return compileRejoinSeams({
+    root_ref: input.root_ref,
+    agent_ref: input.worker_ref,
+    subject_generation: input.subject_generation,
+    current_generation: input.current_generation,
+    seams: input.rejoin_seams,
+  });
+}
+
+function applyRejoinSeams(cycle, baseStop, seamState) {
+  if (!seamState || seamState.current) return baseStop;
+  if (cycle.disposition === 'REBASE_REQUIRED') return baseStop;
+
+  if (seamState.missing_families.length > 0) {
+    return { stop_class: 'CONTINUE', yield_allowed: false, action: 'RESOLVE_REJOIN_SEAM_DENOMINATOR', waits: [] };
+  }
+
+  const machine = seamState.refresh_obligations.filter((row) => row.resolution_class === 'MACHINE_RESOLVABLE');
+  if (machine.length > 0) {
+    return { stop_class: 'CONTINUE', yield_allowed: false, action: 'REFRESH_REJOIN_SEAMS', waits: [] };
+  }
+
+  // A provider/owner seam wait is pointwise. Keep eating an independently runnable root action.
+  if (baseStop.stop_class === 'CONTINUE') return baseStop;
+
+  const owner = seamState.refresh_obligations.filter((row) => row.resolution_class === 'OWNER_ONLY');
+  const trueWait = seamState.refresh_obligations.filter((row) => row.resolution_class === 'TRUE_WAIT');
+  const waits = [...owner, ...trueWait].map((row) => ({
+    id: row.seam_id,
+    family: row.family,
+    state: row.resolution_class,
+    wake_when: row.wake_when,
+  }));
+
+  if (owner.length > 0) return { stop_class: 'OWNER_ONLY', yield_allowed: true, action: null, waits };
+  if (trueWait.length > 0) return { stop_class: 'TRUE_WAIT', yield_allowed: true, action: null, waits };
+  return { stop_class: 'CONTINUE', yield_allowed: false, action: 'REFRESH_REJOIN_SEAMS', waits: [] };
+}
+
+function nextPacket(cycle, action, seamState = null) {
   const selected = selectedWork(cycle);
   const packet = {
     schema: SELF_DRIVE_PACKET_SCHEMA,
@@ -129,6 +171,13 @@ function nextPacket(cycle, action) {
     return_required: true,
     apply_return_required: true,
     reap_then_reread_required: true,
+    rejoin_seams_required: Boolean(seamState),
+    seam_refresh_obligations: action === 'REFRESH_REJOIN_SEAMS' || action === 'RESOLVE_REJOIN_SEAM_DENOMINATOR'
+      ? seamState?.refresh_obligations ?? []
+      : [],
+    missing_seam_families: action === 'RESOLVE_REJOIN_SEAM_DENOMINATOR'
+      ? seamState?.missing_families ?? []
+      : [],
     owner_ingress_required: false,
     effect_ceiling: 'PROJECTION_ONLY',
     provider_effect: false,
@@ -141,11 +190,13 @@ export function compileContinuationDirective(input) {
   const cycle = compileContinuationCycle(input);
   const backlog = sourceBacklog(input);
   const heartbeatCount = ownerHeartbeatCount(input);
+  const seamState = compileRejoinState(input);
   const initialAction = allOwnerOnly(backlog) ? null : machineAction(cycle);
-  const stop = waitDisposition(cycle, backlog, initialAction);
+  const baseStop = waitDisposition(cycle, backlog, initialAction);
+  const stop = applyRejoinSeams(cycle, baseStop, seamState);
   const continueWithoutOwner = stop.stop_class === 'CONTINUE';
   const ownerHeartbeatBug = continueWithoutOwner && heartbeatCount > 0;
-  const packet = continueWithoutOwner ? nextPacket(cycle, stop.action) : null;
+  const packet = continueWithoutOwner ? nextPacket(cycle, stop.action, seamState) : null;
 
   return {
     schema: SELF_DRIVE_DIRECTIVE_SCHEMA,
@@ -163,6 +214,7 @@ export function compileContinuationDirective(input) {
     status: ownerHeartbeatBug ? 'FAIL_CURRENT' : 'CURRENT',
     bug: ownerHeartbeatBug ? 'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT' : null,
     waits: stop.waits,
+    rejoin_seams: seamState,
     next_packet: packet,
     cycle,
     hard: [
@@ -171,6 +223,10 @@ export function compileContinuationDirective(input) {
       'WAIT_ONE_CELL != ROOT_STOP',
       'BLOCKED_PROVIDER != ROOT_STOP',
       'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
+      'REJOIN != REUSE_STALE_ACK',
+      'ACK != A2A != MCP',
+      'STALE_SEAM != SILENT_REUSE',
+      'POINTWISE_SEAM_WAIT != INDEPENDENT_ROOT_STOP',
       'SDK_LOOP_DIRECTIVE != EFFECT_AUTHORITY',
       'SDK_LOOP_DIRECTIVE != PROVIDER_EXECUTION',
     ],
