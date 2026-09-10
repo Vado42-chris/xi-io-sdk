@@ -4,6 +4,7 @@ export const REJOIN_SEAMS_SCHEMA = 'xiio.sdk.rejoin-seams/v1';
 const FAMILIES = new Set(['ACK', 'A2A', 'MCP']);
 const STATES = new Set(['CURRENT', 'STALE', 'UNKNOWN', 'N_A_WITH_EVIDENCE']);
 const CURRENT_STATES = new Set(['CURRENT', 'N_A_WITH_EVIDENCE']);
+const RESOLUTION_CLASSES = new Set(['MACHINE_RESOLVABLE', 'TRUE_WAIT', 'OWNER_ONLY', 'NONE']);
 
 function clean(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -41,6 +42,7 @@ function normalizeSeam(raw, root) {
   const readbackRef = clean(raw.readback_ref);
   const observedAt = clean(raw.observed_at);
   const effectCeiling = clean(raw.effect_ceiling) ?? 'NO_EFFECT';
+  const wakeWhen = clean(raw.wake_when);
 
   const missingBindings = [];
   if (required) {
@@ -75,6 +77,13 @@ function normalizeSeam(raw, root) {
 
   const current = CURRENT_STATES.has(state) && (state === 'N_A_WITH_EVIDENCE' || generationBound);
   const refreshRequired = required && !current;
+  let resolutionClass = upper(raw.resolution_class ?? (refreshRequired ? 'MACHINE_RESOLVABLE' : 'NONE'));
+  if (!RESOLUTION_CLASSES.has(resolutionClass)) throw new Error(`SEAM_RESOLUTION_CLASS_INVALID:${seamId}`);
+  if (!refreshRequired) resolutionClass = 'NONE';
+  if (refreshRequired && resolutionClass === 'TRUE_WAIT' && !wakeWhen) {
+    resolutionClass = 'MACHINE_RESOLVABLE';
+    invalidators.push('TRUE_WAIT_WITHOUT_WAKE');
+  }
 
   return {
     schema: REJOIN_SEAM_SCHEMA,
@@ -87,6 +96,8 @@ function normalizeSeam(raw, root) {
     state,
     current,
     refresh_required: refreshRequired,
+    resolution_class: resolutionClass,
+    wake_when: wakeWhen,
     subject_generation: subjectGeneration,
     current_generation: currentGeneration,
     generation_bound: generationBound,
@@ -142,6 +153,19 @@ export function compileRejoinSeams(input) {
         ? 'STALE'
         : 'CURRENT_BOUNDED';
 
+  const obligations = refresh.map((row) => ({
+    seam_id: row.seam_id,
+    family: row.family,
+    next: row.next,
+    target_ref: row.target_ref,
+    provider_family: row.provider_family,
+    current_generation: row.current_generation,
+    resolution_class: row.resolution_class,
+    wake_when: row.wake_when,
+    invalidators: row.invalidators,
+    missing_bindings: row.missing_bindings,
+  }));
+
   return {
     schema: REJOIN_SEAMS_SCHEMA,
     ...root,
@@ -154,16 +178,10 @@ export function compileRejoinSeams(input) {
     unknown_required: unknown.length,
     missing_families: missingFamilies,
     refresh_required_count: refresh.length,
-    refresh_obligations: refresh.map((row) => ({
-      seam_id: row.seam_id,
-      family: row.family,
-      next: row.next,
-      target_ref: row.target_ref,
-      provider_family: row.provider_family,
-      current_generation: row.current_generation,
-      invalidators: row.invalidators,
-      missing_bindings: row.missing_bindings,
-    })),
+    machine_resolvable_refresh_count: obligations.filter((row) => row.resolution_class === 'MACHINE_RESOLVABLE').length,
+    true_wait_refresh_count: obligations.filter((row) => row.resolution_class === 'TRUE_WAIT').length,
+    owner_only_refresh_count: obligations.filter((row) => row.resolution_class === 'OWNER_ONLY').length,
+    refresh_obligations: obligations,
     seams,
     effect_ceiling: 'PROJECTION_ONLY',
     provider_effects: 0,
@@ -180,6 +198,7 @@ export function compileRejoinSeams(input) {
       'PROVIDER_CONNECTED != CAPABILITY_CURRENT',
       'ALTERNATE_SURFACE_PASS != REQUIRED_SURFACE_PASS',
       'N_A != N_A_WITH_EVIDENCE',
+      'TRUE_WAIT_REQUIRES_EXACT_WAKE',
       'SDK_SEAM_COMPILER != PROVIDER_EXECUTION',
       'SDK_SEAM_COMPILER != EFFECT_AUTHORITY',
       'ONE_STALE_SEAM != ROOT_STOP_WHEN_INDEPENDENT_WORK_EXISTS',
