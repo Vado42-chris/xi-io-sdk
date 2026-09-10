@@ -4,6 +4,7 @@ import { compileContinuationCycle } from './continuation.mjs';
 export const SELF_DRIVE_DIRECTIVE_SCHEMA = 'xiio.sdk.continuation-directive/v1';
 export const SELF_DRIVE_LOOP_SCHEMA = 'xiio.sdk.continuation-loop/v1';
 export const SELF_DRIVE_PACKET_SCHEMA = 'xiio.sdk.continuation-next-packet/v1';
+export const REJOIN_SEAM_SCHEMA = 'xiio.sdk.rejoin-seams/v1';
 
 const CONTINUE_DISPOSITIONS = new Map([
   ['REBASE_REQUIRED', 'REBASE_CURRENT'],
@@ -24,9 +25,30 @@ const EFFECT_STATES = new Set([
 ]);
 const RECONCILE_EFFECT_STATES = new Set(['EFFECT_UNKNOWN', 'PARTIAL_EFFECT_UNKNOWN']);
 const RESOLVER_STATES = new Set(['WAIT', 'TRUE_WAIT', 'BLOCKED', 'UNKNOWN']);
+const SEAM_STATES = new Set([
+  'OPEN',
+  'WAIT',
+  'TRUE_WAIT',
+  'BLOCKED',
+  'READBACK_VERIFIED',
+  'RETURN_READY',
+  'APPLIED',
+  'CONSUMED',
+]);
+const REJOIN_ACTION_RANK = new Map([
+  ['VERIFY_SEAM_RECEIPT', 0],
+  ['COMPILE_RETURN', 1],
+  ['APPLY_RETURN', 2],
+  ['VERIFY_CONSUMER_READBACK', 3],
+  ['RESOLVE_SEAM', 4],
+]);
 
 function clean(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function opaque(value) {
+  return typeof value === 'string' && value.trim() && value.length <= 512 ? value : null;
 }
 
 function state(value) {
@@ -84,7 +106,9 @@ function selectedWork(cycle) {
 }
 
 function sortTargets(items) {
-  return [...items].sort((a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id, 'en'));
+  return [...items].sort((a, b) =>
+    (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER)
+      || a.id.localeCompare(b.id, 'en'));
 }
 
 function resolverTarget(backlog, action) {
@@ -105,7 +129,190 @@ function allOwnerOnly(backlog) {
   return backlog.length > 0 && backlog.every((item) => item.owner_required);
 }
 
+function seamInputRows(input) {
+  return rows(input.seams).map((item, index) => {
+    const seamRef = opaque(item.seam_ref ?? item.id);
+    const kind = clean(item.kind)?.toUpperCase();
+    const seamState = state(item.state);
+    if (!seamRef || !kind || !SEAM_STATES.has(seamState)) throw new Error(`REJOIN_SEAM_INVALID:${index}`);
+    const wakeReceiptRef = item.wake_receipt_ref === undefined || item.wake_receipt_ref === null
+      ? null
+      : opaque(item.wake_receipt_ref);
+    if ((item.wake_receipt_ref !== undefined && item.wake_receipt_ref !== null) && !wakeReceiptRef) {
+      throw new Error(`REJOIN_WAKE_RECEIPT_INVALID:${index}`);
+    }
+    return {
+      seam_ref: seamRef,
+      kind,
+      state: seamState,
+      wake_receipt_ref: wakeReceiptRef,
+      priority: Number.isFinite(item.priority) ? item.priority : null,
+      machine_resolvable: item.machine_resolvable === true,
+      owner_required: item.owner_required === true,
+    };
+  });
+}
+
+function receiptInputRows(input) {
+  return rows(input.seam_receipts).map((item, index) => {
+    const receiptRef = opaque(item.receipt_ref);
+    const seamRef = opaque(item.seam_ref);
+    const rootRef = opaque(item.root_ref);
+    const subjectGeneration = opaque(item.subject_generation);
+    const currentGeneration = opaque(item.current_generation);
+    if (!receiptRef || !seamRef || !rootRef || !subjectGeneration || !currentGeneration) {
+      throw new Error(`REJOIN_RECEIPT_INVALID:${index}`);
+    }
+    const returnRef = item.return_ref === undefined || item.return_ref === null ? null : opaque(item.return_ref);
+    if ((item.return_ref !== undefined && item.return_ref !== null) && !returnRef) {
+      throw new Error(`REJOIN_RETURN_REF_INVALID:${index}`);
+    }
+    return {
+      receipt_ref: receiptRef,
+      seam_ref: seamRef,
+      root_ref: rootRef,
+      subject_generation: subjectGeneration,
+      current_generation: currentGeneration,
+      authenticated: item.authenticated === true,
+      verified: item.verified === true,
+      provider_readback: item.provider_readback === true,
+      return_ref: returnRef,
+      return_applied: item.return_applied === true,
+      consumer_readback: item.consumer_readback === true,
+    };
+  });
+}
+
+export function compileRejoinSeams(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('INVALID_INPUT');
+  const rootRef = opaque(input.root_ref);
+  const subjectGeneration = opaque(input.subject_generation);
+  const currentGeneration = opaque(input.current_generation);
+  if (!rootRef || !subjectGeneration || !currentGeneration) throw new Error('REJOIN_IDENTITY_REQUIRED');
+
+  const seams = seamInputRows(input);
+  const receipts = receiptInputRows(input);
+  const resolved = [];
+  const pending = [];
+  let repairedStaleWaitCount = 0;
+
+  for (const seam of seams) {
+    const candidates = receipts.filter((receipt) =>
+      receipt.seam_ref === seam.seam_ref
+        && (!seam.wake_receipt_ref || receipt.receipt_ref === seam.wake_receipt_ref));
+    const exact = candidates.find((receipt) =>
+      receipt.root_ref === rootRef
+        && receipt.subject_generation === subjectGeneration
+        && receipt.current_generation === currentGeneration) ?? null;
+    const qualified = Boolean(exact && exact.authenticated && exact.verified && exact.provider_readback);
+
+    let disposition = 'UNRESOLVED';
+    let nextAction = null;
+    let wakeSatisfied = false;
+
+    if (exact && !qualified) {
+      nextAction = 'VERIFY_SEAM_RECEIPT';
+      disposition = 'RECEIPT_PRESENT_UNQUALIFIED';
+    } else if (qualified) {
+      wakeSatisfied = true;
+      if (['WAIT', 'TRUE_WAIT', 'BLOCKED'].includes(seam.state)) repairedStaleWaitCount += 1;
+      if (!exact.return_ref) {
+        nextAction = 'COMPILE_RETURN';
+        disposition = 'READBACK_VERIFIED_RETURN_MISSING';
+      } else if (!exact.return_applied) {
+        nextAction = 'APPLY_RETURN';
+        disposition = 'RETURN_READY_NOT_APPLIED';
+      } else if (!exact.consumer_readback) {
+        nextAction = 'VERIFY_CONSUMER_READBACK';
+        disposition = 'RETURN_APPLIED_READBACK_MISSING';
+      } else {
+        disposition = 'CONSUMED_CURRENT';
+      }
+    } else if (seam.machine_resolvable && !seam.owner_required) {
+      nextAction = 'RESOLVE_SEAM';
+      disposition = 'MACHINE_RESOLVABLE_NO_CURRENT_RECEIPT';
+    } else if (seam.owner_required) {
+      disposition = 'OWNER_ONLY';
+    } else {
+      disposition = 'EXTERNAL_WAIT';
+    }
+
+    const row = {
+      ...seam,
+      wake_satisfied: wakeSatisfied,
+      receipt_ref: exact?.receipt_ref ?? null,
+      return_ref: exact?.return_ref ?? null,
+      disposition,
+      next_action: nextAction,
+    };
+    resolved.push(row);
+    if (nextAction) pending.push({ ...row, action: nextAction });
+  }
+
+  pending.sort((a, b) =>
+    (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER)
+      || (REJOIN_ACTION_RANK.get(a.action) ?? 99) - (REJOIN_ACTION_RANK.get(b.action) ?? 99)
+      || a.seam_ref.localeCompare(b.seam_ref, 'en'));
+  const next = pending[0] ?? null;
+
+  return Object.freeze({
+    schema: REJOIN_SEAM_SCHEMA,
+    root_ref: rootRef,
+    subject_generation: subjectGeneration,
+    current_generation: currentGeneration,
+    seam_count: seams.length,
+    receipt_count: receipts.length,
+    repaired_stale_wait_count: repairedStaleWaitCount,
+    satisfied_seam_refs: resolved.filter((row) => row.wake_satisfied).map((row) => row.seam_ref),
+    current_seam_refs: resolved.filter((row) => row.disposition === 'CONSUMED_CURRENT').map((row) => row.seam_ref),
+    unresolved_seam_refs: resolved.filter((row) => !row.wake_satisfied).map((row) => row.seam_ref),
+    pending_actions: pending.map((row) => ({
+      action: row.action,
+      seam_ref: row.seam_ref,
+      receipt_ref: row.receipt_ref,
+      return_ref: row.return_ref,
+      priority: row.priority,
+    })),
+    next_action: next ? {
+      action: next.action,
+      seam_ref: next.seam_ref,
+      receipt_ref: next.receipt_ref,
+      return_ref: next.return_ref,
+    } : null,
+    seams: resolved,
+    evidence_state: 'SUPPLIED_QUALIFICATION_INPUT',
+    authority_granted: false,
+    provider_effect: false,
+    effect_ceiling: 'PROJECTION_ONLY',
+    hard: [
+      'PROVIDER_RECEIPT != CANONICAL_IDENTITY',
+      'SUPPLIED_RECEIPT != AUTHENTICATION',
+      'READBACK_VERIFIED != RETURN',
+      'RETURN != APPLY_RETURN',
+      'APPLY_RETURN != CONSUMER_READBACK',
+      'VERIFIED_WAKE_RECEIPT -> WAIT_INVALIDATED',
+      'A2A_MCP_ACK_SEAM != EFFECT_AUTHORITY',
+    ],
+  });
+}
+
+function applySatisfiedSeams(input, rejoin) {
+  if (!rejoin.satisfied_seam_refs.length) return input;
+  const satisfied = new Set(rejoin.satisfied_seam_refs);
+  return {
+    ...input,
+    backlog: rows(input.backlog).map((item) => {
+      const id = clean(item.id) ?? clean(item.work_ref);
+      return id && satisfied.has(id) ? { ...item, state: 'DONE' } : item;
+    }),
+  };
+}
+
 function waitDisposition(cycle, backlog, action) {
+  // A rejoin/return action is unfinished work and must outrank a terminal-looking
+  // child projection. This prevents a verified readback from being swallowed by
+  // a stale TRUE_WAIT or a four-scale terminal classification.
+  if (action) return { stop_class: 'CONTINUE', yield_allowed: false, action, waits: [] };
   if (cycle.terminal) return { stop_class: 'TERMINAL', yield_allowed: true, action: null, waits: [] };
   if (allOwnerOnly(backlog) && cycle.backlog.runnable.length === 0) {
     return {
@@ -115,7 +322,6 @@ function waitDisposition(cycle, backlog, action) {
       waits: backlog.map(({ id, state: itemState, wake_when }) => ({ id, state: itemState, wake_when })),
     };
   }
-  if (action) return { stop_class: 'CONTINUE', yield_allowed: false, action, waits: [] };
 
   const unresolved = backlog.filter((item) => ['WAIT', 'TRUE_WAIT', 'BLOCKED', 'OWNER_ONLY', 'OWNER_REQUIRED'].includes(item.state));
   const ownerRows = unresolved.filter((item) => item.owner_required);
@@ -151,11 +357,15 @@ function waitDisposition(cycle, backlog, action) {
   return { stop_class: 'CONTINUE', yield_allowed: false, action: 'RECOMPUTE_FRONTIER', waits: [] };
 }
 
-function nextPacket(cycle, backlog, action, reconciliation) {
+function nextPacket(cycle, backlog, action, reconciliation, rejoin) {
   const selected = selectedWork(cycle);
   const resolver = resolverTarget(backlog, action);
+  const seamTarget = rejoin.next_action && rejoin.next_action.action === action ? rejoin.next_action : null;
   const target = action === 'EXECUTE_WORK' ? selected : resolver;
   const reconciling = action === 'RECONCILE_EFFECT';
+  const seamReconciling = ['VERIFY_SEAM_RECEIPT', 'VERIFY_CONSUMER_READBACK', 'RESOLVE_SEAM'].includes(action);
+  const pureReturn = action === 'COMPILE_RETURN';
+  const applyReturn = action === 'APPLY_RETURN';
   const packet = {
     schema: SELF_DRIVE_PACKET_SCHEMA,
     root_ref: cycle.root_ref,
@@ -166,12 +376,21 @@ function nextPacket(cycle, backlog, action, reconciliation) {
     work_ref: target?.id ?? null,
     work_priority: target?.priority ?? null,
     resolver_target_state: resolver?.state ?? null,
+    seam_ref: seamTarget?.seam_ref ?? null,
+    receipt_ref: seamTarget?.receipt_ref ?? null,
+    return_ref: seamTarget?.return_ref ?? null,
     phase_event: cycle.phase_event,
     effect_state: reconciliation.effect_state,
     reconciliation_state: reconciliation.reconciliation_state,
     reconciliation_required: reconciliation.reconciliation_required,
     destructive_follow_on_allowed: reconciliation.destructive_follow_on_allowed,
-    allowed_operation_classes: reconciling ? ['READ_ONLY_RECONCILIATION'] : ['QUALIFIED_BY_HOST_AND_EFFECT_OWNER'],
+    allowed_operation_classes: reconciling || seamReconciling
+      ? ['READ_ONLY_RECONCILIATION']
+      : pureReturn
+        ? ['PURE_RETURN_COMPILATION']
+        : applyReturn
+          ? ['QUALIFIED_RETURN_APPLICATION']
+          : ['QUALIFIED_BY_HOST_AND_EFFECT_OWNER'],
     return_required: true,
     apply_return_required: true,
     reap_then_reread_required: true,
@@ -184,24 +403,27 @@ function nextPacket(cycle, backlog, action, reconciliation) {
 
 export function compileContinuationDirective(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('INVALID_INPUT');
-  const cycle = compileContinuationCycle(input);
-  const backlog = sourceBacklog(input);
+  const rejoin = compileRejoinSeams(input);
+  const effectiveInput = applySatisfiedSeams(input, rejoin);
+  const cycle = compileContinuationCycle(effectiveInput);
+  const backlog = sourceBacklog(effectiveInput);
   const heartbeatCount = ownerHeartbeatCount(input);
   const reconciliation = effectReconciliation(input);
+  const rejoinAction = rejoin.next_action?.action ?? null;
   const initialAction = reconciliation.reconciliation_required
     ? 'RECONCILE_EFFECT'
-    : allOwnerOnly(backlog)
-      ? null
-      : machineAction(cycle);
+    : rejoinAction ?? (allOwnerOnly(backlog) ? null : machineAction(cycle));
   const stop = waitDisposition(cycle, backlog, initialAction);
   const continueWithoutOwner = stop.stop_class === 'CONTINUE';
   const ownerHeartbeatBug = continueWithoutOwner && heartbeatCount > 0;
   const effectReconciliationBug = reconciliation.reconciliation_required;
+  const outstandingRejoinBug = rejoin.repaired_stale_wait_count > 0 && rejoin.next_action !== null;
   const bugs = [
     ...(ownerHeartbeatBug ? ['OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT'] : []),
     ...(effectReconciliationBug ? ['EFFECT_UNKNOWN_REQUIRES_RECONCILIATION'] : []),
+    ...(outstandingRejoinBug ? ['STALE_WAIT_AFTER_VERIFIED_RECEIPT'] : []),
   ];
-  const packet = continueWithoutOwner ? nextPacket(cycle, backlog, stop.action, reconciliation) : null;
+  const packet = continueWithoutOwner ? nextPacket(cycle, backlog, stop.action, reconciliation, rejoin) : null;
 
   return {
     schema: SELF_DRIVE_DIRECTIVE_SCHEMA,
@@ -220,6 +442,7 @@ export function compileContinuationDirective(input) {
     reconciliation_state: reconciliation.reconciliation_state,
     reconciliation_required: reconciliation.reconciliation_required,
     destructive_follow_on_allowed: reconciliation.destructive_follow_on_allowed,
+    rejoin,
     status: bugs.length > 0 ? 'FAIL_CURRENT' : 'CURRENT',
     bug: bugs[0] ?? null,
     bugs,
@@ -238,6 +461,8 @@ export function compileContinuationDirective(input) {
       'PARTIAL_EFFECT_UNKNOWN -> RECONCILE_REQUIRED',
       'RECONCILE_REQUIRED -> NO_DESTRUCTIVE_FOLLOW_ON',
       'RECONCILE_REQUIRED != ROOT_STOP',
+      'VERIFIED_SEAM_RECEIPT -> REJOIN_BEFORE_WAIT',
+      'ACK_A2A_MCP_REJOIN -> REFRESH_CURRENTNESS',
       'SDK_LOOP_DIRECTIVE != EFFECT_AUTHORITY',
       'SDK_LOOP_DIRECTIVE != PROVIDER_EXECUTION',
     ],
