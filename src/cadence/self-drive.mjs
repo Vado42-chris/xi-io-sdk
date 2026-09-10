@@ -23,6 +23,7 @@ const EFFECT_STATES = new Set([
   'PARTIAL_EFFECT_UNKNOWN',
 ]);
 const RECONCILE_EFFECT_STATES = new Set(['EFFECT_UNKNOWN', 'PARTIAL_EFFECT_UNKNOWN']);
+const RESOLVER_STATES = new Set(['WAIT', 'TRUE_WAIT', 'BLOCKED', 'UNKNOWN']);
 
 function clean(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -82,6 +83,20 @@ function selectedWork(cycle) {
   return cycle.backlog.runnable[0] ?? null;
 }
 
+function sortTargets(items) {
+  return [...items].sort((a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id, 'en'));
+}
+
+function resolverTarget(backlog, action) {
+  if (action === 'RESOLVE_BLOCKER') {
+    return sortTargets(backlog.filter((item) => item.machine_resolvable && !item.owner_required && RESOLVER_STATES.has(item.state)))[0] ?? null;
+  }
+  if (action === 'RESOLVE_CURRENTNESS') {
+    return sortTargets(backlog.filter((item) => !item.owner_required && item.state === 'UNKNOWN'))[0] ?? null;
+  }
+  return null;
+}
+
 function machineAction(cycle) {
   return CONTINUE_DISPOSITIONS.get(cycle.disposition) ?? null;
 }
@@ -136,8 +151,10 @@ function waitDisposition(cycle, backlog, action) {
   return { stop_class: 'CONTINUE', yield_allowed: false, action: 'RECOMPUTE_FRONTIER', waits: [] };
 }
 
-function nextPacket(cycle, action, reconciliation) {
+function nextPacket(cycle, backlog, action, reconciliation) {
   const selected = selectedWork(cycle);
+  const resolver = resolverTarget(backlog, action);
+  const target = action === 'EXECUTE_WORK' ? selected : resolver;
   const reconciling = action === 'RECONCILE_EFFECT';
   const packet = {
     schema: SELF_DRIVE_PACKET_SCHEMA,
@@ -146,8 +163,9 @@ function nextPacket(cycle, action, reconciliation) {
     subject_generation: cycle.subject_generation,
     current_generation: cycle.current_generation,
     action,
-    work_ref: action === 'EXECUTE_WORK' ? selected?.id ?? null : null,
-    work_priority: action === 'EXECUTE_WORK' ? selected?.priority ?? null : null,
+    work_ref: target?.id ?? null,
+    work_priority: target?.priority ?? null,
+    resolver_target_state: resolver?.state ?? null,
     phase_event: cycle.phase_event,
     effect_state: reconciliation.effect_state,
     reconciliation_state: reconciliation.reconciliation_state,
@@ -183,7 +201,7 @@ export function compileContinuationDirective(input) {
     ...(ownerHeartbeatBug ? ['OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT'] : []),
     ...(effectReconciliationBug ? ['EFFECT_UNKNOWN_REQUIRES_RECONCILIATION'] : []),
   ];
-  const packet = continueWithoutOwner ? nextPacket(cycle, stop.action, reconciliation) : null;
+  const packet = continueWithoutOwner ? nextPacket(cycle, backlog, stop.action, reconciliation) : null;
 
   return {
     schema: SELF_DRIVE_DIRECTIVE_SCHEMA,
@@ -213,6 +231,7 @@ export function compileContinuationDirective(input) {
       'RESULT != LOOP_EXIT',
       'WAIT_ONE_CELL != ROOT_STOP',
       'BLOCKED_PROVIDER != ROOT_STOP',
+      'MACHINE_RESOLVABLE_BLOCKER -> EXACT_NEXT_PACKET_TARGET',
       'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
       'HEARTBEAT_BUG != STOP_WHILE_NEXT_PACKET_EXISTS',
       'COMMAND_FAILURE != NO_EFFECT',
