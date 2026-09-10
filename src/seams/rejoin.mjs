@@ -7,6 +7,7 @@ export const STANDARD_REJOIN_FAMILIES = Object.freeze([
 
 const FAMILIES = new Set(STANDARD_REJOIN_FAMILIES);
 const TRANSPORT_FAMILIES = new Set(['A2A', 'MCP', 'CRM_MAIL', 'CLOUDFLARE']);
+const PEER_CURRENT_FAMILIES = new Set(['A2A', 'MCP']);
 const STATES = new Set(['CURRENT', 'STALE', 'UNKNOWN', 'N_A_WITH_EVIDENCE']);
 const CURRENT_STATES = new Set(['CURRENT', 'N_A_WITH_EVIDENCE']);
 const RESOLUTION_CLASSES = new Set(['MACHINE_RESOLVABLE', 'TRUE_WAIT', 'OWNER_ONLY', 'NONE']);
@@ -43,6 +44,11 @@ function normalizeSeam(raw, root) {
   const providerFamily = clean(raw.provider_family);
   const endpointRef = clean(raw.endpoint_ref);
   const capabilityProfileRef = clean(raw.capability_profile_ref);
+  const principalRef = clean(raw.principal_ref);
+  const assignmentRef = clean(raw.assignment_ref);
+  const assignmentReceiptRef = clean(raw.assignment_receipt_ref);
+  const authorityReceiptRef = clean(raw.authority_receipt_ref);
+  const mailboxAddress = clean(raw.mailbox_address);
   const evidenceRef = clean(raw.evidence_ref);
   const readbackRef = clean(raw.readback_ref);
   const observedAt = clean(raw.observed_at);
@@ -62,6 +68,17 @@ function normalizeSeam(raw, root) {
     if (!subjectGeneration) missingBindings.push('subject_generation');
     if (!currentGeneration) missingBindings.push('current_generation');
     if (observedState === 'CURRENT' && TRANSPORT_FAMILIES.has(family) && !endpointRef) missingBindings.push('endpoint_ref');
+    if (observedState === 'CURRENT' && PEER_CURRENT_FAMILIES.has(family)) {
+      if (!principalRef) missingBindings.push('principal_ref');
+      if (!assignmentRef) missingBindings.push('assignment_ref');
+      if (!assignmentReceiptRef) missingBindings.push('assignment_receipt_ref');
+      if (!authorityReceiptRef) missingBindings.push('authority_receipt_ref');
+    }
+    if (observedState === 'CURRENT' && family === 'CRM_MAIL') {
+      if (!principalRef) missingBindings.push('principal_ref');
+      if (!mailboxAddress) missingBindings.push('mailbox_address');
+      if (!authorityReceiptRef) missingBindings.push('authority_receipt_ref');
+    }
     if (observedState === 'CURRENT' && !evidenceRef) missingBindings.push('evidence_ref');
     if (observedState === 'CURRENT' && !readbackRef) missingBindings.push('readback_ref');
     if (observedState === 'CURRENT' && !observedAt) missingBindings.push('observed_at');
@@ -125,6 +142,11 @@ function normalizeSeam(raw, root) {
     provider_family: providerFamily,
     endpoint_ref: endpointRef,
     capability_profile_ref: capabilityProfileRef,
+    principal_ref: principalRef,
+    assignment_ref: assignmentRef,
+    assignment_receipt_ref: assignmentReceiptRef,
+    authority_receipt_ref: authorityReceiptRef,
+    mailbox_address: mailboxAddress,
     evidence_ref: evidenceRef,
     readback_ref: readbackRef,
     observed_at: observedAt,
@@ -183,6 +205,9 @@ export function compileRejoinSeams(input) {
     target_ref: row.target_ref,
     provider_family: row.provider_family,
     endpoint_ref: row.endpoint_ref,
+    principal_ref: row.principal_ref,
+    assignment_ref: row.assignment_ref,
+    authority_receipt_ref: row.authority_receipt_ref,
     current_generation: row.current_generation,
     resolution_class: row.resolution_class,
     wake_when: row.wake_when,
@@ -218,6 +243,10 @@ export function compileRejoinSeams(input) {
       'REJOIN != REUSE_STALE_ACK',
       'SEAM_PRESENT != SEAM_CURRENT',
       'ENDPOINT_PRESENT != PRINCIPAL_CURRENT',
+      'PEER_ENDPOINT != PEER_PRINCIPAL_ASSIGNMENT_ACCESS',
+      'PROVIDER_CONNECTED != ACCESS_BOUND',
+      'MAILBOX_ADDRESS != MAILBOX_ACCESS',
+      'AUTHORITY_RECEIPT_REF != EFFECT_AUTHORITY',
       'CONTACT_CARD != MAIL_ACCOUNT_RUNTIME',
       'SMTP_CONFIG_PRESENT != SMTP_SUBMISSION_OR_READBACK',
       'CLOUDFLARE_HOSTNAME_PRESENT != EDGE_READBACK_CURRENT',
