@@ -13,10 +13,6 @@ function upper(value) {
   return clean(value)?.toUpperCase() ?? null;
 }
 
-function bool(value) {
-  return value === true;
-}
-
 function requireString(value, field) {
   const out = clean(value);
   if (!out) throw new Error(`MISSING_${field.toUpperCase()}`);
@@ -129,17 +125,18 @@ export function compileRejoinSeams(input) {
     return seam;
   });
 
-  const requiredFamilies = new Set(seams.filter((row) => row.required).map((row) => row.family));
-  const missingRequiredFamilies = [...FAMILIES].filter((family) => !requiredFamilies.has(family));
+  const coveredFamilies = new Set(seams.map((row) => row.family));
+  const missingFamilies = [...FAMILIES].filter((family) => !coveredFamilies.has(family));
   const stale = seams.filter((row) => row.required && row.state === 'STALE');
   const unknown = seams.filter((row) => row.required && row.state === 'UNKNOWN');
+  const invalidNa = seams.filter((row) => !row.required && row.state === 'UNKNOWN' && row.invalidators.includes('N_A_WITHOUT_EVIDENCE'));
   const current = seams.filter((row) => row.required && row.current);
   const refresh = seams.filter((row) => row.refresh_required);
   const rootGenerationCurrent = root.subject_generation === root.current_generation;
 
   const status = !rootGenerationCurrent
     ? 'REBASE_REQUIRED'
-    : missingRequiredFamilies.length > 0 || unknown.length > 0
+    : missingFamilies.length > 0 || unknown.length > 0 || invalidNa.length > 0
       ? 'UNKNOWN'
       : stale.length > 0
         ? 'STALE'
@@ -155,7 +152,7 @@ export function compileRejoinSeams(input) {
     current_required: current.length,
     stale_required: stale.length,
     unknown_required: unknown.length,
-    missing_required_families: missingRequiredFamilies,
+    missing_families: missingFamilies,
     refresh_required_count: refresh.length,
     refresh_obligations: refresh.map((row) => ({
       seam_id: row.seam_id,
@@ -182,6 +179,7 @@ export function compileRejoinSeams(input) {
       'ENDPOINT_PRESENT != PRINCIPAL_CURRENT',
       'PROVIDER_CONNECTED != CAPABILITY_CURRENT',
       'ALTERNATE_SURFACE_PASS != REQUIRED_SURFACE_PASS',
+      'N_A != N_A_WITH_EVIDENCE',
       'SDK_SEAM_COMPILER != PROVIDER_EXECUTION',
       'SDK_SEAM_COMPILER != EFFECT_AUTHORITY',
       'ONE_STALE_SEAM != ROOT_STOP_WHEN_INDEPENDENT_WORK_EXISTS',
