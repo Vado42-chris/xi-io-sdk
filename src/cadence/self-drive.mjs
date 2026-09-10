@@ -130,7 +130,7 @@ function nextPacket(cycle, action) {
     apply_return_required: true,
     reap_then_reread_required: true,
     owner_ingress_required: false,
-    authority_granted: false,
+    effect_ceiling: 'PROJECTION_ONLY',
     provider_effect: false,
   };
   return Object.freeze({ ...packet, resume_cursor: `cursor:${digest(packet).slice(0, 24)}` });
@@ -229,6 +229,6 @@ export function compileContinuationLoop(input) {
     directives,
     stop_contract: ['TRUE_WAIT', 'OWNER_ONLY', 'TERMINAL'],
     effects: 0,
-    authority_granted: false,
+    effect_ceiling: 'PROJECTION_ONLY',
   };
 }
