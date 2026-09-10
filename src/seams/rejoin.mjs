@@ -1,7 +1,12 @@
 export const REJOIN_SEAM_SCHEMA = 'xiio.sdk.rejoin-seam-state/v1';
 export const REJOIN_SEAMS_SCHEMA = 'xiio.sdk.rejoin-seams/v1';
+export const STANDARD_REJOIN_FAMILIES = Object.freeze([
+  'ACK', 'A2A', 'MCP', 'CLI', 'SDK', 'ARTICLES', 'PUBLISHER', 'BINS', 'CADENCE',
+  'IBAL', 'SWITCHBOARD', 'WARD', 'CRM_MAIL', 'CLOUDFLARE', 'STUDIO', 'RETURN_CHAIN', 'DETONATOR',
+]);
 
-const FAMILIES = new Set(['ACK', 'A2A', 'MCP']);
+const FAMILIES = new Set(STANDARD_REJOIN_FAMILIES);
+const TRANSPORT_FAMILIES = new Set(['A2A', 'MCP', 'CRM_MAIL', 'CLOUDFLARE']);
 const STATES = new Set(['CURRENT', 'STALE', 'UNKNOWN', 'N_A_WITH_EVIDENCE']);
 const CURRENT_STATES = new Set(['CURRENT', 'N_A_WITH_EVIDENCE']);
 const RESOLUTION_CLASSES = new Set(['MACHINE_RESOLVABLE', 'TRUE_WAIT', 'OWNER_ONLY', 'NONE']);
@@ -43,6 +48,11 @@ function normalizeSeam(raw, root) {
   const observedAt = clean(raw.observed_at);
   const effectCeiling = clean(raw.effect_ceiling) ?? 'NO_EFFECT';
   const wakeWhen = clean(raw.wake_when);
+  const resultRef = clean(raw.result_ref);
+  const returnRef = clean(raw.return_ref);
+  const applyReturnRef = clean(raw.apply_return_ref);
+  const detonatorRef = clean(raw.detonator_ref);
+  const tripDebtRef = clean(raw.trip_debt_ref);
 
   const missingBindings = [];
   if (required) {
@@ -51,9 +61,19 @@ function normalizeSeam(raw, root) {
     if (!capabilityProfileRef) missingBindings.push('capability_profile_ref');
     if (!subjectGeneration) missingBindings.push('subject_generation');
     if (!currentGeneration) missingBindings.push('current_generation');
+    if (observedState === 'CURRENT' && TRANSPORT_FAMILIES.has(family) && !endpointRef) missingBindings.push('endpoint_ref');
     if (observedState === 'CURRENT' && !evidenceRef) missingBindings.push('evidence_ref');
     if (observedState === 'CURRENT' && !readbackRef) missingBindings.push('readback_ref');
     if (observedState === 'CURRENT' && !observedAt) missingBindings.push('observed_at');
+    if (observedState === 'CURRENT' && family === 'RETURN_CHAIN') {
+      if (!resultRef) missingBindings.push('result_ref');
+      if (!returnRef) missingBindings.push('return_ref');
+      if (!applyReturnRef) missingBindings.push('apply_return_ref');
+    }
+    if (observedState === 'CURRENT' && family === 'DETONATOR') {
+      if (!detonatorRef) missingBindings.push('detonator_ref');
+      if (!tripDebtRef) missingBindings.push('trip_debt_ref');
+    }
   }
 
   let state = observedState;
@@ -109,12 +129,15 @@ function normalizeSeam(raw, root) {
     readback_ref: readbackRef,
     observed_at: observedAt,
     effect_ceiling: effectCeiling,
+    result_ref: resultRef,
+    return_ref: returnRef,
+    apply_return_ref: applyReturnRef,
+    detonator_ref: detonatorRef,
+    trip_debt_ref: tripDebtRef,
     authority: 'NONE',
     missing_bindings: missingBindings,
     invalidators,
-    next: refreshRequired
-      ? `RESOLVE_${family}_CURRENT_BINDING_AND_READBACK`
-      : 'NO_EFFECT_CURRENT',
+    next: refreshRequired ? `RESOLVE_${family}_CURRENT_BINDING_AND_READBACK` : 'NO_EFFECT_CURRENT',
   };
 }
 
@@ -137,7 +160,7 @@ export function compileRejoinSeams(input) {
   });
 
   const coveredFamilies = new Set(seams.map((row) => row.family));
-  const missingFamilies = [...FAMILIES].filter((family) => !coveredFamilies.has(family));
+  const missingFamilies = STANDARD_REJOIN_FAMILIES.filter((family) => !coveredFamilies.has(family));
   const stale = seams.filter((row) => row.required && row.state === 'STALE');
   const unknown = seams.filter((row) => row.required && row.state === 'UNKNOWN');
   const invalidNa = seams.filter((row) => !row.required && row.state === 'UNKNOWN' && row.invalidators.includes('N_A_WITHOUT_EVIDENCE'));
@@ -159,6 +182,7 @@ export function compileRejoinSeams(input) {
     next: row.next,
     target_ref: row.target_ref,
     provider_family: row.provider_family,
+    endpoint_ref: row.endpoint_ref,
     current_generation: row.current_generation,
     resolution_class: row.resolution_class,
     wake_when: row.wake_when,
@@ -173,6 +197,7 @@ export function compileRejoinSeams(input) {
     root_generation_current: rootGenerationCurrent,
     denominator: seams.length,
     required_denominator: seams.filter((row) => row.required).length,
+    standard_family_denominator: STANDARD_REJOIN_FAMILIES.length,
     current_required: current.length,
     stale_required: stale.length,
     unknown_required: unknown.length,
@@ -187,14 +212,17 @@ export function compileRejoinSeams(input) {
     provider_effects: 0,
     authority_granted: false,
     current: status === 'CURRENT_BOUNDED',
-    next: status === 'CURRENT_BOUNDED'
-      ? 'CONTINUE_CURRENT_FRONTIER'
-      : 'REFRESH_ONLY_AFFECTED_SEAMS_THEN_RECOMPILE',
+    next: status === 'CURRENT_BOUNDED' ? 'CONTINUE_CURRENT_FRONTIER' : 'REFRESH_ONLY_AFFECTED_SEAMS_THEN_RECOMPILE',
     hard: [
-      'ACK != A2A != MCP',
+      'ACK != A2A != MCP != CRM_MAIL != CLOUDFLARE',
       'REJOIN != REUSE_STALE_ACK',
       'SEAM_PRESENT != SEAM_CURRENT',
       'ENDPOINT_PRESENT != PRINCIPAL_CURRENT',
+      'CONTACT_CARD != MAIL_ACCOUNT_RUNTIME',
+      'SMTP_CONFIG_PRESENT != SMTP_SUBMISSION_OR_READBACK',
+      'CLOUDFLARE_HOSTNAME_PRESENT != EDGE_READBACK_CURRENT',
+      'RESULT != RETURN != APPLY_RETURN',
+      'DETONATOR_DECLARED != DETONATOR_TRIP_READBACK',
       'PROVIDER_CONNECTED != CAPABILITY_CURRENT',
       'ALTERNATE_SURFACE_PASS != REQUIRED_SURFACE_PASS',
       'N_A != N_A_WITH_EVIDENCE',
