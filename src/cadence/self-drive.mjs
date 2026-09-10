@@ -64,8 +64,20 @@ function machineAction(cycle) {
   return CONTINUE_DISPOSITIONS.get(cycle.disposition) ?? null;
 }
 
-function waitDisposition(input, cycle, backlog, action) {
+function allOwnerOnly(backlog) {
+  return backlog.length > 0 && backlog.every((item) => item.owner_required);
+}
+
+function waitDisposition(cycle, backlog, action) {
   if (cycle.terminal) return { stop_class: 'TERMINAL', yield_allowed: true, action: null, waits: [] };
+  if (allOwnerOnly(backlog) && cycle.backlog.runnable.length === 0) {
+    return {
+      stop_class: 'OWNER_ONLY',
+      yield_allowed: true,
+      action: null,
+      waits: backlog.map(({ id, state: itemState, wake_when }) => ({ id, state: itemState, wake_when })),
+    };
+  }
   if (action) return { stop_class: 'CONTINUE', yield_allowed: false, action, waits: [] };
 
   const unresolved = backlog.filter((item) => ['WAIT', 'TRUE_WAIT', 'BLOCKED', 'OWNER_ONLY', 'OWNER_REQUIRED'].includes(item.state));
@@ -102,7 +114,7 @@ function waitDisposition(input, cycle, backlog, action) {
   return { stop_class: 'CONTINUE', yield_allowed: false, action: 'RECOMPUTE_FRONTIER', waits: [] };
 }
 
-function nextPacket(input, cycle, action) {
+function nextPacket(cycle, action) {
   const selected = selectedWork(cycle);
   const packet = {
     schema: SELF_DRIVE_PACKET_SCHEMA,
@@ -129,11 +141,11 @@ export function compileContinuationDirective(input) {
   const cycle = compileContinuationCycle(input);
   const backlog = sourceBacklog(input);
   const heartbeatCount = ownerHeartbeatCount(input);
-  const initialAction = machineAction(cycle);
-  const stop = waitDisposition(input, cycle, backlog, initialAction);
+  const initialAction = allOwnerOnly(backlog) ? null : machineAction(cycle);
+  const stop = waitDisposition(cycle, backlog, initialAction);
   const continueWithoutOwner = stop.stop_class === 'CONTINUE';
   const ownerHeartbeatBug = continueWithoutOwner && heartbeatCount > 0;
-  const packet = continueWithoutOwner ? nextPacket(input, cycle, stop.action) : null;
+  const packet = continueWithoutOwner ? nextPacket(cycle, stop.action) : null;
 
   return {
     schema: SELF_DRIVE_DIRECTIVE_SCHEMA,
