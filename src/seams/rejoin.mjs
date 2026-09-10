@@ -8,9 +8,12 @@ export const STANDARD_REJOIN_FAMILIES = Object.freeze([
 const FAMILIES = new Set(STANDARD_REJOIN_FAMILIES);
 const TRANSPORT_FAMILIES = new Set(['A2A', 'MCP', 'CRM_MAIL', 'CLOUDFLARE']);
 const PEER_CURRENT_FAMILIES = new Set(['A2A', 'MCP']);
+const CALL_BOUND_FAMILIES = new Set(['A2A', 'MCP']);
 const STATES = new Set(['CURRENT', 'STALE', 'UNKNOWN', 'N_A_WITH_EVIDENCE']);
 const CURRENT_STATES = new Set(['CURRENT', 'N_A_WITH_EVIDENCE']);
 const RESOLUTION_CLASSES = new Set(['MACHINE_RESOLVABLE', 'TRUE_WAIT', 'OWNER_ONLY', 'NONE']);
+const OPERATION_CLASSES = new Set(['READ', 'WRITE', 'EXECUTE', 'NO_EFFECT']);
+const EFFECT_CLASSES = new Set(['READ_ONLY', 'LOCAL_WRITE', 'PROVIDER_WRITE', 'EXECUTE', 'NO_EFFECT']);
 
 function clean(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -60,28 +63,97 @@ function normalizeSeam(raw, root) {
   const detonatorRef = clean(raw.detonator_ref);
   const tripDebtRef = clean(raw.trip_debt_ref);
 
+  // A2A/MCP call-admission bindings. These are references to upstream assurance
+  // owners only; SDK validates their coherence and never grants execution authority.
+  const toolBindingRef = clean(raw.tool_binding_ref);
+  const operationProfileRef = clean(raw.operation_profile_ref);
+  const resourceRef = clean(raw.resource_ref);
+  const pathBindingRef = clean(raw.path_binding_ref);
+  const storageBindingRef = clean(raw.storage_binding_ref);
+  const bindingRootRef = clean(raw.binding_root_ref);
+  const sourceDigestRef = clean(raw.source_digest_ref);
+  const requestedOperationClass = upper(raw.requested_operation_class);
+  const boundOperationClass = upper(raw.bound_operation_class);
+  const expectedEffectClass = upper(raw.expected_effect_class);
+  const observedEffectClass = upper(raw.observed_effect_class);
+  const effectReceiptRef = clean(raw.effect_receipt_ref);
+  const providerOccurrenceRef = clean(raw.provider_occurrence_ref);
+
   const missingBindings = [];
+  const invalidators = [];
+
   if (required) {
     if (!targetRef) missingBindings.push('target_ref');
     if (!providerFamily) missingBindings.push('provider_family');
     if (!capabilityProfileRef) missingBindings.push('capability_profile_ref');
     if (!subjectGeneration) missingBindings.push('subject_generation');
     if (!currentGeneration) missingBindings.push('current_generation');
-    if (observedState === 'CURRENT' && TRANSPORT_FAMILIES.has(family) && !endpointRef) missingBindings.push('endpoint_ref');
+
+    if (observedState === 'CURRENT' && TRANSPORT_FAMILIES.has(family) && !endpointRef) {
+      missingBindings.push('endpoint_ref');
+    }
+
     if (observedState === 'CURRENT' && PEER_CURRENT_FAMILIES.has(family)) {
       if (!principalRef) missingBindings.push('principal_ref');
       if (!assignmentRef) missingBindings.push('assignment_ref');
       if (!assignmentReceiptRef) missingBindings.push('assignment_receipt_ref');
       if (!authorityReceiptRef) missingBindings.push('authority_receipt_ref');
     }
+
+    if (observedState === 'CURRENT' && CALL_BOUND_FAMILIES.has(family)) {
+      if (!toolBindingRef) missingBindings.push('tool_binding_ref');
+      if (!operationProfileRef) missingBindings.push('operation_profile_ref');
+      if (!resourceRef) missingBindings.push('resource_ref');
+      if (!pathBindingRef && !storageBindingRef) missingBindings.push('path_or_storage_binding_ref');
+      if (!bindingRootRef) missingBindings.push('binding_root_ref');
+      if (!sourceDigestRef) missingBindings.push('source_digest_ref');
+      if (!requestedOperationClass) missingBindings.push('requested_operation_class');
+      if (!boundOperationClass) missingBindings.push('bound_operation_class');
+      if (!expectedEffectClass) missingBindings.push('expected_effect_class');
+      if (!observedEffectClass) missingBindings.push('observed_effect_class');
+
+      if (requestedOperationClass && !OPERATION_CLASSES.has(requestedOperationClass)) {
+        invalidators.push('REQUESTED_OPERATION_CLASS_INVALID');
+      }
+      if (boundOperationClass && !OPERATION_CLASSES.has(boundOperationClass)) {
+        invalidators.push('BOUND_OPERATION_CLASS_INVALID');
+      }
+      if (requestedOperationClass && boundOperationClass && requestedOperationClass !== boundOperationClass) {
+        invalidators.push('OPERATION_CLASS_MISMATCH');
+      }
+      if (expectedEffectClass && !EFFECT_CLASSES.has(expectedEffectClass)) {
+        invalidators.push('EXPECTED_EFFECT_CLASS_INVALID');
+      }
+      if (observedEffectClass && !EFFECT_CLASSES.has(observedEffectClass)) {
+        invalidators.push('OBSERVED_EFFECT_CLASS_INVALID');
+      }
+      if (expectedEffectClass && observedEffectClass && expectedEffectClass !== observedEffectClass) {
+        invalidators.push('EFFECT_CLASS_MISMATCH');
+      }
+      if (bindingRootRef && bindingRootRef !== root.root_ref) {
+        invalidators.push('BINDING_ROOT_MISMATCH');
+      }
+      if (expectedEffectClass === 'PROVIDER_WRITE' || observedEffectClass === 'PROVIDER_WRITE') {
+        if (!effectReceiptRef) missingBindings.push('effect_receipt_ref');
+        if (!providerOccurrenceRef) missingBindings.push('provider_occurrence_ref');
+      }
+    }
+
     if (observedState === 'CURRENT' && family === 'CRM_MAIL') {
       if (!principalRef) missingBindings.push('principal_ref');
       if (!mailboxAddress) missingBindings.push('mailbox_address');
       if (!authorityReceiptRef) missingBindings.push('authority_receipt_ref');
+      if (!providerOccurrenceRef) missingBindings.push('provider_occurrence_ref');
     }
+
+    if (observedState === 'CURRENT' && family === 'CLOUDFLARE' && !providerOccurrenceRef) {
+      missingBindings.push('provider_occurrence_ref');
+    }
+
     if (observedState === 'CURRENT' && !evidenceRef) missingBindings.push('evidence_ref');
     if (observedState === 'CURRENT' && !readbackRef) missingBindings.push('readback_ref');
     if (observedState === 'CURRENT' && !observedAt) missingBindings.push('observed_at');
+
     if (observedState === 'CURRENT' && family === 'RETURN_CHAIN') {
       if (!resultRef) missingBindings.push('result_ref');
       if (!returnRef) missingBindings.push('return_ref');
@@ -94,10 +166,20 @@ function normalizeSeam(raw, root) {
   }
 
   let state = observedState;
-  const invalidators = [];
   if (required && missingBindings.length) {
     state = 'UNKNOWN';
     invalidators.push('REQUIRED_BINDING_MISSING');
+  }
+  if (required && invalidators.some((code) => [
+    'REQUESTED_OPERATION_CLASS_INVALID',
+    'BOUND_OPERATION_CLASS_INVALID',
+    'OPERATION_CLASS_MISMATCH',
+    'EXPECTED_EFFECT_CLASS_INVALID',
+    'OBSERVED_EFFECT_CLASS_INVALID',
+    'EFFECT_CLASS_MISMATCH',
+    'BINDING_ROOT_MISMATCH',
+  ].includes(code))) {
+    state = 'UNKNOWN';
   }
   if (required && subjectGeneration && currentGeneration && subjectGeneration !== currentGeneration) {
     state = 'STALE';
@@ -156,6 +238,19 @@ function normalizeSeam(raw, root) {
     apply_return_ref: applyReturnRef,
     detonator_ref: detonatorRef,
     trip_debt_ref: tripDebtRef,
+    tool_binding_ref: toolBindingRef,
+    operation_profile_ref: operationProfileRef,
+    resource_ref: resourceRef,
+    path_binding_ref: pathBindingRef,
+    storage_binding_ref: storageBindingRef,
+    binding_root_ref: bindingRootRef,
+    source_digest_ref: sourceDigestRef,
+    requested_operation_class: requestedOperationClass,
+    bound_operation_class: boundOperationClass,
+    expected_effect_class: expectedEffectClass,
+    observed_effect_class: observedEffectClass,
+    effect_receipt_ref: effectReceiptRef,
+    provider_occurrence_ref: providerOccurrenceRef,
     authority: 'NONE',
     missing_bindings: missingBindings,
     invalidators,
@@ -213,6 +308,15 @@ export function compileRejoinSeams(input) {
     wake_when: row.wake_when,
     invalidators: row.invalidators,
     missing_bindings: row.missing_bindings,
+    tool_binding_ref: row.tool_binding_ref,
+    operation_profile_ref: row.operation_profile_ref,
+    resource_ref: row.resource_ref,
+    path_binding_ref: row.path_binding_ref,
+    storage_binding_ref: row.storage_binding_ref,
+    binding_root_ref: row.binding_root_ref,
+    expected_effect_class: row.expected_effect_class,
+    observed_effect_class: row.observed_effect_class,
+    provider_occurrence_ref: row.provider_occurrence_ref,
   }));
 
   return {
@@ -247,6 +351,12 @@ export function compileRejoinSeams(input) {
       'PROVIDER_CONNECTED != ACCESS_BOUND',
       'MAILBOX_ADDRESS != MAILBOX_ACCESS',
       'AUTHORITY_RECEIPT_REF != EFFECT_AUTHORITY',
+      'TOOL_NAME_KNOWN != TOOL_BOUND',
+      'PATH_PLAUSIBLE != PATH_RESOLVED',
+      'FILE_DESCRIBED != FILE_EXISTS',
+      'WRITE_SUCCEEDED != SEMANTIC_EFFECT',
+      'LOCAL_EFFECT != PROVIDER_EFFECT',
+      'STATUS_VALUE != EVIDENCE_FOR_STATUS',
       'CONTACT_CARD != MAIL_ACCOUNT_RUNTIME',
       'SMTP_CONFIG_PRESENT != SMTP_SUBMISSION_OR_READBACK',
       'CLOUDFLARE_HOSTNAME_PRESENT != EDGE_READBACK_CURRENT',
