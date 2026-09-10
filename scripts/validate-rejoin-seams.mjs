@@ -3,6 +3,7 @@ import { compileRejoinSeams, STANDARD_REJOIN_FAMILIES } from '../src/seams/rejoi
 
 const observedAt = '2026-09-10T18:25:00-06:00';
 const transportFamilies = new Set(['A2A', 'MCP', 'CRM_MAIL', 'CLOUDFLARE']);
+const peerFamilies = new Set(['A2A', 'MCP']);
 
 function currentSeam(family, extra = {}) {
   const row = {
@@ -20,6 +21,17 @@ function currentSeam(family, extra = {}) {
     observed_at: observedAt,
   };
   if (transportFamilies.has(family)) row.endpoint_ref = `${family.toLowerCase()}:endpoint:g2`;
+  if (peerFamilies.has(family)) Object.assign(row, {
+    principal_ref: `${family.toLowerCase()}:principal:g2`,
+    assignment_ref: `${family.toLowerCase()}:assignment:g2`,
+    assignment_receipt_ref: `${family.toLowerCase()}:assignment-receipt:g2`,
+    authority_receipt_ref: `${family.toLowerCase()}:authority-receipt:g2`,
+  });
+  if (family === 'CRM_MAIL') Object.assign(row, {
+    principal_ref: 'principal:crm-mail:g2',
+    mailbox_address: 'agent@r1-lane.xi-io.com',
+    authority_receipt_ref: 'crm-mail:authority-receipt:g2',
+  });
   if (family === 'RETURN_CHAIN') Object.assign(row, {
     result_ref: 'result:g2', return_ref: 'return:g2', apply_return_ref: 'apply-return:g2',
   });
@@ -74,6 +86,21 @@ result = compile(malformedWait);
 assert.equal(result.machine_resolvable_refresh_count, 1);
 assert.ok(result.seams.find((row) => row.family === 'MCP').invalidators.includes('TRUE_WAIT_WITHOUT_WAKE'));
 
+const peerIdentityMissing = allCurrent();
+peerIdentityMissing[mcpIndex] = currentSeam('MCP', {
+  principal_ref: null,
+  assignment_ref: null,
+  assignment_receipt_ref: null,
+  authority_receipt_ref: null,
+});
+result = compile(peerIdentityMissing);
+assert.equal(result.status, 'UNKNOWN');
+assert.equal(result.seams[mcpIndex].current, false);
+assert.deepEqual(
+  result.seams[mcpIndex].missing_bindings.filter((field) => field.includes('ref')),
+  ['principal_ref', 'assignment_ref', 'assignment_receipt_ref', 'authority_receipt_ref'],
+);
+
 const crmConfiguredOnly = allCurrent();
 const crmIndex = STANDARD_REJOIN_FAMILIES.indexOf('CRM_MAIL');
 crmConfiguredOnly[crmIndex] = currentSeam('CRM_MAIL', { readback_ref: null });
@@ -81,6 +108,19 @@ result = compile(crmConfiguredOnly);
 assert.equal(result.status, 'UNKNOWN');
 assert.ok(result.seams[crmIndex].missing_bindings.includes('readback_ref'));
 assert.equal(result.seams[crmIndex].current, false);
+
+const crmIdentityMissing = allCurrent();
+crmIdentityMissing[crmIndex] = currentSeam('CRM_MAIL', {
+  principal_ref: null,
+  mailbox_address: null,
+  authority_receipt_ref: null,
+});
+result = compile(crmIdentityMissing);
+assert.equal(result.status, 'UNKNOWN');
+assert.equal(result.seams[crmIndex].current, false);
+assert.ok(result.seams[crmIndex].missing_bindings.includes('principal_ref'));
+assert.ok(result.seams[crmIndex].missing_bindings.includes('mailbox_address'));
+assert.ok(result.seams[crmIndex].missing_bindings.includes('authority_receipt_ref'));
 
 const cloudflareHostnameOnly = allCurrent();
 const cfIndex = STANDARD_REJOIN_FAMILIES.indexOf('CLOUDFLARE');
@@ -140,4 +180,4 @@ assert.throws(() => compileRejoinSeams({ root_ref: 'root:test', agent_ref: 'agen
 const duplicate = allCurrent(); duplicate.push(currentSeam('ACK'));
 assert.throws(() => compile(duplicate), /DUPLICATE_SEAM_ID/);
 
-console.log('REJOIN_SEAMS_PASS current=17/17 stale_only_affected=1 provider_wait=1 malformed_wait_fail_closed=1 crm_mail_config_only_fail_closed=1 cloudflare_hostname_only_fail_closed=1 transport_endpoint_required=1 return_apply_required=1 detonator_trip_debt_required=1 evidence_na=1 missing_family_fail_closed=1 root_rebase=1');
+console.log('REJOIN_SEAMS_PASS current=17/17 peer_identity_access_required=1 stale_only_affected=1 provider_wait=1 malformed_wait_fail_closed=1 crm_mail_identity_access_required=1 crm_mail_config_only_fail_closed=1 cloudflare_hostname_only_fail_closed=1 transport_endpoint_required=1 return_apply_required=1 detonator_trip_debt_required=1 evidence_na=1 missing_family_fail_closed=1 root_rebase=1');
