@@ -48,9 +48,46 @@ const staleAck = compileRejoinSeams({
 assert.equal(staleAck.status, 'STALE');
 assert.equal(staleAck.current, false);
 assert.equal(staleAck.stale_required, 1);
+assert.equal(staleAck.machine_resolvable_refresh_count, 1);
 assert.deepEqual(staleAck.refresh_obligations.map((row) => row.family), ['ACK']);
 assert.equal(staleAck.seams.find((row) => row.family === 'A2A').state, 'CURRENT');
 assert.equal(staleAck.seams.find((row) => row.family === 'MCP').state, 'CURRENT');
+
+const providerWait = compileRejoinSeams({
+  root_ref: 'root:test',
+  agent_ref: 'agent:test',
+  subject_generation: 'g2',
+  current_generation: 'g2',
+  seams: [
+    currentSeam('ACK'),
+    currentSeam('A2A'),
+    currentSeam('MCP', {
+      state: 'UNKNOWN', evidence_ref: null, readback_ref: null,
+      resolution_class: 'TRUE_WAIT', wake_when: 'provider://mcp/registration-readback',
+    }),
+  ],
+});
+assert.equal(providerWait.status, 'UNKNOWN');
+assert.equal(providerWait.true_wait_refresh_count, 1);
+assert.equal(providerWait.machine_resolvable_refresh_count, 0);
+assert.equal(providerWait.refresh_obligations[0].wake_when, 'provider://mcp/registration-readback');
+
+const malformedWait = compileRejoinSeams({
+  root_ref: 'root:test',
+  agent_ref: 'agent:test',
+  subject_generation: 'g2',
+  current_generation: 'g2',
+  seams: [
+    currentSeam('ACK'),
+    currentSeam('A2A'),
+    currentSeam('MCP', {
+      state: 'UNKNOWN', evidence_ref: null, readback_ref: null,
+      resolution_class: 'TRUE_WAIT', wake_when: null,
+    }),
+  ],
+});
+assert.equal(malformedWait.machine_resolvable_refresh_count, 1);
+assert.ok(malformedWait.seams.find((row) => row.family === 'MCP').invalidators.includes('TRUE_WAIT_WITHOUT_WAKE'));
 
 const missingReadback = compileRejoinSeams({
   root_ref: 'root:test',
@@ -139,4 +176,4 @@ assert.throws(() => compileRejoinSeams({
   root_ref: 'root:test', agent_ref: 'agent:test', subject_generation: 'g2', current_generation: 'g2', seams: [currentSeam('ACK'), currentSeam('ACK')],
 }), /DUPLICATE_SEAM_ID/);
 
-console.log('REJOIN_SEAMS_PASS current=3/3 stale_only_affected=1 missing_readback_fail_closed=1 provider_connected_only_fail_closed=1 evidence_na=1 missing_family_fail_closed=1 root_rebase=1');
+console.log('REJOIN_SEAMS_PASS current=3/3 stale_only_affected=1 provider_wait=1 malformed_wait_fail_closed=1 missing_readback_fail_closed=1 provider_connected_only_fail_closed=1 evidence_na=1 missing_family_fail_closed=1 root_rebase=1');
