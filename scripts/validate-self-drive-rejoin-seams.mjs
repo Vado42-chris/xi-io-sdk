@@ -4,6 +4,7 @@ import { STANDARD_REJOIN_FAMILIES } from '../src/seams/rejoin.mjs';
 
 const observedAt = '2026-09-10T18:25:00-06:00';
 const transportFamilies = new Set(['A2A', 'MCP', 'CRM_MAIL', 'CLOUDFLARE']);
+const peerFamilies = new Set(['A2A', 'MCP']);
 
 function seam(family, extra = {}) {
   const row = {
@@ -21,6 +22,17 @@ function seam(family, extra = {}) {
     observed_at: observedAt,
   };
   if (transportFamilies.has(family)) row.endpoint_ref = `${family.toLowerCase()}:endpoint:g2`;
+  if (peerFamilies.has(family)) Object.assign(row, {
+    principal_ref: `${family.toLowerCase()}:principal:g2`,
+    assignment_ref: `${family.toLowerCase()}:assignment:g2`,
+    assignment_receipt_ref: `${family.toLowerCase()}:assignment-receipt:g2`,
+    authority_receipt_ref: `${family.toLowerCase()}:authority-receipt:g2`,
+  });
+  if (family === 'CRM_MAIL') Object.assign(row, {
+    principal_ref: 'principal:crm-mail:g2',
+    mailbox_address: 'agent@r1-lane.xi-io.com',
+    authority_receipt_ref: 'crm-mail:authority-receipt:g2',
+  });
   if (family === 'RETURN_CHAIN') Object.assign(row, { result_ref: 'result:g2', return_ref: 'return:g2', apply_return_ref: 'apply-return:g2' });
   if (family === 'DETONATOR') Object.assign(row, { detonator_ref: 'detonator:g2', trip_debt_ref: 'trip-debt:g2' });
   return { ...row, ...extra };
@@ -61,6 +73,21 @@ assert.equal(result.next_packet.action, 'REFRESH_REJOIN_SEAMS');
 assert.equal(result.rejoin_seams.stale_required, 1);
 assert.deepEqual(result.next_packet.seam_refresh_obligations.map((row) => row.family), ['ACK']);
 
+const peerIdentityMissing = base();
+replaceFamily(peerIdentityMissing, 'A2A', seam('A2A', {
+  principal_ref: null,
+  assignment_ref: null,
+  assignment_receipt_ref: null,
+  authority_receipt_ref: null,
+}));
+result = compileContinuationDirective(peerIdentityMissing);
+assert.equal(result.stop_class, 'CONTINUE');
+assert.equal(result.yield_allowed, false);
+assert.equal(result.next_packet.action, 'REFRESH_REJOIN_SEAMS');
+assert.deepEqual(result.next_packet.seam_refresh_obligations.map((row) => row.family), ['A2A']);
+assert.ok(result.rejoin_seams.seams.find((row) => row.family === 'A2A').missing_bindings.includes('principal_ref'));
+assert.notEqual(result.stop_class, 'TERMINAL');
+
 const blockedMcpWithSibling = base();
 blockedMcpWithSibling.backlog = [{ id: 'work:sibling', state: 'RUNNABLE', priority: 1 }];
 replaceFamily(blockedMcpWithSibling, 'MCP', seam('MCP', {
@@ -89,6 +116,18 @@ result = compileContinuationDirective(crmConfigOnly);
 assert.equal(result.stop_class, 'CONTINUE');
 assert.equal(result.next_packet.action, 'REFRESH_REJOIN_SEAMS');
 assert.deepEqual(result.next_packet.seam_refresh_obligations.map((row) => row.family), ['CRM_MAIL']);
+
+const crmIdentityMissing = base();
+replaceFamily(crmIdentityMissing, 'CRM_MAIL', seam('CRM_MAIL', {
+  principal_ref: null,
+  mailbox_address: null,
+  authority_receipt_ref: null,
+}));
+result = compileContinuationDirective(crmIdentityMissing);
+assert.equal(result.stop_class, 'CONTINUE');
+assert.equal(result.next_packet.action, 'REFRESH_REJOIN_SEAMS');
+assert.deepEqual(result.next_packet.seam_refresh_obligations.map((row) => row.family), ['CRM_MAIL']);
+assert.notEqual(result.stop_class, 'TERMINAL');
 
 const cloudflareHostnameOnly = base();
 replaceFamily(cloudflareHostnameOnly, 'CLOUDFLARE', seam('CLOUDFLARE', { readback_ref: null }));
@@ -147,4 +186,4 @@ assert.equal(result.rejoin_seams.current_required, 17);
 assert.equal(result.stop_class, 'TERMINAL');
 assert.equal(result.yield_allowed, true);
 
-console.log('SELF_DRIVE_REJOIN_SEAMS_PASS stale_ack_auto_refresh=1 provider_wait_sibling_continues=1 exact_true_wait=1 crm_mail_config_only_nonterminal=1 cloudflare_hostname_only_nonterminal=1 return_without_apply_nonterminal=1 missing_family_machine_resolve=1 legacy_3of17_not_terminal=1 owner_only=1 heartbeat_bug=1 all_current_terminal=1 effects=0');
+console.log('SELF_DRIVE_REJOIN_SEAMS_PASS stale_ack_auto_refresh=1 peer_identity_gap_nonterminal=1 provider_wait_sibling_continues=1 exact_true_wait=1 crm_mail_identity_gap_nonterminal=1 crm_mail_config_only_nonterminal=1 cloudflare_hostname_only_nonterminal=1 return_without_apply_nonterminal=1 missing_family_machine_resolve=1 legacy_3of17_not_terminal=1 owner_only=1 heartbeat_bug=1 all_current_terminal=1 effects=0');
