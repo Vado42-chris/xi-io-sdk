@@ -7,6 +7,7 @@ import { normalizeProviderFailure } from '../src/providers/state.mjs';
 import { compileIbalCanary } from '../src/ibal/canary.mjs';
 import { compileImpactFormation } from '../src/ibal/impact-formation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
+import { compileContinuationDirective, compileContinuationLoop } from '../src/cadence/self-drive.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 
 const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
@@ -24,12 +25,14 @@ function invoke(command, input) {
 
 const discovery = invoke(['--commands'], '');
 assert.equal(discovery.code, 0);
-assert.equal(discovery.value.commands.length, 12);
+assert.equal(discovery.value.commands.length, 14);
 assert.equal(discovery.value.semantic_aliases, 'RESOLVABLE_THROUGH_COMMAND_LEXICON');
 assert.equal(discovery.value.vocabulary, 'EXACT_PUBLIC_EXPORT_NAMES');
-assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 12);
+assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 14);
 assert(discovery.value.commands.some(x => x.command === 'compileImpactFormation' && x.specifier === '@xi-io/sdk/ibal/impact-formation'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationCycle' && x.specifier === '@xi-io/sdk/cadence'));
+assert(discovery.value.commands.some(x => x.command === 'compileContinuationDirective' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
+assert(discovery.value.commands.some(x => x.command === 'compileContinuationLoop' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
 assert(discovery.value.commands.some(x => x.command === 'resolveLexiconCommand' && x.specifier === '@xi-io/sdk/command-lexicon/resolve'));
 assert.equal(discovery.output, invoke(['--commands'], '').output);
 
@@ -84,6 +87,25 @@ assert.deepEqual(continuation.value.result, compileContinuationCycle(continuatio
 assert.equal(continuation.value.result.disposition, 'CONTINUE_WORK');
 assert.equal(continuation.value.result.terminal, false);
 
+const directiveInput = { ...continuationInput, owner_heartbeat_count: 0 };
+const directive = invoke(['compileContinuationDirective'], { args: [directiveInput] });
+assert.equal(directive.code, 0);
+assert.deepEqual(directive.value.result, compileContinuationDirective(directiveInput));
+assert.equal(directive.value.result.stop_class, 'CONTINUE');
+assert.equal(directive.value.result.next_packet.work_ref, 'next:work');
+assert.equal(directive.value.result.next_packet.owner_ingress_required, false);
+assert.equal(directive.value.result.next_packet.provider_effect, false);
+
+const waitInput = structuredClone(directiveInput);
+waitInput.backlog = [{ id: 'provider:wait', state: 'TRUE_WAIT', wake_when: 'provider://return/next' }];
+const loopInput = { cycles: [directiveInput, waitInput] };
+const loop = invoke(['compileContinuationLoop'], { args: [loopInput] });
+assert.equal(loop.code, 0);
+assert.deepEqual(loop.value.result, compileContinuationLoop(loopInput));
+assert.equal(loop.value.result.loop_state, 'TRUE_WAIT');
+assert.equal(loop.value.result.yield_allowed, true);
+assert.equal(loop.value.result.owner_heartbeat_bug, false);
+
 for (const token of ['burn', 'overnight burn', '/babysit', '#babysit']) {
   const lex = invoke(['resolveLexiconCommand'], { args: [token] });
   assert.equal(lex.code, 0);
@@ -121,4 +143,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 12, positive_cases: 11, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 14, positive_cases: 13, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));

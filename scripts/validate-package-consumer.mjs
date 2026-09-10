@@ -89,16 +89,36 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 12);
+  assert.equal(discovery.commands.length, 14);
   assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
+  assert(discovery.commands.some((entry) => entry.command === 'compileContinuationDirective'));
+  assert(discovery.commands.some((entry) => entry.command === 'compileContinuationLoop'));
   assert(discovery.commands.some((entry) => entry.command === 'resolveLexiconCommand'));
   const cliResult = JSON.parse(execFileSync(cli, ['sdk', 'call', 'resolveLexiconCommand'], {
     cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: ['#babysit'] }),
   }));
   assert.equal(cliResult.result.command.id, 'cadence.continue');
   assert.equal(cliResult.authority_granted, false);
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
+
+  const selfDriveInput = {
+    root_ref: 'root:package-canary', worker_ref: 'worker:package-canary', subject_generation: 'g1', current_generation: 'g1',
+    phase_event: 'POST_RESULT', pass_state: 'PASS', four_scale: { MICRO: '100', MESO: '100', MACRO: '100', META: '100' },
+    backlog: [{ id: 'work:next', state: 'RUNNABLE', priority: 1 }], returns: [], residue: [], occurrences: [],
+    worker_inbox: { ref: 'inbox:worker/package-canary', current: true, actionable_count: 0 }, owner_heartbeat_count: 0,
+  };
+  const selfDrive = JSON.parse(execFileSync(cli, ['sdk', 'call', 'compileContinuationDirective'], {
+    cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: [selfDriveInput] }),
+  }));
+  assert.equal(selfDrive.status, 'COMPUTED');
+  assert.equal(selfDrive.provider_effect, false);
+  assert.equal(selfDrive.authority_granted, false);
+  assert.equal(selfDrive.result.stop_class, 'CONTINUE');
+  assert.equal(selfDrive.result.yield_allowed, false);
+  assert.equal(selfDrive.result.next_packet.work_ref, 'work:next');
+  assert.equal(selfDrive.result.next_packet.owner_ingress_required, false);
+
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
