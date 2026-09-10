@@ -96,12 +96,36 @@ assert.equal(directive.value.result.next_packet.work_ref, 'next:work');
 assert.equal(directive.value.result.next_packet.owner_ingress_required, false);
 assert.equal(directive.value.result.next_packet.provider_effect, false);
 
+const heartbeatInput = { ...continuationInput, owner_heartbeat_count: 1 };
+const heartbeatDirective = invoke(['compileContinuationDirective'], { args: [heartbeatInput] });
+assert.equal(heartbeatDirective.code, 0);
+assert.deepEqual(heartbeatDirective.value.result, compileContinuationDirective(heartbeatInput));
+assert.equal(heartbeatDirective.value.result.status, 'FAIL_CURRENT');
+assert.equal(heartbeatDirective.value.result.owner_heartbeat_bug, true);
+assert.equal(heartbeatDirective.value.result.stop_class, 'CONTINUE');
+assert.equal(heartbeatDirective.value.result.yield_allowed, false);
+assert.equal(heartbeatDirective.value.result.next_packet.work_ref, 'next:work');
+assert.equal(heartbeatDirective.value.result.next_packet.owner_ingress_required, false);
+
+const heartbeatLoopInput = { cycles: [heartbeatInput] };
+const heartbeatLoop = invoke(['compileContinuationLoop'], { args: [heartbeatLoopInput] });
+assert.equal(heartbeatLoop.code, 0);
+assert.deepEqual(heartbeatLoop.value.result, compileContinuationLoop(heartbeatLoopInput));
+assert.equal(heartbeatLoop.value.result.status, 'FAIL_CURRENT');
+assert.equal(heartbeatLoop.value.result.owner_heartbeat_bug, true);
+assert.equal(heartbeatLoop.value.result.loop_state, 'HOST_CONTINUE_REQUIRED');
+assert.equal(heartbeatLoop.value.result.yield_allowed, false);
+assert.equal(heartbeatLoop.value.result.awaiting_host_action, true);
+assert.equal(heartbeatLoop.value.result.next_packet.work_ref, 'next:work');
+assert.equal(heartbeatLoop.value.result.stop_contract.includes('FAIL_CURRENT'), false);
+
 const waitInput = structuredClone(directiveInput);
 waitInput.backlog = [{ id: 'provider:wait', state: 'TRUE_WAIT', wake_when: 'provider://return/next' }];
 const loopInput = { cycles: [directiveInput, waitInput] };
 const loop = invoke(['compileContinuationLoop'], { args: [loopInput] });
 assert.equal(loop.code, 0);
 assert.deepEqual(loop.value.result, compileContinuationLoop(loopInput));
+assert.equal(loop.value.result.status, 'CURRENT');
 assert.equal(loop.value.result.loop_state, 'TRUE_WAIT');
 assert.equal(loop.value.result.yield_allowed, true);
 assert.equal(loop.value.result.owner_heartbeat_bug, false);
@@ -143,4 +167,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 14, positive_cases: 13, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 14, positive_cases: 15, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
