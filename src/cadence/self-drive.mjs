@@ -14,6 +14,15 @@ const CONTINUE_DISPOSITIONS = new Map([
   ['WAIT_WORKER_INBOX_BINDING', 'RESOLVE_WORKER_INBOX_BINDING'],
   ['CONTINUE_QUALIFICATION', 'CONTINUE_QUALIFICATION'],
 ]);
+const EFFECT_STATES = new Set([
+  'NO_EFFECT_REPORTED',
+  'FAILED_NO_EFFECT',
+  'VERIFIED_NO_EFFECT',
+  'VERIFIED_EFFECT',
+  'EFFECT_UNKNOWN',
+  'PARTIAL_EFFECT_UNKNOWN',
+]);
+const RECONCILE_EFFECT_STATES = new Set(['EFFECT_UNKNOWN', 'PARTIAL_EFFECT_UNKNOWN']);
 
 function clean(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -43,6 +52,19 @@ function ownerHeartbeatCount(input) {
   const value = input.owner_heartbeat_count ?? 0;
   if (!Number.isInteger(value) || value < 0) throw new Error('OWNER_HEARTBEAT_COUNT_INVALID');
   return value;
+}
+
+function effectReconciliation(input) {
+  const reported = clean(input.effect_state)?.toUpperCase() ?? 'NO_EFFECT_REPORTED';
+  if (!EFFECT_STATES.has(reported)) throw new Error('EFFECT_STATE_INVALID');
+  const explicit = input.reconciliation_required === true;
+  const required = explicit || RECONCILE_EFFECT_STATES.has(reported);
+  return {
+    effect_state: reported,
+    reconciliation_state: required ? 'RECONCILE_REQUIRED' : 'NOT_REQUIRED',
+    reconciliation_required: required,
+    destructive_follow_on_allowed: !required,
+  };
 }
 
 function sourceBacklog(input) {
@@ -114,8 +136,9 @@ function waitDisposition(cycle, backlog, action) {
   return { stop_class: 'CONTINUE', yield_allowed: false, action: 'RECOMPUTE_FRONTIER', waits: [] };
 }
 
-function nextPacket(cycle, action) {
+function nextPacket(cycle, action, reconciliation) {
   const selected = selectedWork(cycle);
+  const reconciling = action === 'RECONCILE_EFFECT';
   const packet = {
     schema: SELF_DRIVE_PACKET_SCHEMA,
     root_ref: cycle.root_ref,
@@ -126,6 +149,11 @@ function nextPacket(cycle, action) {
     work_ref: action === 'EXECUTE_WORK' ? selected?.id ?? null : null,
     work_priority: action === 'EXECUTE_WORK' ? selected?.priority ?? null : null,
     phase_event: cycle.phase_event,
+    effect_state: reconciliation.effect_state,
+    reconciliation_state: reconciliation.reconciliation_state,
+    reconciliation_required: reconciliation.reconciliation_required,
+    destructive_follow_on_allowed: reconciliation.destructive_follow_on_allowed,
+    allowed_operation_classes: reconciling ? ['READ_ONLY_RECONCILIATION'] : ['QUALIFIED_BY_HOST_AND_EFFECT_OWNER'],
     return_required: true,
     apply_return_required: true,
     reap_then_reread_required: true,
@@ -141,11 +169,21 @@ export function compileContinuationDirective(input) {
   const cycle = compileContinuationCycle(input);
   const backlog = sourceBacklog(input);
   const heartbeatCount = ownerHeartbeatCount(input);
-  const initialAction = allOwnerOnly(backlog) ? null : machineAction(cycle);
+  const reconciliation = effectReconciliation(input);
+  const initialAction = reconciliation.reconciliation_required
+    ? 'RECONCILE_EFFECT'
+    : allOwnerOnly(backlog)
+      ? null
+      : machineAction(cycle);
   const stop = waitDisposition(cycle, backlog, initialAction);
   const continueWithoutOwner = stop.stop_class === 'CONTINUE';
   const ownerHeartbeatBug = continueWithoutOwner && heartbeatCount > 0;
-  const packet = continueWithoutOwner ? nextPacket(cycle, stop.action) : null;
+  const effectReconciliationBug = reconciliation.reconciliation_required;
+  const bugs = [
+    ...(ownerHeartbeatBug ? ['OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT'] : []),
+    ...(effectReconciliationBug ? ['EFFECT_UNKNOWN_REQUIRES_RECONCILIATION'] : []),
+  ];
+  const packet = continueWithoutOwner ? nextPacket(cycle, stop.action, reconciliation) : null;
 
   return {
     schema: SELF_DRIVE_DIRECTIVE_SCHEMA,
@@ -160,8 +198,13 @@ export function compileContinuationDirective(input) {
     continue_without_owner: continueWithoutOwner,
     owner_heartbeat_count: heartbeatCount,
     owner_heartbeat_bug: ownerHeartbeatBug,
-    status: ownerHeartbeatBug ? 'FAIL_CURRENT' : 'CURRENT',
-    bug: ownerHeartbeatBug ? 'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT' : null,
+    effect_state: reconciliation.effect_state,
+    reconciliation_state: reconciliation.reconciliation_state,
+    reconciliation_required: reconciliation.reconciliation_required,
+    destructive_follow_on_allowed: reconciliation.destructive_follow_on_allowed,
+    status: bugs.length > 0 ? 'FAIL_CURRENT' : 'CURRENT',
+    bug: bugs[0] ?? null,
+    bugs,
     waits: stop.waits,
     next_packet: packet,
     cycle,
@@ -172,6 +215,10 @@ export function compileContinuationDirective(input) {
       'BLOCKED_PROVIDER != ROOT_STOP',
       'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
       'HEARTBEAT_BUG != STOP_WHILE_NEXT_PACKET_EXISTS',
+      'COMMAND_FAILURE != NO_EFFECT',
+      'PARTIAL_EFFECT_UNKNOWN -> RECONCILE_REQUIRED',
+      'RECONCILE_REQUIRED -> NO_DESTRUCTIVE_FOLLOW_ON',
+      'RECONCILE_REQUIRED != ROOT_STOP',
       'SDK_LOOP_DIRECTIVE != EFFECT_AUTHORITY',
       'SDK_LOOP_DIRECTIVE != PROVIDER_EXECUTION',
     ],
@@ -206,20 +253,25 @@ export function compileContinuationLoop(input) {
 
   const last = directives.at(-1);
   const ownerHeartbeatBug = directives.some((directive) => directive.owner_heartbeat_bug);
+  const reconciliationRequired = directives.some((directive) => directive.reconciliation_required);
   const awaitingHostAction = !stop && last?.continue_without_owner === true;
   const loopState = stop ? stop.stop_class : 'HOST_CONTINUE_REQUIRED';
+  const bugs = [...new Set(directives.flatMap((directive) => directive.bugs ?? []))];
 
   return {
     schema: SELF_DRIVE_LOOP_SCHEMA,
     root_ref: rootRef,
     agent_ref: agentRef,
     iterations: directives.length,
-    status: ownerHeartbeatBug ? 'FAIL_CURRENT' : 'CURRENT',
+    status: bugs.length > 0 ? 'FAIL_CURRENT' : 'CURRENT',
     loop_state: loopState,
     terminal: loopState === 'TERMINAL',
     yield_allowed: Boolean(stop?.yield_allowed),
     awaiting_host_action: awaitingHostAction,
     owner_heartbeat_bug: ownerHeartbeatBug,
+    reconciliation_required: reconciliationRequired,
+    destructive_follow_on_allowed: last?.destructive_follow_on_allowed ?? true,
+    bugs,
     next_packet: awaitingHostAction ? last.next_packet : null,
     directives,
     stop_contract: ['TRUE_WAIT', 'OWNER_ONLY', 'TERMINAL'],
