@@ -171,6 +171,7 @@ export function compileContinuationDirective(input) {
       'WAIT_ONE_CELL != ROOT_STOP',
       'BLOCKED_PROVIDER != ROOT_STOP',
       'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
+      'HEARTBEAT_BUG != STOP_WHILE_NEXT_PACKET_EXISTS',
       'SDK_LOOP_DIRECTIVE != EFFECT_AUTHORITY',
       'SDK_LOOP_DIRECTIVE != PROVIDER_EXECUTION',
     ],
@@ -200,31 +201,25 @@ export function compileContinuationLoop(input) {
     if (directive.agent_ref !== agentRef) throw new Error('CONTINUATION_LOOP_AGENT_CHANGED');
     directives.push({ iteration: index + 1, ...directive });
 
-    if (directive.owner_heartbeat_bug) {
-      stop = directive;
-      break;
-    }
     if (directive.yield_allowed) stop = directive;
   }
 
   const last = directives.at(-1);
+  const ownerHeartbeatBug = directives.some((directive) => directive.owner_heartbeat_bug);
   const awaitingHostAction = !stop && last?.continue_without_owner === true;
-  const loopState = last?.owner_heartbeat_bug
-    ? 'FAIL_CURRENT'
-    : stop
-      ? stop.stop_class
-      : 'HOST_CONTINUE_REQUIRED';
+  const loopState = stop ? stop.stop_class : 'HOST_CONTINUE_REQUIRED';
 
   return {
     schema: SELF_DRIVE_LOOP_SCHEMA,
     root_ref: rootRef,
     agent_ref: agentRef,
     iterations: directives.length,
+    status: ownerHeartbeatBug ? 'FAIL_CURRENT' : 'CURRENT',
     loop_state: loopState,
     terminal: loopState === 'TERMINAL',
-    yield_allowed: Boolean(stop?.yield_allowed) && !last?.owner_heartbeat_bug,
+    yield_allowed: Boolean(stop?.yield_allowed),
     awaiting_host_action: awaitingHostAction,
-    owner_heartbeat_bug: directives.some((directive) => directive.owner_heartbeat_bug),
+    owner_heartbeat_bug: ownerHeartbeatBug,
     next_packet: awaitingHostAction ? last.next_packet : null,
     directives,
     stop_contract: ['TRUE_WAIT', 'OWNER_ONLY', 'TERMINAL'],
