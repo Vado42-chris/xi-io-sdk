@@ -32,6 +32,7 @@ const arity = {
   compileContinuationCycle: [1, 1],
   compileContinuationDirective: [1, 1],
   compileContinuationLoop: [1, 1],
+  compileRejoinSeams: [1, 1],
   resolveLexiconCommand: [1, 1],
   derivePrimitiveAdoptionPlan: [1, 1],
   deriveAffectedPrimitiveConsumers: [1, 1],
