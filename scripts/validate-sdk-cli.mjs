@@ -95,6 +95,8 @@ assert.equal(directive.value.result.stop_class, 'CONTINUE');
 assert.equal(directive.value.result.next_packet.work_ref, 'next:work');
 assert.equal(directive.value.result.next_packet.owner_ingress_required, false);
 assert.equal(directive.value.result.next_packet.provider_effect, false);
+assert.equal(directive.value.result.reconciliation_state, 'NOT_REQUIRED');
+assert.equal(directive.value.result.destructive_follow_on_allowed, true);
 
 const heartbeatInput = { ...continuationInput, owner_heartbeat_count: 1 };
 const heartbeatDirective = invoke(['compileContinuationDirective'], { args: [heartbeatInput] });
@@ -118,6 +120,50 @@ assert.equal(heartbeatLoop.value.result.yield_allowed, false);
 assert.equal(heartbeatLoop.value.result.awaiting_host_action, true);
 assert.equal(heartbeatLoop.value.result.next_packet.work_ref, 'next:work');
 assert.equal(heartbeatLoop.value.result.stop_contract.includes('FAIL_CURRENT'), false);
+
+const partialEffectInput = {
+  ...continuationInput,
+  owner_heartbeat_count: 0,
+  effect_state: 'PARTIAL_EFFECT_UNKNOWN',
+  reconciliation_required: true,
+};
+const partialEffectDirective = invoke(['compileContinuationDirective'], { args: [partialEffectInput] });
+assert.equal(partialEffectDirective.code, 0);
+assert.deepEqual(partialEffectDirective.value.result, compileContinuationDirective(partialEffectInput));
+assert.equal(partialEffectDirective.value.result.status, 'FAIL_CURRENT');
+assert.equal(partialEffectDirective.value.result.reconciliation_state, 'RECONCILE_REQUIRED');
+assert.equal(partialEffectDirective.value.result.reconciliation_required, true);
+assert.equal(partialEffectDirective.value.result.destructive_follow_on_allowed, false);
+assert.equal(partialEffectDirective.value.result.stop_class, 'CONTINUE');
+assert.equal(partialEffectDirective.value.result.yield_allowed, false);
+assert.equal(partialEffectDirective.value.result.next_packet.action, 'RECONCILE_EFFECT');
+assert.equal(partialEffectDirective.value.result.next_packet.work_ref, null);
+assert.equal(partialEffectDirective.value.result.next_packet.destructive_follow_on_allowed, false);
+assert.deepEqual(partialEffectDirective.value.result.next_packet.allowed_operation_classes, ['READ_ONLY_RECONCILIATION']);
+assert(partialEffectDirective.value.result.bugs.includes('EFFECT_UNKNOWN_REQUIRES_RECONCILIATION'));
+
+const partialEffectLoop = invoke(['compileContinuationLoop'], { args: [{ cycles: [partialEffectInput] }] });
+assert.equal(partialEffectLoop.code, 0);
+assert.deepEqual(partialEffectLoop.value.result, compileContinuationLoop({ cycles: [partialEffectInput] }));
+assert.equal(partialEffectLoop.value.result.status, 'FAIL_CURRENT');
+assert.equal(partialEffectLoop.value.result.loop_state, 'HOST_CONTINUE_REQUIRED');
+assert.equal(partialEffectLoop.value.result.reconciliation_required, true);
+assert.equal(partialEffectLoop.value.result.destructive_follow_on_allowed, false);
+assert.equal(partialEffectLoop.value.result.awaiting_host_action, true);
+assert.equal(partialEffectLoop.value.result.next_packet.action, 'RECONCILE_EFFECT');
+assert.equal(partialEffectLoop.value.result.stop_contract.includes('RECONCILE_REQUIRED'), false);
+
+const failedNoEffectInput = {
+  ...continuationInput,
+  owner_heartbeat_count: 0,
+  effect_state: 'FAILED_NO_EFFECT',
+};
+const failedNoEffectDirective = invoke(['compileContinuationDirective'], { args: [failedNoEffectInput] });
+assert.equal(failedNoEffectDirective.code, 0);
+assert.deepEqual(failedNoEffectDirective.value.result, compileContinuationDirective(failedNoEffectInput));
+assert.equal(failedNoEffectDirective.value.result.reconciliation_required, false);
+assert.equal(failedNoEffectDirective.value.result.destructive_follow_on_allowed, true);
+assert.equal(failedNoEffectDirective.value.result.next_packet.action, 'EXECUTE_WORK');
 
 const waitInput = structuredClone(directiveInput);
 waitInput.backlog = [{ id: 'provider:wait', state: 'TRUE_WAIT', wake_when: 'provider://return/next' }];
@@ -167,4 +213,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 14, positive_cases: 15, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 14, positive_cases: 18, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
