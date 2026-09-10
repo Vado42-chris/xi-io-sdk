@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import './validate-self-drive-continuation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 
@@ -185,6 +186,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 console.log(JSON.stringify({
   status: 'PASS',
   cases: 18,
+  self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,
   pass_does_not_stop: true,
