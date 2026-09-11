@@ -4,9 +4,12 @@
   "work_ref": "work:XIB-138",
   "work_revision": 3,
   "work_state": "CURRENT",
+  "crm_card_ref": "crm:card:XIB-138",
   "punchcard_ref": "punchcard:court-p0",
   "punchcard_generation": "g7",
   "cadence_wake_ref": "wake:leave-0900",
+  "hot_folder_ref": "bins:hotfolder:court-p0",
+  "return_target_ref": "#agent_return:court-p0",
   "projections": [
     {
       "projection_ref": "bugzilla:blocked",
