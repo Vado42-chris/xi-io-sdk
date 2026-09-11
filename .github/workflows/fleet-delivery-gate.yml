@@ -1,0 +1,25 @@
+name: fleet-delivery-gate
+on:
+  pull_request:
+    paths:
+      - 'src/baseline/fleet-delivery.mjs'
+      - 'scripts/validate-fleet-delivery-gate.mjs'
+      - 'bin/xi.mjs'
+      - 'package.json'
+      - '.github/workflows/fleet-delivery-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate fleet delivery 100s gate
+        run: |
+          node --check src/baseline/fleet-delivery.mjs
+          node scripts/validate-fleet-delivery-gate.mjs
+          node bin/xi.mjs --help | grep 'xi fleet delivery'
