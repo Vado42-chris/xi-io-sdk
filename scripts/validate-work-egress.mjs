@@ -6,17 +6,17 @@ import { fileURLToPath } from 'node:url';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
 
 const fixture = () => ({
-  root_ref: 'root:court-burn',
-  project_ref: 'project:xiio',
-  work_ref: 'work:XIB-138',
+  root_ref: 'root:timed-followup-canary',
+  project_ref: 'project:fixture',
+  work_ref: 'work:timed-followup-001',
   work_revision: 3,
   work_state: 'CURRENT',
-  crm_card_ref: 'crm:card:XIB-138',
-  punchcard_ref: 'punchcard:court-p0',
+  crm_card_ref: 'crm:card:timed-followup-001',
+  punchcard_ref: 'punchcard:timed-followup',
   punchcard_generation: 'g7',
-  cadence_wake_ref: 'wake:leave-0900',
-  hot_folder_ref: 'bins:hotfolder:court-p0',
-  return_target_ref: '#agent_return:court-p0',
+  cadence_wake_ref: 'wake:timed-followup',
+  hot_folder_ref: 'bins:hotfolder:timed-followup',
+  return_target_ref: 'return:timed-followup',
   projections: [],
 });
 
@@ -28,7 +28,7 @@ const test = (name, fn) => {
 test('MISSING_CANONICAL_WORK_REJECTS_BEFORE_PROVIDER_PROJECTION', () => {
   const input = fixture();
   input.work_ref = '';
-  input.projections = [{ projection_ref: 'timer:1', provider_family: 'REMINDER_APP', kind: 'TIMER', status: 'REQUESTED' }];
+  input.projections = [{ projection_ref: 'timer:1', provider_family: 'REMINDER_PROVIDER_FIXTURE', kind: 'TIMER', status: 'REQUESTED' }];
   assert.throws(() => compileWorkEgressProjection(input), /CANONICAL_WORK_REF_REQUIRED/);
 });
 
@@ -52,18 +52,18 @@ test('MISSING_RETURN_TARGET_REJECTS_BEFORE_EGRESS', () => {
 
 test('PROVIDER_CAPACITY_FAILURE_PRESERVES_WORK_AND_CONTINUES', () => {
   const input = fixture();
-  input.projections = [{ projection_ref: 'bugzilla:1', provider_family: 'BUGZILLA', kind: 'TASK', status: 'BLOCKED_TOOL_OR_PROVIDER', wake: 'BUGZILLA_ADAPTER_AVAILABLE' }];
+  input.projections = [{ projection_ref: 'task-provider:1', provider_family: 'TASK_PROVIDER_FIXTURE', kind: 'TASK', status: 'BLOCKED_TOOL_OR_PROVIDER', wake: 'TASK_PROVIDER_ADAPTER_AVAILABLE' }];
   const result = compileWorkEgressProjection(input);
   assert.equal(result.disposition, 'DEGRADED_EGRESS_CONTINUE_INTERNAL');
   assert.equal(result.canonical_work_preserved, true);
   assert.equal(result.root_stop, false);
-  assert.deepEqual(result.blocked_projection_refs, ['bugzilla:1']);
+  assert.deepEqual(result.blocked_projection_refs, ['task-provider:1']);
 });
 
 test('BLOCKED_PROVIDER_REQUIRES_EXACT_WAKE', () => {
   const input = fixture();
-  input.projections = [{ projection_ref: 'bugzilla:1', provider_family: 'BUGZILLA', kind: 'TASK', status: 'BLOCKED_TOOL_OR_PROVIDER' }];
-  assert.throws(() => compileWorkEgressProjection(input), /PROJECTION_WAKE_REQUIRED:bugzilla:1/);
+  input.projections = [{ projection_ref: 'task-provider:1', provider_family: 'TASK_PROVIDER_FIXTURE', kind: 'TASK', status: 'BLOCKED_TOOL_OR_PROVIDER' }];
+  assert.throws(() => compileWorkEgressProjection(input), /PROJECTION_WAKE_REQUIRED:task-provider:1/);
 });
 
 test('NO_PROVIDER_PROJECTION_STILL_PRESERVES_INTERNAL_WORK', () => {
@@ -75,7 +75,7 @@ test('NO_PROVIDER_PROJECTION_STILL_PRESERVES_INTERNAL_WORK', () => {
 
 test('PENDING_TIMER_IS_NOT_WORK_CAPTURE_PROOF', () => {
   const input = fixture();
-  input.projections = [{ projection_ref: 'timer:1', provider_family: 'REMINDER_APP', kind: 'TIMER', status: 'POSTED' }];
+  input.projections = [{ projection_ref: 'timer:1', provider_family: 'REMINDER_PROVIDER_FIXTURE', kind: 'TIMER', status: 'POSTED' }];
   const result = compileWorkEgressProjection(input);
   assert.equal(result.disposition, 'WAIT_PROVIDER_READBACK_CONTINUE_INTERNAL');
   assert.equal(result.canonical_work_bound, true);
@@ -84,13 +84,13 @@ test('PENDING_TIMER_IS_NOT_WORK_CAPTURE_PROOF', () => {
 
 test('READBACK_REQUIRES_PROVIDER_RECEIPT', () => {
   const input = fixture();
-  input.projections = [{ projection_ref: 'calendar:1', provider_family: 'CALENDAR', kind: 'CALENDAR', status: 'READ_BACK' }];
+  input.projections = [{ projection_ref: 'calendar:1', provider_family: 'CALENDAR_PROVIDER_FIXTURE', kind: 'CALENDAR', status: 'READ_BACK' }];
   assert.throws(() => compileWorkEgressProjection(input), /PROVIDER_READBACK_REF_REQUIRED/);
 });
 
 test('READBACK_CURRENT_DOES_NOT_GRANT_WORK_OR_EFFECT_AUTHORITY', () => {
   const input = fixture();
-  input.projections = [{ projection_ref: 'linear:1', provider_family: 'LINEAR', kind: 'TASK', status: 'READ_BACK', provider_readback_ref: 'linear:XIB-138@r3' }];
+  input.projections = [{ projection_ref: 'task-provider:readback', provider_family: 'TASK_PROVIDER_FIXTURE', kind: 'TASK', status: 'READ_BACK', provider_readback_ref: 'provider:task:receipt:r3' }];
   const result = compileWorkEgressProjection(input);
   assert.equal(result.disposition, 'EGRESS_READBACK_CURRENT');
   assert.equal(result.provider_effect_authority, false);
@@ -100,7 +100,7 @@ test('READBACK_CURRENT_DOES_NOT_GRANT_WORK_OR_EFFECT_AUTHORITY', () => {
 test('TERMINAL_WORK_CANNOT_PROJECT_NEW_TIMER_OR_STOP_ROOT', () => {
   const input = fixture();
   input.work_state = 'COMPLETED';
-  input.projections = [{ projection_ref: 'timer:late', provider_family: 'REMINDER_APP', kind: 'TIMER', status: 'REQUESTED' }];
+  input.projections = [{ projection_ref: 'timer:late', provider_family: 'REMINDER_PROVIDER_FIXTURE', kind: 'TIMER', status: 'REQUESTED' }];
   const result = compileWorkEgressProjection(input);
   assert.equal(result.disposition, 'NO_OP_TERMINAL_WORK');
   assert.equal(result.projection_eligible, false);
@@ -119,7 +119,7 @@ test('TERMINAL_WORK_WITH_NO_PROJECTIONS_STILL_DOES_NOT_ASSERT_ROOT_TERMINAL', ()
 
 test('UNKNOWN_PROVIDER_PROJECTION_REQUIRES_WAKE_AND_NEVER_STOPS_ROOT', () => {
   const input = fixture();
-  input.projections = [{ projection_ref: 'bugzilla:unknown', provider_family: 'BUGZILLA', kind: 'TASK', status: 'UNKNOWN', wake: 'BUGZILLA_CURRENTNESS_RESOLVED' }];
+  input.projections = [{ projection_ref: 'task-provider:unknown', provider_family: 'TASK_PROVIDER_FIXTURE', kind: 'TASK', status: 'UNKNOWN', wake: 'TASK_PROVIDER_CURRENTNESS_RESOLVED' }];
   const result = compileWorkEgressProjection(input);
   assert.equal(result.disposition, 'WAIT_PROVIDER_CURRENTNESS');
   assert.equal(result.root_stop, false);
