@@ -20,6 +20,14 @@ assert.equal(intent.directives.filter((x)=>/USE THE AUDHD GUIDE/i.test(x.text)).
 assert(intent.state_assertions.some((x)=>/LIVE PROMOTION = NOT DONE/i.test(x.text)));
 assert(!intent.directives.some((x)=>/FUCK/i.test(x.text)));
 
+const contraction=normalizeAudhdIntent("don't fucking deploy");
+assert.equal(contraction.raw_text,"don't fucking deploy");
+assert.equal(contraction.raw_preserved,true);
+assert.equal(contraction.directives.length,1);
+assert.equal(contraction.directives[0].kind,'NEGATIVE_DIRECTIVE');
+assert(!/FUCK/i.test(contraction.directives[0].text));
+assert(contraction.intensity_signals.some((x)=>x.tokens.some((t)=>/fucking/i.test(t))));
+
 const known=[
   ["don't fucking deploy; run the tests", false, true],
   ["fix the fucking parser; don't run deployment", true, false],
@@ -42,6 +50,7 @@ console.log(JSON.stringify({
   raw_preserved:true,
   intensity_signals:intent.intensity_signals.length,
   directives:intent.directives.length,
+  contraction_hostile:'PASS',
   known_answers:known.length,
   result:'PASS',
 },null,2));
