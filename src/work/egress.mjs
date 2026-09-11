@@ -2,6 +2,7 @@ const ACTIVE_WORK_STATES = new Set(['CURRENT', 'RUNNABLE', 'WAIT']);
 const TERMINAL_WORK_STATES = new Set(['COMPLETED', 'SUPERSEDED', 'CANCELLED']);
 const PROJECTION_STATES = new Set(['REQUESTED', 'POSTED', 'ACK', 'READ_BACK', 'BLOCKED_TOOL_OR_PROVIDER', 'DEGRADED', 'UNKNOWN']);
 const PROJECTION_KINDS = new Set(['TASK', 'TIMER', 'CALENDAR', 'MESSAGE']);
+const WAKE_REQUIRED_STATES = new Set(['BLOCKED_TOOL_OR_PROVIDER', 'DEGRADED', 'UNKNOWN']);
 
 function text(value, code) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(code);
@@ -19,6 +20,9 @@ function normalizeProjection(row, index) {
   if (status === 'READ_BACK' && (typeof row.provider_readback_ref !== 'string' || !row.provider_readback_ref.trim())) {
     throw new Error(`PROVIDER_READBACK_REF_REQUIRED:${projectionRef}`);
   }
+  if (WAKE_REQUIRED_STATES.has(status) && (typeof row.wake !== 'string' || !row.wake.trim())) {
+    throw new Error(`PROJECTION_WAKE_REQUIRED:${projectionRef}`);
+  }
   return {
     projection_ref: projectionRef,
     provider_family: providerFamily,
@@ -35,9 +39,12 @@ export function compileWorkEgressProjection(input) {
   const rootRef = text(input.root_ref, 'ROOT_REF_REQUIRED');
   const projectRef = text(input.project_ref, 'PROJECT_REF_REQUIRED');
   const workRef = text(input.work_ref, 'CANONICAL_WORK_REF_REQUIRED');
+  const crmCardRef = text(input.crm_card_ref, 'CRM_CARD_REF_REQUIRED');
   const punchcardRef = text(input.punchcard_ref, 'PUNCHCARD_REF_REQUIRED');
   const punchcardGeneration = text(input.punchcard_generation, 'PUNCHCARD_GENERATION_REQUIRED');
   const cadenceWakeRef = text(input.cadence_wake_ref, 'CADENCE_WAKE_REF_REQUIRED');
+  const hotFolderRef = text(input.hot_folder_ref, 'HOT_FOLDER_REF_REQUIRED');
+  const returnTargetRef = text(input.return_target_ref, 'RETURN_TARGET_REF_REQUIRED');
   const workState = text(input.work_state, 'WORK_STATE_REQUIRED').toUpperCase();
   if (!Number.isInteger(input.work_revision) || input.work_revision < 1) throw new Error('WORK_REVISION_REQUIRED');
   if (!ACTIVE_WORK_STATES.has(workState) && !TERMINAL_WORK_STATES.has(workState)) throw new Error('WORK_STATE_INVALID');
@@ -81,9 +88,13 @@ export function compileWorkEgressProjection(input) {
     work_ref: workRef,
     work_revision: input.work_revision,
     work_state: workState,
+    work_terminal: terminal,
+    crm_card_ref: crmCardRef,
     punchcard_ref: punchcardRef,
     punchcard_generation: punchcardGeneration,
     cadence_wake_ref: cadenceWakeRef,
+    hot_folder_ref: hotFolderRef,
+    return_target_ref: returnTargetRef,
     canonical_work_bound: true,
     canonical_work_preserved: true,
     projection_eligible: projectionEligible,
@@ -94,7 +105,7 @@ export function compileWorkEgressProjection(input) {
     unknown_projection_refs: unknown.map((row) => row.projection_ref),
     provider_effect_authority: false,
     work_authority: false,
-    root_stop: terminal && projections.length === 0,
+    root_stop: false,
     next: terminal ? 'REBASE_CURRENT_WORK_FRONTIER' : 'CONTINUE_ELIGIBLE_INTERNAL_WORK_AND_RECONCILE_PROVIDER_PROJECTIONS',
     hard: [
       'THIRD_PARTY_TIMER != WORKITEM',
@@ -102,6 +113,7 @@ export function compileWorkEgressProjection(input) {
       'PROVIDER_ID != CANONICAL_WORK_ID',
       'PROVIDER_FAILURE != WORK_FAILURE',
       'ONE_EGRESS_BLOCK != ROOT_STOP',
+      'WORK_TERMINAL != ROOT_TERMINAL',
       'REMINDER != RETURN',
       'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
     ],
