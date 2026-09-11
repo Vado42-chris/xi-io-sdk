@@ -1,0 +1,22 @@
+{
+  "root_ref": "root:timed-followup-canary",
+  "project_ref": "project:fixture",
+  "work_ref": "work:timed-followup-001",
+  "work_revision": 3,
+  "work_state": "CURRENT",
+  "crm_card_ref": "crm:card:timed-followup-001",
+  "punchcard_ref": "punchcard:timed-followup",
+  "punchcard_generation": "g7",
+  "cadence_wake_ref": "wake:timed-followup",
+  "hot_folder_ref": "bins:hotfolder:timed-followup",
+  "return_target_ref": "return:timed-followup",
+  "projections": [
+    {
+      "projection_ref": "task-provider:blocked",
+      "provider_family": "TASK_PROVIDER_FIXTURE",
+      "kind": "TASK",
+      "status": "BLOCKED_TOOL_OR_PROVIDER",
+      "wake": "TASK_PROVIDER_ADAPTER_AVAILABLE"
+    }
+  ]
+}
