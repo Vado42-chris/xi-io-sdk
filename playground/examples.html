@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>xi-io SDK Playground · Worked examples</title>
+  <link rel="stylesheet" href="../src/styles/core.css">
+  <link rel="stylesheet" href="../src/styles/shell.css">
+  <link rel="stylesheet" href="../src/styles/progressive-disclosure.css">
+  <link rel="stylesheet" href="./playground.css">
+  <link rel="stylesheet" href="./examples.css">
+</head>
+<body>
+  <main data-xiui-root data-xiui="page-shell" class="playground-shell examples-shell">
+    <header class="examples-hero">
+      <p class="eyebrow">xi-io SDK · Worked examples</p>
+      <h1>Atoms are not the finished experience.</h1>
+      <p class="examples-lede">The SDK owns public atomic behavior and accessibility primitives. Publisher composes larger reusable surfaces. Articles supplies editorial meaning, source roles and comprehension requirements. Product adopters keep their own domain semantics and visual hierarchy.</p>
+      <nav class="example-nav" aria-label="Playground navigation">
+        <a href="./index.html">Primitive catalog</a>
+        <a aria-current="page" href="./examples.html">Worked examples</a>
+      </nav>
+    </header>
+
+    <section class="composition-band" aria-labelledby="composition-title">
+      <div>
+        <p class="eyebrow">The composition boundary</p>
+        <h2 id="composition-title">Meaning → composition → behavior → adopter.</h2>
+      </div>
+      <ol class="composition-chain">
+        <li><strong>Articles</strong><span>Story, audience, voice, source roles, evidence and comprehension.</span></li>
+        <li><strong>Publisher</strong><span>Target-neutral shell, panel, publication and placement composition.</span></li>
+        <li><strong>SDK</strong><span>Atomic interaction, state, accessibility and callable public primitives.</span></li>
+        <li><strong>Product</strong><span>Domain semantics, product-local hierarchy, target adapter and real runtime proof.</span></li>
+      </ol>
+      <p class="boundary"><strong>Boundary:</strong> examples prove the intended composition grammar. They do not claim that every product adopter, provider effect or deployment is running or live.</p>
+    </section>
+
+    <section class="example-grid" aria-label="Worked example gallery">
+      <article class="example-card featured">
+        <div class="example-heading"><span class="maturity">REFERENCE ADOPTER</span><span class="scale">APPLICATION SHELL</span></div>
+        <h2>Inbox workbench</h2>
+        <p>One application-shell grammar can preserve navigation, status, action and work-area obligations while Inbox keeps mail, CRM, account identity and attention semantics.</p>
+        <div class="mini-shell" aria-label="Inbox shell composition sketch">
+          <div class="mini-rail">Accounts</div>
+          <div class="mini-list">Threads<br>Tasks<br>People</div>
+          <div class="mini-work"><strong>Current work</strong><p>Message, context and next action share one bounded work area.</p><button type="button">Primary action</button></div>
+        </div>
+        <details><summary>Inspect the layers</summary><pre>Articles: communication story + comprehension
+Publisher: ApplicationShellRecipe
+SDK: navigation + status + action + disclosure atoms
+Inbox: mail / CRM / attention semantics
+Runtime: separately qualified</pre></details>
+      </article>
+
+      <article class="example-card">
+        <div class="example-heading"><span class="maturity">COMPOUND EXAMPLE</span><span class="scale">DATA PANEL</span></div>
+        <h2>Switchboard compute panel</h2>
+        <p>The same higher-order grammar can produce a structurally different operational panel without copying Inbox’s domain model.</p>
+        <div class="metric-panel" aria-label="Switchboard panel composition sketch">
+          <div><span>Service</span><strong>Local model</strong><small>readiness: observed</small></div>
+          <div><span>Queue</span><strong>3</strong><small>projection only</small></div>
+          <div><span>Route</span><strong>qualified target</strong><small>authority separate</small></div>
+        </div>
+        <details><summary>Inspect the layers</summary><pre>Publisher: DataPanelRecipe + ControlPanelRecipe
+SDK: metric + status + action atoms
+Switchboard: service / capacity / route semantics
+Ward: capability / policy boundary
+Effect authority: separate</pre></details>
+      </article>
+
+      <article class="example-card">
+        <div class="example-heading"><span class="maturity">EDITORIAL EXAMPLE</span><span class="scale">PUBLICATION</span></div>
+        <h2>Long-form Article / report</h2>
+        <p>Editorial structure survives target changes: headline, standfirst, source-aware body, evidence boundary, progressive disclosure and a truthful current-state footer.</p>
+        <div class="article-preview">
+          <span class="article-kicker">Design note</span>
+          <strong>When “it worked” is not enough</strong>
+          <p>A human-first explanation leads. Technical proof unfolds only when the reader asks for it.</p>
+          <details><summary>Technical proof</summary><p>SOURCE ≠ MAIN ≠ RUNNING ≠ LIVE ≠ READBACK.</p></details>
+        </div>
+        <details><summary>Inspect the layers</summary><pre>Articles: StoryPlan + SemanticBlocks + source roles
+Publisher: PublicationSurfaceRecipe
+SDK: disclosure + hierarchy + action atoms
+Target: web / email / document adapter
+Publication authority: separate</pre></details>
+      </article>
+
+      <article class="example-card">
+        <div class="example-heading"><span class="maturity">TEMPLATE</span><span class="scale">PRODUCT STORY</span></div>
+        <h2>Product story</h2>
+        <p>A useful product page should answer the reader’s questions in order instead of dumping framework nouns into cards.</p>
+        <ol class="story-template">
+          <li><span>WHY</span><strong>What human problem exists?</strong></li>
+          <li><span>WHAT</span><strong>What does this product own?</strong></li>
+          <li><span>HOW</span><strong>How does it reduce work?</strong></li>
+          <li><span>CURRENT</span><strong>What is actually true today?</strong></li>
+          <li><span>ACTION</span><strong>What can I safely do now?</strong></li>
+          <li><span>PROOF</span><strong>How do I know the claim is real?</strong></li>
+        </ol>
+      </article>
+
+      <article class="example-card">
+        <div class="example-heading"><span class="maturity">TEMPLATE</span><span class="scale">CASE STUDY</span></div>
+        <h2>Case study</h2>
+        <p>Dogfood becomes credible proof when the failure and the proof ceiling stay visible.</p>
+        <div class="case-flow">
+          <span>Problem</span><span>Pressure</span><span>Failure</span><span>Response</span><span>Evidence</span><span>Limits</span><span>Current</span><span>Next</span>
+        </div>
+        <p class="fine-print">A source pass never silently becomes customer traction, runtime proof or a release claim.</p>
+      </article>
+
+      <article class="example-card">
+        <div class="example-heading"><span class="maturity">ANATOMY</span><span class="scale">SCALE BOUNDARY</span></div>
+        <h2>Primitive → compound → finished surface</h2>
+        <div class="anatomy">
+          <div><span>SDK atom</span><strong>Status</strong><small>behavior + accessibility</small></div>
+          <div class="operator">+</div>
+          <div><span>SDK atom</span><strong>Action</strong><small>behavior + state</small></div>
+          <div class="operator">→</div>
+          <div><span>Publisher compound</span><strong>OperationalSurface</strong><small>layout obligations</small></div>
+          <div class="operator">→</div>
+          <div><span>Product adopter</span><strong>Inbox / Switchboard</strong><small>domain semantics</small></div>
+        </div>
+        <p class="fine-print"><code>SDK_ATOM != PUBLISHER_COMPOUND != PRODUCT_SEMANTICS != RUNTIME_AUTHORITY</code></p>
+      </article>
+    </section>
+
+    <section class="proof-note" aria-labelledby="proof-note-title">
+      <p class="eyebrow">How to read this page</p>
+      <h2 id="proof-note-title">Inspectable does not mean deployed.</h2>
+      <p>These worked examples are public design/runtime contracts rendered in the SDK Playground. Product-specific running, live, provider and effect states must still be verified by their owning systems.</p>
+      <a href="./index.html">Return to the primitive catalog →</a>
+    </section>
+  </main>
+</body>
+</html>
