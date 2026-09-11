@@ -1,0 +1,20 @@
+{
+  "schema": "xiio.sdk.x42-coordinate-known-answer/v1",
+  "source_generation": "benchmark:d8761a082a74de8b4a640fd3f2898891b788ccc4",
+  "raw": "<<<<<<<<<<|??????????|>>>>>>>>>>|xxxxxxxxxx|++++++++++|----------",
+  "expected": {
+    "reap": 5,
+    "unknown": 10,
+    "sow": 5,
+    "blocked": 10,
+    "gain": 10,
+    "cost": 10
+  },
+  "hard": [
+    "SYMBOL!=EVIDENCE",
+    "GAME_SCORE!=MONEY",
+    "COVERAGE!=CLOSURE",
+    "REAP_COUNT!=RETURN_PROOF",
+    "SOW_COUNT!=ADMITTED_WORK"
+  ]
+}
