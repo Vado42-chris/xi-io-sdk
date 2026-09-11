@@ -45,6 +45,10 @@ function policyTokens(tokens) {
   return tokens.filter((token) => !INTENSIFIER_WORDS.has(token));
 }
 
+function isWordChar(ch) {
+  return typeof ch === 'string' && /^[\p{L}\p{N}]$/u.test(ch);
+}
+
 function splitProtected(text) {
   const parts = [];
   let current = '';
@@ -57,6 +61,10 @@ function splitProtected(text) {
     if (quote) {
       current += ch;
       if (ch === quote) { parts.push({ protected:true, text:current }); current=''; quote=null; }
+      continue;
+    }
+    if (ch === "'" && isWordChar(text[i - 1]) && isWordChar(text[i + 1])) {
+      current += ch;
       continue;
     }
     if (ch === '`' || ch === '"' || ch === "'") {
