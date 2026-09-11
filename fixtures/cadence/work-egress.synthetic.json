@@ -1,0 +1,19 @@
+{
+  "root_ref": "root:court-burn",
+  "project_ref": "project:xiio",
+  "work_ref": "work:XIB-138",
+  "work_revision": 3,
+  "work_state": "CURRENT",
+  "punchcard_ref": "punchcard:court-p0",
+  "punchcard_generation": "g7",
+  "cadence_wake_ref": "wake:leave-0900",
+  "projections": [
+    {
+      "projection_ref": "bugzilla:blocked",
+      "provider_family": "BUGZILLA",
+      "kind": "TASK",
+      "status": "BLOCKED_TOOL_OR_PROVIDER",
+      "wake": "BUGZILLA_ADAPTER_AVAILABLE"
+    }
+  ]
+}
