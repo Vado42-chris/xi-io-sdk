@@ -19,6 +19,7 @@
     "./ibal": "./src/ibal/canary.mjs",
     "./ibal/impact-formation": "./src/ibal/impact-formation.mjs",
     "./cadence": "./src/cadence/continuation.mjs",
+    "./work/egress": "./src/work/egress.mjs",
     "./baseline": "./src/baseline/compiler.mjs",
     "./baseline/products": "./src/baseline/product-capability.mjs",
     "./scorecards/four-scale": "./src/scorecards/four-scale.mjs",
@@ -38,6 +39,6 @@
     "./catalog": "./src/catalog/primitives.json"
   },
   "scripts": {
-    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-primitive-adoption.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-impact-formation.mjs && node scripts/validate-progressive-route.mjs && node scripts/validate-baseline-cli.mjs && node scripts/validate-lesson-promotion.mjs && node scripts/validate-continuation-cycle.mjs && node scripts/validate-lexicon-resolution.mjs && node scripts/validate-sdk-cli.mjs && node scripts/validate-product-four-scale.mjs && node scripts/validate-package-consumer.mjs && node scripts/validate-internal-agent-envelope.mjs && node scripts/validate-audhd-intent-projection.mjs && node scripts/validate-x42-coordinate.mjs"
+    "check": "node scripts/validate-sdk-playground.mjs && node scripts/validate-primitive-adoption.mjs && node scripts/validate-product-surface-renderer.mjs && node scripts/validate-provider-state.mjs && node scripts/validate-wake-envelope.mjs && node scripts/validate-ibal-canary.mjs && node scripts/validate-impact-formation.mjs && node scripts/validate-progressive-route.mjs && node scripts/validate-baseline-cli.mjs && node scripts/validate-lesson-promotion.mjs && node scripts/validate-continuation-cycle.mjs && node scripts/validate-work-egress.mjs && node scripts/validate-lexicon-resolution.mjs && node scripts/validate-sdk-cli.mjs && node scripts/validate-product-four-scale.mjs && node scripts/validate-package-consumer.mjs && node scripts/validate-internal-agent-envelope.mjs && node scripts/validate-audhd-intent-projection.mjs && node scripts/validate-x42-coordinate.mjs"
   }
 }
