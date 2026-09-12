@@ -139,10 +139,25 @@ const observed = (extra = {}) => ({
   assert.match(out.steps.at(-1).evidence.join(' '), /RECEIPT_ID_WITHOUT_LEDGER_READBACK/);
 }
 
+// H21: a function/tool name in a prompt is not an implemented execution surface.
+{
+  const out = evaluateMissionResult({
+    ingress,
+    payload: {
+      mission_root_ref: ingress.mission_root_ref,
+      generation: 'g1',
+      mutated_scope: [],
+      claimed_interfaces: ['tool:run_full_matrix_audit_v2.py'],
+    },
+    observations: observed({ verified_interface_refs: [] }),
+  });
+  assert.equal(out.result, 'FAIL_UNVERIFIED_INTERFACE');
+}
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.mission-evaluation-dogfood-hostile-receipt/v1',
   result: 'PASS',
-  hostiles: 8,
+  hostiles: 9,
   false_greens_accepted: 0,
   provider_effects: 0,
 }, null, 2));
