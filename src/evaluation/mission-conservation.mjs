@@ -11,14 +11,23 @@ function bool(value) {
 }
 
 function step(number, name, state, reason, evidence = []) {
-  return Object.freeze({
-    number,
-    name,
-    state,
-    reason,
-    evidence: list(evidence),
-  });
+  return Object.freeze({ number, name, state, reason, evidence: list(evidence) });
 }
+
+const HARD = Object.freeze([
+  'LOCAL_RESULT_CONSISTENCY != MISSION_CORRECTNESS',
+  'MULTIPLE_AGENTS_AGREE != TRUTH',
+  'ROOT_PASS != DOWNSTREAM_PASS',
+  'ASSERTED_EVIDENCE != VERIFIED_EVIDENCE',
+  'FILE_CLAIM != DISK_PROOF',
+  'ENDPOINT_CLAIM != NATIVE_READBACK',
+  'CLIENT_CODE != SERVER_PROOF',
+  'RECEIPT_ID != LEDGER_READBACK',
+  'ATTESTATION_CLAIM != ARTIFACT_SEMANTICS',
+  'RUNNING != LIVE',
+  'RESULT != RETURN != APPLY_RETURN',
+  'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
+]);
 
 function haltedResult({ ingressRoot, payloadRoot, steps, code, next }) {
   return Object.freeze({
@@ -31,31 +40,33 @@ function haltedResult({ ingressRoot, payloadRoot, steps, code, next }) {
     terminal: false,
     steps,
     next,
-    hard: [
-      'LOCAL_RESULT_CONSISTENCY != MISSION_CORRECTNESS',
-      'MULTIPLE_AGENTS_AGREE != TRUTH',
-      'ROOT_PASS != DOWNSTREAM_PASS',
-      'ASSERTED_EVIDENCE != VERIFIED_EVIDENCE',
-      'FILE_CLAIM != DISK_PROOF',
-      'ENDPOINT_CLAIM != NATIVE_READBACK',
-      'RUNNING != LIVE',
-      'RESULT != RETURN != APPLY_RETURN',
-      'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
-    ],
+    hard: [...HARD],
   });
 }
 
+function semanticContradictions(payload, observations) {
+  const out = [];
+  const attestation = payload.attestation && typeof payload.attestation === 'object' ? payload.attestation : {};
+  const output = typeof payload.output === 'string' ? payload.output : '';
+
+  if (text(attestation.Y_AXIS_WHAT) === 'AST_VALIDATED_ZERO_STUBS' && /(^|\n)\s*pass\s*(#.*)?($|\n)/m.test(output)) {
+    out.push('Y_AXIS_ZERO_STUBS_CONTRADICTED_BY_PASS_STATEMENT');
+  }
+  if (text(payload.receipt_id) && !text(observations.ledger_readback_ref)) {
+    out.push('RECEIPT_ID_WITHOUT_LEDGER_READBACK');
+  }
+  if (text(payload.ledger_ref) && !text(observations.ledger_readback_ref)) {
+    out.push('LEDGER_CLAIM_WITHOUT_NATIVE_READBACK');
+  }
+  return out;
+}
+
 /**
- * Evaluate a worker result against its ingress contract in mandatory order.
- *
- * This is deliberately conservative. Worker-authored PASS/LIVE fields are data,
- * never evidence. Each downstream gate requires an independently supplied
- * evidence ref in `observations` before evaluation can continue.
+ * Mandatory ordered evaluation of a worker result against its ingress contract.
+ * Worker-authored PASS/LIVE/receipt fields are data, never proof.
  */
 export function evaluateMissionResult(input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('INVALID_INPUT');
-  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('INVALID_INPUT');
 
   const ingress = input.ingress && typeof input.ingress === 'object' ? input.ingress : {};
   const payload = input.payload && typeof input.payload === 'object' ? input.payload : {};
@@ -67,20 +78,14 @@ export function evaluateMissionResult(input) {
 
   const steps = [];
 
-  // 1. ROOT CONSERVATION: evaluated directly from ingress vs payload identity.
+  // 1. ROOT CONSERVATION
   if (ingressRoot !== payloadRoot) {
     steps.push(step(1, 'ROOT_CONSERVATION', 'FAIL', 'MISSION_ROOT_MISMATCH', [ingressRoot, payloadRoot]));
-    return haltedResult({
-      ingressRoot,
-      payloadRoot,
-      steps,
-      code: 'FAIL_ROOT_DIVERGENCE',
-      next: 'REAP_WRONG_ROOT_RESULT_AND_REJOIN_INGRESS_ROOT',
-    });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_ROOT_DIVERGENCE', next: 'REAP_WRONG_ROOT_RESULT_AND_REJOIN_INGRESS_ROOT' });
   }
   steps.push(step(1, 'ROOT_CONSERVATION', 'PASS', 'MISSION_ROOT_CONSERVED', [ingressRoot]));
 
-  // 2. GENERATION CURRENTNESS: same value is insufficient without an observed currentness receipt.
+  // 2. GENERATION CURRENTNESS
   const ingressGeneration = text(ingress.generation);
   const payloadGeneration = text(payload.generation);
   const currentnessRef = text(observations.current_generation_ref);
@@ -90,7 +95,7 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(2, 'GENERATION_CURRENTNESS', 'PASS', 'CURRENT_GENERATION_VERIFIED', [currentnessRef]));
 
-  // 3. AFFECTED SCOPE: declared mutations must be inside ingress scope and scope needs readback evidence.
+  // 3. AFFECTED SCOPE
   const allowed = new Set(list(ingress.allowed_scope));
   const mutated = list(payload.mutated_scope);
   const scopeRef = text(observations.scope_readback_ref);
@@ -101,7 +106,7 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(3, 'AFFECTED_SCOPE', 'PASS', 'AFFECTED_SCOPE_VERIFIED', [scopeRef]));
 
-  // 4. REQUIRED EVIDENCE: assertions about files/endpoints/runtime require independently named receipts.
+  // 4. REQUIRED EVIDENCE + semantic consistency
   const requiredEvidence = list(ingress.required_evidence);
   const verifiedEvidence = new Set(list(observations.verified_evidence_refs));
   const missingEvidence = requiredEvidence.filter((item) => !verifiedEvidence.has(item));
@@ -111,13 +116,15 @@ export function evaluateMissionResult(input) {
   const claimedEndpoints = list(payload.claimed_endpoints);
   const verifiedEndpoints = new Set(list(observations.verified_endpoint_refs));
   const unverifiedEndpoints = claimedEndpoints.filter((item) => !verifiedEndpoints.has(item));
+  const contradictions = semanticContradictions(payload, observations);
+
+  if (contradictions.length) {
+    steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', 'SEMANTIC_EVIDENCE_CONTRADICTION', contradictions));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_AND_LEDGER_SEMANTICS' });
+  }
 
   if (missingEvidence.length || unverifiedArtifacts.length || unverifiedEndpoints.length) {
-    const reason = unverifiedArtifacts.length
-      ? 'UNVERIFIED_ARTIFACT'
-      : unverifiedEndpoints.length
-        ? 'UNVERIFIED_ENDPOINT'
-        : 'REQUIRED_EVIDENCE_MISSING';
+    const reason = unverifiedArtifacts.length ? 'UNVERIFIED_ARTIFACT' : unverifiedEndpoints.length ? 'UNVERIFIED_ENDPOINT' : 'REQUIRED_EVIDENCE_MISSING';
     steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', reason, [
       ...missingEvidence,
       ...unverifiedArtifacts.map((item) => `artifact:${item}`),
@@ -127,7 +134,7 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(4, 'REQUIRED_EVIDENCE', 'PASS', 'REQUIRED_EVIDENCE_VERIFIED', [...verifiedEvidence]));
 
-  // 5. RESULT CORRECTNESS: worker PASS is ignored without a separate execution receipt.
+  // 5. RESULT CORRECTNESS
   const executionRef = text(observations.execution_receipt_ref);
   if (!executionRef || observations.execution_result !== 'PASS') {
     steps.push(step(5, 'RESULT_CORRECTNESS', 'FAIL', 'EXECUTION_RESULT_UNVERIFIED', [executionRef]));
@@ -135,7 +142,6 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(5, 'RESULT_CORRECTNESS', 'PASS', 'EXECUTION_RESULT_VERIFIED', [executionRef]));
 
-  // LIVE claims are a sub-gate of result correctness and require native/outside-origin readback.
   if (bool(payload.live) && !text(observations.live_readback_ref)) {
     steps.push(step(5, 'LIVE_READBACK', 'FAIL', 'LIVE_CLAIM_WITHOUT_NATIVE_READBACK'));
     return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_FALSE_LIVE', next: 'OBTAIN_NATIVE_LIVE_READBACK' });
@@ -149,7 +155,7 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(6, 'RETURN', 'PASS', 'RETURN_VERIFIED', [returnRef]));
 
-  // 7. APPLY_RETURN requires state readback, not merely a return payload.
+  // 7. APPLY_RETURN
   const applyReturnRef = text(observations.apply_return_ref);
   const applyReadbackRef = text(observations.apply_return_readback_ref);
   if (!applyReturnRef || !applyReadbackRef) {
@@ -158,7 +164,7 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(7, 'APPLY_RETURN', 'PASS', 'APPLY_RETURN_VERIFIED', [applyReturnRef, applyReadbackRef]));
 
-  // 8. REAP / NEXT: an open root cannot terminate with NEXT missing.
+  // 8. REAP / NEXT
   const reapRef = text(observations.reap_ref);
   const nextRef = text(observations.next_ref);
   const rootClosed = observations.root_closed === true;
@@ -178,16 +184,6 @@ export function evaluateMissionResult(input) {
     terminal: rootClosed,
     steps,
     next: rootClosed ? null : nextRef,
-    hard: [
-      'LOCAL_RESULT_CONSISTENCY != MISSION_CORRECTNESS',
-      'MULTIPLE_AGENTS_AGREE != TRUTH',
-      'ROOT_PASS != DOWNSTREAM_PASS',
-      'ASSERTED_EVIDENCE != VERIFIED_EVIDENCE',
-      'FILE_CLAIM != DISK_PROOF',
-      'ENDPOINT_CLAIM != NATIVE_READBACK',
-      'RUNNING != LIVE',
-      'RESULT != RETURN != APPLY_RETURN',
-      'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
-    ],
+    hard: [...HARD],
   });
 }
