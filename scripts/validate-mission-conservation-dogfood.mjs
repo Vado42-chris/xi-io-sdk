@@ -29,11 +29,7 @@ const observed = (extra = {}) => ({
       claimed_endpoints: ['GET /preflight'],
       claimed_interfaces: ['openapi:GET:/preflight'],
     },
-    observations: observed({
-      verified_artifact_refs: ['aries-api-schema.json'],
-      verified_endpoint_refs: [],
-      verified_interface_refs: [],
-    }),
+    observations: observed({ verified_artifact_refs: ['aries-api-schema.json'], verified_endpoint_refs: [], verified_interface_refs: [] }),
   });
   assert.ok(['FAIL_UNVERIFIED_ENDPOINT','FAIL_UNVERIFIED_INTERFACE'].includes(out.result));
 }
@@ -42,18 +38,8 @@ const observed = (extra = {}) => ({
 {
   const out = evaluateMissionResult({
     ingress,
-    payload: {
-      mission_root_ref: ingress.mission_root_ref,
-      generation: 'g1',
-      mutated_scope: [],
-      live: true,
-      claimed_rules: ['5D:truth,source,runtime,fleet,return'],
-    },
-    observations: observed({
-      verified_rule_refs: ['5D:truth,source,runtime,fleet,return'],
-      execution_receipt_ref: 'synthetic:5d:pass',
-      execution_result: 'PASS',
-    }),
+    payload: { mission_root_ref: ingress.mission_root_ref, generation: 'g1', mutated_scope: [], live: true, claimed_rules: ['5D:truth,source,runtime,fleet,return'] },
+    observations: observed({ verified_rule_refs: ['5D:truth,source,runtime,fleet,return'], execution_receipt_ref: 'synthetic:5d:pass', execution_result: 'PASS' }),
   });
   assert.equal(out.result, 'FAIL_FALSE_LIVE');
 }
@@ -70,10 +56,7 @@ const observed = (extra = {}) => ({
       claimed_interfaces: ['git:commit.template:Y-axis-receipt'],
       requested_effects: ['git-config:commit.template'],
     },
-    observations: observed({
-      verified_artifact_refs: ['README.md'],
-      verified_interface_refs: [],
-    }),
+    observations: observed({ verified_artifact_refs: ['README.md'], verified_interface_refs: [] }),
   });
   assert.equal(out.result, 'FAIL_UNVERIFIED_INTERFACE');
 }
@@ -90,9 +73,7 @@ const observed = (extra = {}) => ({
       claimed_interfaces: ['http:POST:/hooks/stubscanner-precommit'],
       requested_effects: ['write:.git/hooks/pre-commit'],
     },
-    observations: observed({
-      verified_interface_refs: ['http:POST:/hooks/stubscanner-precommit'],
-    }),
+    observations: observed({ verified_interface_refs: ['http:POST:/hooks/stubscanner-precommit'] }),
   });
   assert.equal(out.result, 'FAIL_EFFECT_AUTHORITY');
 }
@@ -105,10 +86,7 @@ const observed = (extra = {}) => ({
       mission_root_ref: ingress.mission_root_ref,
       generation: 'g1',
       mutated_scope: [],
-      test_fixture: {
-        expected_ast_rule: 'PASS_STATEMENT_PLACEHOLDER',
-        source: '#!/usr/bin/env python\n# dummy placeholder stub: pass\n',
-      },
+      test_fixture: { expected_ast_rule: 'PASS_STATEMENT_PLACEHOLDER', source: '#!/usr/bin/env python\n# dummy placeholder stub: pass\n' },
     },
     observations: observed(),
   });
@@ -124,10 +102,7 @@ const observed = (extra = {}) => ({
       mission_root_ref: ingress.mission_root_ref,
       generation: 'g1',
       mutated_scope: [],
-      test_fixture: {
-        remediation_expected: 'NO_STUBS',
-        remediation_source: 'def func() -> None:\n    pass\n',
-      },
+      test_fixture: { remediation_expected: 'NO_STUBS', remediation_source: 'def func() -> None:\n    pass\n' },
     },
     observations: observed(),
   });
@@ -139,21 +114,35 @@ const observed = (extra = {}) => ({
 {
   const out = evaluateMissionResult({
     ingress,
-    payload: {
-      mission_root_ref: ingress.mission_root_ref,
-      generation: 'g1',
-      mutated_scope: [],
-      claimed_rules: ['Y_AXIS:MISSING_RETURN_TYPE_ANNOTATION'],
-    },
+    payload: { mission_root_ref: ingress.mission_root_ref, generation: 'g1', mutated_scope: [], claimed_rules: ['Y_AXIS:MISSING_RETURN_TYPE_ANNOTATION'] },
     observations: observed({ verified_rule_refs: [] }),
   });
   assert.equal(out.result, 'FAIL_UNVERIFIED_RULE');
 }
 
+// H20: clock-generated RCP tokens and commit-message injection are not verification receipts.
+{
+  const effectIngress = { ...ingress, allowed_effects: ['write:.git/hooks/prepare-commit-msg','write:receipt_id.txt','mutate:git-commit-template.txt'] };
+  const out = evaluateMissionResult({
+    ingress: effectIngress,
+    payload: {
+      mission_root_ref: effectIngress.mission_root_ref,
+      generation: 'g1',
+      mutated_scope: ['aries-api'],
+      receipt_id: 'RCP-aries-20260912200500-XXXXXXXXXXXXX',
+      claimed_interfaces: ['git-hook:prepare-commit-msg'],
+      requested_effects: ['write:.git/hooks/prepare-commit-msg','write:receipt_id.txt','mutate:git-commit-template.txt'],
+    },
+    observations: observed({ verified_interface_refs: ['git-hook:prepare-commit-msg'] }),
+  });
+  assert.equal(out.result, 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION');
+  assert.match(out.steps.at(-1).evidence.join(' '), /RECEIPT_ID_WITHOUT_LEDGER_READBACK/);
+}
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.mission-evaluation-dogfood-hostile-receipt/v1',
   result: 'PASS',
-  hostiles: 7,
+  hostiles: 8,
   false_greens_accepted: 0,
   provider_effects: 0,
 }, null, 2));
