@@ -11,19 +11,33 @@ import argparse
 import json
 import os
 import platform
+import re
 import socket
 import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 SCHEMA = "xiio.sdk.host-abi-observation/v1"
 DEFAULT_PORTS = (8081, 11434, 11435)
+GIT_OBSERVER_ENV = {'GIT_OPTIONAL_LOCKS': '0'}
 
 
-def _run(*args: str, cwd: Path | None = None) -> dict[str, Any]:
+def _run(*args: str, cwd: Path | None = None, env: dict[str, str] | None = None) -> dict[str, Any]:
+    run_env = os.environ.copy()
+    if env:
+        run_env.update(env)
     try:
-        proc = subprocess.run(args, cwd=cwd, text=True, capture_output=True, timeout=5, check=False)
+        proc = subprocess.run(
+            args,
+            cwd=cwd,
+            env=run_env,
+            text=True,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
         return {
             "argv": list(args),
             "returncode": proc.returncode,
@@ -32,6 +46,37 @@ def _run(*args: str, cwd: Path | None = None) -> dict[str, Any]:
         }
     except (OSError, subprocess.SubprocessError) as error:
         return {"argv": list(args), "returncode": None, "stdout": "", "stderr": f"{type(error).__name__}: {error}"}
+
+
+def _redact_remote_url(value: str) -> str:
+    """Remove URL credentials/query fragments before an observation can leave the host."""
+    raw = value.strip()
+    if not raw:
+        return raw
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        parsed = None
+    if parsed and parsed.scheme and parsed.netloc:
+        host = parsed.hostname or ''
+        if parsed.port is not None:
+            host = f'{host}:{parsed.port}'
+        return urlunsplit((parsed.scheme, host, parsed.path, '', ''))
+    # Conservative fallback for malformed credential-bearing scheme URLs.
+    return re.sub(r'(?P<scheme>^[A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]+@', r'\g<scheme>', raw)
+
+
+def _git_run(workspace: Path, *git_args: str) -> dict[str, Any]:
+    # Disable optional index locks/writes and configured fsmonitor hooks so this
+    # observer does not mutate arbitrary workspaces merely by inspecting them.
+    return _run(
+        'git',
+        '-c',
+        'core.fsmonitor=false',
+        *git_args,
+        cwd=workspace,
+        env=GIT_OBSERVER_ENV,
+    )
 
 
 def _container_signals() -> list[str]:
@@ -57,15 +102,23 @@ def classify_execution_surface(signals: list[str]) -> str:
 
 
 def _git_observation(workspace: Path) -> dict[str, Any]:
-    remote = _run('git', 'remote', 'get-url', 'origin', cwd=workspace)
-    head = _run('git', 'rev-parse', 'HEAD', cwd=workspace)
-    status = _run('git', 'status', '--porcelain', cwd=workspace)
-    toplevel = _run('git', 'rev-parse', '--show-toplevel', cwd=workspace)
+    remote = _git_run(workspace, 'remote', 'get-url', 'origin')
+    if remote['returncode'] == 0:
+        remote['stdout'] = _redact_remote_url(remote['stdout'])
+    remote['stderr'] = _redact_remote_url(remote['stderr'])
+    head = _git_run(workspace, 'rev-parse', 'HEAD')
+    status = _git_run(workspace, 'status', '--porcelain')
+    toplevel = _git_run(workspace, 'rev-parse', '--show-toplevel')
     return {
         'repository_root': toplevel['stdout'] if toplevel['returncode'] == 0 else None,
         'repo_remote': remote['stdout'] if remote['returncode'] == 0 else None,
         'head': head['stdout'] if head['returncode'] == 0 else None,
         'dirty': bool(status['stdout']) if status['returncode'] == 0 else None,
+        'observer_guards': {
+            'git_optional_locks_disabled': True,
+            'git_fsmonitor_disabled': True,
+            'remote_credentials_redacted': True,
+        },
         'commands': {'remote': remote, 'head': head, 'status': status, 'toplevel': toplevel},
     }
 
@@ -114,6 +167,9 @@ def make_report(workspace: Path, *, ports: tuple[int, ...] = DEFAULT_PORTS) -> d
             '9_FIELDS_PRESENT != 9_FIELDS_ATTESTED',
             'SELF_OBSERVATION != INDEPENDENT_RECEIPT',
             'PORT_CONNECTABLE != HEALTH_CONTRACT_PASS',
+            'WRITE_ACK != FILE_SEMANTICS != EXECUTION_OUTPUT',
+            'RECEIPT_STRING != INDEPENDENT_RECEIPT',
+            'UPDATE_CLAIM != LEDGER_MUTATION != READBACK',
             'OBSERVED != RCP',
         ],
     }
@@ -122,6 +178,8 @@ def make_report(workspace: Path, *, ports: tuple[int, ...] = DEFAULT_PORTS) -> d
 def self_test() -> None:
     assert classify_execution_surface([]) == 'NATIVE_PROCESS_CANDIDATE'
     assert classify_execution_surface(['/.dockerenv']) == 'CONTAINER_OR_CI_OBSERVED'
+    assert _redact_remote_url('https://user:secret@example.com/org/repo.git?token=abc#frag') == 'https://example.com/org/repo.git'
+    assert _redact_remote_url('git@github.com:org/repo.git') == 'git@github.com:org/repo.git'
     report = {
         'result': 'OBSERVED',
         'authority_granted': False,
@@ -137,7 +195,9 @@ def self_test() -> None:
     print(json.dumps({
         'schema': 'xiio.sdk.host-abi-observer-self-test/v1',
         'result': 'PASS',
-        'hostiles': 6,
+        'hostiles': 8,
+        'credential_redaction': 'PASS',
+        'read_only_git_guards': 'PASS',
         'self_attestation_credit': 0,
         'effects': 0,
     }, sort_keys=True))
