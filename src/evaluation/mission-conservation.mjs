@@ -1,0 +1,193 @@
+function text(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function list(value) {
+  return Array.isArray(value) ? value.map((item) => text(item)).filter(Boolean) : [];
+}
+
+function bool(value) {
+  return value === true;
+}
+
+function step(number, name, state, reason, evidence = []) {
+  return Object.freeze({
+    number,
+    name,
+    state,
+    reason,
+    evidence: list(evidence),
+  });
+}
+
+function haltedResult({ ingressRoot, payloadRoot, steps, code, next }) {
+  return Object.freeze({
+    schema: 'xiio.sdk.mission-evaluation/v1',
+    mission_root_ref: ingressRoot,
+    payload_root_ref: payloadRoot,
+    state: 'HALT',
+    result: code,
+    pass: false,
+    terminal: false,
+    steps,
+    next,
+    hard: [
+      'LOCAL_RESULT_CONSISTENCY != MISSION_CORRECTNESS',
+      'MULTIPLE_AGENTS_AGREE != TRUTH',
+      'ROOT_PASS != DOWNSTREAM_PASS',
+      'ASSERTED_EVIDENCE != VERIFIED_EVIDENCE',
+      'FILE_CLAIM != DISK_PROOF',
+      'ENDPOINT_CLAIM != NATIVE_READBACK',
+      'RUNNING != LIVE',
+      'RESULT != RETURN != APPLY_RETURN',
+      'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
+    ],
+  });
+}
+
+/**
+ * Evaluate a worker result against its ingress contract in mandatory order.
+ *
+ * This is deliberately conservative. Worker-authored PASS/LIVE fields are data,
+ * never evidence. Each downstream gate requires an independently supplied
+ * evidence ref in `observations` before evaluation can continue.
+ */
+export function evaluateMissionResult(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('INVALID_INPUT');
+  }
+
+  const ingress = input.ingress && typeof input.ingress === 'object' ? input.ingress : {};
+  const payload = input.payload && typeof input.payload === 'object' ? input.payload : {};
+  const observations = input.observations && typeof input.observations === 'object' ? input.observations : {};
+
+  const ingressRoot = text(ingress.mission_root_ref);
+  const payloadRoot = text(payload.mission_root_ref);
+  if (!ingressRoot || !payloadRoot) throw new Error('MISSION_ROOT_REQUIRED');
+
+  const steps = [];
+
+  // 1. ROOT CONSERVATION: evaluated directly from ingress vs payload identity.
+  if (ingressRoot !== payloadRoot) {
+    steps.push(step(1, 'ROOT_CONSERVATION', 'FAIL', 'MISSION_ROOT_MISMATCH', [ingressRoot, payloadRoot]));
+    return haltedResult({
+      ingressRoot,
+      payloadRoot,
+      steps,
+      code: 'FAIL_ROOT_DIVERGENCE',
+      next: 'REAP_WRONG_ROOT_RESULT_AND_REJOIN_INGRESS_ROOT',
+    });
+  }
+  steps.push(step(1, 'ROOT_CONSERVATION', 'PASS', 'MISSION_ROOT_CONSERVED', [ingressRoot]));
+
+  // 2. GENERATION CURRENTNESS: same value is insufficient without an observed currentness receipt.
+  const ingressGeneration = text(ingress.generation);
+  const payloadGeneration = text(payload.generation);
+  const currentnessRef = text(observations.current_generation_ref);
+  if (!ingressGeneration || !payloadGeneration || ingressGeneration !== payloadGeneration || !currentnessRef) {
+    steps.push(step(2, 'GENERATION_CURRENTNESS', 'FAIL', !currentnessRef ? 'CURRENTNESS_UNVERIFIED' : 'GENERATION_MISMATCH', [currentnessRef]));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_GENERATION_CURRENTNESS', next: 'OBSERVE_CURRENT_GENERATION' });
+  }
+  steps.push(step(2, 'GENERATION_CURRENTNESS', 'PASS', 'CURRENT_GENERATION_VERIFIED', [currentnessRef]));
+
+  // 3. AFFECTED SCOPE: declared mutations must be inside ingress scope and scope needs readback evidence.
+  const allowed = new Set(list(ingress.allowed_scope));
+  const mutated = list(payload.mutated_scope);
+  const scopeRef = text(observations.scope_readback_ref);
+  const escaped = mutated.filter((item) => !allowed.has(item));
+  if (!scopeRef || escaped.length > 0) {
+    steps.push(step(3, 'AFFECTED_SCOPE', 'FAIL', escaped.length ? 'SCOPE_ESCAPE' : 'SCOPE_UNVERIFIED', [scopeRef, ...escaped]));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_AFFECTED_SCOPE', next: 'READ_BACK_AFFECTED_SCOPE' });
+  }
+  steps.push(step(3, 'AFFECTED_SCOPE', 'PASS', 'AFFECTED_SCOPE_VERIFIED', [scopeRef]));
+
+  // 4. REQUIRED EVIDENCE: assertions about files/endpoints/runtime require independently named receipts.
+  const requiredEvidence = list(ingress.required_evidence);
+  const verifiedEvidence = new Set(list(observations.verified_evidence_refs));
+  const missingEvidence = requiredEvidence.filter((item) => !verifiedEvidence.has(item));
+  const claimedArtifacts = list(payload.claimed_artifacts);
+  const verifiedArtifacts = new Set(list(observations.verified_artifact_refs));
+  const unverifiedArtifacts = claimedArtifacts.filter((item) => !verifiedArtifacts.has(item));
+  const claimedEndpoints = list(payload.claimed_endpoints);
+  const verifiedEndpoints = new Set(list(observations.verified_endpoint_refs));
+  const unverifiedEndpoints = claimedEndpoints.filter((item) => !verifiedEndpoints.has(item));
+
+  if (missingEvidence.length || unverifiedArtifacts.length || unverifiedEndpoints.length) {
+    const reason = unverifiedArtifacts.length
+      ? 'UNVERIFIED_ARTIFACT'
+      : unverifiedEndpoints.length
+        ? 'UNVERIFIED_ENDPOINT'
+        : 'REQUIRED_EVIDENCE_MISSING';
+    steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', reason, [
+      ...missingEvidence,
+      ...unverifiedArtifacts.map((item) => `artifact:${item}`),
+      ...unverifiedEndpoints.map((item) => `endpoint:${item}`),
+    ]));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: `FAIL_${reason}`, next: 'INDEPENDENTLY_READ_BACK_CLAIMED_STATE' });
+  }
+  steps.push(step(4, 'REQUIRED_EVIDENCE', 'PASS', 'REQUIRED_EVIDENCE_VERIFIED', [...verifiedEvidence]));
+
+  // 5. RESULT CORRECTNESS: worker PASS is ignored without a separate execution receipt.
+  const executionRef = text(observations.execution_receipt_ref);
+  if (!executionRef || observations.execution_result !== 'PASS') {
+    steps.push(step(5, 'RESULT_CORRECTNESS', 'FAIL', 'EXECUTION_RESULT_UNVERIFIED', [executionRef]));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_RESULT_CORRECTNESS', next: 'VERIFY_EXECUTION_RESULT' });
+  }
+  steps.push(step(5, 'RESULT_CORRECTNESS', 'PASS', 'EXECUTION_RESULT_VERIFIED', [executionRef]));
+
+  // LIVE claims are a sub-gate of result correctness and require native/outside-origin readback.
+  if (bool(payload.live) && !text(observations.live_readback_ref)) {
+    steps.push(step(5, 'LIVE_READBACK', 'FAIL', 'LIVE_CLAIM_WITHOUT_NATIVE_READBACK'));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_FALSE_LIVE', next: 'OBTAIN_NATIVE_LIVE_READBACK' });
+  }
+
+  // 6. RETURN
+  const returnRef = text(observations.return_ref);
+  if (!returnRef) {
+    steps.push(step(6, 'RETURN', 'FAIL', 'RETURN_MISSING'));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_RETURN_MISSING', next: 'RETURN_RESULT_TO_INGRESS_TARGET' });
+  }
+  steps.push(step(6, 'RETURN', 'PASS', 'RETURN_VERIFIED', [returnRef]));
+
+  // 7. APPLY_RETURN requires state readback, not merely a return payload.
+  const applyReturnRef = text(observations.apply_return_ref);
+  const applyReadbackRef = text(observations.apply_return_readback_ref);
+  if (!applyReturnRef || !applyReadbackRef) {
+    steps.push(step(7, 'APPLY_RETURN', 'FAIL', 'APPLY_RETURN_UNVERIFIED', [applyReturnRef, applyReadbackRef]));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_APPLY_RETURN', next: 'APPLY_RETURN_AND_READ_BACK' });
+  }
+  steps.push(step(7, 'APPLY_RETURN', 'PASS', 'APPLY_RETURN_VERIFIED', [applyReturnRef, applyReadbackRef]));
+
+  // 8. REAP / NEXT: an open root cannot terminate with NEXT missing.
+  const reapRef = text(observations.reap_ref);
+  const nextRef = text(observations.next_ref);
+  const rootClosed = observations.root_closed === true;
+  if (!reapRef || (!rootClosed && !nextRef)) {
+    steps.push(step(8, 'REAP_NEXT', 'FAIL', !reapRef ? 'REAP_UNVERIFIED' : 'ROOT_OPEN_NEXT_MISSING', [reapRef, nextRef]));
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_REAP_NEXT', next: !reapRef ? 'REAP_AND_RECOMPUTE_FRONTIER' : 'SELECT_NEXT_FIRST_RED' });
+  }
+  steps.push(step(8, 'REAP_NEXT', 'PASS', rootClosed ? 'ROOT_CLOSED_VERIFIED' : 'NEXT_FRONTIER_VERIFIED', [reapRef, nextRef]));
+
+  return Object.freeze({
+    schema: 'xiio.sdk.mission-evaluation/v1',
+    mission_root_ref: ingressRoot,
+    payload_root_ref: payloadRoot,
+    state: 'PASS',
+    result: rootClosed ? 'MISSION_CLOSED' : 'MISSION_CONTINUES',
+    pass: true,
+    terminal: rootClosed,
+    steps,
+    next: rootClosed ? null : nextRef,
+    hard: [
+      'LOCAL_RESULT_CONSISTENCY != MISSION_CORRECTNESS',
+      'MULTIPLE_AGENTS_AGREE != TRUTH',
+      'ROOT_PASS != DOWNSTREAM_PASS',
+      'ASSERTED_EVIDENCE != VERIFIED_EVIDENCE',
+      'FILE_CLAIM != DISK_PROOF',
+      'ENDPOINT_CLAIM != NATIVE_READBACK',
+      'RUNNING != LIVE',
+      'RESULT != RETURN != APPLY_RETURN',
+      'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
+    ],
+  });
+}
