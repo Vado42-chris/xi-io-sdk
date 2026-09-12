@@ -14,6 +14,8 @@ function step(number, name, state, reason, evidence = []) {
   return Object.freeze({ number, name, state, reason, evidence: list(evidence) });
 }
 
+const CONTINUATION_PROFILES = new Set(['STANDARD', 'POST_REAP_REJOIN']);
+
 const HARD = Object.freeze([
   'LOCAL_RESULT_CONSISTENCY != MISSION_CORRECTNESS',
   'MULTIPLE_AGENTS_AGREE != TRUTH',
@@ -31,14 +33,18 @@ const HARD = Object.freeze([
   'TEST_FIXTURE_TEXT != TEST_FIXTURE_SEMANTICS',
   'RUNNING != LIVE',
   'RESULT != RETURN != APPLY_RETURN',
+  'REAP_RESULT != REAP_RETURN',
+  'FIRST_APPLY_RETURN != SECOND_APPLY_RETURN',
+  'SDK_MISSION_CONTINUES != BINS_REJOINED_CURRENT',
   'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
 ]);
 
-function haltedResult({ ingressRoot, payloadRoot, steps, code, next }) {
+function haltedResult({ ingressRoot, payloadRoot, steps, code, next, continuationProfile = 'STANDARD' }) {
   return Object.freeze({
     schema: 'xiio.sdk.mission-evaluation/v1',
     mission_root_ref: ingressRoot,
     payload_root_ref: payloadRoot,
+    continuation_profile: continuationProfile,
     state: 'HALT',
     result: code,
     pass: false,
@@ -81,6 +87,12 @@ export function evaluateMissionResult(input) {
   const ingress = input.ingress && typeof input.ingress === 'object' ? input.ingress : {};
   const payload = input.payload && typeof input.payload === 'object' ? input.payload : {};
   const observations = input.observations && typeof input.observations === 'object' ? input.observations : {};
+  const continuationProfile = text(ingress.continuation_profile) || 'STANDARD';
+  if (!CONTINUATION_PROFILES.has(continuationProfile)) throw new Error('CONTINUATION_PROFILE_INVALID');
+  const continuationProfileRef = text(ingress.continuation_profile_ref);
+  if (continuationProfile !== 'STANDARD' && !continuationProfileRef) {
+    throw new Error('CONTINUATION_PROFILE_REF_REQUIRED');
+  }
 
   const ingressRoot = text(ingress.mission_root_ref);
   const payloadRoot = text(payload.mission_root_ref);
@@ -90,7 +102,7 @@ export function evaluateMissionResult(input) {
 
   if (ingressRoot !== payloadRoot) {
     steps.push(step(1, 'ROOT_CONSERVATION', 'FAIL', 'MISSION_ROOT_MISMATCH', [ingressRoot, payloadRoot]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_ROOT_DIVERGENCE', next: 'REAP_WRONG_ROOT_RESULT_AND_REJOIN_INGRESS_ROOT' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_ROOT_DIVERGENCE', next: 'REAP_WRONG_ROOT_RESULT_AND_REJOIN_INGRESS_ROOT', continuationProfile });
   }
   steps.push(step(1, 'ROOT_CONSERVATION', 'PASS', 'MISSION_ROOT_CONSERVED', [ingressRoot]));
 
@@ -99,7 +111,7 @@ export function evaluateMissionResult(input) {
   const currentnessRef = text(observations.current_generation_ref);
   if (!ingressGeneration || !payloadGeneration || ingressGeneration !== payloadGeneration || !currentnessRef) {
     steps.push(step(2, 'GENERATION_CURRENTNESS', 'FAIL', !currentnessRef ? 'CURRENTNESS_UNVERIFIED' : 'GENERATION_MISMATCH', [currentnessRef]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_GENERATION_CURRENTNESS', next: 'OBSERVE_CURRENT_GENERATION' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_GENERATION_CURRENTNESS', next: 'OBSERVE_CURRENT_GENERATION', continuationProfile });
   }
   steps.push(step(2, 'GENERATION_CURRENTNESS', 'PASS', 'CURRENT_GENERATION_VERIFIED', [currentnessRef]));
 
@@ -109,7 +121,7 @@ export function evaluateMissionResult(input) {
   const escaped = mutated.filter((item) => !allowed.has(item));
   if (!scopeRef || escaped.length > 0) {
     steps.push(step(3, 'AFFECTED_SCOPE', 'FAIL', escaped.length ? 'SCOPE_ESCAPE' : 'SCOPE_UNVERIFIED', [scopeRef, ...escaped]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_AFFECTED_SCOPE', next: 'READ_BACK_AFFECTED_SCOPE' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_AFFECTED_SCOPE', next: 'READ_BACK_AFFECTED_SCOPE', continuationProfile });
   }
   steps.push(step(3, 'AFFECTED_SCOPE', 'PASS', 'AFFECTED_SCOPE_VERIFIED', [scopeRef]));
 
@@ -132,7 +144,7 @@ export function evaluateMissionResult(input) {
 
   if (contradictions.length) {
     steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', 'SEMANTIC_EVIDENCE_CONTRADICTION', contradictions));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_LEDGER_RULE_AND_FIXTURE_SEMANTICS' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_LEDGER_RULE_AND_FIXTURE_SEMANTICS', continuationProfile });
   }
 
   if (missingEvidence.length || unverifiedArtifacts.length || unverifiedEndpoints.length || unverifiedInterfaces.length || unverifiedRules.length) {
@@ -148,7 +160,7 @@ export function evaluateMissionResult(input) {
       ...unverifiedInterfaces.map((item) => `interface:${item}`),
       ...unverifiedRules.map((item) => `rule:${item}`),
     ]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: `FAIL_${reason}`, next: 'INDEPENDENTLY_READ_BACK_CLAIMED_STATE' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: `FAIL_${reason}`, next: 'INDEPENDENTLY_READ_BACK_CLAIMED_STATE', continuationProfile });
   }
 
   const requestedEffects = list(payload.requested_effects);
@@ -158,7 +170,7 @@ export function evaluateMissionResult(input) {
     const authorityRef = text(observations.effect_authority_ref);
     if (deniedEffects.length || !authorityRef) {
       steps.push(step(4, 'EFFECT_AUTHORITY', 'FAIL', deniedEffects.length ? 'EFFECT_NOT_ALLOWED' : 'EFFECT_AUTHORITY_UNVERIFIED', [authorityRef, ...deniedEffects]));
-      return haltedResult({ ingressRoot, payloadRoot, steps, code: deniedEffects.length ? 'FAIL_EFFECT_NOT_ALLOWED' : 'FAIL_EFFECT_AUTHORITY', next: 'RESOLVE_EFFECT_AUTHORITY_BEFORE_MUTATION' });
+      return haltedResult({ ingressRoot, payloadRoot, steps, code: deniedEffects.length ? 'FAIL_EFFECT_NOT_ALLOWED' : 'FAIL_EFFECT_AUTHORITY', next: 'RESOLVE_EFFECT_AUTHORITY_BEFORE_MUTATION', continuationProfile });
     }
     steps.push(step(4, 'EFFECT_AUTHORITY', 'PASS', 'EFFECT_AUTHORITY_VERIFIED', [authorityRef]));
   }
@@ -168,19 +180,19 @@ export function evaluateMissionResult(input) {
   const executionRef = text(observations.execution_receipt_ref);
   if (!executionRef || observations.execution_result !== 'PASS') {
     steps.push(step(5, 'RESULT_CORRECTNESS', 'FAIL', 'EXECUTION_RESULT_UNVERIFIED', [executionRef]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_RESULT_CORRECTNESS', next: 'VERIFY_EXECUTION_RESULT' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_RESULT_CORRECTNESS', next: 'VERIFY_EXECUTION_RESULT', continuationProfile });
   }
   steps.push(step(5, 'RESULT_CORRECTNESS', 'PASS', 'EXECUTION_RESULT_VERIFIED', [executionRef]));
 
   if (bool(payload.live) && !text(observations.live_readback_ref)) {
     steps.push(step(5, 'LIVE_READBACK', 'FAIL', 'LIVE_CLAIM_WITHOUT_NATIVE_READBACK'));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_FALSE_LIVE', next: 'OBTAIN_NATIVE_LIVE_READBACK' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_FALSE_LIVE', next: 'OBTAIN_NATIVE_LIVE_READBACK', continuationProfile });
   }
 
   const returnRef = text(observations.return_ref);
   if (!returnRef) {
     steps.push(step(6, 'RETURN', 'FAIL', 'RETURN_MISSING'));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_RETURN_MISSING', next: 'RETURN_RESULT_TO_INGRESS_TARGET' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_RETURN_MISSING', next: 'RETURN_RESULT_TO_INGRESS_TARGET', continuationProfile });
   }
   steps.push(step(6, 'RETURN', 'PASS', 'RETURN_VERIFIED', [returnRef]));
 
@@ -188,7 +200,7 @@ export function evaluateMissionResult(input) {
   const applyReadbackRef = text(observations.apply_return_readback_ref);
   if (!applyReturnRef || !applyReadbackRef) {
     steps.push(step(7, 'APPLY_RETURN', 'FAIL', 'APPLY_RETURN_UNVERIFIED', [applyReturnRef, applyReadbackRef]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_APPLY_RETURN', next: 'APPLY_RETURN_AND_READ_BACK' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_APPLY_RETURN', next: 'APPLY_RETURN_AND_READ_BACK', continuationProfile });
   }
   steps.push(step(7, 'APPLY_RETURN', 'PASS', 'APPLY_RETURN_VERIFIED', [applyReturnRef, applyReadbackRef]));
 
@@ -197,14 +209,43 @@ export function evaluateMissionResult(input) {
   const rootClosed = observations.root_closed === true;
   if (!reapRef || (!rootClosed && !nextRef)) {
     steps.push(step(8, 'REAP_NEXT', 'FAIL', !reapRef ? 'REAP_UNVERIFIED' : 'ROOT_OPEN_NEXT_MISSING', [reapRef, nextRef]));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_REAP_NEXT', next: !reapRef ? 'REAP_AND_RECOMPUTE_FRONTIER' : 'SELECT_NEXT_FIRST_RED' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_REAP_NEXT', next: !reapRef ? 'REAP_AND_RECOMPUTE_FRONTIER' : 'SELECT_NEXT_FIRST_RED', continuationProfile });
   }
   steps.push(step(8, 'REAP_NEXT', 'PASS', rootClosed ? 'ROOT_CLOSED_VERIFIED' : 'NEXT_FRONTIER_VERIFIED', [reapRef, nextRef]));
+
+  if (continuationProfile === 'POST_REAP_REJOIN') {
+    const requiredPostReap = {
+      continuation_profile_ref: continuationProfileRef,
+      reap_result_ref: text(observations.reap_result_ref),
+      reap_return_ref: text(observations.reap_return_ref),
+      reap_apply_return_ref: text(observations.reap_apply_return_ref),
+      reap_apply_return_readback_ref: text(observations.reap_apply_return_readback_ref),
+      second_recompile_ref: text(observations.second_recompile_ref),
+      rejoin_current_ref: text(observations.rejoin_current_ref),
+    };
+    const missing = Object.entries(requiredPostReap)
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+    if (missing.length) {
+      steps.push(step(9, 'POST_REAP_REJOIN', 'FAIL', 'POST_REAP_REJOIN_UNVERIFIED', missing));
+      return haltedResult({
+        ingressRoot,
+        payloadRoot,
+        steps,
+        code: 'FAIL_POST_REAP_REJOIN',
+        next: 'RETURN_REAP_RESULT_APPLY_AND_REJOIN_CURRENT',
+        continuationProfile,
+      });
+    }
+    steps.push(step(9, 'POST_REAP_REJOIN', 'PASS', 'POST_REAP_REJOIN_VERIFIED', Object.values(requiredPostReap)));
+  }
 
   return Object.freeze({
     schema: 'xiio.sdk.mission-evaluation/v1',
     mission_root_ref: ingressRoot,
     payload_root_ref: payloadRoot,
+    continuation_profile: continuationProfile,
+    continuation_profile_ref: continuationProfileRef,
     state: 'PASS',
     result: rootClosed ? 'MISSION_CLOSED' : 'MISSION_CONTINUES',
     pass: true,
