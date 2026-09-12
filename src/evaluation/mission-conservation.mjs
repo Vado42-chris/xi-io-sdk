@@ -23,6 +23,7 @@ const HARD = Object.freeze([
   'ENDPOINT_CLAIM != NATIVE_READBACK',
   'CLIENT_CODE != SERVER_PROOF',
   'INTERFACE_CLAIM != IMPLEMENTED_INTERFACE',
+  'RULE_CLAIM != IMPLEMENTED_RULE',
   'IMPLEMENTED_INTERFACE != EFFECT_AUTHORITY',
   'TOOL_LIMIT_RETRY != LICENSE_TO_INVENT_INTERFACE',
   'RECEIPT_ID != LEDGER_READBACK',
@@ -124,23 +125,28 @@ export function evaluateMissionResult(input) {
   const claimedInterfaces = list(payload.claimed_interfaces);
   const verifiedInterfaces = new Set(list(observations.verified_interface_refs));
   const unverifiedInterfaces = claimedInterfaces.filter((item) => !verifiedInterfaces.has(item));
+  const claimedRules = list(payload.claimed_rules);
+  const verifiedRules = new Set(list(observations.verified_rule_refs));
+  const unverifiedRules = claimedRules.filter((item) => !verifiedRules.has(item));
   const contradictions = semanticContradictions(payload, observations);
 
   if (contradictions.length) {
     steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', 'SEMANTIC_EVIDENCE_CONTRADICTION', contradictions));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_LEDGER_AND_FIXTURE_SEMANTICS' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_LEDGER_RULE_AND_FIXTURE_SEMANTICS' });
   }
 
-  if (missingEvidence.length || unverifiedArtifacts.length || unverifiedEndpoints.length || unverifiedInterfaces.length) {
+  if (missingEvidence.length || unverifiedArtifacts.length || unverifiedEndpoints.length || unverifiedInterfaces.length || unverifiedRules.length) {
     const reason = unverifiedArtifacts.length ? 'UNVERIFIED_ARTIFACT'
       : unverifiedEndpoints.length ? 'UNVERIFIED_ENDPOINT'
         : unverifiedInterfaces.length ? 'UNVERIFIED_INTERFACE'
-          : 'REQUIRED_EVIDENCE_MISSING';
+          : unverifiedRules.length ? 'UNVERIFIED_RULE'
+            : 'REQUIRED_EVIDENCE_MISSING';
     steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', reason, [
       ...missingEvidence,
       ...unverifiedArtifacts.map((item) => `artifact:${item}`),
       ...unverifiedEndpoints.map((item) => `endpoint:${item}`),
       ...unverifiedInterfaces.map((item) => `interface:${item}`),
+      ...unverifiedRules.map((item) => `rule:${item}`),
     ]));
     return haltedResult({ ingressRoot, payloadRoot, steps, code: `FAIL_${reason}`, next: 'INDEPENDENTLY_READ_BACK_CLAIMED_STATE' });
   }
