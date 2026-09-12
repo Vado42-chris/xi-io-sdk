@@ -23,9 +23,11 @@ const HARD = Object.freeze([
   'ENDPOINT_CLAIM != NATIVE_READBACK',
   'CLIENT_CODE != SERVER_PROOF',
   'INTERFACE_CLAIM != IMPLEMENTED_INTERFACE',
+  'IMPLEMENTED_INTERFACE != EFFECT_AUTHORITY',
   'TOOL_LIMIT_RETRY != LICENSE_TO_INVENT_INTERFACE',
   'RECEIPT_ID != LEDGER_READBACK',
   'ATTESTATION_CLAIM != ARTIFACT_SEMANTICS',
+  'TEST_FIXTURE_TEXT != TEST_FIXTURE_SEMANTICS',
   'RUNNING != LIVE',
   'RESULT != RETURN != APPLY_RETURN',
   'ROOT_OPEN + NEXT_NONE = INVALID_TERMINAL',
@@ -50,6 +52,8 @@ function semanticContradictions(payload, observations) {
   const out = [];
   const attestation = payload.attestation && typeof payload.attestation === 'object' ? payload.attestation : {};
   const output = typeof payload.output === 'string' ? payload.output : '';
+  const fixture = payload.test_fixture && typeof payload.test_fixture === 'object' ? payload.test_fixture : {};
+  const fixtureSource = typeof fixture.source === 'string' ? fixture.source : '';
 
   if (text(attestation.Y_AXIS_WHAT) === 'AST_VALIDATED_ZERO_STUBS' && /(^|\n)\s*pass\s*(#.*)?($|\n)/m.test(output)) {
     out.push('Y_AXIS_ZERO_STUBS_CONTRADICTED_BY_PASS_STATEMENT');
@@ -60,13 +64,16 @@ function semanticContradictions(payload, observations) {
   if (text(payload.ledger_ref) && !text(observations.ledger_readback_ref)) {
     out.push('LEDGER_CLAIM_WITHOUT_NATIVE_READBACK');
   }
+  if (text(fixture.expected_ast_rule) === 'PASS_STATEMENT_PLACEHOLDER') {
+    const hasRealPassStatement = /(^|\n)\s*pass\s*(#.*)?($|\n)/m.test(fixtureSource);
+    if (!hasRealPassStatement) out.push('TEST_FIXTURE_DOES_NOT_EXERCISE_PASS_STATEMENT_RULE');
+  }
+  if (text(fixture.remediation_expected) === 'NO_STUBS' && /(^|\n)\s*pass\s*(#.*)?($|\n)/m.test(String(fixture.remediation_source || ''))) {
+    out.push('REMEDIATION_STILL_CONTAINS_PASS_STATEMENT_STUB');
+  }
   return out;
 }
 
-/**
- * Mandatory ordered evaluation of a worker result against its ingress contract.
- * Worker-authored PASS/LIVE/receipt/interface fields are data, never proof.
- */
 export function evaluateMissionResult(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('INVALID_INPUT');
 
@@ -80,14 +87,12 @@ export function evaluateMissionResult(input) {
 
   const steps = [];
 
-  // 1. ROOT CONSERVATION
   if (ingressRoot !== payloadRoot) {
     steps.push(step(1, 'ROOT_CONSERVATION', 'FAIL', 'MISSION_ROOT_MISMATCH', [ingressRoot, payloadRoot]));
     return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_ROOT_DIVERGENCE', next: 'REAP_WRONG_ROOT_RESULT_AND_REJOIN_INGRESS_ROOT' });
   }
   steps.push(step(1, 'ROOT_CONSERVATION', 'PASS', 'MISSION_ROOT_CONSERVED', [ingressRoot]));
 
-  // 2. GENERATION CURRENTNESS
   const ingressGeneration = text(ingress.generation);
   const payloadGeneration = text(payload.generation);
   const currentnessRef = text(observations.current_generation_ref);
@@ -97,7 +102,6 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(2, 'GENERATION_CURRENTNESS', 'PASS', 'CURRENT_GENERATION_VERIFIED', [currentnessRef]));
 
-  // 3. AFFECTED SCOPE
   const allowed = new Set(list(ingress.allowed_scope));
   const mutated = list(payload.mutated_scope);
   const scopeRef = text(observations.scope_readback_ref);
@@ -108,7 +112,6 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(3, 'AFFECTED_SCOPE', 'PASS', 'AFFECTED_SCOPE_VERIFIED', [scopeRef]));
 
-  // 4. REQUIRED EVIDENCE + semantic consistency
   const requiredEvidence = list(ingress.required_evidence);
   const verifiedEvidence = new Set(list(observations.verified_evidence_refs));
   const missingEvidence = requiredEvidence.filter((item) => !verifiedEvidence.has(item));
@@ -125,16 +128,13 @@ export function evaluateMissionResult(input) {
 
   if (contradictions.length) {
     steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', 'SEMANTIC_EVIDENCE_CONTRADICTION', contradictions));
-    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_AND_LEDGER_SEMANTICS' });
+    return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_SEMANTIC_EVIDENCE_CONTRADICTION', next: 'REVERIFY_ARTIFACT_LEDGER_AND_FIXTURE_SEMANTICS' });
   }
 
   if (missingEvidence.length || unverifiedArtifacts.length || unverifiedEndpoints.length || unverifiedInterfaces.length) {
-    const reason = unverifiedArtifacts.length
-      ? 'UNVERIFIED_ARTIFACT'
-      : unverifiedEndpoints.length
-        ? 'UNVERIFIED_ENDPOINT'
-        : unverifiedInterfaces.length
-          ? 'UNVERIFIED_INTERFACE'
+    const reason = unverifiedArtifacts.length ? 'UNVERIFIED_ARTIFACT'
+      : unverifiedEndpoints.length ? 'UNVERIFIED_ENDPOINT'
+        : unverifiedInterfaces.length ? 'UNVERIFIED_INTERFACE'
           : 'REQUIRED_EVIDENCE_MISSING';
     steps.push(step(4, 'REQUIRED_EVIDENCE', 'FAIL', reason, [
       ...missingEvidence,
@@ -144,9 +144,21 @@ export function evaluateMissionResult(input) {
     ]));
     return haltedResult({ ingressRoot, payloadRoot, steps, code: `FAIL_${reason}`, next: 'INDEPENDENTLY_READ_BACK_CLAIMED_STATE' });
   }
+
+  const requestedEffects = list(payload.requested_effects);
+  if (requestedEffects.length) {
+    const allowedEffects = new Set(list(ingress.allowed_effects));
+    const deniedEffects = requestedEffects.filter((item) => !allowedEffects.has(item));
+    const authorityRef = text(observations.effect_authority_ref);
+    if (deniedEffects.length || !authorityRef) {
+      steps.push(step(4, 'EFFECT_AUTHORITY', 'FAIL', deniedEffects.length ? 'EFFECT_NOT_ALLOWED' : 'EFFECT_AUTHORITY_UNVERIFIED', [authorityRef, ...deniedEffects]));
+      return haltedResult({ ingressRoot, payloadRoot, steps, code: deniedEffects.length ? 'FAIL_EFFECT_NOT_ALLOWED' : 'FAIL_EFFECT_AUTHORITY', next: 'RESOLVE_EFFECT_AUTHORITY_BEFORE_MUTATION' });
+    }
+    steps.push(step(4, 'EFFECT_AUTHORITY', 'PASS', 'EFFECT_AUTHORITY_VERIFIED', [authorityRef]));
+  }
+
   steps.push(step(4, 'REQUIRED_EVIDENCE', 'PASS', 'REQUIRED_EVIDENCE_VERIFIED', [...verifiedEvidence]));
 
-  // 5. RESULT CORRECTNESS
   const executionRef = text(observations.execution_receipt_ref);
   if (!executionRef || observations.execution_result !== 'PASS') {
     steps.push(step(5, 'RESULT_CORRECTNESS', 'FAIL', 'EXECUTION_RESULT_UNVERIFIED', [executionRef]));
@@ -159,7 +171,6 @@ export function evaluateMissionResult(input) {
     return haltedResult({ ingressRoot, payloadRoot, steps, code: 'FAIL_FALSE_LIVE', next: 'OBTAIN_NATIVE_LIVE_READBACK' });
   }
 
-  // 6. RETURN
   const returnRef = text(observations.return_ref);
   if (!returnRef) {
     steps.push(step(6, 'RETURN', 'FAIL', 'RETURN_MISSING'));
@@ -167,7 +178,6 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(6, 'RETURN', 'PASS', 'RETURN_VERIFIED', [returnRef]));
 
-  // 7. APPLY_RETURN
   const applyReturnRef = text(observations.apply_return_ref);
   const applyReadbackRef = text(observations.apply_return_readback_ref);
   if (!applyReturnRef || !applyReadbackRef) {
@@ -176,7 +186,6 @@ export function evaluateMissionResult(input) {
   }
   steps.push(step(7, 'APPLY_RETURN', 'PASS', 'APPLY_RETURN_VERIFIED', [applyReturnRef, applyReadbackRef]));
 
-  // 8. REAP / NEXT
   const reapRef = text(observations.reap_ref);
   const nextRef = text(observations.next_ref);
   const rootClosed = observations.root_closed === true;
