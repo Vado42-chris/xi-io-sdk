@@ -6,8 +6,10 @@ STUDIO_ROOT="${XIIO_STUDIO_ROOT:-$(dirname "$SDK_ROOT")}"
 STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/xi-io/cli-alpha"
 BIN_ROOT="$HOME/.local/bin"
 TARGET="$BIN_ROOT/xi-io"
+XI_TARGET="$BIN_ROOT/xi"
 RECEIPT="$STATE_ROOT/activation-receipt.json"
 BACKUP="$STATE_ROOT/xi-io.previous"
+XI_BACKUP="$STATE_ROOT/xi.previous"
 
 find_node() {
   if command -v node >/dev/null 2>&1; then command -v node; return; fi
@@ -112,14 +114,18 @@ cp -- "$TMP_ROOT/xi-io" "$TARGET.next"
 chmod 0755 "$TARGET.next"
 mv -Tf -- "$TARGET.next" "$TARGET"
 chmod 0755 "$SDK_ROOT/bin/xi.mjs"
+if [[ -e "$XI_TARGET" || -L "$XI_TARGET" ]]; then cp -a -- "$XI_TARGET" "$XI_BACKUP"; fi
+cp -- "$TARGET" "$XI_TARGET.next"
+chmod 0755 "$XI_TARGET.next"
+mv -Tf -- "$XI_TARGET.next" "$XI_TARGET"
 
 "$NODE_BIN" - "$RECEIPT" <<'NODE'
 const fs=require('fs'); const p=process.argv[2]; const x=JSON.parse(fs.readFileSync(p,'utf8'));
-x.installed=true; x.installed_at=new Date().toISOString(); x.command=process.env.HOME+'/.local/bin/xi-io';
+x.installed=true; x.installed_at=new Date().toISOString(); x.commands=[process.env.HOME+'/.local/bin/xi',process.env.HOME+'/.local/bin/xi-io'];
 fs.writeFileSync(p,JSON.stringify(x,null,2)+'\n',{mode:0o600});
 NODE
 
 echo 'XIIO_CLI_ALPHA=ACTIVE'
-echo "COMMAND=$TARGET"
+echo "COMMANDS=$XI_TARGET,$TARGET"
 echo "RECEIPT=$RECEIPT"
 echo "GOLDEN=$golden_state SUBTERRANEAN=$subterranean_state"
