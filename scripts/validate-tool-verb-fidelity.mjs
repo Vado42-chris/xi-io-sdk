@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { evaluateToolVerbFidelity } from '../src/evaluation/tool-verb-fidelity.mjs';
+import {
+  TOOL_VERB_REQUIREMENTS,
+  evaluateToolVerbFidelity,
+} from '../src/evaluation/tool-verb-fidelity.mjs';
 
 const R = (requestedVerb, toolName, toolCapabilities, targetSurface = 'UNKNOWN') =>
   evaluateToolVerbFidelity({ requestedVerb, toolName, toolCapabilities, targetSurface });
@@ -24,15 +27,27 @@ for (const [name, out, pass, result] of cases) {
   if (!pass) assert.equal(out.attempt, 0, `${name}: unsupported action must not start`);
 }
 
+assert.equal(Object.isFrozen(TOOL_VERB_REQUIREMENTS), true, 'requirements map must be frozen');
+assert.equal(Object.isFrozen(TOOL_VERB_REQUIREMENTS.EXECUTE), true, 'verb groups must be frozen');
+assert.equal(Object.isFrozen(TOOL_VERB_REQUIREMENTS.EXECUTE[0]), true, 'inner capability groups must be frozen');
+assert.throws(
+  () => TOOL_VERB_REQUIREMENTS.EXECUTE[0].push('read'),
+  TypeError,
+  'consumer must not be able to mutate RUN semantics',
+);
+assert.equal(R('run', 'read_workspace_text_file', ['read']).pass, false, 'mutation attempt must not weaken gate');
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v1',
   result: 'PASS',
   cases: cases.length,
+  immutability_assertions: 5,
   false_greens: 0,
   hard: [
     'READ != RUN',
     'READ != GENERATE',
     'WRITE != APPEND',
     'SOURCE_INSPECTION != PHYSICAL_AUDIT',
+    'EXPORTED_POLICY != CALLER_MUTABLE_POLICY',
   ],
 }, null, 2));
