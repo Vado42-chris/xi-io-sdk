@@ -1,0 +1,54 @@
+{
+  "schema": "xiio.sdk.interaction-lifecycle-known-answer/v1",
+  "punchcard_id": "SDK-INTERACTION-LIFECYCLE-001A",
+  "source": {
+    "sdk_base": "4a9beccd36ad1b3e89c8843da7b7047f96bfac75",
+    "sdk_owner": "Vado42-chris/xi-io-sdk#16",
+    "cadence_policy_ref": "Vado42-chris/xi-io-cadence@6df685b27325b98ee0cb5aa189050b19e87275c2"
+  },
+  "interaction": {
+    "interaction_id": "interaction:known-answer:001",
+    "actor_ref": "agent:ibal:test",
+    "root_ref": "xiio:work:root-001",
+    "return_target_ref": "xiio:return:root-001",
+    "cadence_policy_ref": "Vado42-chris/xi-io-cadence@6df685b27325b98ee0cb5aa189050b19e87275c2",
+    "accepted_base_ref": "repo:main@g1",
+    "opened_current_ref": "repo:main@g1",
+    "latest_current_ref": "repo:main@g1",
+    "standup_receipt_ref": "receipt:standup:001",
+    "collision_ref": "receipt:collision:one-writer",
+    "first_red_ref": "red:first:001",
+    "effect_ceiling": "SOURCE_ONLY",
+    "known_hostile_refs": ["hostile:last-night:stale-currentness"],
+    "expected_result": "RESULT_SOURCE_CANDIDATE",
+    "sibling_policy": "BLOCKED_CHILD_DOES_NOT_STOP_RUNNABLE_SIBLING",
+    "provider_projection_refs": ["github:issue:16"],
+    "disclosure": {
+      "source_visibility": "INTERNAL",
+      "target_visibility": "INTERNAL"
+    },
+    "child_denominator": 0,
+    "children": [],
+    "siblings": [],
+    "owner_heartbeat_count": 0,
+    "machine_resolvable_next": true
+  },
+  "expected_open": {
+    "status": "OPEN_CURRENT",
+    "next_action": "CONTINUE_MACHINE_RESOLVABLE_NEXT",
+    "root_stop_allowed": false,
+    "provider_effect": false,
+    "authority_granted": false
+  },
+  "hard": [
+    "INTERACTION_WITHOUT_OPEN_STANDUP = 10s_FAIL",
+    "INTERACTION_WITHOUT_CLOSE_BURNDOWN = 10s_FAIL",
+    "CURRENTNESS_MOVED -> REBASE_REQUIRED",
+    "PROVIDER_ID != CANONICAL_ID",
+    "RESULT -> BURN_DOWN_RETRO -> RETURN -> APPLY_RETURN -> REAP -> REJOIN -> CURRENT_READBACK",
+    "OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG",
+    "ONE_BLOCKED_CHILD != ROOT_STOP"
+  ],
+  "provider_effect": false,
+  "authority_granted": false
+}
