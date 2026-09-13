@@ -19,6 +19,7 @@
     "./ibal": "./src/ibal/canary.mjs",
     "./ibal/impact-formation": "./src/ibal/impact-formation.mjs",
     "./cadence": "./src/cadence/continuation.mjs",
+    "./cadence/mini-prompts": "./src/cadence/mini-prompt-stack.mjs",
     "./work/egress": "./src/work/egress.mjs",
     "./baseline/fleet-delivery": "./src/baseline/fleet-delivery.mjs",
     "./evaluation/mission-conservation": "./src/evaluation/mission-conservation.mjs",
