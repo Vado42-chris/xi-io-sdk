@@ -1,16 +1,18 @@
+const frozenGroups = (...groups) => Object.freeze(groups.map((group) => Object.freeze([...group])));
+
 const REQUIREMENTS = Object.freeze({
-  READ: Object.freeze([['read']]),
-  SEARCH: Object.freeze([['search', 'glob']]),
-  TEST: Object.freeze([['test', 'execute', 'run']]),
-  EXECUTE: Object.freeze([['execute', 'run']]),
-  GENERATE: Object.freeze([['create', 'write']]),
-  WRITE: Object.freeze([['write', 'replace']]),
-  APPEND: Object.freeze([['append']]),
-  PHYSICAL_AUDIT: Object.freeze([
+  READ: frozenGroups(['read']),
+  SEARCH: frozenGroups(['search', 'glob']),
+  TEST: frozenGroups(['test', 'execute', 'run']),
+  EXECUTE: frozenGroups(['execute', 'run']),
+  GENERATE: frozenGroups(['create', 'write']),
+  WRITE: frozenGroups(['write', 'replace']),
+  APPEND: frozenGroups(['append']),
+  PHYSICAL_AUDIT: frozenGroups(
     ['execute', 'run'],
     ['native_host_identity', 'physical_host_identity'],
     ['result_readback', 'native_readback'],
-  ]),
+  ),
 });
 
 function norm(value) {
