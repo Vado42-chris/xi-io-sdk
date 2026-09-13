@@ -9,6 +9,10 @@ function text(value, name) {
   return value;
 }
 
+function maybeText(value) {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
 function count(value, name) {
   if (!Number.isInteger(value) || value < 0) throw new Error(`${name}_INVALID`);
   return value;
@@ -40,7 +44,7 @@ function normalizeSibling(entry, index) {
     state,
     machine_resolvable: entry.machine_resolvable === true,
     owner_required: entry.owner_required === true,
-    wake_ref: typeof entry.wake_ref === 'string' && entry.wake_ref.trim() ? entry.wake_ref : null,
+    wake_ref: maybeText(entry.wake_ref),
   };
 }
 
@@ -52,9 +56,9 @@ function normalizeChildren(input) {
     return {
       child_ref: text(entry.child_ref, `CHILD_${index}_REF`),
       disposition,
-      open_receipt_ref: typeof entry.open_receipt_ref === 'string' && entry.open_receipt_ref.trim() ? entry.open_receipt_ref : null,
-      close_receipt_ref: typeof entry.close_receipt_ref === 'string' && entry.close_receipt_ref.trim() ? entry.close_receipt_ref : null,
-      wait_ref: typeof entry.wait_ref === 'string' && entry.wait_ref.trim() ? entry.wait_ref : null,
+      open_receipt_ref: maybeText(entry.open_receipt_ref),
+      close_receipt_ref: maybeText(entry.close_receipt_ref),
+      wait_ref: maybeText(entry.wait_ref),
     };
   });
   if (children.length > declared) throw new Error('CHILDREN_EXCEED_DENOMINATOR');
@@ -71,9 +75,30 @@ function normalizeDisclosure(input) {
   return {
     source_visibility: source,
     target_visibility: target,
-    qualification_ref: typeof disclosure.qualification_ref === 'string' && disclosure.qualification_ref.trim()
-      ? disclosure.qualification_ref
-      : null,
+    qualification_ref: maybeText(disclosure.qualification_ref),
+  };
+}
+
+function normalizeClose(close) {
+  if (!close) return null;
+  return {
+    result_ref: maybeText(close.result_ref),
+    burndown_receipt_ref: maybeText(close.burndown_receipt_ref),
+    denominator_delta_ref: maybeText(close.denominator_delta_ref),
+    verification_refs: refs(close.verification_refs ?? [], 'CLOSE_VERIFICATION_REFS'),
+    failure_refs: refs(close.failure_refs ?? [], 'CLOSE_FAILURE_REFS'),
+    thrash_refs: refs(close.thrash_refs ?? [], 'CLOSE_THRASH_REFS'),
+    learning_refs: refs(close.learning_refs ?? [], 'CLOSE_LEARNING_REFS'),
+    owner_load_ref: maybeText(close.owner_load_ref),
+    remaining_red_refs: refs(close.remaining_red_refs ?? [], 'CLOSE_REMAINING_RED_REFS'),
+    next_ref: maybeText(close.next_ref),
+    wait_ref: maybeText(close.wait_ref),
+    terminal_ref: maybeText(close.terminal_ref),
+    return_ref: maybeText(close.return_ref),
+    apply_return_ref: maybeText(close.apply_return_ref),
+    reap_ref: maybeText(close.reap_ref),
+    rejoin_ref: maybeText(close.rejoin_ref),
+    current_readback_ref: maybeText(close.current_readback_ref),
   };
 }
 
@@ -95,9 +120,7 @@ export function compileInteractionLifecycle(input) {
   const effectCeiling = text(input.effect_ceiling, 'EFFECT_CEILING').toUpperCase();
   if (!EFFECT_CEILINGS.has(effectCeiling)) throw new Error('EFFECT_CEILING_INVALID');
 
-  const standupReceiptRef = typeof input.standup_receipt_ref === 'string' && input.standup_receipt_ref.trim()
-    ? input.standup_receipt_ref
-    : null;
+  const standupReceiptRef = maybeText(input.standup_receipt_ref);
   const providerProjectionRefs = refs(input.provider_projection_refs ?? [], 'PROVIDER_PROJECTION_REFS');
   const knownHostileRefs = refs(input.known_hostile_refs ?? [], 'KNOWN_HOSTILE_REFS');
   const ownerHeartbeatCount = count(input.owner_heartbeat_count ?? 0, 'OWNER_HEARTBEAT_COUNT');
@@ -105,7 +128,8 @@ export function compileInteractionLifecycle(input) {
   const disclosure = normalizeDisclosure(input);
   const child = normalizeChildren(input);
   const siblings = list(input.siblings ?? [], 'SIBLINGS').map(normalizeSibling);
-  const close = input.close && typeof input.close === 'object' && !Array.isArray(input.close) ? input.close : null;
+  const closeInput = input.close && typeof input.close === 'object' && !Array.isArray(input.close) ? input.close : null;
+  const close = normalizeClose(closeInput);
 
   const failures = [];
   const currentnessMoved = openedCurrentRef !== latestCurrentRef;
@@ -113,7 +137,7 @@ export function compileInteractionLifecycle(input) {
     || providerProjectionRefs.includes(returnTargetRef)
     || providerProjectionRefs.includes(actorRef);
   const runnableSiblings = siblings.filter((entry) => entry.state === 'RUNNABLE' || entry.machine_resolvable);
-  const blockedSiblings = siblings.filter((entry) => ['WAIT', 'TRUE_WAIT', 'BLOCKED', 'UNKNOWN'].includes(entry.state));
+  const unresolvedSiblings = siblings.filter((entry) => entry.state !== 'TERMINAL');
 
   if (!standupReceiptRef) fail(failures, 'INTERACTION_WITHOUT_OPEN_STANDUP');
   if (currentnessMoved) fail(failures, 'CURRENTNESS_MOVED_REBASE_REQUIRED');
@@ -129,39 +153,33 @@ export function compileInteractionLifecycle(input) {
 
   let closeState = 'OPEN';
   let closeNextAction = null;
-  let resultRef = null;
-  let returnRef = null;
-  let applyReturnRef = null;
-  let reapRef = null;
-  let rejoinRef = null;
-  let currentReadbackRef = null;
 
   if (close) {
     closeState = 'CLOSE_REQUESTED';
-    resultRef = typeof close.result_ref === 'string' && close.result_ref.trim() ? close.result_ref : null;
-    const burndownReceiptRef = typeof close.burndown_receipt_ref === 'string' && close.burndown_receipt_ref.trim()
-      ? close.burndown_receipt_ref
-      : null;
-    returnRef = typeof close.return_ref === 'string' && close.return_ref.trim() ? close.return_ref : null;
-    applyReturnRef = typeof close.apply_return_ref === 'string' && close.apply_return_ref.trim() ? close.apply_return_ref : null;
-    reapRef = typeof close.reap_ref === 'string' && close.reap_ref.trim() ? close.reap_ref : null;
-    rejoinRef = typeof close.rejoin_ref === 'string' && close.rejoin_ref.trim() ? close.rejoin_ref : null;
-    currentReadbackRef = typeof close.current_readback_ref === 'string' && close.current_readback_ref.trim()
-      ? close.current_readback_ref
-      : null;
 
-    if (!burndownReceiptRef) fail(failures, 'INTERACTION_WITHOUT_CLOSE_BURNDOWN');
-    if (!resultRef) fail(failures, 'CLOSE_WITHOUT_RESULT');
+    if (!close.result_ref) fail(failures, 'CLOSE_WITHOUT_RESULT');
+    if (!close.burndown_receipt_ref) fail(failures, 'INTERACTION_WITHOUT_CLOSE_BURNDOWN');
+    if (!close.denominator_delta_ref) fail(failures, 'CLOSE_WITHOUT_DENOMINATOR_DELTA');
+    if (close.verification_refs.length === 0) fail(failures, 'CLOSE_WITHOUT_VERIFICATION');
+    if (!close.owner_load_ref) fail(failures, 'CLOSE_WITHOUT_OWNER_LOAD_ACCOUNTING');
+    if (!close.next_ref && !close.wait_ref && !close.terminal_ref) fail(failures, 'CLOSE_WITHOUT_NEXT_WAIT_OR_TERMINAL');
     if (child.accountedClose !== child.declared) fail(failures, 'CHILD_CLOSE_DENOMINATOR_INCOMPLETE');
 
-    if (resultRef && !returnRef) closeNextAction = 'COMPILE_RETURN';
-    else if (returnRef && !applyReturnRef) closeNextAction = 'APPLY_RETURN';
-    else if (applyReturnRef && !reapRef) closeNextAction = 'REAP';
-    else if (reapRef && !rejoinRef) closeNextAction = 'REJOIN';
-    else if (rejoinRef && !currentReadbackRef) closeNextAction = 'VERIFY_CURRENT_READBACK';
+    if (!close.result_ref) closeNextAction = 'PRODUCE_RESULT';
+    else if (!close.burndown_receipt_ref) closeNextAction = 'CLOSE_BURNDOWN';
+    else if (!close.denominator_delta_ref || close.verification_refs.length === 0 || !close.owner_load_ref || (!close.next_ref && !close.wait_ref && !close.terminal_ref)) {
+      closeNextAction = 'COMPLETE_BURNDOWN_ACCOUNTING';
+    } else if (child.accountedClose !== child.declared) closeNextAction = 'RESOLVE_CHILD_CLOSE_DENOMINATOR';
+    else if (!close.return_ref) closeNextAction = 'COMPILE_RETURN';
+    else if (!close.apply_return_ref) closeNextAction = 'APPLY_RETURN';
+    else if (!close.reap_ref) closeNextAction = 'REAP';
+    else if (!close.rejoin_ref) closeNextAction = 'REJOIN';
+    else if (!close.current_readback_ref) closeNextAction = 'VERIFY_CURRENT_READBACK';
 
-    if (closeNextAction) fail(failures, 'POST_RESULT_LIFECYCLE_INCOMPLETE');
-    if (!closeNextAction && resultRef && burndownReceiptRef && currentReadbackRef) closeState = 'CLOSED';
+    if (closeNextAction && !['PRODUCE_RESULT', 'CLOSE_BURNDOWN', 'COMPLETE_BURNDOWN_ACCOUNTING', 'RESOLVE_CHILD_CLOSE_DENOMINATOR'].includes(closeNextAction)) {
+      fail(failures, 'POST_RESULT_LIFECYCLE_INCOMPLETE');
+    }
+    if (!closeNextAction) closeState = 'CLOSED';
   }
 
   const rebaseRequired = currentnessMoved;
@@ -169,19 +187,18 @@ export function compileInteractionLifecycle(input) {
   const rootStopAllowed = Boolean(
     closeState === 'CLOSED'
       && failures.length === 0
-      && runnableSiblings.length === 0
-      && blockedSiblings.length === 0,
+      && unresolvedSiblings.length === 0
+      && close?.terminal_ref,
   );
 
   let nextAction = null;
   if (rebaseRequired) nextAction = 'REBASE_CURRENT_TRUTH';
   else if (!standupReceiptRef) nextAction = 'OPEN_STANDUP';
   else if (providerAliasesCanonical) nextAction = 'RESOLVE_CANONICAL_IDENTITY';
+  else if (disclosure.source_visibility === 'UNKNOWN' || disclosure.target_visibility === 'UNKNOWN') nextAction = 'QUALIFY_DISCLOSURE';
   else if (disclosure.source_visibility === 'PRIVATE' && disclosure.target_visibility === 'PUBLIC' && !disclosure.qualification_ref) nextAction = 'QUALIFY_DISCLOSURE';
   else if (child.accountedOpen !== child.declared) nextAction = 'RESOLVE_CHILD_OPEN_DENOMINATOR';
   else if (closeNextAction) nextAction = closeNextAction;
-  else if (close && failures.includes('INTERACTION_WITHOUT_CLOSE_BURNDOWN')) nextAction = 'CLOSE_BURNDOWN';
-  else if (close && child.accountedClose !== child.declared) nextAction = 'RESOLVE_CHILD_CLOSE_DENOMINATOR';
   else if (runnableSiblings.length > 0) nextAction = 'CONTINUE_RUNNABLE_SIBLING';
   else if (machineResolvableNext) nextAction = 'CONTINUE_MACHINE_RESOLVABLE_NEXT';
   else if (!close) nextAction = 'EXECUTE_BOUNDED_WORK';
@@ -214,12 +231,7 @@ export function compileInteractionLifecycle(input) {
     rebase_required: rebaseRequired,
     open_qualified: openQualified,
     close_state: closeState,
-    result_ref: resultRef,
-    return_ref: returnRef,
-    apply_return_ref: applyReturnRef,
-    reap_ref: reapRef,
-    rejoin_ref: rejoinRef,
-    current_readback_ref: currentReadbackRef,
+    close,
     machine_resolvable_next: machineResolvableNext,
     owner_heartbeat_count: ownerHeartbeatCount,
     root_stop_allowed: rootStopAllowed,
@@ -235,7 +247,7 @@ export function compileInteractionLifecycle(input) {
       'CURRENTNESS_MOVED -> REBASE_REQUIRED',
       'PROVIDER_ID != CANONICAL_ID',
       'ASSIGNED != ACK != ATTEMPT',
-      'RESULT != RETURN != APPLY_RETURN != REAP != REJOIN',
+      'RESULT -> BURN_DOWN_RETRO -> RETURN -> APPLY_RETURN -> REAP -> REJOIN -> CURRENT_READBACK',
       'PRIVATE_SOURCE != PUBLIC_PROJECTION_WITHOUT_QUALIFICATION',
       'ONE_BLOCKED_CHILD != ROOT_STOP',
       'RUNNABLE_SIBLING -> ROOT_CONTINUE',
