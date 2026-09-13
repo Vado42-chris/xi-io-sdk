@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
+
 const x=compileStudioHeadlessTopology({product_id:'xiio_inbox',base_port:8791,state_root:'/tmp/xiio-test',servers:[]});
 assert.equal(x.minimum_server_count,3);
 assert.equal(x.servers.length,3);
@@ -13,11 +14,24 @@ assert.equal(x.crm.owner_product,'xi-io-Inbox');
 assert.equal(x.crm.external_email_fallback,false);
 assert.equal(x.installer.owner_product,'xi-io-HEX');
 assert.equal(x.quarantine.user_existing_settings_mutated,false);
+assert.equal(x.servers.find(s=>s.role==='switchboard_control').adapter_refs.length,0);
+
 const roster=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_complete:false,products:[{product_id:'xiio_inbox'},{product_id:'xiio_publisher'}]});
 assert.equal(roster.product_count,2);
 assert.equal(roster.server_count,6);
 assert.equal(roster.products.every(p=>p.servers.length===3),true);
-assert.equal(roster.registry_complete,false);\nassert.equal(roster.blockers.some(x=>x.target==='ROSTER_REGISTRY_PROOF'),true);\nassert.equal(roster.evidence_complete,false);\nassert.deepEqual(roster.evidence_stack.map(x=>x.name),['data_forge','dotproject','bugzilla']);\nassert.equal(roster.evidence_stack.every(x=>x.state==='UNKNOWN_BLOCKED'),true);\nconst chained=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_digest:'sha256:test',registry_receipt_ref:'rcp:test',registry_complete:true,expected_product_count:2,products:[{product_id:'inbox',dependencies:['switchboard']},{product_id:'publisher',dependencies:['missing-child']}],external_dependencies:['switchboard']});\nassert.equal(chained.registry_complete,true);\nassert.equal(chained.dependency_closure,false);\nassert.equal(chained.blockers.some(x=>x.target==='ROSTER_DEPENDENCY'&&x.dependency==='missing-child'),true);\nassert.equal(roster.blockers.filter(x=>x.target==='EVIDENCE_DEPENDENCY').length,3);\nassert.equal(x.servers.find(s=>s.role==='switchboard_control').adapter_refs.length,0);
+assert.equal(roster.registry_complete,false);
+assert.equal(roster.blockers.some(x=>x.target==='ROSTER_REGISTRY_PROOF'),true);
+assert.equal(roster.evidence_complete,false);
+assert.deepEqual(roster.evidence_stack.map(x=>x.name),['data_forge','dotproject','bugzilla']);
+assert.equal(roster.evidence_stack.every(x=>x.state==='UNKNOWN_BLOCKED'),true);
+assert.equal(roster.blockers.filter(x=>x.target==='EVIDENCE_DEPENDENCY').length,3);
+
+const chained=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_digest:'sha256:test',registry_receipt_ref:'rcp:test',registry_complete:true,expected_product_count:2,products:[{product_id:'inbox',dependencies:['switchboard']},{product_id:'publisher',dependencies:['missing-child']}],external_dependencies:['switchboard']});
+assert.equal(chained.registry_complete,true);
+assert.equal(chained.dependency_closure,false);
+assert.equal(chained.blockers.some(x=>x.target==='ROSTER_DEPENDENCY'&&x.dependency==='missing-child'),true);
+
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[]}));
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[{product_id:'same'},{product_id:'same'}]}));
 assert.throws(()=>compileStudioHeadlessTopology({product_id:'x',state_root:'relative'}));
