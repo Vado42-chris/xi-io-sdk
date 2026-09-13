@@ -3,7 +3,7 @@ const SAFE=/^[a-z0-9][a-z0-9-]{1,62}$/;
 const OWNERS={
  product_runtime:{owner_product:'INSTALL_TARGET',host_shell:'xi-io-Studio/Tauri',adapter_refs:[]},
  internal_mail_crm:{owner_product:'xi-io-Inbox',host_shell:'xi-io-Studio/Tauri',adapter_refs:['server/internal-team-crm-api.mjs','server/truth-sdk-crm-mailbox.mjs']},
- switchboard_control:{owner_product:'xi-io-Switchboard',host_shell:'HEADLESS',adapter_refs:['HEADLESS_ADAPTER_REQUIRED']}
+ switchboard_control:{owner_product:'xi-io-Switchboard',host_shell:'HEADLESS',adapter_refs:[]}
 };
 function text(v,n){if(typeof v!=='string'||!v.trim())throw new Error(n+'_REQUIRED');return v.trim();}
 function id(v){const x=text(v,'PRODUCT_ID').toLowerCase().replace(/_/g,'-');if(!SAFE.test(x))throw new Error('PRODUCT_ID_INVALID');return x;}

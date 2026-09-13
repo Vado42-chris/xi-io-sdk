@@ -17,7 +17,7 @@ const roster=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward
 assert.equal(roster.product_count,2);
 assert.equal(roster.server_count,6);
 assert.equal(roster.products.every(p=>p.servers.length===3),true);
-assert.equal(roster.registry_complete,false);
+assert.equal(roster.registry_complete,false);\nassert.equal(roster.evidence_complete,false);\nassert.deepEqual(roster.evidence_stack.map(x=>x.name),['data_forge','dotproject','bugzilla']);\nassert.equal(roster.evidence_stack.every(x=>x.state==='UNKNOWN_BLOCKED'),true);\nassert.equal(roster.blockers.filter(x=>x.target==='EVIDENCE_DEPENDENCY').length,3);\nassert.equal(x.servers.find(s=>s.role==='switchboard_control').adapter_refs.length,0);
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[]}));
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[{product_id:'same'},{product_id:'same'}]}));
 assert.throws(()=>compileStudioHeadlessTopology({product_id:'x',state_root:'relative'}));
