@@ -17,16 +17,20 @@ assert.equal(x.quarantine.user_existing_settings_mutated,false);
 assert.equal(x.servers.find(s=>s.role==='switchboard_control').adapter_refs.length,0);
 
 const roster=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_complete:false,products:[{product_id:'xiio_inbox'},{product_id:'xiio_publisher'}]});
+assert.equal(roster.schema,'xiio.sdk.studio-roster/v2');
+assert.equal(roster.legacy_schema,'xiio.sdk.studio-roster/v1');
 assert.equal(roster.product_count,2);
 assert.equal(roster.server_count,6);
 assert.equal(roster.products.every(p=>p.servers.length===3),true);
 assert.equal(roster.registry_complete,false);
+assert.equal(roster.registry_verified,false);
 assert.equal(roster.registry_structural_complete,false);
 assert.equal(roster.blockers.some(x=>x.target==='ROSTER_REGISTRY_PROOF'),true);
 assert.equal(roster.dependency_declarations_complete,false);
 assert.equal(roster.dependency_closure,false);
 assert.equal(roster.blockers.filter(x=>x.target==='PRODUCT_DEPENDENCY_DECLARATION').length,2);
 assert.equal(roster.evidence_complete,false);
+assert.equal(roster.evidence_verified,false);
 assert.equal(roster.evidence_structural_complete,false);
 assert.deepEqual(roster.evidence_stack.map(x=>x.name),['data_forge','dotproject','bugzilla']);
 assert.equal(roster.evidence_stack.every(x=>x.state==='UNKNOWN_BLOCKED'),true);
@@ -34,6 +38,7 @@ assert.equal(roster.blockers.filter(x=>x.target==='EVIDENCE_DEPENDENCY').length,
 
 const chained=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_digest:'sha256:test',registry_receipt_ref:'rcp:test',registry_complete:true,expected_product_count:2,products:[{product_id:'inbox',dependencies:['switchboard']},{product_id:'publisher',dependencies:['missing-child']}],external_dependencies:['switchboard']});
 assert.equal(chained.registry_structural_complete,true);
+assert.equal(chained.registry_verified,false);
 assert.equal(chained.registry_complete,false);
 assert.equal(chained.registry_proof_state,'SUPPLIED_UNVERIFIED');
 assert.equal(chained.blockers.some(x=>x.target==='ROSTER_REGISTRY_NATIVE_VERIFICATION'),true);
@@ -51,9 +56,12 @@ const spoofedComplete=compileStudioRoster({
  state_root:'/tmp/xiio-test',registry_ref:'caller:registry',registry_digest:'sha256:caller',registry_receipt_ref:'caller:receipt',registry_complete:true,expected_product_count:2,evidence_stack:evidenceClaims,
  products:[{product_id:'inbox',dependencies:['publisher']},{product_id:'publisher',dependencies:[]}],
 });
+assert.equal(spoofedComplete.schema,'xiio.sdk.studio-roster/v2');
 assert.equal(spoofedComplete.registry_structural_complete,true);
+assert.equal(spoofedComplete.registry_verified,false);
 assert.equal(spoofedComplete.registry_complete,false);
 assert.equal(spoofedComplete.evidence_structural_complete,true);
+assert.equal(spoofedComplete.evidence_verified,false);
 assert.equal(spoofedComplete.evidence_complete,false);
 assert.equal(spoofedComplete.evidence_proof_state,'SUPPLIED_UNVERIFIED');
 assert.equal(spoofedComplete.evidence_stack.every(x=>x.verified===false&&x.state==='SUPPLIED_UNVERIFIED'),true);
@@ -63,4 +71,4 @@ assert.deepEqual(spoofedComplete.verification_required,['STUDIO_REGISTRY_PROVIDE
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[]}));
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[{product_id:'same'},{product_id:'same'}]}));
 assert.throws(()=>compileStudioHeadlessTopology({product_id:'x',state_root:'relative'}));
-console.log('studio-headless-topology: PASS / caller-supplied completion remains unverified');
+console.log('studio-headless-topology: PASS / v2 proof ceilings preserve caller evidence as supplied-unverified');
