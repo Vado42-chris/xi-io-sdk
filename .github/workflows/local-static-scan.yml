@@ -2,16 +2,8 @@ name: Local Static Scan
 
 on:
   pull_request:
-    paths:
-      - 'scripts/local_scan.py'
-      - 'scripts/validate-local-scan.py'
-      - '.github/workflows/local-static-scan.yml'
   push:
     branches: [main]
-    paths:
-      - 'scripts/local_scan.py'
-      - 'scripts/validate-local-scan.py'
-      - '.github/workflows/local-static-scan.yml'
   workflow_dispatch:
 
 permissions:
