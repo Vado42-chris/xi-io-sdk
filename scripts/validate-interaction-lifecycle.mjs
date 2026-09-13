@@ -32,6 +32,22 @@ function base(overrides = {}) {
   };
 }
 
+function closeAccounting(overrides = {}) {
+  return {
+    result_ref: 'result:1',
+    burndown_receipt_ref: 'receipt:burndown:1',
+    denominator_delta_ref: 'receipt:denominator-delta:1',
+    verification_refs: ['receipt:verification:1'],
+    failure_refs: [],
+    thrash_refs: [],
+    learning_refs: ['lesson:overnight:1'],
+    owner_load_ref: 'receipt:owner-load:1',
+    remaining_red_refs: [],
+    terminal_ref: 'terminal:interaction-only:1',
+    ...overrides,
+  };
+}
+
 let passed = 0;
 const test = (name, fn) => {
   fn();
@@ -88,67 +104,60 @@ test('team child open denominator may not silently omit one child', () => {
 });
 
 test('private source cannot project public without disclosure qualification', () => {
-  const result = compileInteractionLifecycle(base({
-    disclosure: { source_visibility: 'PRIVATE', target_visibility: 'PUBLIC' },
-  }));
+  const result = compileInteractionLifecycle(base({ disclosure: { source_visibility: 'PRIVATE', target_visibility: 'PUBLIC' } }));
   assert(result.failures.includes('PRIVATE_TO_PUBLIC_WITHOUT_DISCLOSURE_QUALIFICATION'));
   assert.equal(result.next_action, 'QUALIFY_DISCLOSURE');
 });
 
-test('result cannot close without burndown', () => {
+test('result must close burndown before return', () => {
   const result = compileInteractionLifecycle(base({
     machine_resolvable_next: false,
     close: { result_ref: 'result:1' },
   }));
   assert(result.failures.includes('INTERACTION_WITHOUT_CLOSE_BURNDOWN'));
-  assert.equal(result.next_action, 'COMPILE_RETURN');
+  assert.equal(result.next_action, 'CLOSE_BURNDOWN');
 });
 
-test('post-result lifecycle is ordered through return apply reap rejoin readback', () => {
-  const shared = {
+test('burndown must account denominator verification owner load and next state', () => {
+  const result = compileInteractionLifecycle(base({
     machine_resolvable_next: false,
     close: { result_ref: 'result:1', burndown_receipt_ref: 'receipt:burndown:1' },
-  };
-  let result = compileInteractionLifecycle(base(shared));
+  }));
+  assert(result.failures.includes('CLOSE_WITHOUT_DENOMINATOR_DELTA'));
+  assert(result.failures.includes('CLOSE_WITHOUT_VERIFICATION'));
+  assert(result.failures.includes('CLOSE_WITHOUT_OWNER_LOAD_ACCOUNTING'));
+  assert(result.failures.includes('CLOSE_WITHOUT_NEXT_WAIT_OR_TERMINAL'));
+  assert.equal(result.next_action, 'COMPLETE_BURNDOWN_ACCOUNTING');
+});
+
+test('post-result lifecycle is ordered return apply reap rejoin readback', () => {
+  const shared = { machine_resolvable_next: false };
+  let result = compileInteractionLifecycle(base({ ...shared, close: closeAccounting() }));
   assert.equal(result.next_action, 'COMPILE_RETURN');
 
-  result = compileInteractionLifecycle(base({
-    ...shared,
-    close: { ...shared.close, return_ref: 'return:1' },
-  }));
+  result = compileInteractionLifecycle(base({ ...shared, close: closeAccounting({ return_ref: 'return:1' }) }));
   assert.equal(result.next_action, 'APPLY_RETURN');
 
-  result = compileInteractionLifecycle(base({
-    ...shared,
-    close: { ...shared.close, return_ref: 'return:1', apply_return_ref: 'apply:1' },
-  }));
+  result = compileInteractionLifecycle(base({ ...shared, close: closeAccounting({ return_ref: 'return:1', apply_return_ref: 'apply:1' }) }));
   assert.equal(result.next_action, 'REAP');
 
-  result = compileInteractionLifecycle(base({
-    ...shared,
-    close: { ...shared.close, return_ref: 'return:1', apply_return_ref: 'apply:1', reap_ref: 'reap:1' },
-  }));
+  result = compileInteractionLifecycle(base({ ...shared, close: closeAccounting({ return_ref: 'return:1', apply_return_ref: 'apply:1', reap_ref: 'reap:1' }) }));
   assert.equal(result.next_action, 'REJOIN');
 
-  result = compileInteractionLifecycle(base({
-    ...shared,
-    close: { ...shared.close, return_ref: 'return:1', apply_return_ref: 'apply:1', reap_ref: 'reap:1', rejoin_ref: 'rejoin:1' },
-  }));
+  result = compileInteractionLifecycle(base({ ...shared, close: closeAccounting({ return_ref: 'return:1', apply_return_ref: 'apply:1', reap_ref: 'reap:1', rejoin_ref: 'rejoin:1' }) }));
   assert.equal(result.next_action, 'VERIFY_CURRENT_READBACK');
 });
 
-test('fully closed interaction can be current without claiming provider effect', () => {
+test('fully closed terminal interaction can close without provider effect', () => {
   const result = compileInteractionLifecycle(base({
     machine_resolvable_next: false,
-    close: {
-      result_ref: 'result:1',
-      burndown_receipt_ref: 'receipt:burndown:1',
+    close: closeAccounting({
       return_ref: 'return:1',
       apply_return_ref: 'apply:1',
       reap_ref: 'reap:1',
       rejoin_ref: 'rejoin:1',
       current_readback_ref: 'readback:current:1',
-    },
+    }),
   }));
   assert.equal(result.status, 'CLOSED_CURRENT');
   assert.equal(result.root_stop_allowed, true);
@@ -162,18 +171,36 @@ test('blocked sibling never masks runnable sibling', () => {
       { work_ref: 'work:blocked', state: 'TRUE_WAIT', wake_ref: 'wake:external' },
       { work_ref: 'work:runnable', state: 'RUNNABLE', machine_resolvable: true },
     ],
-    close: {
-      result_ref: 'result:1',
-      burndown_receipt_ref: 'receipt:burndown:1',
+    close: closeAccounting({
+      terminal_ref: null,
+      next_ref: 'work:runnable',
       return_ref: 'return:1',
       apply_return_ref: 'apply:1',
       reap_ref: 'reap:1',
       rejoin_ref: 'rejoin:1',
       current_readback_ref: 'readback:current:1',
-    },
+    }),
   }));
   assert.equal(result.root_stop_allowed, false);
   assert.equal(result.next_action, 'CONTINUE_RUNNABLE_SIBLING');
+});
+
+test('owner-only sibling prevents root-stop after local close', () => {
+  const result = compileInteractionLifecycle(base({
+    machine_resolvable_next: false,
+    siblings: [{ work_ref: 'work:owner', state: 'OWNER_ONLY', owner_required: true }],
+    close: closeAccounting({
+      terminal_ref: null,
+      wait_ref: 'wait:owner-decision',
+      return_ref: 'return:1',
+      apply_return_ref: 'apply:1',
+      reap_ref: 'reap:1',
+      rejoin_ref: 'rejoin:1',
+      current_readback_ref: 'readback:current:1',
+    }),
+  }));
+  assert.equal(result.status, 'CLOSED_CURRENT');
+  assert.equal(result.root_stop_allowed, false);
 });
 
 test('three child closes require all three child close dispositions', () => {
@@ -185,22 +212,20 @@ test('three child closes require all three child close dispositions', () => {
       { child_ref: 'child:b', open_receipt_ref: 'ack:b', close_receipt_ref: 'close:b', disposition: 'ACTIVE' },
       { child_ref: 'child:c', open_receipt_ref: 'ack:c', disposition: 'ACTIVE' },
     ],
-    close: {
-      result_ref: 'result:1',
-      burndown_receipt_ref: 'receipt:burndown:1',
+    close: closeAccounting({
       return_ref: 'return:1',
       apply_return_ref: 'apply:1',
       reap_ref: 'reap:1',
       rejoin_ref: 'rejoin:1',
       current_readback_ref: 'readback:current:1',
-    },
+    }),
   }));
   assert(result.failures.includes('CHILD_CLOSE_DENOMINATOR_INCOMPLETE'));
   assert.equal(result.next_action, 'RESOLVE_CHILD_CLOSE_DENOMINATOR');
   assert.equal(result.root_stop_allowed, false);
 });
 
-assert.equal(passed, 12);
+assert.equal(passed, 14);
 console.log(JSON.stringify({
   status: 'PASS',
   denominator: passed,
