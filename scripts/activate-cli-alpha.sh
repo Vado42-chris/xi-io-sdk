@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+[[ -n "${BASH_VERSION:-}" ]] || { echo 'XIIO_CLI_ALPHA_BLOCKED=RUN_IN_BASH' >&2; exit 10; }
+printf '%s\n' 'xi-io CLI activation, Bash -> xi -> local Ollama. Kiro is not used.'
+
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STUDIO_ROOT="${XIIO_STUDIO_ROOT:-$(dirname "$SDK_ROOT")}" 
 STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/xi-io/cli-alpha"
@@ -27,6 +30,10 @@ cleanup() { rm -rf -- "$TMP_ROOT"; }
 trap cleanup EXIT
 
 golden_state=PASS
+if grep -R -n -F 'kiro-cli' "$SDK_ROOT/bin" "$SDK_ROOT/src" >/dev/null 2>&1; then
+  echo 'XIIO_CLI_ALPHA_BLOCKED=KIRO_DEPENDENCY_DETECTED' >&2
+  exit 11
+fi
 subterranean_state=PASS
 
 # Golden track: the real SDK binary must discover and execute its public command surface.
