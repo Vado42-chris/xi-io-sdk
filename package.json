@@ -11,6 +11,7 @@
     "./components": "./src/components/core.mjs",
     "./behavior": "./src/components/behavior.mjs",
     "./shell": "./src/components/shell.mjs",
+    "./install/studio-headless-topology": "./src/install/studio-headless-topology.mjs",
     "./render": "./src/render/product-surface.mjs",
     "./callables": "./src/callables/resolve.mjs",
     "./adoption": "./src/adoption/primitive-plan.mjs",
