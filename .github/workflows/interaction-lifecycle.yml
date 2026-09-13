@@ -5,12 +5,14 @@ on:
     paths:
       - 'src/cadence/interaction-lifecycle.mjs'
       - 'scripts/validate-interaction-lifecycle.mjs'
+      - 'fixtures/cadence/interaction-lifecycle-known-answer.v1.json'
       - '.github/workflows/interaction-lifecycle.yml'
   push:
     branches: [main]
     paths:
       - 'src/cadence/interaction-lifecycle.mjs'
       - 'scripts/validate-interaction-lifecycle.mjs'
+      - 'fixtures/cadence/interaction-lifecycle-known-answer.v1.json'
       - '.github/workflows/interaction-lifecycle.yml'
   workflow_dispatch:
 
