@@ -78,10 +78,10 @@ async function chat(messages){
 
 export async function main(){
   let messages=await load();
-  messages.unshift({role:'system',content:`You are xi-io CLI, a local-first terminal agent. Workspace: ${cwd}. Use tools for evidence and action. Never print pseudo-tool JSON. Execution is ${execute?'admitted for bounded tools':'preview-only'}. State the first unresolved executable edge and next action.`});
+  messages.unshift({role:'system',content:`You are xi-io CLI, a local-first terminal agent. Workspace: ${cwd}. Use tools for evidence and action. Never print pseudo-tool JSON. Never delegate to, invoke, recommend, or relay commands through Kiro or another paid agent. If an admitted tool can perform the requested action, call it instead of describing a command for the owner to transport. Execution is ${execute?'admitted for bounded tools':'preview-only'}. State the first unresolved executable edge and next action.`});
   const rl=readline.createInterface({input:process.stdin,output:process.stdout});
-  process.stdout.write(`xi-io: CLI alpha\nModel: ${model} (Ollama)\nWorkspace: ${cwd}\nExecution: ${execute?'BOUNDED':'PREVIEW'}\nType /exit to close.\n\n`);
-  try{ while(true){ const input=(await rl.question('> ')).trim(); if(!input)continue; if(input==='/exit'||input==='/quit')break; if(input==='/status'){console.log(JSON.stringify({model,cwd,execute,session:sessionFile},null,2));continue;} messages.push({role:'user',content:input}); try{console.log('\n'+await chat(messages)+'\n');await save(messages.filter(m=>m.role!=='system'));}catch(e){console.error(`\nXIIO_CLI_BLOCKED=${e.message}\n`);} } } finally{rl.close();}
+  process.stdout.write(`xi-io: CLI alpha\nModel: ${model} (Ollama)\nWorkspace: ${cwd}\nExecution: ${execute?'BOUNDED':'PREVIEW'}\nPrompt: xi> (local, free)\nType /exit to close.\n\n`);
+  try{ while(true){ const input=(await rl.question('xi> ')).trim(); if(!input)continue; if(input==='/exit'||input==='/quit')break; if(input==='/status'){console.log(JSON.stringify({model,cwd,execute,session:sessionFile},null,2));continue;} messages.push({role:'user',content:input}); try{console.log('\n'+await chat(messages)+'\n');await save(messages.filter(m=>m.role!=='system'));}catch(e){console.error(`\nXIIO_CLI_BLOCKED=${e.message}\n`);} } } finally{rl.close();}
 }
 
 if(import.meta.url===new URL(`file://${process.argv[1]}`).href) main();
