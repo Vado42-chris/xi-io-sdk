@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STUDIO_ROOT="${XIIO_STUDIO_ROOT:-$(dirname "$SDK_ROOT")}" 
 STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/xi-io/cli-alpha"
 BIN_ROOT="$HOME/.local/bin"
@@ -95,9 +95,21 @@ NODE
 
 [[ "$verdict" == PASS_SIMULATION ]] || { echo "XIIO_CLI_ALPHA_BLOCKED=$verdict" >&2; echo "RECEIPT=$RECEIPT"; exit 30; }
 
+# Build and prove a durable launcher with an empty PATH. NVM must not be required in later shells.
+cat > "$TMP_ROOT/xi-io" <<WRAPPER
+#!/usr/bin/env bash
+exec "$NODE_BIN" "$SDK_ROOT/bin/xi.mjs" "\$@"
+WRAPPER
+chmod 0755 "$TMP_ROOT/xi-io"
+if ! env -i HOME="$HOME" "$TMP_ROOT/xi-io" sdk commands > "$TMP_ROOT/empty-path-sdk-commands.json"; then
+  echo 'XIIO_CLI_ALPHA_BLOCKED=DURABLE_NODE_WRAPPER_FAILED' >&2
+  exit 31
+fi
+
 # Atomic activation after both simulations pass. Preserve the previous executable.
 if [[ -e "$TARGET" || -L "$TARGET" ]]; then cp -a -- "$TARGET" "$BACKUP"; fi
-ln -sfn -- "$SDK_ROOT/bin/xi.mjs" "$TARGET.next"
+cp -- "$TMP_ROOT/xi-io" "$TARGET.next"
+chmod 0755 "$TARGET.next"
 mv -Tf -- "$TARGET.next" "$TARGET"
 chmod 0755 "$SDK_ROOT/bin/xi.mjs"
 
