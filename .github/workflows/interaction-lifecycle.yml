@@ -1,0 +1,30 @@
+name: Interaction lifecycle
+
+on:
+  pull_request:
+    paths:
+      - 'src/cadence/interaction-lifecycle.mjs'
+      - 'scripts/validate-interaction-lifecycle.mjs'
+      - '.github/workflows/interaction-lifecycle.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/cadence/interaction-lifecycle.mjs'
+      - 'scripts/validate-interaction-lifecycle.mjs'
+      - '.github/workflows/interaction-lifecycle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hostile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate interaction lifecycle
+        run: node scripts/validate-interaction-lifecycle.mjs
