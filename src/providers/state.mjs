@@ -1,4 +1,5 @@
 const AUTH_STATES = new Set(['AUTHENTICATED', 'UNAUTHENTICATED', 'UNKNOWN']);
+const BILLING_BLOCK_PATTERN = /(?:recent account payments? (?:have )?failed|spending limit needs? to be increased|billing\s*&\s*plans)/i;
 
 function toInt(value) {
   if (Number.isInteger(value)) return value;
@@ -20,7 +21,13 @@ function normalizeToken(value) {
   return String(value ?? '').trim().toUpperCase();
 }
 
-function classify({ httpStatus, providerStatus, providerReason, failureKind }) {
+function providerMessage(input = {}) {
+  return String(input.provider_message ?? input.error_message ?? input.message ?? '').trim();
+}
+
+function classify({ httpStatus, providerStatus, providerReason, failureKind, message }) {
+  if (providerReason === 'ACCOUNT_BILLING_BLOCKED' || providerReason === 'SPENDING_LIMIT_BLOCKED' || BILLING_BLOCK_PATTERN.test(message)) return 'PROVIDER_ACCOUNT_BILLING_BLOCKED';
+  if (failureKind === 'RUNNER_START_FAILED') return 'PROVIDER_RUNNER_START_FAILED';
   if (failureKind === 'NETWORK_UNREACHABLE') return 'PROVIDER_NETWORK_UNREACHABLE';
   if (httpStatus === 429 && providerStatus === 'RESOURCE_EXHAUSTED') return 'PROVIDER_CAPACITY_EXHAUSTED';
   if (httpStatus === 429) return 'PROVIDER_RATE_LIMITED';
@@ -36,6 +43,8 @@ function classify({ httpStatus, providerStatus, providerReason, failureKind }) {
 
 function operationState(failureClass) {
   switch (failureClass) {
+    case 'PROVIDER_ACCOUNT_BILLING_BLOCKED': return 'BLOCKED_PROVIDER_BILLING';
+    case 'PROVIDER_RUNNER_START_FAILED': return 'WAIT_PROVIDER_START_REASON';
     case 'PROVIDER_CAPACITY_EXHAUSTED':
     case 'PROVIDER_RATE_LIMITED': return 'WAIT_PROVIDER_CAPACITY';
     case 'PROVIDER_AUTH_REQUIRED': return 'WAIT_PROVIDER_AUTH';
@@ -51,6 +60,8 @@ function operationState(failureClass) {
 
 function humanSummary(provider, failureClass) {
   switch (failureClass) {
+    case 'PROVIDER_ACCOUNT_BILLING_BLOCKED': return `${provider} refused to start this operation because account billing or spending-limit state is blocking hosted execution.`;
+    case 'PROVIDER_RUNNER_START_FAILED': return `${provider} failed before a runner or execution step started; resolve provider admission before consuming another hosted attempt.`;
     case 'PROVIDER_CAPACITY_EXHAUSTED': return `${provider} is reachable, but this operation is unavailable because provider capacity or quota is exhausted.`;
     case 'PROVIDER_RATE_LIMITED': return `${provider} is reachable, but this operation is currently rate limited.`;
     case 'PROVIDER_AUTH_REQUIRED': return `${provider} rejected or requires authentication for this operation.`;
@@ -64,6 +75,50 @@ function humanSummary(provider, failureClass) {
   }
 }
 
+export function normalizeHostedRunnerObservation(input = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('hosted runner observation must be an object');
+  const provider = String(input.provider ?? '').trim() || 'Provider';
+  const runnerId = toInt(input.runner_id);
+  const stepsCount = Array.isArray(input.steps) ? input.steps.length : toInt(input.steps_count);
+  const conclusion = normalizeToken(input.conclusion);
+  const message = providerMessage(input);
+  const providerReason = normalizeToken(input.provider_reason);
+  const billingBlocked = BILLING_BLOCK_PATTERN.test(message)
+    || providerReason === 'ACCOUNT_BILLING_BLOCKED'
+    || providerReason === 'SPENDING_LIMIT_BLOCKED';
+  const startObserved = (runnerId != null && runnerId > 0) || (stepsCount != null && stepsCount > 0);
+
+  let admissionState = 'UNKNOWN';
+  let failureClass = null;
+  let localSimulationRecommended = false;
+  if (billingBlocked) {
+    admissionState = 'HOLD_PROVIDER_BILLING';
+    failureClass = 'PROVIDER_ACCOUNT_BILLING_BLOCKED';
+    localSimulationRecommended = true;
+  } else if (conclusion === 'FAILURE' && runnerId === 0 && stepsCount === 0) {
+    admissionState = 'HOLD_PROVIDER_START_FAILURE';
+    failureClass = 'PROVIDER_RUNNER_START_FAILED';
+    localSimulationRecommended = true;
+  } else if (startObserved) {
+    admissionState = 'START_OBSERVED';
+  }
+
+  return {
+    schema: 'xiio.sdk.hosted-runner-admission-observation/v1',
+    provider,
+    operation: String(input.operation ?? '').trim() || 'hosted_job',
+    runner_id: runnerId,
+    steps_count: stepsCount,
+    conclusion: conclusion || null,
+    admission_state: admissionState,
+    failure_class: failureClass,
+    local_simulation_recommended: localSimulationRecommended,
+    hosted_retry_authorized: false,
+    effect_authority: false,
+    human_summary: failureClass ? humanSummary(provider, failureClass) : `${provider} hosted runner admission is ${admissionState}.`,
+  };
+}
+
 export function normalizeProviderFailure(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('provider failure input must be an object');
 
@@ -72,12 +127,13 @@ export function normalizeProviderFailure(input = {}) {
   const providerStatus = normalizeToken(input.provider_status ?? input.error_status);
   const providerReason = normalizeToken(input.provider_reason ?? input.error_reason);
   const failureKind = normalizeToken(input.failure_kind);
+  const message = providerMessage(input);
   const providerReached = input.provider_reached === true || httpStatus != null;
   const explicitAuth = normalizeToken(input.auth_state);
   const authState = AUTH_STATES.has(explicitAuth) ? explicitAuth : httpStatus === 401 ? 'UNAUTHENTICATED' : 'UNKNOWN';
   const retryAfterMs = input.retry_after_ms != null ? toInt(input.retry_after_ms) : parseRetryAfterMs(input.headers);
   const quotaResetAt = typeof input.quota_reset_at === 'string' && input.quota_reset_at.trim() ? input.quota_reset_at.trim() : null;
-  const failureClass = classify({ httpStatus, providerStatus, providerReason, failureKind });
+  const failureClass = classify({ httpStatus, providerStatus, providerReason, failureKind, message });
   const traceId = typeof input.provider_trace_id === 'string' && input.provider_trace_id.trim() ? input.provider_trace_id.trim() : null;
 
   return {
