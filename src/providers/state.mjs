@@ -1,4 +1,5 @@
 const AUTH_STATES = new Set(['AUTHENTICATED', 'UNAUTHENTICATED', 'UNKNOWN']);
+const BILLING_BLOCK_PATTERN = /\b(?:recent\s+account\s+payments?\s+have\s+failed|payments?\s+(?:have\s+)?failed|billing\s+(?:is\s+)?(?:blocked|failed|past\s+due)|spending\s+limit(?:\s+needs?\s+to\s+be\s+increased|\s+(?:was|is|has\s+been)\s+(?:hit|reached|exceeded))?|increase\s+(?:your\s+)?spending\s+limit|billing\s*&\s*plans)\b/i;
 
 function toInt(value) {
   if (Number.isInteger(value)) return value;
@@ -20,7 +21,17 @@ function normalizeToken(value) {
   return String(value ?? '').trim().toUpperCase();
 }
 
-function classify({ httpStatus, providerStatus, providerReason, failureKind }) {
+function providerMessage(input = {}) {
+  const candidates = [input.message, input.error_message, input.provider_message, input.detail];
+  return candidates.find(value => typeof value === 'string' && value.trim())?.trim() || '';
+}
+
+function classify({ httpStatus, providerStatus, providerReason, failureKind, message }) {
+  if (BILLING_BLOCK_PATTERN.test(message)
+    || providerReason === 'BILLING_BLOCKED'
+    || providerReason === 'PAYMENT_FAILED'
+    || providerReason === 'SPENDING_LIMIT_REACHED'
+    || providerStatus === 'BILLING_BLOCKED') return 'PROVIDER_BILLING_BLOCKED';
   if (failureKind === 'NETWORK_UNREACHABLE') return 'PROVIDER_NETWORK_UNREACHABLE';
   if (httpStatus === 429 && providerStatus === 'RESOURCE_EXHAUSTED') return 'PROVIDER_CAPACITY_EXHAUSTED';
   if (httpStatus === 429) return 'PROVIDER_RATE_LIMITED';
@@ -36,6 +47,7 @@ function classify({ httpStatus, providerStatus, providerReason, failureKind }) {
 
 function operationState(failureClass) {
   switch (failureClass) {
+    case 'PROVIDER_BILLING_BLOCKED': return 'WAIT_PROVIDER_BILLING_REQUALIFICATION';
     case 'PROVIDER_CAPACITY_EXHAUSTED':
     case 'PROVIDER_RATE_LIMITED': return 'WAIT_PROVIDER_CAPACITY';
     case 'PROVIDER_AUTH_REQUIRED': return 'WAIT_PROVIDER_AUTH';
@@ -51,6 +63,7 @@ function operationState(failureClass) {
 
 function humanSummary(provider, failureClass) {
   switch (failureClass) {
+    case 'PROVIDER_BILLING_BLOCKED': return `${provider} is not economically eligible for this operation because billing, payment, or spending-limit state blocked the provider before work started.`;
     case 'PROVIDER_CAPACITY_EXHAUSTED': return `${provider} is reachable, but this operation is unavailable because provider capacity or quota is exhausted.`;
     case 'PROVIDER_RATE_LIMITED': return `${provider} is reachable, but this operation is currently rate limited.`;
     case 'PROVIDER_AUTH_REQUIRED': return `${provider} rejected or requires authentication for this operation.`;
@@ -72,13 +85,15 @@ export function normalizeProviderFailure(input = {}) {
   const providerStatus = normalizeToken(input.provider_status ?? input.error_status);
   const providerReason = normalizeToken(input.provider_reason ?? input.error_reason);
   const failureKind = normalizeToken(input.failure_kind);
+  const message = providerMessage(input);
   const providerReached = input.provider_reached === true || httpStatus != null;
   const explicitAuth = normalizeToken(input.auth_state);
   const authState = AUTH_STATES.has(explicitAuth) ? explicitAuth : httpStatus === 401 ? 'UNAUTHENTICATED' : 'UNKNOWN';
   const retryAfterMs = input.retry_after_ms != null ? toInt(input.retry_after_ms) : parseRetryAfterMs(input.headers);
   const quotaResetAt = typeof input.quota_reset_at === 'string' && input.quota_reset_at.trim() ? input.quota_reset_at.trim() : null;
-  const failureClass = classify({ httpStatus, providerStatus, providerReason, failureKind });
+  const failureClass = classify({ httpStatus, providerStatus, providerReason, failureKind, message });
   const traceId = typeof input.provider_trace_id === 'string' && input.provider_trace_id.trim() ? input.provider_trace_id.trim() : null;
+  const billingBlocked = failureClass === 'PROVIDER_BILLING_BLOCKED';
 
   return {
     schema: 'xiio.sdk.provider-operation-state/v1',
@@ -91,6 +106,10 @@ export function normalizeProviderFailure(input = {}) {
     auth_state: authState,
     failure_class: failureClass,
     operation_state: operationState(failureClass),
+    billing_state: billingBlocked ? 'BLOCKED' : 'UNKNOWN',
+    economic_eligibility: billingBlocked ? 'INELIGIBLE' : 'UNKNOWN',
+    dispatch_eligible: false,
+    requalification_required_before_redispatch: true,
     retry_after_ms: Number.isInteger(retryAfterMs) && retryAfterMs >= 0 ? retryAfterMs : null,
     quota_reset_at: quotaResetAt,
     retry_timing_state: (Number.isInteger(retryAfterMs) && retryAfterMs >= 0) || quotaResetAt ? 'EVIDENCED' : 'UNKNOWN',
@@ -100,6 +119,7 @@ export function normalizeProviderFailure(input = {}) {
     source_failure_credit: false,
     work_invalidated: false,
     raw_provider_payload_included: false,
+    raw_provider_message_included: false,
     human_summary: humanSummary(provider, failureClass),
     next_action_class: operationState(failureClass),
   };
