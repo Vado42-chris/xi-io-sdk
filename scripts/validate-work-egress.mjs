@@ -26,11 +26,13 @@ test('02 WordPress high-cardinality registry does not mint authority', () => {
   assert.equal(out.provider_effect_authority, false);
 });
 
-test('03 WordPress is not a special projection kind', () => {
+test('03 portable plugin identity stays distinct from target identity', () => {
   const out = compileWorkEgressProjection(clone(fixture));
   const wp = out.projections.find(x => x.provider_family === 'WORDPRESS');
-  assert.equal(wp.kind, 'CMS_OBJECT');
-  assert.ok(out.hard.includes('WORDPRESS != SPECIAL_EGRESS_PLANE'));
+  assert.equal(wp.plugin_ref, 'plugin:wordpress');
+  assert.equal(wp.registry_ref, 'registry:wordpress');
+  assert.notEqual(wp.plugin_ref, wp.registry_ref);
+  assert.ok(out.hard.includes('PLUGIN_IDENTITY != TARGET_NATIVE_IDENTITY'));
 });
 
 test('04 arbitrary typed plugin surface kind is admitted', () => {
@@ -39,9 +41,13 @@ test('04 arbitrary typed plugin surface kind is admitted', () => {
   assert.equal(compileWorkEgressProjection(input).projections[0].kind, 'FUTURE_PROVIDER_OBJECT');
 });
 
-test('05 missing registry generation fails closed', () => {
-  const input = clone(fixture); input.projections[0].registry_generation = '';
-  assert.throws(() => compileWorkEgressProjection(input), /REGISTRY_GENERATION_REQUIRED/);
+test('05 portable and target generation omissions fail closed', () => {
+  const portable = clone(fixture); portable.projections[0].manifest_generation = '';
+  assert.throws(() => compileWorkEgressProjection(portable), /MANIFEST_GENERATION_REQUIRED/);
+  const capability = clone(fixture); capability.projections[0].capability_generation = '';
+  assert.throws(() => compileWorkEgressProjection(capability), /CAPABILITY_GENERATION_REQUIRED/);
+  const target = clone(fixture); target.projections[0].registry_generation = '';
+  assert.throws(() => compileWorkEgressProjection(target), /REGISTRY_GENERATION_REQUIRED/);
 });
 
 test('06 duplicate projection identity fails closed', () => {
