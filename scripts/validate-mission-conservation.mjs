@@ -72,7 +72,7 @@ const baseIngress = {
   assert.equal(out.result,'FAIL_RETURN_MISSING');
 }
 
-// H8 valid nonterminal continuation.
+// H8 valid standard nonterminal continuation.
 {
   const out = evaluateMissionResult({
     ingress:baseIngress,
@@ -81,10 +81,11 @@ const baseIngress = {
   });
   assert.equal(out.result,'MISSION_CONTINUES');
   assert.equal(out.next,'hvt:next');
+  assert.equal(out.continuation_profile,'STANDARD');
   assert.equal(out.steps.length,8);
 }
 
-// H9 valid terminal closure.
+// H9 valid standard terminal closure.
 {
   const out = evaluateMissionResult({
     ingress:baseIngress,
@@ -142,10 +143,80 @@ const baseIngress = {
   assert.equal(out.pass,false);
 }
 
+// H13 Bins/POI-style profile cannot continue after only the first RETURN/APPLY + REAP.
+{
+  const ingress = {
+    ...baseIngress,
+    continuation_profile:'POST_REAP_REJOIN',
+    continuation_profile_ref:'cadence:poi-return-after-reap/v1',
+  };
+  const out = evaluateMissionResult({
+    ingress,
+    payload:{ mission_root_ref:baseIngress.mission_root_ref, generation:'g1', mutated_scope:['aries-api'] },
+    observations:{
+      current_generation_ref:'provider:g1',
+      scope_readback_ref:'scope:1',
+      verified_evidence_refs:['host:aries','endpoint:8081'],
+      execution_receipt_ref:'exec:1', execution_result:'PASS',
+      return_ref:'return:1', apply_return_ref:'apply:1', apply_return_readback_ref:'readback:1',
+      reap_ref:'reap:1', next_ref:'hvt:next', root_closed:false,
+    },
+  });
+  assert.equal(out.result,'FAIL_POST_REAP_REJOIN');
+  assert.equal(out.pass,false);
+  assert.match(out.steps.at(-1).evidence.join(' '),/reap_return_ref/);
+  assert.match(out.steps.at(-1).evidence.join(' '),/second_recompile_ref/);
+  assert.equal(out.next,'RETURN_REAP_RESULT_APPLY_AND_REJOIN_CURRENT');
+}
+
+// H14 POST_REAP_REJOIN may continue only after the second return/apply/recompile/current rejoin is observed.
+{
+  const ingress = {
+    ...baseIngress,
+    continuation_profile:'POST_REAP_REJOIN',
+    continuation_profile_ref:'cadence:poi-return-after-reap/v1',
+  };
+  const out = evaluateMissionResult({
+    ingress,
+    payload:{ mission_root_ref:baseIngress.mission_root_ref, generation:'g1', mutated_scope:['aries-api'] },
+    observations:{
+      current_generation_ref:'provider:g1',
+      scope_readback_ref:'scope:1',
+      verified_evidence_refs:['host:aries','endpoint:8081'],
+      execution_receipt_ref:'exec:1', execution_result:'PASS',
+      return_ref:'return:1', apply_return_ref:'apply:1', apply_return_readback_ref:'readback:1',
+      reap_ref:'reap:1', next_ref:'hvt:next', root_closed:false,
+      reap_result_ref:'reap-result:1',
+      reap_return_ref:'reap-return:1',
+      reap_apply_return_ref:'reap-apply:1',
+      reap_apply_return_readback_ref:'reap-apply-readback:1',
+      second_recompile_ref:'recompile:2',
+      rejoin_current_ref:'bins-current:g2',
+    },
+  });
+  assert.equal(out.result,'MISSION_CONTINUES');
+  assert.equal(out.pass,true);
+  assert.equal(out.continuation_profile,'POST_REAP_REJOIN');
+  assert.equal(out.steps.at(-1).name,'POST_REAP_REJOIN');
+  assert.equal(out.steps.at(-1).state,'PASS');
+}
+
+// H15 non-standard continuation semantics must be generation/addressable by a profile ref.
+{
+  assert.throws(
+    () => evaluateMissionResult({
+      ingress:{ ...baseIngress, continuation_profile:'POST_REAP_REJOIN' },
+      payload:{ mission_root_ref:baseIngress.mission_root_ref, generation:'g1' },
+      observations:{},
+    }),
+    /CONTINUATION_PROFILE_REF_REQUIRED/,
+  );
+}
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.mission-evaluation-hostile-receipt/v1',
   result:'PASS',
-  hostiles:12,
+  hostiles:15,
   false_greens_accepted:0,
   provider_effects:0,
 },null,2));
