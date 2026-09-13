@@ -25,7 +25,15 @@ export function compileLocalAckFirstPreflight({
   if (hvtSelected !== true) blockers.push('HVT_NOT_SELECTED');
 
   const localReady = blockers.length === 0;
-  const remoteBlocked = ['BILLING_BLOCKED','SPEND_LIMIT_BLOCKED','PAYMENT_FAILED','PRE_RUNNER_BLOCKED','HOLD_PROVIDER_BILLING','HOLD_PROVIDER_START_FAILURE'].includes(remote);
+  const remoteBlocked = [
+    'BILLING_BLOCKED',
+    'SPEND_LIMIT_BLOCKED',
+    'PAYMENT_FAILED',
+    'PRE_RUNNER_BLOCKED',
+    'HOLD_PROVIDER_BILLING',
+    'BLOCKED_PROVIDER_BILLING',
+    'HOLD_PROVIDER_START_FAILURE',
+  ].includes(remote);
   if (remoteBlocked) notices.push('REMOTE_EXECUTOR_BLOCKED_USE_LOCAL_SIBLINGS');
 
   const externalProjectionAllowed = localReady && externalProjectionRequested === true;
@@ -36,6 +44,8 @@ export function compileLocalAckFirstPreflight({
     blockers,
     notices,
     local_ready: localReady,
+    remote_executor_eligible: !remoteBlocked,
+    remote_requalification_required: remoteBlocked,
     external_projection_allowed: externalProjectionAllowed,
     owner_relay_required: false,
     next: !localReady
@@ -51,6 +61,7 @@ export function compileLocalAckFirstPreflight({
       'HVT_SELECTED_BEFORE_ATTEMPT',
       'OWNER_AS_SWITCHBOARD = FAIL',
       'REMOTE_BLOCKED != ROOT_STOP',
+      'REMOTE_BILLING_BLOCKED != ECONOMICALLY_ELIGIBLE',
       'ACK != ATTEMPT != RESULT',
     ],
   });

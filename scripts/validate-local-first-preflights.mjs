@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { compileLocalAckFirstPreflight } from '../src/acks/local-first.mjs';
-import { normalizeHostedRunnerObservation } from '../src/providers/state.mjs';
+import { normalizeHostedRunnerObservation, normalizeProviderFailure } from '../src/providers/state.mjs';
 import { compileLeaseConsentGate } from '../src/documents/versioned-consent.mjs';
 
 const githubBillingMessage = 'The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the Billing & plans section in your settings';
@@ -17,8 +17,24 @@ const blockedLocal = compileLocalAckFirstPreflight({
 assert.equal(blockedLocal.status,'WAIT_LOCAL_FIRST');
 assert.equal(blockedLocal.external_projection_allowed,false);
 assert.equal(blockedLocal.owner_relay_required,false);
+assert.equal(blockedLocal.remote_executor_eligible,false);
+assert.equal(blockedLocal.remote_requalification_required,true);
 assert.ok(blockedLocal.blockers.includes('LOCAL_ACK_MISSING'));
 assert.ok(blockedLocal.notices.includes('REMOTE_EXECUTOR_BLOCKED_USE_LOCAL_SIBLINGS'));
+
+const cursorFailure = normalizeProviderFailure({
+  provider:'Cursor', operation:'cloud_agent_job_start', provider_message:githubBillingMessage,
+});
+assert.equal(cursorFailure.operation_state,'BLOCKED_PROVIDER_BILLING');
+const cursorLocalFirst = compileLocalAckFirstPreflight({
+  localRuntime:'BOUND', localAck:'YES', localSimulation:'PASS', crmCurrent:true, hvtSelected:true,
+  externalProjectionRequested:false, remoteExecutorState:cursorFailure.operation_state,
+});
+assert.equal(cursorLocalFirst.status,'LOCAL_READY');
+assert.equal(cursorLocalFirst.remote_executor_eligible,false);
+assert.equal(cursorLocalFirst.remote_requalification_required,true);
+assert.ok(cursorLocalFirst.notices.includes('REMOTE_EXECUTOR_BLOCKED_USE_LOCAL_SIBLINGS'));
+assert.equal(cursorLocalFirst.next,'EXECUTE_LOCAL_OR_RETURN_TYPED_WAIT');
 
 const localReady = compileLocalAckFirstPreflight({
   localRuntime:'BOUND', localAck:'YES', localSimulation:'PASS', crmCurrent:true, hvtSelected:true,
@@ -26,6 +42,7 @@ const localReady = compileLocalAckFirstPreflight({
 });
 assert.equal(localReady.status,'LOCAL_READY');
 assert.equal(localReady.local_ready,true);
+assert.equal(localReady.remote_executor_eligible,false);
 assert.equal(localReady.next,'EXECUTE_LOCAL_OR_RETURN_TYPED_WAIT');
 
 const firstLease = compileLeaseConsentGate({
@@ -50,4 +67,4 @@ const sameLease = compileLeaseConsentGate({
 assert.equal(sameLease.status,'READY_TO_REVIEW_AND_SIGN');
 assert.equal(sameLease.signing_allowed,true);
 
-console.log('LOCAL_FIRST_PREFLIGHTS_PASS accepted_provider_preflight=1 local_ack_first=1 versioned_lease_consent=1 effects=0');
+console.log('LOCAL_FIRST_PREFLIGHTS_PASS accepted_provider_preflight=1 cursor_billing_composed=1 remote_eligible_false=1 local_ack_first=1 versioned_lease_consent=1 effects=0');
