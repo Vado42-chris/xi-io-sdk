@@ -10,24 +10,52 @@ function budget(value) {
   return Number.isSafeInteger(n) ? Math.min(MAX_BYTE_BUDGET, Math.max(MIN_BYTE_BUDGET, n)) : DEFAULT_BYTE_BUDGET;
 }
 
+function normalizeRooms(input = {}) {
+  const supplied = Array.isArray(input.rooms) && input.rooms.length
+    ? input.rooms
+    : Array.isArray(input.rotation_rooms) && input.rotation_rooms.length
+      ? input.rotation_rooms
+      : null;
+  return supplied
+    ? supplied.slice(0, 12).map((room, i) => ({
+        ref: text(room?.ref, `room:${i + 1}`),
+        role: text(room?.role, 'UNBOUND'),
+        detail: text(room?.detail),
+      }))
+    : [{
+        ref: text(input.room_ref ?? input.room?.ref, 'room:current'),
+        role: text(input.room_role ?? input.room?.role, 'CURRENT'),
+        detail: text(input.room_detail ?? input.room?.detail),
+      }];
+}
+
 function trim(packet, max) {
   if (bytes(packet) <= max) return packet;
   const out = structuredClone(packet);
   out.evidence_refs = list(out.evidence_refs, 4);
   out.cross_cutting_returns = list(out.cross_cutting_returns, 2);
   out.invariants = list(out.invariants, 5);
-  out.room.detail = text(out.room.detail).slice(0, 384);
+  out.rotation_rooms = (out.rotation_rooms || []).map((room) => ({
+    ref: text(room.ref).slice(0, 128),
+    role: text(room.role).slice(0, 96),
+    detail: text(room.detail).slice(0, 160),
+  }));
+  out.room.detail = text(out.room.detail).slice(0, 192);
   out.first_red = text(out.first_red).slice(0, 192);
   out.next_machine_action = text(out.next_machine_action).slice(0, 384);
   out.truncated_to_budget = true;
+  if (bytes(out) <= max) return out;
+
+  out.rotation_rooms = out.rotation_rooms.map((room) => ({ ref: room.ref, role: room.role, detail: '' }));
+  out.evidence_refs = list(out.evidence_refs, 2);
+  out.cross_cutting_returns = list(out.cross_cutting_returns, 1);
+  out.invariants = list(out.invariants, 4);
   return out;
 }
 
 export function compileAckRoomRotation(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('ACK room rotation input must be an object');
-  const rooms = Array.isArray(input.rooms) && input.rooms.length
-    ? input.rooms.map((room, i) => ({ ref: text(room?.ref, `room:${i + 1}`), role: text(room?.role, 'UNBOUND'), detail: text(room?.detail) }))
-    : [{ ref: text(input.room_ref, 'room:current'), role: text(input.room_role, 'CURRENT'), detail: text(input.room_detail) }];
+  const rooms = normalizeRooms(input);
   const rawIndex = Number.isSafeInteger(input.room_index) ? input.room_index : 0;
   const roomIndex = ((rawIndex % rooms.length) + rooms.length) % rooms.length;
   const max = budget(input.byte_budget);
@@ -46,6 +74,7 @@ export function compileAckRoomRotation(input = {}) {
     room_count: rooms.length,
     room: rooms[roomIndex],
     next_room_ref: rooms[(roomIndex + 1) % rooms.length].ref,
+    rotation_rooms: rooms,
     first_red: text(input.first_red, 'UNKNOWN'),
     effect_ceiling: text(input.effect_ceiling, 'NO_EFFECT'),
     return_target_ref: text(input.return_target_ref, 'UNBOUND'),
@@ -73,5 +102,11 @@ export function compileAckRoomRotation(input = {}) {
 
 export function rotateAckRoom(previous = {}, delta = {}) {
   const index = Number.isSafeInteger(previous.room_index) ? previous.room_index : -1;
-  return compileAckRoomRotation({ ...previous, ...delta, room_index: index + 1, baseline_generation: text(delta.baseline_generation, previous.subject_generation || previous.baseline_generation || 'UNKNOWN') });
+  return compileAckRoomRotation({
+    ...previous,
+    ...delta,
+    rooms: Array.isArray(delta.rooms) && delta.rooms.length ? delta.rooms : previous.rotation_rooms,
+    room_index: index + 1,
+    baseline_generation: text(delta.baseline_generation, previous.subject_generation || previous.baseline_generation || 'UNKNOWN')
+  });
 }
