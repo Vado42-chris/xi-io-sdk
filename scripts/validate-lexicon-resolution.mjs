@@ -14,6 +14,11 @@ const cases = [
   ['@babysit', 'cadence.continue'],
   ['#babysit', 'cadence.continue'],
   ['[babysit]', 'cadence.continue'],
+  ['rotfl', 'cadence.continue'],
+  ['/rotfl', 'cadence.continue'],
+  ['@rotfl', 'cadence.continue'],
+  ['#rotfl', 'cadence.continue'],
+  ['[ROTFL]', 'cadence.continue'],
   ['[REAP]', 'cadence.continue'],
   ['[EAT]', 'cadence.continue'],
   ['[CADENCE]', 'cadence.continue'],
@@ -45,19 +50,22 @@ assert(ambiguous.matches.length > 1);
 assert.equal(ambiguous.authority_granted, false);
 assert.equal(ambiguous.provider_effect, false);
 
-// Alias surface is semantic sugar only: temporal wording and BBCode do not create second schedulers or authority.
+// Alias surface is semantic sugar only: mnemonic/temporal wording and BBCode do not create second schedulers or authority.
 assert.equal(resolveLexiconCommand('burn').command.id, resolveLexiconCommand('overnight burn').command.id);
 assert.equal(resolveLexiconCommand('/babysit').command.id, resolveLexiconCommand('#babysit').command.id);
-for (const token of ['[REAP]', '[EAT]', '[CADENCE]', '[golden_path]', '[babysit]']) {
+assert.equal(resolveLexiconCommand('rotfl').command.id, resolveLexiconCommand('#rotfl').command.id);
+for (const token of ['[REAP]', '[EAT]', '[CADENCE]', '[golden_path]', '[babysit]', '[ROTFL]']) {
   assert.equal(resolveLexiconCommand(token).command.id, 'cadence.continue');
 }
 assert(resolveLexiconCommand('[REAP]').hard.includes('BBCODE_TOKEN != AUTHORITY'));
+assert(resolveLexiconCommand('[ROTFL]').hard.includes('ALIAS != SEMANTIC_OWNER'));
 
 console.log(JSON.stringify({
   status: 'PASS',
   cases: cases.length + 3,
   burn_aliases_same_semantic_id: true,
   babysit_aliases_same_semantic_id: true,
+  rotfl_aliases_same_semantic_id: true,
   bbcode_aliases_same_semantic_id: true,
   ambiguous_tag_fails_closed: true,
   authority_granted: 0,
