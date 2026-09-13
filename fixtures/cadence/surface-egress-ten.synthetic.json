@@ -1,0 +1,25 @@
+{
+  "root_ref": "root:surface-egress-hvt",
+  "project_ref": "project:surface-egress-hvt",
+  "work_ref": "work:publish-bundle-001",
+  "work_revision": 1,
+  "work_state": "CURRENT",
+  "crm_card_ref": "crm:surface-egress-hvt",
+  "punchcard_ref": "punchcard:surface-egress-hvt",
+  "punchcard_generation": "g1",
+  "cadence_wake_ref": "wake:surface-egress-hvt",
+  "hot_folder_ref": "bins:hotfolder:surface-egress-hvt",
+  "return_target_ref": "return:surface-egress-hvt",
+  "projections": [
+    {"projection_ref":"egress:wordpress","provider_family":"WORDPRESS","adapter_ref":"adapter:wordpress","adapter_generation":"g1","registry_ref":"registry:wordpress","registry_generation":"g42","registry_size_observed":5000,"surface_ref":"wordpress:site:fixture","capability_ref":"wordpress:ability:content.write","kind":"CMS_OBJECT","status":"READ_BACK","provider_readback_ref":"readback:wordpress:1"},
+    {"projection_ref":"egress:slack","provider_family":"SLACK","adapter_ref":"adapter:slack","adapter_generation":"g1","registry_ref":"registry:slack-channels","registry_generation":"g8","registry_size_observed":75,"surface_ref":"slack:channel:fixture","capability_ref":"slack:message.write","kind":"MESSAGE","status":"READ_BACK","provider_readback_ref":"readback:slack:1"},
+    {"projection_ref":"egress:gmail","provider_family":"GMAIL","adapter_ref":"adapter:gmail","adapter_generation":"g1","registry_ref":"registry:gmail-mailboxes","registry_generation":"g3","registry_size_observed":4,"surface_ref":"gmail:mailbox:fixture","capability_ref":"gmail:message.send","kind":"MESSAGE","status":"READ_BACK","provider_readback_ref":"readback:gmail:1"},
+    {"projection_ref":"egress:drive","provider_family":"GOOGLE_DRIVE","adapter_ref":"adapter:drive","adapter_generation":"g1","registry_ref":"registry:drive-files","registry_generation":"g7","registry_size_observed":1200,"surface_ref":"drive:folder:fixture","capability_ref":"drive:file.write","kind":"DOCUMENT","status":"READ_BACK","provider_readback_ref":"readback:drive:1"},
+    {"projection_ref":"egress:github","provider_family":"GITHUB","adapter_ref":"adapter:github","adapter_generation":"g1","registry_ref":"registry:github-repositories","registry_generation":"g5","registry_size_observed":100,"surface_ref":"github:repo:fixture","capability_ref":"github:issue.write","kind":"ISSUE","status":"READ_BACK","provider_readback_ref":"readback:github:1"},
+    {"projection_ref":"egress:cloudflare","provider_family":"CLOUDFLARE","adapter_ref":"adapter:cloudflare","adapter_generation":"g1","registry_ref":"registry:cloudflare-zones","registry_generation":"g2","registry_size_observed":8,"surface_ref":"cloudflare:zone:fixture","capability_ref":"cloudflare:deploy.write","kind":"DEPLOYMENT","status":"READ_BACK","provider_readback_ref":"readback:cloudflare:1"},
+    {"projection_ref":"egress:pdf","provider_family":"PDF","adapter_ref":"adapter:pdf","adapter_generation":"g1","registry_ref":"registry:document-outputs","registry_generation":"g1","registry_size_observed":12,"surface_ref":"file:pdf:fixture","capability_ref":"document:pdf.render","kind":"DOCUMENT","status":"READ_BACK","provider_readback_ref":"readback:pdf:1"},
+    {"projection_ref":"egress:sheets","provider_family":"GOOGLE_SHEETS","adapter_ref":"adapter:sheets","adapter_generation":"g1","registry_ref":"registry:sheets","registry_generation":"g2","registry_size_observed":30,"surface_ref":"sheets:spreadsheet:fixture","capability_ref":"sheets:range.write","kind":"SPREADSHEET","status":"READ_BACK","provider_readback_ref":"readback:sheets:1"},
+    {"projection_ref":"egress:adobe","provider_family":"ADOBE","adapter_ref":"adapter:adobe","adapter_generation":"g1","registry_ref":"registry:adobe-assets","registry_generation":"g4","registry_size_observed":300,"surface_ref":"adobe:asset:fixture","capability_ref":"adobe:asset.write","kind":"MEDIA","status":"READ_BACK","provider_readback_ref":"readback:adobe:1"},
+    {"projection_ref":"egress:dropbox","provider_family":"DROPBOX","adapter_ref":"adapter:dropbox","adapter_generation":"g1","registry_ref":"registry:dropbox-files","registry_generation":"g3","registry_size_observed":800,"surface_ref":"dropbox:folder:fixture","capability_ref":"dropbox:file.write","kind":"FILE","status":"READ_BACK","provider_readback_ref":"readback:dropbox:1"}
+  ]
+}
