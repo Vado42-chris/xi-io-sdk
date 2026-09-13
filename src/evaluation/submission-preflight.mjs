@@ -1,4 +1,5 @@
-const BILLING_STATES = new Set(['HEALTHY', 'PAYMENT_FAILED', 'SPENDING_LIMIT', 'UNKNOWN']);
+import { normalizeHostedRunnerObservation } from '../providers/state.mjs';
+
 const PROVIDER_CURRENTNESS = new Set(['CURRENT', 'STALE', 'UNKNOWN']);
 
 function text(value, code) {
@@ -29,13 +30,14 @@ function validateLocalAck(ack) {
   return ack;
 }
 
-function meter({ pricingRef, localSimUnits, providerAttemptUnits, preventedProviderAttemptUnits }) {
+function meter({ pricingRef, localSimUnits, providerAttemptUnits, preventedProviderAttemptUnits, providerAdmissionState }) {
   return Object.freeze({
     schema: 'xiio.sdk.metered-execution/v1',
     pricing_ref: pricingRef,
     local_sim_units: localSimUnits,
     provider_attempt_units: providerAttemptUnits,
     prevented_provider_attempt_units: preventedProviderAttemptUnits,
+    provider_admission_state: providerAdmissionState,
     provider_effect_units: 0,
     hard: [
       'METERED_UNIT != EFFECT_AUTHORITY',
@@ -76,12 +78,11 @@ export function compileSubmissionPreflight(input) {
   const meterRef = text(input.meter_ref, 'METER_REF_REQUIRED');
   const localAck = validateLocalAck(input.local_ack);
 
-  const provider = input.provider_preflight && typeof input.provider_preflight === 'object'
-    ? input.provider_preflight
+  const providerObservation = normalizeHostedRunnerObservation(input.provider_observation ?? {});
+  const provider = input.provider_currentness && typeof input.provider_currentness === 'object'
+    ? input.provider_currentness
     : {};
-  const billingState = text(provider.billing_state, 'BILLING_STATE_REQUIRED');
-  if (!BILLING_STATES.has(billingState)) throw new Error('BILLING_STATE_INVALID');
-  const currentness = text(provider.currentness, 'PROVIDER_CURRENTNESS_REQUIRED');
+  const currentness = text(provider.state, 'PROVIDER_CURRENTNESS_REQUIRED');
   if (!PROVIDER_CURRENTNESS.has(currentness)) throw new Error('PROVIDER_CURRENTNESS_INVALID');
   const providerReadbackRef = optionalText(provider.readback_ref);
   const providerAdmissionRef = optionalText(provider.admission_ref);
@@ -90,7 +91,9 @@ export function compileSubmissionPreflight(input) {
   const providerAttemptUnits = finiteNonNegative(input.provider_attempt_units ?? 1, 'PROVIDER_ATTEMPT_UNITS_INVALID');
 
   const ackYes = localAck.ack === 'YES';
-  const billingHealthy = billingState === 'HEALTHY';
+  const providerStartObserved = providerObservation.admission_state === 'START_OBSERVED';
+  const providerHold = providerObservation.admission_state === 'HOLD_PROVIDER_BILLING'
+    || providerObservation.admission_state === 'HOLD_PROVIDER_START_FAILURE';
   const providerCurrent = currentness === 'CURRENT' && Boolean(providerReadbackRef);
   const providerAdmitted = Boolean(providerAdmissionRef);
 
@@ -105,9 +108,14 @@ export function compileSubmissionPreflight(input) {
     next = 'REPAIR_OR_REBIND_LOCAL_ACK';
     route = 'LOCAL_ACK_REPAIR';
     preventedProviderAttemptUnits = providerAttemptUnits;
-  } else if (!billingHealthy) {
-    state = 'LOCAL_SIM_READY_PROVIDER_BILLING_BLOCKED';
+  } else if (providerHold) {
+    state = 'LOCAL_SIM_READY_PROVIDER_ADMISSION_HOLD';
     next = 'CONTINUE_LOCAL_ACK_SIM_WITHOUT_PROVIDER_SUBMISSION';
+    route = 'LOCAL_ACK_SIM_ONLY';
+    preventedProviderAttemptUnits = providerAttemptUnits;
+  } else if (!providerStartObserved) {
+    state = 'LOCAL_SIM_READY_PROVIDER_START_READBACK_WAIT';
+    next = 'READ_BACK_PROVIDER_RUNNER_ADMISSION';
     route = 'LOCAL_ACK_SIM_ONLY';
     preventedProviderAttemptUnits = providerAttemptUnits;
   } else if (!providerCurrent) {
@@ -132,6 +140,7 @@ export function compileSubmissionPreflight(input) {
     localSimUnits: ackYes ? localSimUnits : 0,
     providerAttemptUnits: providerSubmissionEligible ? providerAttemptUnits : 0,
     preventedProviderAttemptUnits,
+    providerAdmissionState: providerObservation.admission_state,
   });
 
   const hotfolder = wake({
@@ -145,7 +154,7 @@ export function compileSubmissionPreflight(input) {
   });
 
   return Object.freeze({
-    schema: 'xiio.sdk.submission-preflight/v1',
+    schema: 'xiio.sdk.submission-preflight/v2',
     mission_root_ref: missionRootRef,
     generation,
     state,
@@ -161,7 +170,10 @@ export function compileSubmissionPreflight(input) {
       reason: localAck.reason,
     }),
     provider: Object.freeze({
-      billing_state: billingState,
+      admission_state: providerObservation.admission_state,
+      failure_class: providerObservation.failure_class,
+      local_simulation_recommended: providerObservation.local_simulation_recommended,
+      hosted_retry_authorized: providerObservation.hosted_retry_authorized,
       currentness,
       readback_ref: providerReadbackRef,
       admission_ref: providerAdmissionRef,
@@ -173,10 +185,11 @@ export function compileSubmissionPreflight(input) {
     effect_authority: false,
     hard: [
       'LOCAL_ACK_FIRST',
+      'HOSTED_RUNNER_OBSERVATION_OWNS_PROVIDER_BILLING_CLASSIFICATION',
       'ACK_YES != PROVIDER_SUBMIT_AUTHORITY',
-      'BILLING_RED => PROVIDER_ATTEMPT_0',
-      'BILLING_UNKNOWN => PROVIDER_ATTEMPT_0',
+      'PROVIDER_ADMISSION_HOLD => PROVIDER_ATTEMPT_0',
       'PRE_RUNNER_BILLING_FAILURE != SOURCE_FAILURE',
+      'PRE_RUNNER_START_FAILURE != SOURCE_FAILURE',
       'LOCAL_SIM_PASS != PROVIDER_PASS',
       'HOTFOLDER_WAKE != ATTEMPT',
       'METERED_BILLING != EFFECT_AUTHORITY',
