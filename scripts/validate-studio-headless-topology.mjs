@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { compileStudioHeadlessTopology } from '../src/install/studio-headless-topology.mjs';
+const x=compileStudioHeadlessTopology({product_id:'xiio_inbox',base_port:8791,state_root:'/tmp/xiio-test',servers:[]});
+assert.equal(x.minimum_server_count,3);
+assert.equal(x.servers.length,3);
+assert.equal(new Set(x.servers.map(s=>s.port)).size,3);
+assert.equal(x.next_hvt,'HVT-001');
+assert.equal(x.cloudflare.hostname,'xiio-inbox.dev.xi-io.net');
+assert.equal(x.crm.external_email_fallback,false);
+assert.equal(x.quarantine.user_existing_settings_mutated,false);
+assert.throws(()=>compileStudioHeadlessTopology({product_id:'x',state_root:'relative'}));
+console.log('studio-headless-topology: PASS');
