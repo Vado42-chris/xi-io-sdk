@@ -27,12 +27,32 @@ assert.equal(first.prove, false);
 assert.equal(first.authority_granted, false);
 assert.equal(first.room.ref, 'room:primitive');
 assert.equal(first.next_room_ref, 'room:human');
+assert.equal(first.rotation_rooms.length, 3);
 assert.equal(first.within_budget, true);
 assert(first.encoded_bytes <= 2048);
 assert.equal(first.metering.rebuild_full_context, false);
 
-const second = rotateAckRoom(first, { rooms, subject_generation: 'g2', first_red: 'OWNER_VISIBLE_READBACK_UNPROVEN', next_machine_action: 'READ_INBOX_DEV_SURFACE' });
+// Critical hostile: rotate using only the returned ACK + delta. The caller must
+// not replay the room list/full history just to preserve the ring.
+const second = rotateAckRoom(first, {
+  subject_generation: 'g2',
+  first_red: 'OWNER_VISIBLE_READBACK_UNPROVEN',
+  next_machine_action: 'READ_INBOX_DEV_SURFACE'
+});
+assert.equal(second.room_count, 3);
+assert.equal(second.rotation_rooms.length, 3);
 assert.equal(second.room.ref, 'room:human');
+assert.equal(second.next_room_ref, 'room:delivery');
 assert.equal(second.attempt, 0);
 assert.equal(second.prove, false);
-console.log('ACK_ROOM_ROTATION=PASS local_ack_consumed=1 full_history_rebuild=0');
+
+const third = rotateAckRoom(second, {
+  subject_generation: 'g3',
+  first_red: 'DELIVERY_READBACK_UNPROVEN',
+  next_machine_action: 'VERIFY_DELIVERY_ROOM'
+});
+assert.equal(third.room.ref, 'room:delivery');
+assert.equal(third.next_room_ref, 'room:primitive');
+assert.equal(third.metering.rotate_room_not_history, true);
+assert.equal(third.metering.rebuild_full_context, false);
+console.log('ACK_ROOM_ROTATION=PASS local_ack_consumed=1 full_history_rebuild=0 ring_replay_required=0');
