@@ -20,7 +20,10 @@ assert.equal(antigravity.source_failure_credit, false);
 assert.equal(antigravity.work_invalidated, false);
 assert.equal(antigravity.automatic_retry_authorized, false);
 assert.equal(antigravity.fallback_authorized, false);
+assert.equal(antigravity.dispatch_eligible, false);
+assert.equal(antigravity.requalification_required_before_redispatch, true);
 assert.equal(antigravity.raw_provider_payload_included, false);
+assert.equal(antigravity.raw_provider_message_included, false);
 assert.match(antigravity.provider_trace_ref, /^provider-trace:/);
 
 const auth = normalizeProviderFailure(load('fixtures/providers/synthetic-auth-required.json'));
@@ -52,4 +55,24 @@ assert.equal(permission.failure_class, 'PROVIDER_PERMISSION_DENIED');
 assert.equal(permission.auth_state, 'UNKNOWN', '403 alone must not invent authenticated identity');
 assert.equal(permission.fallback_authorized, false);
 
-console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=5 source_failure_false_green=0 invented_retry=0 fallback_authority=0');
+const cursorBilling = normalizeProviderFailure(load('fixtures/providers/cursor-spending-limit-blocked.synthetic.json'));
+assert.equal(cursorBilling.failure_class, 'PROVIDER_BILLING_BLOCKED');
+assert.equal(cursorBilling.operation_state, 'WAIT_PROVIDER_BILLING_REQUALIFICATION');
+assert.equal(cursorBilling.billing_state, 'BLOCKED');
+assert.equal(cursorBilling.economic_eligibility, 'INELIGIBLE');
+assert.equal(cursorBilling.dispatch_eligible, false);
+assert.equal(cursorBilling.requalification_required_before_redispatch, true);
+assert.equal(cursorBilling.automatic_retry_authorized, false);
+assert.equal(cursorBilling.fallback_authorized, false);
+assert.equal(cursorBilling.raw_provider_message_included, false);
+assert.doesNotMatch(JSON.stringify(cursorBilling), /Billing & plans|spending limit needs to be increased/i, 'raw billing message must not be projected');
+
+const structuredBilling = normalizeProviderFailure({
+  provider: 'Synthetic Provider F',
+  operation: 'job_start',
+  provider_reason: 'SPENDING_LIMIT_REACHED',
+});
+assert.equal(structuredBilling.failure_class, 'PROVIDER_BILLING_BLOCKED');
+assert.equal(structuredBilling.economic_eligibility, 'INELIGIBLE');
+
+console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=7 billing_blocked=2 dispatch_false_green=0 source_failure_false_green=0 invented_retry=0 fallback_authority=0');
