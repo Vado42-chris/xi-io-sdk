@@ -1,33 +1,23 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { compileInteractionLifecycle } from '../src/cadence/interaction-lifecycle.mjs';
 
+const fixturePath = fileURLToPath(new URL('../fixtures/cadence/interaction-lifecycle-known-answer.v1.json', import.meta.url));
+const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const CADENCE_POLICY = 'Vado42-chris/xi-io-cadence@6df685b27325b98ee0cb5aa189050b19e87275c2';
+
+assert.equal(fixture.schema, 'xiio.sdk.interaction-lifecycle-known-answer/v1');
+assert.equal(fixture.punchcard_id, 'SDK-INTERACTION-LIFECYCLE-001A');
+assert.equal(fixture.source.cadence_policy_ref, CADENCE_POLICY);
+assert.equal(fixture.interaction.cadence_policy_ref, CADENCE_POLICY);
+assert.equal(fixture.provider_effect, false);
+assert.equal(fixture.authority_granted, false);
 
 function base(overrides = {}) {
   return {
-    interaction_id: 'interaction:known-answer:001',
-    actor_ref: 'agent:ibal:test',
-    root_ref: 'xiio:work:root-001',
-    return_target_ref: 'xiio:return:root-001',
-    cadence_policy_ref: CADENCE_POLICY,
-    accepted_base_ref: 'repo:main@g1',
-    opened_current_ref: 'repo:main@g1',
-    latest_current_ref: 'repo:main@g1',
-    standup_receipt_ref: 'receipt:standup:001',
-    collision_ref: 'receipt:collision:one-writer',
-    first_red_ref: 'red:first:001',
-    effect_ceiling: 'SOURCE_ONLY',
-    known_hostile_refs: ['hostile:last-night:stale-currentness'],
-    expected_result: 'RESULT_SOURCE_CANDIDATE',
-    sibling_policy: 'BLOCKED_CHILD_DOES_NOT_STOP_RUNNABLE_SIBLING',
-    provider_projection_refs: ['github:issue:16'],
-    disclosure: { source_visibility: 'INTERNAL', target_visibility: 'INTERNAL' },
-    child_denominator: 0,
-    children: [],
-    siblings: [],
-    owner_heartbeat_count: 0,
-    machine_resolvable_next: true,
+    ...structuredClone(fixture.interaction),
     ...overrides,
   };
 }
@@ -55,13 +45,13 @@ const test = (name, fn) => {
   console.log(`PASS ${name}`);
 };
 
-test('current open interaction is machine-continuable', () => {
+test('PunchCard known answer compiles current open interaction', () => {
   const result = compileInteractionLifecycle(base());
-  assert.equal(result.status, 'OPEN_CURRENT');
-  assert.equal(result.next_action, 'CONTINUE_MACHINE_RESOLVABLE_NEXT');
-  assert.equal(result.root_stop_allowed, false);
-  assert.equal(result.provider_effect, false);
-  assert.equal(result.authority_granted, false);
+  assert.equal(result.status, fixture.expected_open.status);
+  assert.equal(result.next_action, fixture.expected_open.next_action);
+  assert.equal(result.root_stop_allowed, fixture.expected_open.root_stop_allowed);
+  assert.equal(result.provider_effect, fixture.expected_open.provider_effect);
+  assert.equal(result.authority_granted, fixture.expected_open.authority_granted);
 });
 
 test('missing standup is a 10s failure', () => {
@@ -229,6 +219,7 @@ assert.equal(passed, 14);
 console.log(JSON.stringify({
   status: 'PASS',
   denominator: passed,
+  punchcard_id: fixture.punchcard_id,
   cadence_policy_ref: CADENCE_POLICY,
   provider_effects: 0,
   authority_granted: false,
