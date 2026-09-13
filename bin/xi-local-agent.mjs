@@ -5,15 +5,18 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
 const model = process.env.XIIO_OLLAMA_MODEL || 'qwen2.5-coder:7b';
 const ollama = 'http://127.0.0.1:11434';
 const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'xi-io', 'cli');
-const sessionFile = path.join(stateDir, 'session.json');
+const workspaceId = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
+const sessionFile = path.join(stateDir, `session-${workspaceId}.json`);
 const blocked = new Set(['.git', '.ssh', 'node_modules']);
 const commands = new Set(['git', 'node', 'npm', 'python', 'python3', 'bash']);
+const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
 
 function target(raw) {
   if (typeof raw !== 'string' || !raw.trim() || path.isAbsolute(raw)) throw new Error('PATH_DENIED');
@@ -28,6 +31,7 @@ async function run(command, args = []) {
   if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
   if (!commands.has(command) || !Array.isArray(args) || args.length > 32) throw new Error('COMMAND_DENIED');
   if (args.some(a => typeof a !== 'string' || a.includes('\0') || path.isAbsolute(a) || a.split(/[\\/]+/).includes('..'))) throw new Error('COMMAND_DENIED');
+  if (command === 'git' && !gitCommands.has(args[0])) throw new Error('GIT_COMMAND_DENIED');
   if (command === 'bash' && (args[0] === '-c' || args[0] === '-lc')) throw new Error('SHELL_STRING_DENIED');
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env: process.env, stdio:['ignore','pipe','pipe'] });
