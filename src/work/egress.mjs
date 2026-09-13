@@ -21,6 +21,11 @@ function projection(row, i) {
   if (row.registry_size_observed != null && (!Number.isSafeInteger(row.registry_size_observed) || row.registry_size_observed < 0)) throw new Error(`REGISTRY_SIZE_INVALID:${ref}`);
   return {
     projection_ref: ref,
+    plugin_ref: req(row.plugin_ref, `PLUGIN_REF_REQUIRED:${ref}`),
+    manifest_ref: req(row.manifest_ref, `MANIFEST_REF_REQUIRED:${ref}`),
+    manifest_generation: req(row.manifest_generation, `MANIFEST_GENERATION_REQUIRED:${ref}`),
+    capability_ref: req(row.capability_ref, `CAPABILITY_REF_REQUIRED:${ref}`),
+    capability_generation: req(row.capability_generation, `CAPABILITY_GENERATION_REQUIRED:${ref}`),
     provider_family: req(row.provider_family, `PROVIDER_FAMILY_REQUIRED:${ref}`),
     adapter_ref: req(row.adapter_ref, `ADAPTER_REF_REQUIRED:${ref}`),
     adapter_generation: req(row.adapter_generation, `ADAPTER_GENERATION_REQUIRED:${ref}`),
@@ -28,7 +33,6 @@ function projection(row, i) {
     registry_generation: req(row.registry_generation, `REGISTRY_GENERATION_REQUIRED:${ref}`),
     registry_size_observed: row.registry_size_observed ?? null,
     surface_ref: req(row.surface_ref, `SURFACE_REF_REQUIRED:${ref}`),
-    capability_ref: req(row.capability_ref, `CAPABILITY_REF_REQUIRED:${ref}`),
     kind,
     status,
     provider_readback_ref: String(row.provider_readback_ref || '').trim() || null,
@@ -75,6 +79,18 @@ export function compileWorkEgressProjection(input) {
     root_stop: false,
     provider_effect_authority: false,
     registry_authority: false,
-    hard: ['WORDPRESS != SPECIAL_EGRESS_PLANE','REGISTRY_SIZE != AUTHORITY','PROVIDER_OBJECT_ID != CANONICAL_WORK_ID','PROVIDER_FAILURE != WORK_FAILURE','ONE_EGRESS_BLOCK != ROOT_STOP','WORK_TERMINAL != ROOT_TERMINAL','READ_BACK != OWNER_ACCEPTANCE'],
+    hard: [
+      'WORDPRESS != SPECIAL_EGRESS_PLANE',
+      'PLUGIN_IDENTITY != TARGET_NATIVE_IDENTITY',
+      'PLUGIN_MANIFEST_REF != PLUGIN_MANIFEST_CURRENT',
+      'CAPABILITY_REF != CAPABILITY_CURRENT',
+      'TARGET_REGISTRY_REF != TARGET_REGISTRY_CURRENT',
+      'REGISTRY_SIZE != AUTHORITY',
+      'PROVIDER_OBJECT_ID != CANONICAL_WORK_ID',
+      'PROVIDER_FAILURE != WORK_FAILURE',
+      'ONE_EGRESS_BLOCK != ROOT_STOP',
+      'WORK_TERMINAL != ROOT_TERMINAL',
+      'READ_BACK != OWNER_ACCEPTANCE'
+    ],
   };
 }
