@@ -188,6 +188,7 @@ export function compileInteractionLifecycle(input) {
     closeState === 'CLOSED'
       && failures.length === 0
       && unresolvedSiblings.length === 0
+      && !machineResolvableNext
       && close?.terminal_ref,
   );
 
@@ -251,6 +252,7 @@ export function compileInteractionLifecycle(input) {
       'PRIVATE_SOURCE != PUBLIC_PROJECTION_WITHOUT_QUALIFICATION',
       'ONE_BLOCKED_CHILD != ROOT_STOP',
       'RUNNABLE_SIBLING -> ROOT_CONTINUE',
+      'MACHINE_RESOLVABLE_NEXT -> ROOT_STOP_FALSE',
       'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
       'SDK_INTERACTION_ENVELOPE != CADENCE_SCHEDULER',
       'SDK_INTERACTION_ENVELOPE != EFFECT_AUTHORITY',
