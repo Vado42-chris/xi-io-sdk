@@ -16,9 +16,10 @@ import os
 import shutil
 import subprocess
 import sys
+import tokenize
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 
 SCHEMA = "xiio.sdk.local-static-scan/v1"
 IGNORED_DIRS = {
@@ -26,6 +27,10 @@ IGNORED_DIRS = {
     "coverage", ".next", ".nuxt", ".cache", ".venv", "venv", "__pycache__",
 }
 SOURCE_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".json", ".sh", ".bash"}
+# These are common Studio source families that this dependency-light scanner cannot
+# safely parse with stdlib/Node alone. Their presence must stay visible and must not
+# silently inherit PASS_LOCAL_STATIC.
+UNVALIDATED_CODE_SUFFIXES = {".ts", ".tsx", ".mts", ".cts", ".jsx", ".vue", ".svelte"}
 REPO_MARKERS = {
     ".git", "package.json", "pyproject.toml", "Cargo.toml", "go.mod", "pom.xml",
     "build.gradle", "build.gradle.kts", "Gemfile", "composer.json", ".hg",
@@ -47,10 +52,21 @@ def _rel(path: Path, root: Path) -> str:
         return str(path)
 
 
-def iter_files(root: Path) -> Iterable[Path]:
+def iter_entries(root: Path) -> Iterable[Path]:
+    """Yield files plus directory symlinks without traversing symlinked directories."""
     for current, dirs, files in os.walk(root, followlinks=False):
-        dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS)
         base = Path(current)
+        kept_dirs: list[str] = []
+        for name in sorted(dirs):
+            candidate = base / name
+            if candidate.is_symlink():
+                # A directory symlink is itself part of the physical repo surface even
+                # when followlinks=False. Yield it so escape checks cannot miss it.
+                yield candidate
+                continue
+            if name not in IGNORED_DIRS:
+                kept_dirs.append(name)
+        dirs[:] = kept_dirs
         for name in sorted(files):
             yield base / name
 
@@ -75,7 +91,10 @@ def check_syntax(path: Path, root: Path) -> Finding | None:
     suffix = path.suffix.lower()
     try:
         if suffix == ".py":
-            ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+            # tokenize.open honors PEP 263 encoding cookies instead of falsely
+            # rejecting valid non-UTF-8 Python sources.
+            with tokenize.open(path) as handle:
+                ast.parse(handle.read(), filename=rel)
             return None
         if suffix == ".json":
             json.loads(path.read_text(encoding="utf-8"))
@@ -113,6 +132,30 @@ def check_symlink(path: Path, root: Path) -> Finding | None:
         return Finding("SYMLINK_ESCAPES_ROOT", "FAIL", rel, f"resolves outside root: {resolved}")
 
 
+def iter_export_targets(value: object, trail: str = "exports") -> Iterator[tuple[str, str]]:
+    """Yield string export targets from root shorthands, arrays and condition maps."""
+    if isinstance(value, str):
+        yield trail, value
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from iter_export_targets(child, f"{trail}[{index}]")
+        return
+    if isinstance(value, dict):
+        for key in sorted(value):
+            yield from iter_export_targets(value[key], f"{trail}.{key}")
+
+
+def export_target_exists(root: Path, target: str) -> bool:
+    if not target.startswith("./"):
+        # Non-local/null/condition semantics are outside this existence check.
+        return True
+    relative = target[2:]
+    if "*" in relative:
+        return any(root.glob(relative))
+    return (root / relative).exists()
+
+
 def check_package_exports(root: Path) -> list[Finding]:
     pkg = root / "package.json"
     if not pkg.is_file():
@@ -123,23 +166,15 @@ def check_package_exports(root: Path) -> list[Finding]:
     except Exception:
         return findings
     exports = data.get("exports")
-    if not isinstance(exports, dict):
+    if exports is None:
         return findings
-    for key, value in sorted(exports.items()):
-        targets: list[str] = []
-        if isinstance(value, str):
-            targets = [value]
-        elif isinstance(value, dict):
-            targets = [v for v in value.values() if isinstance(v, str)]
-        for target in targets:
-            if not target.startswith("./"):
-                continue
-            target_path = root / target[2:]
-            if not target_path.exists():
-                findings.append(Finding(
-                    "PACKAGE_EXPORT_TARGET_MISSING", "FAIL", "package.json",
-                    f"export {key!r} points to missing {target!r}",
-                ))
+    for trail, target in iter_export_targets(exports):
+        if export_target_exists(root, target):
+            continue
+        findings.append(Finding(
+            "PACKAGE_EXPORT_TARGET_MISSING", "FAIL", "package.json",
+            f"{trail} points to missing current target {target!r}",
+        ))
     return findings
 
 
@@ -148,6 +183,7 @@ def scan(root: Path, require_managed_manifest: bool = False) -> dict:
     findings: list[Finding] = []
     source_files = 0
     syntax_checked = 0
+    unvalidated_by_suffix: dict[str, list[str]] = {}
 
     if not root.exists() or not root.is_dir():
         return {
@@ -158,7 +194,7 @@ def scan(root: Path, require_managed_manifest: bool = False) -> dict:
             "local_static_pass": False,
             "live_authority": False,
             "closure_100": False,
-            "counts": {"source_files": 0, "syntax_checked": 0, "fail": 0, "unknown": 0},
+            "counts": {"source_files": 0, "syntax_checked": 0, "fail": 0, "unknown": 1, "observed": 0},
             "findings": [asdict(Finding("ROOT_NOT_DIRECTORY", "UNKNOWN", ".", "scan root is missing or not a directory"))],
         }
 
@@ -170,17 +206,29 @@ def scan(root: Path, require_managed_manifest: bool = False) -> dict:
             "directory has no recognized repository/project root marker; syntax observations cannot establish a repo baseline",
         ))
 
-    for path in iter_files(root):
+    for path in iter_entries(root):
         symlink_finding = check_symlink(path, root)
         if symlink_finding:
             findings.append(symlink_finding)
-        if path.suffix.lower() in SOURCE_SUFFIXES:
+        if path.is_dir():
+            continue
+        suffix = path.suffix.lower()
+        if suffix in UNVALIDATED_CODE_SUFFIXES:
+            unvalidated_by_suffix.setdefault(suffix, []).append(_rel(path, root))
+            continue
+        if suffix in SOURCE_SUFFIXES:
             source_files += 1
             finding = check_syntax(path, root)
             if finding:
                 findings.append(finding)
             else:
                 syntax_checked += 1
+
+    for suffix, paths in sorted(unvalidated_by_suffix.items()):
+        findings.append(Finding(
+            "SOURCE_FAMILY_UNVALIDATED", "UNKNOWN", paths[0],
+            f"{len(paths)} {suffix} source file(s) observed but this dependency-light scanner has no qualified parser; first={paths[0]}",
+        ))
 
     findings.extend(check_package_exports(root))
 
@@ -197,7 +245,7 @@ def scan(root: Path, require_managed_manifest: bool = False) -> dict:
             "canonical exact-path manifest not observed; applicability/repair belongs to managed-project owners",
         ))
 
-    if source_files == 0:
+    if source_files == 0 and not unvalidated_by_suffix:
         findings.append(Finding("NO_SCANNABLE_SOURCE", "UNKNOWN", ".", "no supported source files found"))
 
     fail_count = sum(1 for f in findings if f.state == "FAIL")
@@ -205,7 +253,7 @@ def scan(root: Path, require_managed_manifest: bool = False) -> dict:
     observed_count = sum(1 for f in findings if f.state == "OBSERVED")
     if not repo_subject_bound:
         status = "WAIT_NO_REPO_SUBJECT"
-    elif source_files == 0:
+    elif source_files == 0 and not unvalidated_by_suffix:
         status = "WAIT_NO_CODE_SUBJECT"
     elif fail_count:
         status = "FAIL_LOCAL_STATIC"
@@ -227,15 +275,21 @@ def scan(root: Path, require_managed_manifest: bool = False) -> dict:
             "ACCOUNTING_100 != CLOSURE_100",
             "REPORT != LOOP_EXIT",
             "RESULT != LOOP_EXIT",
+            "WAIT != PASS",
         ],
         "subject": {"repo_bound": repo_subject_bound, "root_markers": repo_markers},
         "managed_manifest": {
             "exact_path_present": has_manifest,
             "required_by_invocation": require_managed_manifest,
         },
+        "coverage": {
+            "validated_suffixes": sorted(SOURCE_SUFFIXES),
+            "unvalidated_code_suffixes_observed": sorted(unvalidated_by_suffix),
+        },
         "counts": {
             "source_files": source_files,
             "syntax_checked": syntax_checked,
+            "unvalidated_code_files": sum(len(v) for v in unvalidated_by_suffix.values()),
             "fail": fail_count,
             "unknown": unknown_count,
             "observed": observed_count,
@@ -253,7 +307,12 @@ def main() -> int:
     result = scan(Path(args.root), require_managed_manifest=args.require_managed_manifest)
     json.dump(result, sys.stdout, indent=2 if args.pretty else None, sort_keys=True)
     sys.stdout.write("\n")
-    return 1 if result["status"] == "FAIL_LOCAL_STATIC" else 0
+    if result["status"] == "PASS_LOCAL_STATIC":
+        return 0
+    if result["status"] == "FAIL_LOCAL_STATIC":
+        return 1
+    # WAIT/DEGRADED must not be indistinguishable from PASS to shell/CI callers.
+    return 2
 
 
 if __name__ == "__main__":
