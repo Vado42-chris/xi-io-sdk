@@ -33,8 +33,17 @@ export function compileStudioHeadlessTopology(input){
 }
 export function compileStudioRoster(input){
  if(!input||!Array.isArray(input.products)||input.products.length===0)throw new Error('PRODUCT_ROSTER_REQUIRED');
+ const evidenceNames=['data_forge','dotproject','bugzilla'],evidenceInput=input.evidence_stack&&typeof input.evidence_stack==='object'?input.evidence_stack:{};
+ const evidence_stack=evidenceNames.map(name=>{const row=evidenceInput[name]||{};return {name,owner_product:row.owner_product||null,contract_ref:row.contract_ref||null,receipt_ref:row.receipt_ref||null,verified:row.verified===true,state:row.verified===true&&row.contract_ref&&row.receipt_ref?'SUPPLIED_UNVERIFIED':'UNKNOWN_BLOCKED'};});
  const seen=new Set(),base=Number.isInteger(input.base_port)?input.base_port:8800;
- const products=input.products.map((p,i)=>{const product_id=id(p.product_id);if(seen.has(product_id))throw new Error('DUPLICATE_PRODUCT_ID');seen.add(product_id);return compileStudioHeadlessTopology({...p,product_id,state_root:p.state_root||input.state_root,base_port:Number.isInteger(p.base_port)?p.base_port:base+i*10});});
- const blockers=products.flatMap(p=>p.hvt_punchcards.filter(c=>c.state!=='SUPPLIED_UNVERIFIED').map(c=>({product_id:p.product_id,...c})));
- return {schema:'xiio.sdk.studio-roster/v1',registry_ref:input.registry_ref||null,registry_complete:input.registry_complete===true,products,product_count:products.length,server_count:products.length*3,blockers,closure:false,hard:['REGISTRY_COMPLETE_FALSE!=FULL_ROSTER','PRODUCT_OMISSION=BLOCKER','PRODUCT_COUNT*3=MINIMUM_SERVER_COUNT']};
+ const products=input.products.map((p,i)=>{const product_id=id(p.product_id);if(seen.has(product_id))throw new Error('DUPLICATE_PRODUCT_ID');seen.add(product_id);return {...compileStudioHeadlessTopology({...p,product_id,state_root:p.state_root||input.state_root,base_port:Number.isInteger(p.base_port)?p.base_port:base+i*10}),dependencies:Array.isArray(p.dependencies)?p.dependencies.map(id):[]};});
+ const external=new Set(Array.isArray(input.external_dependencies)?input.external_dependencies.map(id):[]);
+ const dependencyBlockers=products.flatMap(p=>p.dependencies.filter(d=>!seen.has(d)&&!external.has(d)).map(dependency=>({target:'ROSTER_DEPENDENCY',product_id:p.product_id,dependency,state:'UNKNOWN_BLOCKED'})));
+ const expected=Number.isInteger(input.expected_product_count)?input.expected_product_count:null;
+ const registryProved=input.registry_complete===true&&typeof input.registry_ref==='string'&&typeof input.registry_digest==='string'&&typeof input.registry_receipt_ref==='string'&&expected===products.length;
+ const registryBlockers=registryProved?[]:[{target:'ROSTER_REGISTRY_PROOF',state:'UNKNOWN_BLOCKED',expected_product_count:expected,observed_product_count:products.length,registry_ref:input.registry_ref||null,registry_digest:input.registry_digest||null,registry_receipt_ref:input.registry_receipt_ref||null}];
+ const productBlockers=products.flatMap(p=>p.hvt_punchcards.filter(c=>c.state!=='SUPPLIED_UNVERIFIED').map(c=>({product_id:p.product_id,...c})));
+ const evidenceBlockers=evidence_stack.filter(x=>x.state!=='SUPPLIED_UNVERIFIED').map(x=>({target:'EVIDENCE_DEPENDENCY',...x}));
+ const blockers=[...registryBlockers,...evidenceBlockers,...dependencyBlockers,...productBlockers];
+ return {schema:'xiio.sdk.studio-roster/v1',registry_ref:input.registry_ref||null,registry_digest:input.registry_digest||null,registry_receipt_ref:input.registry_receipt_ref||null,registry_complete:registryProved,evidence_stack,evidence_complete:evidenceBlockers.length===0,dependency_closure:dependencyBlockers.length===0,products,product_count:products.length,server_count:products.length*3,blockers,closure:false,hard:['REGISTRY_FLAG!=REGISTRY_PROOF','REGISTRY_COMPLETE_FALSE!=FULL_ROSTER','PRODUCT_OMISSION=BLOCKER','UNRESOLVED_DEPENDENCY=BLOCKER','PRODUCT_COUNT*3=MINIMUM_SERVER_COUNT','IMPACT_REPORT_WITHOUT_DATA_FORGE_DOTPROJECT_BUGZILLA=UNRELIABLE','PLACEHOLDER_ADAPTER!=IMPLEMENTATION']};
 }
