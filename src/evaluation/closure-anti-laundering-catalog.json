@@ -1,0 +1,178 @@
+{
+  "schema": "xiio.sdk.closure-anti-laundering-catalog/v1",
+  "semantics": "READ_ONLY_HVT_CATALOG",
+  "effects": 0,
+  "authority_granted": false,
+  "families": [
+    {
+      "id": "ROOT_CONSERVATION",
+      "hard": "VALID_RESULT_FOR_B != VALID_RESULT_FOR_A",
+      "owners": ["ibal", "sdk", "switchboard"],
+      "hybrids": [
+        "correct_result+wrong_root=>FAIL_ROOT_DIVERGENCE",
+        "wrong_result+correct_root=>FAIL_RESULT_CORRECTNESS",
+        "correct_result+correct_root+stale_generation=>FAIL_GENERATION_CURRENTNESS"
+      ]
+    },
+    {
+      "id": "SOURCE_TO_READBACK",
+      "hard": "SOURCE != MAIN != RUNNING != LIVE != READBACK",
+      "owners": ["framework", "studio", "publisher"],
+      "hybrids": [
+        "source_pass+main_absent=>NO_MAIN_CREDIT",
+        "main_current+runtime_absent=>NO_RUNNING_CREDIT",
+        "running_current+outside_readback_absent=>NO_LIVE_CREDIT"
+      ]
+    },
+    {
+      "id": "ACCOUNTING_VS_CLOSURE",
+      "hard": "ACCOUNTING_100 != CLOSURE_100",
+      "owners": ["benchmark", "hex", "cadence"],
+      "hybrids": [
+        "all_candidates_counted+one_required_cell_open=>NO_CLOSURE_100",
+        "child_100+parent_return_open=>NO_PARENT_100",
+        "synthetic_100+native_readback_missing=>NO_RUNTIME_100"
+      ]
+    },
+    {
+      "id": "HOST_ATTESTATION",
+      "hard": "SANDBOX_CONTAINER != PHYSICAL_HOST",
+      "owners": ["hex", "installer", "ibal"],
+      "hybrids": [
+        "host_label_physical+container_observed=>FAIL_HOST_CLASS",
+        "native_process+workspace_unverified=>NO_HOST_CLOSURE",
+        "host_fields_9_of_9+self_asserted=>NO_INDEPENDENT_RECEIPT"
+      ]
+    },
+    {
+      "id": "SELF_ASSERTION",
+      "hard": "SELF_ASSERTED_TRUE != QUALIFIED_EVIDENCE",
+      "owners": ["benchmark", "sdk", "ward"],
+      "hybrids": [
+        "three_agents_repeat_same_receipt+no_independent_readback=>NO_CONSENSUS_CREDIT",
+        "receipt_id_present+ledger_readback_absent=>NO_RECEIPT_CREDIT",
+        "worker_pass+evaluator_reads_only_worker_payload=>CORRELATED_FALSE_GREEN"
+      ]
+    },
+    {
+      "id": "INTERFACE_IMPLEMENTATION",
+      "hard": "INTERFACE_CLAIM != IMPLEMENTED_INTERFACE",
+      "owners": ["sdk", "inbox", "switchboard"],
+      "hybrids": [
+        "client_calls_route+server_route_unobserved=>FAIL_UNVERIFIED_ENDPOINT",
+        "openapi_declares_route+native_route_absent=>FAIL_UNVERIFIED_INTERFACE",
+        "tool_name_invoked+accepted_tool_absent=>FAIL_UNVERIFIED_INTERFACE"
+      ]
+    },
+    {
+      "id": "EFFECT_AUTHORITY",
+      "hard": "IMPLEMENTED_INTERFACE != EFFECT_AUTHORITY",
+      "owners": ["ward", "switchboard", "cadence"],
+      "hybrids": [
+        "verified_hook_route+write_authority_absent=>BLOCK_MUTATION",
+        "wake_packet_valid+effect_authority_absent=>WAKE_ONLY",
+        "read_capability_pass+provider_write_requested=>BLOCK"
+      ]
+    },
+    {
+      "id": "CONFIG_CONNECTION",
+      "hard": "CONFIG_PRESENT != CONNECTION_VERIFIED",
+      "owners": ["inbox", "studio", "providers"],
+      "hybrids": [
+        "config_file_present+socket_closed=>NO_CONNECTION_CREDIT",
+        "service_unit_present+process_absent=>NO_RUNNING_CREDIT",
+        "provider_profile_present+auth_readback_absent=>NO_PROVIDER_READY"
+      ]
+    },
+    {
+      "id": "TRANSPORT_EFFECT",
+      "hard": "LOCAL_MAIL != SMTP_OR_DNS_EFFECT",
+      "owners": ["inbox", "crm", "switchboard"],
+      "hybrids": [
+        "local_mailbox_inserted+mx_absent=>NO_EMAIL_DELIVERY_CREDIT",
+        "sim_mail_result+provider_send_absent=>NO_PROVIDER_EFFECT",
+        "address_registered+principal_unverified=>NO_AUTHORITY"
+      ]
+    },
+    {
+      "id": "ACK_AUTHENTICATION",
+      "hard": "SDK_ACK_STRUCTURE != AUTHENTICATED_ACK",
+      "owners": ["sdk", "benchmark", "switchboard"],
+      "hybrids": [
+        "ack_shape_valid+signature_invalid=>REJECT",
+        "ack_signature_valid+generation_stale=>REJECT_CURRENTNESS",
+        "ack_current+authority_scope_missing=>NO_EFFECT_AUTHORITY"
+      ]
+    },
+    {
+      "id": "HEALTH_CONTRACT",
+      "hard": "HTTP_200 != HEALTH_CONTRACT_PASS",
+      "owners": ["inbox", "studio", "runtime"],
+      "hybrids": [
+        "http_200+wrong_generation=>FAIL_CURRENT_PROCESS",
+        "process_active+dependency_down=>DEGRADED_NOT_HEALTHY",
+        "local_health_pass+outside_origin_fail=>NO_LIVE_CREDIT"
+      ]
+    },
+    {
+      "id": "WAKE_EFFECT",
+      "hard": "WAKE_PACKET != MERGED",
+      "owners": ["cadence", "switchboard", "framework"],
+      "hybrids": [
+        "wake_emitted+consumer_no_readback=>NO_ADOPTION_CREDIT",
+        "hub_wake+cross_repo_commit_absent=>NO_SOURCE_EFFECT",
+        "wake_replay+duplicate_work_created=>FAIL_IDEMPOTENCY"
+      ]
+    },
+    {
+      "id": "MERGE_STATE",
+      "hard": "MERGEABLE != MERGED",
+      "owners": ["framework", "inbox", "sdk"],
+      "hybrids": [
+        "pr_mergeable+merged_at_null=>NO_MAIN_CREDIT",
+        "checks_green+tests_steps_absent=>NO_TEST_EXECUTION_CREDIT",
+        "merge_complete+branch_residue_current=>REAP_REQUIRED"
+      ]
+    },
+    {
+      "id": "CONSUMER_WIRING",
+      "hard": "DECLARED_CONSUMER != WIRED_CONSUMER",
+      "owners": ["framework", "sdk", "cadence"],
+      "hybrids": [
+        "consumer_listed+no_import_or_runtime_edge=>NO_ADOPTION_CREDIT",
+        "source_imported+runtime_not_exercised=>NO_RUNNING_CREDIT",
+        "runtime_called+return_not_applied=>NO_CLOSURE_CREDIT"
+      ]
+    },
+    {
+      "id": "TEST_FIXTURE_SEMANTICS",
+      "hard": "TEST_FIXTURE_TEXT != TEST_FIXTURE_SEMANTICS",
+      "owners": ["cadence", "benchmark", "sdk"],
+      "hybrids": [
+        "comment_contains_pass+no_ast_pass_node=>FIXTURE_INVALID",
+        "claimed_zero_stubs+output_contains_pass_node=>ATTESTATION_CONTRADICTION",
+        "remediation_adds_return_type+pass_body_remains=>STILL_BLOCKED"
+      ]
+    },
+    {
+      "id": "PATH_SEMANTICS",
+      "hard": "PROSE_RELATIVE_PATH != ABSOLUTE_ARGUMENT",
+      "owners": ["ibal", "sdk", "filesystem"],
+      "hybrids": [
+        "instruction_says_relative+argument_starts_slash=>FAIL_PATH_SEMANTICS",
+        "relative_path+parent_traversal=>FAIL_SCOPE",
+        "allowlisted_path+symlink_escape=>FAIL_SCOPE"
+      ]
+    },
+    {
+      "id": "RETURN_CONTINUITY",
+      "hard": "RESULT != RETURN != APPLY_RETURN",
+      "owners": ["bins", "cadence", "switchboard"],
+      "hybrids": [
+        "result_pass+return_missing=>FLATPLANE",
+        "return_present+apply_readback_missing=>NO_REJOIN_CREDIT",
+        "apply_return_pass+next_missing+root_open=>INVALID_TERMINAL"
+      ]
+    }
+  ]
+}
