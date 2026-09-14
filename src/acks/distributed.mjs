@@ -83,6 +83,10 @@ export function validateDistributedAck(envelope) {
   if (!timestamp(envelope.observed_at)) errors.push('OBSERVED_AT_INVALID');
   const source=sourceBinding(envelope);
   if (!source.bound) errors.push('SOURCE_BINDING_REQUIRED');
+  if (NONBLANK(envelope.source_ref) && NONBLANK(envelope.source_projection_ref)
+    && envelope.source_ref.trim()===envelope.source_projection_ref.trim()) {
+    errors.push('SOURCE_REF_PROJECTION_CONFLATED');
+  }
   // A structurally valid echo cannot authenticate a worker, prove source access,
   // prove source currentness, prove execution, or grant effects.
   return {
@@ -130,5 +134,9 @@ export function makeAckSourceBinding({
   if (Object.values(binding).some(value=>!NONBLANK(value))) {
     throw new TypeError('ACK source binding fields must be bounded nonblank strings');
   }
-  return Object.freeze(Object.fromEntries(Object.entries(binding).map(([key,value])=>[key,value.trim()])));
+  const normalized=Object.fromEntries(Object.entries(binding).map(([key,value])=>[key,value.trim()]));
+  if (normalized.source_ref===normalized.source_projection_ref) {
+    throw new TypeError('ACK canonical source_ref must be distinct from source_projection_ref');
+  }
+  return Object.freeze(normalized);
 }
