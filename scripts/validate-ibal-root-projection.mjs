@@ -3,12 +3,13 @@ import { compileIbalRootProjection } from '../src/ibal/root-projection.mjs';
 
 const base = {
   summons: { ref: 'summons:1' }, root: { ref: 'root:1', generation: 'g1' },
+  formation: { ref: 'formation:1', root_ref: 'root:1', root_generation: 'g1', reducer_ref: 'reducer:1' },
   primitives: [{ ref: 'primitive:read' }],
   punch_cards: [{ ref: 'punch:read', primitive_refs: ['primitive:read'] }],
   score_cards: [{ ref: 'score:read', denominator: 1 }]
 };
 const bind = {
-  admission: { root_ref: 'root:1', root_generation: 'g1' },
+  admission: { ref: 'admission:1', root_ref: 'root:1', root_generation: 'g1' },
   assignments: [{ ref: 'assignment:1', root_ref: 'root:1', root_generation: 'g1', consumer_ref: 'agent:1', consumer_generation: 'a1', role: 'worker' }]
 };
 const ack = { ref: 'ack:1', assignment_ref: 'assignment:1', root_ref: 'root:1', root_generation: 'g1', consumer_ref: 'agent:1', consumer_generation: 'a1' };
@@ -25,6 +26,7 @@ assert.equal(compileIbalRootProjection({ ...base, ...bind, acks: [ack], attempts
 const done = compileIbalRootProjection({ ...base, ...bind, acks: [ack], attempts: [attempt], results: [result], returns: [ret], apply_returns: [applied] });
 assert.equal(done.projection_state, 'REPROJECTION_DUE');
 assert.deepEqual(done.authority, { admit: false, ack: false, execute: false, effect: false, deploy: false });
+assert.equal(done.registry.sdk_package_version, '0.1.0-candidate.2');
 assert.equal(compileIbalRootProjection({ ...base, admission: { root_ref: 'root:1', root_generation: 'wrong' } }).projection_state, 'BLOCKED');
 assert.equal(compileIbalRootProjection({ ...base, ...bind, assignments: [{ ...bind.assignments[0], role: 'watcher', execute: true }] }).projection_state, 'BLOCKED');
 assert.equal(compileIbalRootProjection({ ...base, punch_cards: [...base.punch_cards, base.punch_cards[0]] }).projection_state, 'BLOCKED');
