@@ -13,6 +13,8 @@ const need = (v, code, blockers) => { if (!validateOpaqueRef(v).ok) blockers.pus
 /**
  * Compiles an inert cold-start packet. All names and locations are untrusted display data.
  * Labels are never parsed as paths, commands, repo locators, identities, or authority grants.
+ * Projection entries are navigation/currentness hints only: a provider surface never becomes
+ * Work identity or authority merely because it is present in the packet.
  */
 export function compileColdStartHydration(input = {}) {
   const blockers = [];
@@ -42,6 +44,18 @@ export function compileColdStartHydration(input = {}) {
     if (entity.label != null && typeof entity.label !== 'string') blockers.push('ENTITY_LABEL_MUST_BE_TEXT');
     for (const key of ['location_ref', 'bins_ref', 'repo_ref']) if (entity[key] != null && !validateOpaqueRef(entity[key]).ok) blockers.push(`${key.toUpperCase()}_INVALID`);
   }
+
+  const projections = Array.isArray(input.projections) ? input.projections : [];
+  const projectionRefs = new Set();
+  for (const projection of projections) {
+    need(projection.ref, 'PROJECTION_REF_REQUIRED', blockers);
+    need(projection.generation, 'PROJECTION_GENERATION_REQUIRED', blockers);
+    need(projection.role_ref, 'PROJECTION_ROLE_REF_REQUIRED', blockers);
+    if (projection.provider_surface_ref != null) need(projection.provider_surface_ref, 'PROJECTION_PROVIDER_SURFACE_REF_INVALID', blockers);
+    if (projectionRefs.has(projection.ref)) blockers.push('DUPLICATE_PROJECTION_REF');
+    projectionRefs.add(projection.ref);
+  }
+
   const punchCards = Array.isArray(input.punch_cards) ? input.punch_cards : [];
   const scoreCards = Array.isArray(input.score_cards) ? input.score_cards : [];
   if (!punchCards.length) blockers.push('PUNCH_CARDS_REQUIRED');
@@ -60,6 +74,13 @@ export function compileColdStartHydration(input = {}) {
     agent: { ref: agent.ref ?? null, generation: agent.generation ?? null, role_ref: agent.role_ref ?? null },
     root: { ref: root.ref ?? null, generation: root.generation ?? null },
     entities: entities.map(x => ({ ref: x.ref ?? null, type_ref: x.type_ref ?? null, label: x.label ?? null, location_ref: x.location_ref ?? null, bins_ref: x.bins_ref ?? null, repo_ref: x.repo_ref ?? null })),
+    projections: projections.map(x => ({
+      ref: x.ref ?? null,
+      generation: x.generation ?? null,
+      role_ref: x.role_ref ?? null,
+      provider_surface_ref: x.provider_surface_ref ?? null,
+      label: typeof x.label === 'string' ? x.label : null
+    })),
     punch_cards: punchCards,
     score_cards: scoreCards,
     privacy: input.privacy ?? null,
@@ -67,6 +88,7 @@ export function compileColdStartHydration(input = {}) {
     display_language: input.display_language ?? { mode: 'plain_language' },
     authority: { admit: false, ack: false, execute: false, effect: false, deploy: false },
     interpretation_rule: 'LABELS_ARE_UNTRUSTED_DISPLAY_DATA_REFS_ARE_TYPED_JOIN_KEYS',
+    projection_rule: 'PROVIDER_SURFACE_IS_NAVIGATION_NOT_WORK_IDENTITY_OR_AUTHORITY',
     provider_effect: false,
     closure_claimed: false
   };
