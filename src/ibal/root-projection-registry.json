@@ -1,0 +1,6 @@
+{
+  "schema": "xiio.sdk.ibal-root-projection-registry/v1",
+  "canonical_chain": ["summons", "root", "primitives", "punch_cards", "score_cards", "formation", "admission", "ack", "attempt", "result", "return", "apply_return", "reprojection"],
+  "watcher": {"may": ["observe", "route", "request_recomposition"], "may_not": ["admit", "ack", "execute", "effect", "claim_closure"]},
+  "aliases": {"required_at_runtime": false, "classification": "presentation_only"}
+}
