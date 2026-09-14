@@ -1,0 +1,21 @@
+{
+  "schema": "xiio.sdk.projection-kind-registry/v1",
+  "generation": "projection-kind-registry@1",
+  "provenance": {
+    "status": "proposed_current_projection",
+    "origin_claimed": false,
+    "historical_lineage_complete": false,
+    "historical_lineage_state": "UNRESOLVED_REQUIRES_SOURCE_LEDGER",
+    "supersedes_prior_experiments": false
+  },
+  "wire_format": {"media_type": "application/json", "field_case": "snake_case", "nullability": "explicit", "unknown_fields": "preserve_or_reject_by_profile"},
+  "families": {
+    "identity": ["person", "organization", "place", "item", "persona", "org_chart"],
+    "work": ["bug", "task", "docket", "project", "journal", "life_file", "sprint", "waterfall"],
+    "capability": ["skill_manifest", "registry", "engine", "pipeline"],
+    "time": ["calendar", "timesheet"],
+    "evidence": ["file", "evidence_packet"]
+  },
+  "invariant": "EVERY_KIND_IS_A_VIEW_OVER_SHARED_ROOT_EVIDENCE_WORK_AUTHORITY_LIFECYCLE_AND_RETURN_PRIMITIVES",
+  "human_labels": {"required": false, "trusted_for_identity": false, "may_be_hostile": true}
+}
