@@ -1,5 +1,8 @@
 {
   "schema": "xiio.sdk.ibal-root-projection-registry/v1",
+  "generation": "ibal-root-projection-registry@1",
+  "contract_digest": "sha256:d2b9523d42157d274eb7d2931a7f090939e0be7dac6a72ed2700b64692e55156",
+  "sdk_package_version": "0.1.0-candidate.2",
   "canonical_chain": ["summons", "root", "primitives", "punch_cards", "score_cards", "formation", "admission", "ack", "attempt", "result", "return", "apply_return", "reprojection"],
   "watcher": {"may": ["observe", "route", "request_recomposition"], "may_not": ["admit", "ack", "execute", "effect", "claim_closure"]},
   "aliases": {"required_at_runtime": false, "classification": "presentation_only"}
