@@ -29,6 +29,16 @@ assert.equal(ackValidation.source_binding.access_state,'SUPPLIED_UNVERIFIED');
 assert.equal(ackValidation.authority_granted,false);
 assert.ok(ackValidation.hard.includes('GOOGLE_DRIVE_PROJECTION != CANONICAL_SOURCE_IDENTITY'));
 
+// Canonical source identity must never be a trimmed alias of its provider projection.
+const conflated={...ack,source_ref:`  ${ack.source_projection_ref}  `};
+const conflatedValidation=validateDistributedAck(conflated);
+assert.equal(conflatedValidation.ok,false);
+assert(conflatedValidation.errors.includes('SOURCE_REF_PROJECTION_CONFLATED'));
+assert.throws(()=>makeAckSourceBinding({
+  ...sourceBinding,
+  source_ref:`  ${sourceBinding.source_projection_ref}  `,
+}),/distinct from source_projection_ref/);
+
 // A distributed ACK without a usable source projection is structurally incomplete.
 const sourceLess={...ack};
 for (const field of [
@@ -112,4 +122,4 @@ assert.equal(forgedNativeLooking.provider_native_proven,false);
 assert.equal(forgedNativeLooking.provider_verified_state,'UNPROVEN');
 assert.equal(forgedNativeLooking.provider_receipt_state,'SUPPLIED_UNVERIFIED');
 
-console.log('INTERNAL_AGENT_ENVELOPE_PASS source_binding_required=1 source_projection_supplied_unverified=1 supplied_receipt_never_provider_verified=1 claimed_vs_verified_split=1 arbitrary_provider_looking_ref_rejected_as_proof=1 effects=0');
+console.log('INTERNAL_AGENT_ENVELOPE_PASS source_binding_required=1 canonical_projection_conflation_rejected=1 source_projection_supplied_unverified=1 supplied_receipt_never_provider_verified=1 claimed_vs_verified_split=1 arbitrary_provider_looking_ref_rejected_as_proof=1 effects=0');
