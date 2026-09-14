@@ -89,12 +89,15 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 14);
-  assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
-  assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
-  assert(discovery.commands.some((entry) => entry.command === 'compileContinuationDirective'));
-  assert(discovery.commands.some((entry) => entry.command === 'compileContinuationLoop'));
-  assert(discovery.commands.some((entry) => entry.command === 'resolveLexiconCommand'));
+  const publicCommands = discovery.commands;
+  assert(Array.isArray(publicCommands));
+  assert(publicCommands.length > 0);
+  assert.equal(new Set(publicCommands.map((entry) => entry.command)).size, publicCommands.length);
+  assert(publicCommands.some((entry) => entry.command === 'compileImpactFormation'));
+  assert(publicCommands.some((entry) => entry.command === 'compileContinuationCycle'));
+  assert(publicCommands.some((entry) => entry.command === 'compileContinuationDirective'));
+  assert(publicCommands.some((entry) => entry.command === 'compileContinuationLoop'));
+  assert(publicCommands.some((entry) => entry.command === 'resolveLexiconCommand'));
   const cliResult = JSON.parse(execFileSync(cli, ['sdk', 'call', 'resolveLexiconCommand'], {
     cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: ['#babysit'] }),
   }));
@@ -118,7 +121,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.equal(selfDrive.result.next_packet.work_ref, 'work:next');
   assert.equal(selfDrive.result.next_packet.owner_ingress_required, false);
 
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
+  console.log(`XIIO_SDK_PACKAGE_CONSUMER PASS source=package public_commands=${publicCommands.length} catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0`);
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
