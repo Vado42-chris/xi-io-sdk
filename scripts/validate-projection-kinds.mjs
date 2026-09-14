@@ -10,6 +10,8 @@ const base = {
   lifecycle_state: 'active', return_target: { ref: 'return:1' }
 };
 const allKinds = Object.values(projectionKindRegistry().families).flat();
+assert.equal(projectionKindRegistry().provenance.origin_claimed, false);
+assert.equal(projectionKindRegistry().provenance.historical_lineage_complete, false);
 for (const kind of allKinds) {
   const out = compileProjection({ ...base, projection: { ...base.projection, kind } });
   assert.equal(out.state, 'PROJECTION_COMPILED_NO_EFFECT');
