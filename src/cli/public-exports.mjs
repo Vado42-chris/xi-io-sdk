@@ -7,6 +7,7 @@ import * as Ibal from '../ibal/canary.mjs';
 import * as ImpactFormation from '../ibal/impact-formation.mjs';
 import * as RootProjection from '../ibal/root-projection.mjs';
 import * as ColdStartHydration from '../ibal/cold-start-hydration.mjs';
+import * as ProjectionKinds from '../lexicon/compile-projection.mjs';
 import * as Cadence from '../cadence/continuation.mjs';
 import * as SelfDrive from '../cadence/self-drive.mjs';
 import * as Lexicon from '../lexicon/resolve-token.mjs';
@@ -21,6 +22,7 @@ const modules = [
   ['@xi-io/sdk/ibal/impact-formation', ImpactFormation],
   ['@xi-io/sdk/ibal/root-projection', RootProjection],
   ['@xi-io/sdk/ibal/cold-start-hydration', ColdStartHydration],
+  ['@xi-io/sdk/projections/compile', ProjectionKinds],
   ['@xi-io/sdk/cadence', Cadence],
   ['@xi-io/sdk/cadence/self-drive', SelfDrive],
   ['@xi-io/sdk/command-lexicon/resolve', Lexicon],
@@ -35,6 +37,8 @@ const arity = {
   compileImpactFormation: [1, 1],
   compileIbalRootProjection: [1, 1],
   compileColdStartHydration: [1, 1],
+  compileProjection: [1, 1],
+  projectionKindRegistry: [0, 0],
   compileContinuationCycle: [1, 1],
   compileContinuationDirective: [1, 1],
   compileContinuationLoop: [1, 1],
