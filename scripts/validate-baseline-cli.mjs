@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap, BASELINE_CELLS } from '../src/baseline/compiler.mjs';
 import { normalizeBaselineCommand, BASELINE_COMMANDS, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
-import { validateDistributedAck, makeAckTarget } from '../src/acks/distributed.mjs';
+import { validateDistributedAck, makeAckTarget, makeAckSourceBinding } from '../src/acks/distributed.mjs';
 
 const snapshot = JSON.parse(fs.readFileSync(new URL('../fixtures/baseline/portfolio.synthetic.json', import.meta.url), 'utf8'));
 // The fixture supplies references, never authenticated profile/currentness proof.
@@ -229,6 +229,14 @@ assert.equal(normalizeBaselineCommand('100s').verb, 'score');
 assert.equal(normalizeBaselineCommand('inventory').verb, 'census');
 assert.equal(normalizeBaselineCommand('do-whatever').state, 'UNKNOWN_COMMAND');
 
+const futureProviderSource = makeAckSourceBinding({
+  source_ref: 'resource:baseline:fixture',
+  source_projection_ref: 'fixture-projection:baseline:account',
+  source_projection_provider: 'FIXTURE_PROVIDER',
+  source_projection_generation: baseline.baseline_generation,
+  source_access_ref: 'adapter:fixture:read',
+  source_currentness_receipt_ref: 'receipt:fixture:baseline-current',
+});
 const futureProviderAck = {
   ack_id: 'ack:1',
   root_ref: 'root:1',
@@ -244,12 +252,16 @@ const futureProviderAck = {
   attempt: 0,
   return_target_ref: 'return:root:1',
   observed_at: '2026-09-08T10:00:00Z',
+  ...futureProviderSource,
 };
 assert.equal(validateDistributedAck(futureProviderAck).ok, true);
 assert.equal(validateDistributedAck({ ...futureProviderAck, attempt: 1 }).ok, false);
 assert.equal(validateDistributedAck({ ...futureProviderAck, provider_family: 'CLAUDE' }).ok, true);
 assert.equal(validateDistributedAck({ ...futureProviderAck, provider_family: 'CHATGPT' }).ok, true);
 assert.equal(validateDistributedAck({ ...futureProviderAck, provider_family: 'OLLAMA' }).ok, true);
+const noSourceAck = {...futureProviderAck};
+for (const field of ['source_ref','source_projection_ref','source_projection_provider','source_projection_generation','source_access_ref','source_currentness_receipt_ref']) delete noSourceAck[field];
+assert.equal(validateDistributedAck(noSourceAck).ok, false);
 
 const cli = spawnSync(process.execPath, [new URL('../bin/xi.mjs', import.meta.url).pathname, 'baseline', 'census', '--subject', 'account:fixture'], { encoding: 'utf8' });
 assert.equal(cli.status, 0, cli.stderr);
@@ -262,10 +274,11 @@ assert.equal(envelope.attempt, 0);
 assert.equal(envelope.authority.provider_effect, false);
 assert.equal(envelope.state, 'COMPILED_NOT_EXECUTED');
 
-console.log(`XIIO_SDK_BASELINE_CLI PASS repos=${baseline.repository_denominator} cells=${baseline.cell_denominator} pass=${baseline.state_counts.PASS} partial=${baseline.state_counts.PARTIAL} blocked=${baseline.state_counts.BLOCKED} unknown_preserved=${unknownBaseline.state_counts.UNKNOWN}/14 ack_packets=${ackSet.ack_denominator} current_returns=${burn.current_returns} commands=${catalog.commands.length} provider_agnostic_ack=PASS`);
+console.log(`XIIO_SDK_BASELINE_CLI PASS repos=${baseline.repository_denominator} cells=${baseline.cell_denominator} pass=${baseline.state_counts.PASS} partial=${baseline.state_counts.PARTIAL} blocked=${baseline.state_counts.BLOCKED} unknown_preserved=${unknownBaseline.state_counts.UNKNOWN}/14 ack_packets=${ackSet.ack_denominator} current_returns=${burn.current_returns} commands=${catalog.commands.length} provider_agnostic_ack=PASS source_binding_required=PASS`);
 
 {
-const base={ack_id:'fixture:ack',root_ref:'fixture:root',work_ref:'fixture:work',baseline_generation:'fixture:g1',target_ref:'fixture:target',provider_family:'fixture:provider',agent_ref:'fixture:agent',capability_profile_ref:'fixture:capability',subject_generation:'fixture:g1',effect_ceiling:'NO_EFFECT',ack_state:'ACK',attempt:0,return_target_ref:'fixture:return',observed_at:'2026-09-08T12:00:00Z'};
+const fixtureSource=makeAckSourceBinding({source_ref:'resource:fixture:source',source_projection_ref:'fixture-projection:source',source_projection_provider:'FIXTURE_PROVIDER',source_projection_generation:'fixture:g1',source_access_ref:'adapter:fixture:read',source_currentness_receipt_ref:'receipt:fixture:current'});
+const base={ack_id:'fixture:ack',root_ref:'fixture:root',work_ref:'fixture:work',baseline_generation:'fixture:g1',target_ref:'fixture:target',provider_family:'fixture:provider',agent_ref:'fixture:agent',capability_profile_ref:'fixture:capability',subject_generation:'fixture:g1',effect_ceiling:'NO_EFFECT',ack_state:'ACK',attempt:0,return_target_ref:'fixture:return',observed_at:'2026-09-08T12:00:00Z',...fixtureSource};
 let checked=0;
 for(const attempt of ['invalid-number','0',false,{},[],NaN,Infinity,-1,0.5,Number.MAX_SAFE_INTEGER+1]){assert.equal(validateDistributedAck({...base,ack_state:'RESULT',attempt}).ok,false);checked++;}
 for(const field of Object.keys(base).filter(x=>x!=='attempt'))for(const value of [' ',{},0,'x'.repeat(257)]){assert.equal(validateDistributedAck({...base,[field]:value}).ok,false);checked++;}
@@ -275,9 +288,10 @@ assert.equal(validateDistributedAck({...base,ack_state:'ATTEMPTED',attempt:0}).o
 for(const ack_state of ['ATTEMPTED','RESULT','RETURN','APPLY_RETURN']){assert.equal(validateDistributedAck({...base,ack_state,attempt:1}).ok,true);checked++;}
 for(const ack_state of ['RESULT','RETURN','APPLY_RETURN']){assert.equal(validateDistributedAck({...base,ack_state,attempt:0}).ok,true);checked++;}
 const forged=validateDistributedAck({...base,authenticated:true,authority_granted:true});assert.equal(forged.authenticated,false);assert.equal(forged.authority_granted,false);assert.equal(forged.proof_state,'STRUCTURAL_ONLY');checked++;
+const noSource={...base};for(const field of ['source_ref','source_projection_ref','source_projection_provider','source_projection_generation','source_access_ref','source_currentness_receipt_ref'])delete noSource[field];assert.equal(validateDistributedAck(noSource).ok,false);checked++;
 assert.throws(()=>makeAckTarget({...base,target_ref:' '}));checked++;
 assert.equal(makeAckTarget(base).target_ref,base.target_ref);checked++;
-console.log(JSON.stringify({mode:'SYNTHETIC_SOURCE_CONFORMANCE_ONLY',checks:checked,result:'PASS',effects:0}));
+console.log(JSON.stringify({mode:'SYNTHETIC_SOURCE_CONFORMANCE_ONLY',checks:checked,result:'PASS',source_binding_required:true,effects:0}));
 
 
 }
