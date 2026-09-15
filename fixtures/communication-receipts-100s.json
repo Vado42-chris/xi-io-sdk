@@ -1,0 +1,37 @@
+{
+  "schema": "xiio.sdk.communication-receipt-100s-fixture/v1",
+  "change_unit": "COMMUNICATION-RECEIPTS-001A",
+  "channels": [
+    "EMAIL",
+    "SMS",
+    "MMS",
+    "FAX",
+    "PSTN_VOICE",
+    "VOIP_CALL",
+    "VOICEMAIL",
+    "CHAT_IM",
+    "VIDEO_MEETING",
+    "WEBHOOK_NOTIFICATION"
+  ],
+  "requirements": [
+    "OCCURRENCE_IDENTITY",
+    "DIRECTION_BOUND",
+    "CHANNEL_BOUND",
+    "ENDPOINT_BOUND",
+    "COUNTERPARTY_EXPLICIT",
+    "WORK_SOURCE_BOUND",
+    "OBSERVATION_RECEIPT",
+    "PROVIDER_EFFECT_STATE_EXPLICIT",
+    "TERMINAL_OUTCOME_EXPLICIT",
+    "FAILURE_OR_UNKNOWN_RECONCILED"
+  ],
+  "expected_cells": 100,
+  "closure_100": false,
+  "provider_native_proven": false,
+  "effect_authority": false,
+  "notes": [
+    "10 channel families x 10 receipt requirements = 100 source coverage cells.",
+    "Every cell requires downstream adoption proof before closure credit.",
+    "Future channel families must enter the registry explicitly and extend the denominator; unknown channels fail closed."
+  ]
+}
