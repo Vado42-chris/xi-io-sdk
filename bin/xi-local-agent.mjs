@@ -103,9 +103,9 @@ function systemMessage() {
 }
 
 async function runOneShot(messages) {
-  const input = await readOneShotInput();
-  messages.push({role:'user',content:input});
   try {
+    const input = await readOneShotInput();
+    messages.push({role:'user',content:input});
     const content = await chat(messages);
     await save(messages.filter(m=>m.role!=='system'));
     process.stdout.write(JSON.stringify({
