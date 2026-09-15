@@ -3,10 +3,23 @@ import { compileLocalAckFirstPreflight } from '../src/acks/local-first.mjs';
 import { compileAckRoomRotation, rotateAckRoom } from '../src/acks/room-rotation.mjs';
 
 const local = compileLocalAckFirstPreflight({
-  localRuntime: 'RUNNING', localAck: 'ACKED', localSimulation: 'SIM_PASS', crmCurrent: true, hvtSelected: true,
+  localRuntime: 'RUNNING',
+  localAck: 'ACKED',
+  localSimulation: 'SIM_PASS',
+  localExecutor: 'ZED_ACP_OLLAMA',
+  localExecutorReadback: 'PASS',
+  cordFree: true,
+  ownerPathIndependent: true,
+  automaticCloudFallback: false,
+  crmCurrent: true,
+  hvtSelected: true,
   remoteExecutorState: 'BLOCKED_PROVIDER_BILLING',
 });
 assert.equal(local.status, 'LOCAL_READY');
+assert.equal(local.local_executor, 'ZED_ACP_OLLAMA');
+assert.equal(local.cord_free, true);
+assert.equal(local.owner_path_independent, true);
+assert.equal(local.automatic_cloud_fallback, false);
 assert.equal(local.remote_executor_eligible, false);
 assert.equal(local.owner_relay_required, false);
 
@@ -55,4 +68,4 @@ assert.equal(third.room.ref, 'room:delivery');
 assert.equal(third.next_room_ref, 'room:primitive');
 assert.equal(third.metering.rotate_room_not_history, true);
 assert.equal(third.metering.rebuild_full_context, false);
-console.log('ACK_ROOM_ROTATION=PASS local_ack_consumed=1 full_history_rebuild=0 ring_replay_required=0');
+console.log('ACK_ROOM_ROTATION=PASS local_ack_consumed=1 cord_free_ollama=1 full_history_rebuild=0 ring_replay_required=0');
