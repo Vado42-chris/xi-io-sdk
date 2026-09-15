@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
+const once = process.argv.includes('--once');
 const model = process.env.XIIO_OLLAMA_MODEL || 'qwen2.5-coder:7b';
 const ollama = 'http://127.0.0.1:11434';
 const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'xi-io', 'cli');
@@ -17,6 +18,15 @@ const sessionFile = path.join(stateDir, `session-${workspaceId}.json`);
 const blocked = new Set(['.git', '.ssh', 'node_modules']);
 const commands = new Set(['git', 'node', 'npm', 'python', 'python3', 'bash']);
 const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
+const MAX_ONCE_INPUT_BYTES = 65_536;
+
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return null;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`${name.toUpperCase().replaceAll('-', '_')}_VALUE_REQUIRED`);
+  return value;
+}
 
 function target(raw) {
   if (typeof raw !== 'string' || !raw.trim() || path.isAbsolute(raw)) throw new Error('PATH_DENIED');
@@ -76,9 +86,61 @@ async function chat(messages){
   throw new Error('TOOL_SPIN_LIMIT');
 }
 
+async function readOneShotInput() {
+  const inputPath = argValue('--input');
+  let input = '';
+  if (inputPath) input = await fsp.readFile(target(inputPath),'utf8');
+  else if (!process.stdin.isTTY) input = fs.readFileSync(0,'utf8');
+  else throw new Error('ONCE_INPUT_REQUIRED');
+  input = String(input || '').trim();
+  if (!input) throw new Error('ONCE_INPUT_EMPTY');
+  if (Buffer.byteLength(input) > MAX_ONCE_INPUT_BYTES) throw new Error('ONCE_INPUT_TOO_LARGE');
+  return input;
+}
+
+function systemMessage() {
+  return {role:'system',content:`You are xi-io CLI, a local-first terminal agent. Workspace: ${cwd}. Use tools for evidence and action. Never print pseudo-tool JSON. Never delegate to, invoke, recommend, or relay commands through Kiro or another paid agent. If an admitted tool can perform the requested action, call it instead of describing a command for the owner to transport. Execution is ${execute?'admitted for bounded tools':'preview-only'}. State the first unresolved executable edge and next action.`};
+}
+
+async function runOneShot(messages) {
+  const input = await readOneShotInput();
+  messages.push({role:'user',content:input});
+  try {
+    const content = await chat(messages);
+    await save(messages.filter(m=>m.role!=='system'));
+    process.stdout.write(JSON.stringify({
+      schema:'xiio.cli.local-one-shot/v1',
+      status:'PASS_LOCAL',
+      model,
+      workspace_ref:`sha256:${workspaceId}`,
+      execution:execute?'BOUNDED':'PREVIEW',
+      result:content,
+      provider_effect:false,
+      automatic_cloud_fallback:false,
+      required_return:'RESULT -> RETURN -> APPLY_RETURN',
+    },null,2)+'\n');
+  } catch(error) {
+    process.stdout.write(JSON.stringify({
+      schema:'xiio.cli.local-one-shot/v1',
+      status:'BLOCKED',
+      first_red:String(error?.message || error),
+      model,
+      workspace_ref:`sha256:${workspaceId}`,
+      execution:execute?'BOUNDED':'PREVIEW',
+      provider_effect:false,
+      automatic_cloud_fallback:false,
+    },null,2)+'\n');
+    process.exitCode=1;
+  }
+}
+
 export async function main(){
   let messages=await load();
-  messages.unshift({role:'system',content:`You are xi-io CLI, a local-first terminal agent. Workspace: ${cwd}. Use tools for evidence and action. Never print pseudo-tool JSON. Never delegate to, invoke, recommend, or relay commands through Kiro or another paid agent. If an admitted tool can perform the requested action, call it instead of describing a command for the owner to transport. Execution is ${execute?'admitted for bounded tools':'preview-only'}. State the first unresolved executable edge and next action.`});
+  messages.unshift(systemMessage());
+  if (once) {
+    await runOneShot(messages);
+    return;
+  }
   const rl=readline.createInterface({input:process.stdin,output:process.stdout});
   process.stdout.write(`xi-io: CLI alpha\nModel: ${model} (Ollama)\nWorkspace: ${cwd}\nExecution: ${execute?'BOUNDED':'PREVIEW'}\nPrompt: xi> (local, free)\nType /exit to close.\n\n`);
   try{ while(true){ const input=(await rl.question('xi> ')).trim(); if(!input)continue; if(input==='/exit'||input==='/quit')break; if(input==='/status'){console.log(JSON.stringify({model,cwd,execute,session:sessionFile},null,2));continue;} messages.push({role:'user',content:input}); try{console.log('\n'+await chat(messages)+'\n');await save(messages.filter(m=>m.role!=='system'));}catch(e){console.error(`\nXIIO_CLI_BLOCKED=${e.message}\n`);} } } finally{rl.close();}
