@@ -32,14 +32,28 @@ function validateLocalAck(ack) {
 
 function meter({ pricingRef, localSimUnits, providerAttemptUnits, preventedProviderAttemptUnits, providerAdmissionState }) {
   return Object.freeze({
-    schema: 'xiio.sdk.metered-execution/v1',
+    schema: 'xiio.sdk.metered-execution/v2',
+    legacy_schema: 'xiio.sdk.metered-execution/v1',
     pricing_ref: pricingRef,
-    local_sim_units: localSimUnits,
-    provider_attempt_units: providerAttemptUnits,
-    prevented_provider_attempt_units: preventedProviderAttemptUnits,
+    measurement_basis: 'PREFLIGHT_PLAN_ONLY',
+    measurement_scope: 'THIS_COMPILATION_ONLY',
+    proof_state: 'SUPPLIED_UNVERIFIED',
+    // A pure preflight plans work. Only the admitted execution meter may charge it.
+    planned_local_sim_units: localSimUnits,
+    planned_provider_attempt_units: providerAttemptUnits,
+    withheld_planned_provider_attempt_units: preventedProviderAttemptUnits,
+    local_sim_units: 0,
+    provider_attempt_units: 0,
+    prevented_provider_attempt_units: 0,
+    chargeable_units: 0,
+    billing_authorized: false,
     provider_admission_state: providerAdmissionState,
     provider_effect_units: 0,
     hard: [
+      'PREFLIGHT_PLAN != EXECUTED_WORK',
+      'PLANNED_UNIT != CHARGEABLE_UNIT',
+      'WITHHELD_PLAN != VERIFIED_SAVINGS',
+      'REPLAYED_PREFLIGHT != ADDITIONAL_USAGE',
       'METERED_UNIT != EFFECT_AUTHORITY',
       'PREVENTED_PROVIDER_ATTEMPT != PROVIDER_FAILURE',
     ],
@@ -154,7 +168,8 @@ export function compileSubmissionPreflight(input) {
   });
 
   return Object.freeze({
-    schema: 'xiio.sdk.submission-preflight/v2',
+    schema: 'xiio.sdk.submission-preflight/v3',
+    legacy_schema: 'xiio.sdk.submission-preflight/v2',
     mission_root_ref: missionRootRef,
     generation,
     state,
