@@ -17,13 +17,16 @@
     "PUBLIC_COMPONENT != PRIVATE_MANAGEMENT_TOPOLOGY",
     "PLAYGROUND_RENDER != QUALIFICATION_OR_OWNER_ACCEPTANCE",
     "DISPATCH_COUNTER != BINS_CURRENT",
-    "CATALOG_COUNT != LIVE_ADOPTION"
+    "CATALOG_COUNT != LIVE_ADOPTION",
+    "DISPATCH_EXPECTED != MATERIALIZED + KNOWN_GAPS -> TYPED_UNCLASSIFIED_REMAINDER"
   ],
   "dispatch": {
     "expected": 40,
     "materialized_primitives": 26,
     "known_gaps": 6,
-    "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
+    "unclassified_expected": 8,
+    "closure_state": "UNKNOWN_REMAINDER_TYPED",
+    "counter_semantics": "playground surfaces materialized/expected; explicit unclassified remainder is preserved; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
     "live_claim": false
   },
