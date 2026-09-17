@@ -268,6 +268,54 @@ ADOPTER_FINDING
 
 A saved local fix is not completed learning.
 
+## User × Experience decomposition rule
+
+Department heads use the shared decomposition method in
+`docs/contracts/rotfl-user-experience-socratic-binary-decomposition-abi.md`
+when a problem, test, canary, requirement, or experience is too large to route safely as one unit.
+
+The ownership split is:
+
+```text
+USER
+  owns irreducible human choice and reports the lived experience
+
+UX / HUMAN-EXPERIENCE OWNER
+  qualifies perception, comprehension, action, recovery, accessibility,
+  cognitive load, and whether the intended experience actually works for the User
+
+TEST / OBSERVER
+  asks one smallest sufficient question and returns evidence-bound bits
+
+MINER
+  repairs one known mismatch or targetable unknown
+
+FOREMAN / IBAL PROJECTION
+  conducts the next question/work formation from current graph + denominator
+
+CADENCE
+  orders questions, waits, returns, rejoin, and next beat
+
+REAPER
+  removes stale, duplicate, superseded, or non-material questions/selectors
+
+DOMAIN OWNER
+  retains source/domain truth and authority
+```
+
+Tests are therefore reusable discovery surfaces as well as gates: recurring structurally equivalent tests may expose a template or portable primitive candidate, but promotion still requires existing collision, second-context/hostile proof, qualification, and adopter return.
+
+Hard:
+
+```text
+USER EXPERIENCE EVIDENCE != UNIVERSAL DOMAIN TRUTH
+UX OWNER != DOMAIN AUTHORITY
+QUESTION != TASK
+TEST != PRIMITIVE AUTOMATICALLY
+LEAF PASS != WHOLE EXPERIENCE PASS
+SMALLER != BETTER UNLESS ROUTING/PROOF/DECISION QUALITY IMPROVES
+```
+
 ## Release test
 
 A department-head loop is complete only when:
