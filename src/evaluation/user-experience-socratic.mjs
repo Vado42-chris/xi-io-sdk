@@ -1,6 +1,6 @@
 const BIT_KEYS = [
   'required_bit','material_bit','atomic_bit','template_found_bit','primitive_found_bit',
-  'new_class_bit','user_choice_bit','expected_known_bit','expected_value_bit',
+  'new_class_bit','user_choice_bit','selected_bit','expected_known_bit','expected_value_bit',
   'observed_known_bit','observed_value_bit',
 ];
 
@@ -172,7 +172,19 @@ export function compileUserExperienceSocratic(input) {
   const unknown = requiredMaterialQuestions
     .filter((c) => c.effective_known_bit === 0)
     .sort((a,b) => b.depth-a.depth || a.question_id.localeCompare(b.question_id));
-  const firstRed = mismatch[0] || unknown[0] || null;
+  const redCandidates = [...mismatch, ...unknown]
+    .sort((a,b) => b.depth-a.depth || a.question_id.localeCompare(b.question_id));
+  const selectedAll = requiredMaterialQuestions.filter((c) => c.selected_bit === 1);
+  const selectedRed = redCandidates.filter((c) => c.selected_bit === 1);
+  if (selectedAll.length !== selectedRed.length) {
+    const invalid = selectedAll.find((c) => !redCandidates.some((r) => r.question_id === c.question_id));
+    throw new TypeError(`selected question must be unresolved red: ${invalid?.question_id || 'unknown'}`);
+  }
+  if (selectedRed.length > 1) throw new TypeError('multiple unresolved questions selected');
+  const firstRed = selectedRed[0] || null;
+  if (redCandidates.length > 0 && selectedRed.length === 0) {
+    defects.push({ question_id:'__ROOT__', defect:'NEXT_QUESTION_SELECTION_REQUIRED' });
+  }
 
   let next = null;
   if (firstRed) {
@@ -214,6 +226,8 @@ export function compileUserExperienceSocratic(input) {
     root_state:rootReduced.known_bit === 0 ? 'UNKNOWN' : rootReduced.value_bit === 1 ? 'PASS' : 'FAIL',
     terminal,
     counts,
+    selection_state: redCandidates.length === 0 ? 'TERMINAL' : firstRed ? 'SELECTED' : 'SELECTION_REQUIRED',
+    red_candidates:redCandidates.map((c) => ({ question_id:c.question_id, disposition:c.disposition, depth:c.depth, selected_bit:c.selected_bit })),
     first_red:firstRed ? {
       question_id:firstRed.question_id,
       disposition:firstRed.disposition,
@@ -237,6 +251,9 @@ export function compileUserExperienceSocratic(input) {
       'TEST_CASE!=PRIMITIVE',
       'REPEATED_WORDING!=STRUCTURAL_EQUIVALENCE',
       'MISMATCH!=AUTOMATIC_PATCH',
+      'ALPHABETICAL_ORDER!=PRIORITY',
+      'SDK_REDUCER!=CONDUCTOR',
+      'NEXT_RED_REQUIRES_EXPLICIT_BINARY_SELECTION',
       'OBSERVER!=MUTATOR',
       'USER_EXPERIENCE_EVIDENCE!=UNIVERSAL_DOMAIN_TRUTH',
       'RESULT!=RETURN!=APPLY_RETURN',
