@@ -21,9 +21,10 @@ function goodInput(profile) {
 
 let checks = 0;
 const catalog = profileCatalog();
-assert.equal(catalog.profiles.length, 4); checks += 1;
-assert.deepEqual(catalog.profiles.map((p) => p.denominator), [14,10,14,16]); checks += 1;
+assert.equal(catalog.profiles.length, 5); checks += 1;
+assert.deepEqual(catalog.profiles.map((p) => p.denominator), [14,10,14,16,10]); checks += 1;
 
+let omissionHostiles = 0;
 for (const profile of Object.keys(GRADUATION_PROFILES)) {
   const input = goodInput(profile);
   const clean = compileGraduationPreflight(input);
@@ -40,8 +41,10 @@ for (const profile of Object.keys(GRADUATION_PROFILES)) {
     assert.equal(out.release_eligible, false, `${profile}/${id} omission must block`);
     assert.equal(out.first_red.cell, id, `${profile}/${id} must be first red when earlier cells clean`);
     checks += 2;
+    omissionHostiles += 1;
   }
 }
+assert.equal(omissionHostiles, 64); checks += 1;
 
 {
   const sample = goodInput('TEMPLATE_L1_L10');
@@ -82,6 +85,26 @@ for (const profile of Object.keys(GRADUATION_PROFILES)) {
   checks += 4;
 }
 
+{
+  const sample = goodInput('WARD_E0_E9');
+  sample.cells.E2 = { state: 'FAIL', reason: 'WARD_GUARD_STALE', evidence_refs: ['ward:policy:g1'], blockers: ['wake:ward-current'] };
+  const out = compileGraduationPreflight(sample);
+  assert.equal(out.first_red.cell, 'E2');
+  assert.equal(out.graduated_through, 'E1');
+  assert.equal(out.cells.find((c) => c.id === 'E7').state, 'PASS');
+  assert.equal(out.release_eligible, false);
+  checks += 4;
+}
+
+{
+  const sample = goodInput('WARD_E0_E9');
+  sample.cells.E5 = { state: 'N_A_WITH_REASON', reason: 'NO_CONSEQUENTIAL_EFFECT_IN_THIS_FIXTURE', evidence_refs: ['fixture:no-effect'] };
+  const out = compileGraduationPreflight(sample);
+  assert.equal(out.cells.find((c) => c.id === 'E5').state, 'N_A_WITH_REASON');
+  assert.equal(out.release_eligible, true);
+  checks += 2;
+}
+
 assert.throws(() => compileGraduationPreflight({ ...goodInput('TEMPLATE_L1_L10'), profile: 'NOPE' }), /unknown graduation profile/); checks += 1;
 const extra = goodInput('TEMPLATE_L1_L10');
 extra.cells.EXTRA = { state: 'PASS', evidence_refs: ['fixture:x'] };
@@ -96,7 +119,7 @@ assert.equal(cli.status, 0, cli.stderr); checks += 1;
 assert.equal(JSON.parse(cli.stdout).release_eligible, true); checks += 1;
 const profiles = spawnSync(process.execPath, [cliPath, 'preflight', 'profiles'], { encoding: 'utf8' });
 assert.equal(profiles.status, 0, profiles.stderr); checks += 1;
-assert.equal(JSON.parse(profiles.stdout).profiles.length, 4); checks += 1;
+assert.equal(JSON.parse(profiles.stdout).profiles.length, 5); checks += 1;
 fs.rmSync(tmp, { recursive: true, force: true });
 
-console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:4, omission_hostiles:54, checks, result:'PASS', effects:0 }));
+console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:5, omission_hostiles:64, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
