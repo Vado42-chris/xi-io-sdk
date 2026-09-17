@@ -19,6 +19,23 @@ Its job is to make state transitions:
 - attributable to stable actors/tasks/conversations;
 - safe to aggregate into quality, cost, savings and later billing projections.
 
+## Ownership boundary
+
+The SDK owns only the white-label event envelope and binary-compatible serialization semantics.
+
+`xi-io: Switchboard` owns Rosetta semantic translation/resolution, communications/routing, registered agent identity/assignment admission, internal AI mail/ACK/RETURN coordination, and consequential communications/effect routing under its existing authority chain.
+
+Hard:
+
+```text
+SDK_EVENT_ABI != ROSETTA_RUNTIME
+SDK_EVENT_ABI != COMMUNICATIONS_OWNER
+SDK_EVENT_ABI != ROUTING_AUTHORITY
+SWITCHBOARD_ROSETTA != DOMAIN_TRUTH_OWNER
+```
+
+Domain owners remain authoritative for their own facts, requirements, content, security, custody and release semantics.
+
 ## Semantic anchor
 
 A human-facing semantic tag may route to one stable typed identity.
@@ -45,7 +62,7 @@ HASHTAG != AUTHORITY
 HASHTAG != EVENT_RECEIPT
 ```
 
-The typed ref is resolved by the owning registry/CRM/SDK/Rosetta owner.
+The SDK does not resolve that semantic route. When semantic translation/routing is required, the tag/ref mapping is resolved through the owning registry/domain and the Switchboard-owned Rosetta/comms path.
 
 ## Event envelope
 
@@ -306,22 +323,21 @@ regressions_escaped_release
 
 Rates/ratios MUST retain denominator identity and generation.
 
-## Rosetta / semantic engine role
+## Switchboard-owned Rosetta / communications role
 
-The Rosetta-style engine resolves semantic tags and human vocabulary into stable typed refs and binary variables/invariants.
-
-It does not own domain truth merely because it can translate names.
+Rosetta is a Switchboard-owned semantic translation/routing layer. It may translate human vocabulary and semantic tags into stable typed refs and registered communications/routing targets, subject to Switchboard's existing identity, admission, routing and effect controls.
 
 ```text
 HUMAN_TERM
 -> SEMANTIC_TAG
+-> SWITCHBOARD / ROSETTA RESOLUTION
 -> TYPED_REF
 -> BINARY VARIABLE / INVARIANT
 -> SERIALIZED EVENT
 -> OWNER-SPECIFIC PROJECTION
 ```
 
-This makes the event spine usable across legal workflows, publishing, articles, books, software, CRM, support, security and operations without copying domain vocabulary into the SDK base.
+Rosetta translation does not make Switchboard the owner of domain truth. The event ABI does not give the SDK communications authority. This separation lets the same event spine serve legal workflows, publishing, articles, books, software, CRM, support, security and operations without copying domain vocabularies or routing logic into the SDK base.
 
 ## Replay and checkpoints
 
@@ -352,5 +368,6 @@ This ABI composes with:
 - RETURN / APPLY_RETURN
 - KnowledgeReturn / lesson promotion
 - metering/rate-card projections
+- Switchboard-owned Rosetta/comms routing
 
-It owns ordered semantic event representation only. It does not own Work identity, CRM authority, Bins custody, Switchboard effects, Ward policy, Publisher semantics, Desktop UX, or billing rates.
+It owns ordered semantic event representation only. It does not own Work identity, CRM authority, Bins custody, Switchboard Rosetta/comms/routing, Ward policy, Publisher semantics, Desktop UX, or billing rates.
