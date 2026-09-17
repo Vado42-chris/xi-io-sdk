@@ -29,11 +29,46 @@ function normalizeRooms(input = {}) {
       }];
 }
 
+function normalizeInstitutionalKnowledge(input = {}) {
+  const prior = input.institutional_knowledge && typeof input.institutional_knowledge === 'object'
+    ? input.institutional_knowledge
+    : {};
+  const required = input.institutional_knowledge_required === true || prior.required === true;
+  const current = input.institutional_knowledge_current === true || prior.current === true;
+  const refs = list(
+    Array.isArray(input.institutional_knowledge_refs) ? input.institutional_knowledge_refs : prior.refs,
+    12,
+  );
+  const nativeReadbackRef = text(
+    input.institutional_knowledge_native_readback_ref ?? prior.native_readback_ref,
+  ) || null;
+  const runtimeState = text(
+    input.institutional_knowledge_runtime_state ?? prior.runtime_state,
+    'UNKNOWN',
+  ).toUpperCase();
+  const workSelectionAllowed = !required || (current && refs.length > 0);
+  return {
+    required,
+    current,
+    refs,
+    runtime_state: runtimeState,
+    native_readback_ref: nativeReadbackRef,
+    native_readback_verified: Boolean(nativeReadbackRef),
+    state: !required
+      ? 'NOT_REQUIRED'
+      : workSelectionAllowed
+        ? nativeReadbackRef ? 'CURRENT_NATIVE_READBACK' : 'CURRENT_REFERENCE_CONSUMED'
+        : 'WAIT_CURRENT_INSTITUTIONAL_KNOWLEDGE',
+    work_selection_allowed: workSelectionAllowed,
+  };
+}
+
 function trim(packet, max) {
   if (bytes(packet) <= max) return packet;
   const out = structuredClone(packet);
   out.evidence_refs = list(out.evidence_refs, 4);
   out.cross_cutting_returns = list(out.cross_cutting_returns, 2);
+  if (out.institutional_knowledge) out.institutional_knowledge.refs = list(out.institutional_knowledge.refs, 4);
   out.invariants = list(out.invariants, 5);
   out.rotation_rooms = (out.rotation_rooms || []).map((room) => ({
     ref: text(room.ref).slice(0, 128),
@@ -49,6 +84,7 @@ function trim(packet, max) {
   out.rotation_rooms = out.rotation_rooms.map((room) => ({ ref: room.ref, role: room.role, detail: '' }));
   out.evidence_refs = list(out.evidence_refs, 2);
   out.cross_cutting_returns = list(out.cross_cutting_returns, 1);
+  if (out.institutional_knowledge) out.institutional_knowledge.refs = list(out.institutional_knowledge.refs, 2);
   out.invariants = list(out.invariants, 4);
   return out;
 }
@@ -56,9 +92,11 @@ function trim(packet, max) {
 export function compileAckRoomRotation(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('ACK room rotation input must be an object');
   const rooms = normalizeRooms(input);
+  const knowledge = normalizeInstitutionalKnowledge(input);
   const rawIndex = Number.isSafeInteger(input.room_index) ? input.room_index : 0;
   const roomIndex = ((rawIndex % rooms.length) + rooms.length) % rooms.length;
   const max = budget(input.byte_budget);
+  const requestedNext = text(input.next_machine_action, 'RECOLLIDE_CURRENT_ROOM');
   const packet = {
     schema: 'xiio.sdk.ack-room-rotation/v1',
     root_ref: text(input.root_ref, 'UNBOUND'),
@@ -75,12 +113,18 @@ export function compileAckRoomRotation(input = {}) {
     room: rooms[roomIndex],
     next_room_ref: rooms[(roomIndex + 1) % rooms.length].ref,
     rotation_rooms: rooms,
-    first_red: text(input.first_red, 'UNKNOWN'),
+    first_red: knowledge.work_selection_allowed
+      ? text(input.first_red, 'UNKNOWN')
+      : 'INSTITUTIONAL_KNOWLEDGE_NOT_CONSUMED',
     effect_ceiling: text(input.effect_ceiling, 'NO_EFFECT'),
     return_target_ref: text(input.return_target_ref, 'UNBOUND'),
     evidence_refs: list(input.evidence_refs),
     cross_cutting_returns: list(input.cross_cutting_returns),
-    next_machine_action: text(input.next_machine_action, 'RECOLLIDE_CURRENT_ROOM'),
+    institutional_knowledge: knowledge,
+    work_selection_allowed: knowledge.work_selection_allowed,
+    next_machine_action: knowledge.work_selection_allowed
+      ? requestedNext
+      : 'CONSUME_CURRENT_INSTITUTIONAL_KNOWLEDGE_BEFORE_WORK_SELECTION',
     byte_budget: max,
     metering: { context_strategy: 'ACK_REFS_PLUS_CURRENT_ROOM_DELTA', rebuild_full_context: false, rotate_room_not_history: true },
     invariants: list(input.invariants?.length ? input.invariants : [
@@ -91,7 +135,10 @@ export function compileAckRoomRotation(input = {}) {
       'FIRST_RED + NEXT > FULL_HISTORY_REPLAY',
       'SOURCE != MAIN != RUNNING != LIVE != READBACK',
       'CROSS_CUTTING_FINDING -> RETURN_UPSTREAM + CONTINUE_LOCAL',
-      'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG'
+      'OWNER_HEARTBEAT_FOR_MACHINE_RESOLVABLE_NEXT = BUG',
+      'REPORT_REFERENCE != NATIVE_CRM_READBACK',
+      'TEMPLATE_EXISTS != TEMPLATE_CONSUMED',
+      'REQUIRED_INSTITUTIONAL_KNOWLEDGE_NOT_CURRENT => WORK_SELECTION_BLOCKED'
     ]),
     authority_granted: false,
     provider_effect: false
