@@ -1,0 +1,44 @@
+{
+  "lesson_id": "lesson:user-experience-socratic-binary-decomposition",
+  "proof_tier": "PROVEN_MULTI_ORGAN_PATTERN",
+  "observed_date": "2026-09-17",
+  "generalized": {
+    "core": [
+      "HUMAN_IS_USER",
+      "X_IS_EXPERIENCE",
+      "TESTS_ASK_SMALLEST_SUFFICIENT_QUESTIONS",
+      "BINARY_CELLS_ARE_IRREDUCIBLE_MACHINE_TRUTH_WITH_UNKNOWN_MASKING",
+      "REPEATED_STRUCTURAL_TESTS_PRODUCE_TEMPLATES",
+      "PROVEN_CROSS_CONTEXT_TEMPLATES_CAN_PROMOTE_TO_PRIMITIVES",
+      "LEAF_PASS_NE_PARENT_EXPERIENCE_PASS",
+      "REBASE_IS_CHANGED_ONLY_HEARTBEAT_NOT_RESTART",
+      "SOCRATIC_METHOD_ON_SPEED_EQUALS_QUESTION_TEST_BIT_EVIDENCE_NEXT"
+    ],
+    "anti_patterns": [
+      "PROSE_CONFIDENCE_AS_TRUTH",
+      "ONE_TEST_PASS_AS_WHOLE_EXPERIENCE_PASS",
+      "DECOMPOSE_FOR_COUNT_INSTEAD_OF_DECISION_VALUE",
+      "UNKNOWN_COERCED_FALSE",
+      "TEST_CASE_AUTO_PROMOTED_TO_PRIMITIVE",
+      "REBASE_REDISCOVERS_UNAFFECTED_HISTORY",
+      "LOCAL_OPTIMUM_DROPS_USER_REQUIREMENTS"
+    ]
+  },
+  "consumers": {
+    "sdk": "owns white-label ABI",
+    "ibal": "conducts minimum next question/work formation",
+    "benchmark_x42_x43": "supplies hostile tests and independent observed deltas",
+    "cadence": "orders questions, waits, returns, rejoin and next beat",
+    "reaper": "proves no required unanswered/stale primitive is silently omitted",
+    "switchboard": "routes Rosetta/comms and admitted operational calls",
+    "crm": "retains question/result/lesson provenance by stable refs",
+    "publisher_desktop_products": "consume templates/primitives without redefining them"
+  },
+  "closure": {
+    "sdk_contract_written": true,
+    "lesson_fixture_written": true,
+    "affected_adopter_returns": false,
+    "independent_peer_replay": false,
+    "closed": false
+  }
+}
