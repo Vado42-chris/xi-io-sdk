@@ -101,6 +101,23 @@ inherit the former six-provider assumption. Both input versions return the
 explicit `xiio.sdk.ibal-canary-projection/v2` coverage shape. This change affects
 the existing candidate package and is not a public release or adoption claim.
 
+## ROTFL User × Experience decomposition
+
+For work described as `UX`, `user experience`, `Socratic`, `binary`, `test decomposition`, `template discovery`, or `primitive discovery`, start with:
+
+- `docs/contracts/rotfl-user-experience-socratic-binary-decomposition-abi.md` — reduces a Human/User × Experience into the smallest sufficient evidence-producing questions while preserving the parent denominator;
+- `docs/contracts/rotfl-binary-variable-invariant-abi.md` — masked binary truth cells (`UNKNOWN != false`);
+- `docs/contracts/rotfl-department-head-manifest-skill-abi.md` — canary/miner/foreman HOT_PATCH composition;
+- `docs/contracts/rotfl-serialized-semantic-event-chain-abi.md` — ordered binary deltas, observers, CRM/history, and metering projection.
+
+The short loop is:
+
+`USER × EXPERIENCE -> smallest sufficient QUESTION -> TEST/OBSERVE -> binary RESULT + evidence -> affected-only HOT_PATCH/WAIT/NO_EFFECT -> RETURN/APPLY_RETURN -> REAP -> changed-only REBASE -> next QUESTION`.
+
+Tests are also reusable-shape discovery inputs. Repeated structural equivalence may produce a test-template or primitive candidate, but never automatic promotion or authority.
+
+Hard: `QUESTION != TASK`, `TEST != TRUTH OWNER`, `LEAF PASS != WHOLE EXPERIENCE PASS`, `UNKNOWN != FALSE`, `REBASE != RESTART`, `TEMPLATE != DOMAIN TRUTH`.
+
 ## Reusable learning loop
 
 The existing canary's `lesson_fractal.learning` carries evidence bindings for
