@@ -1,0 +1,127 @@
+{
+  "lesson_id": "lesson:binary-requirement-stickiness",
+  "proof_tier": "PROVEN_ADOPTER_PATTERN",
+  "origin": {
+    "adopter_ref": "adopter:sam_law",
+    "observed_date": "2026-09-17",
+    "failure_signature": "LOCAL_OPTIMIZATION_DROPS_ACCEPTED_REQUIREMENT_OR_UNKNOWN_BECOMES_FALSE",
+    "private_case_facts_included": false
+  },
+  "contract_ref": "docs/contracts/rotfl-binary-variable-invariant-abi.md",
+  "generalized": {
+    "invariants": [
+      "ALL_MACHINE_VARIABLES_AND_INVARIANTS_BINARY",
+      "UNKNOWN_REQUIRES_MASK_BIT_NOT_FALSE",
+      "REQUIREMENTS_HAVE_STABLE_IDENTITIES",
+      "REQUIREMENT_OMISSION_NE_SUPERSESSION",
+      "PATCH_MUST_RECHECK_FULL_CURRENT_REQUIREMENT_DENOMINATOR",
+      "LOCAL_IMPROVEMENT_MUST_NOT_REGRESS_UNRELATED_REQUIREMENTS",
+      "RELEASE_IS_DERIVED_FROM_REQUIRED_KNOWN_TRUE_INVARIANTS",
+      "MULTI_STATE_WORKFLOWS_USE_ONE_HOT_OR_MONOTONIC_BIT_VECTORS",
+      "PROVENANCE_METADATA_DOES_NOT_REPLACE_BINARY_STATE"
+    ],
+    "anti_patterns": [
+      "UNKNOWN_AS_FALSE",
+      "ABSENCE_AS_PASS",
+      "BEAUTIFUL_DRIFT",
+      "REVISION_DROPS_BRIEF_REQUIREMENT",
+      "EDITORIAL_CHANGE_WITHOUT_REQUIREMENT_REPLAY",
+      "PASS_LABEL_WITHOUT_DERIVED_RELEASE_BITS"
+    ],
+    "applies_to": [
+      "articles",
+      "publisher",
+      "desktop",
+      "books",
+      "veilrift",
+      "legal_workflow",
+      "software_release",
+      "ux",
+      "accessibility",
+      "research",
+      "support",
+      "security"
+    ]
+  },
+  "binary_cell": {
+    "required_bits": [
+      "known_bit",
+      "value_bit",
+      "required_bit",
+      "current_bit",
+      "source_bound_bit",
+      "owner_adopted_bit",
+      "effect_authorized_bit",
+      "changed_bit"
+    ],
+    "unknown_rule": "known_bit=0 masks value_bit; unknown never earns pass credit",
+    "release_rule": "every required invariant must have known_bit=1 and value_bit=1"
+  },
+  "requirement_vector": {
+    "required_bits": [
+      "requirement_present_bit",
+      "requirement_current_bit",
+      "requirement_required_bit",
+      "requirement_source_bound_bit",
+      "requirement_satisfied_known_bit",
+      "requirement_satisfied_value_bit",
+      "requirement_changed_bit",
+      "requirement_explicitly_superseded_bit"
+    ],
+    "patch_impact_bits": [
+      "touched_bit",
+      "preserved_bit",
+      "improved_bit",
+      "regressed_bit",
+      "requires_review_bit"
+    ]
+  },
+  "article_counterpunch": {
+    "denominator_examples": [
+      "brief",
+      "audience",
+      "required_claims",
+      "required_sources",
+      "exclusions",
+      "tone",
+      "structure",
+      "cta",
+      "seo",
+      "rights",
+      "accessibility",
+      "publication_constraints"
+    ],
+    "invariant": "an editorial patch may improve any local surface only while all still-current required denominator cells remain known-satisfied or are explicitly superseded by an authorized change"
+  },
+  "publisher_backfeed": {
+    "content_modes": ["article", "book", "guide", "report", "reference_pack"],
+    "template_primitives": [
+      "requirements_overview",
+      "claim_source_map",
+      "feedback_response_denominator",
+      "hot_patch_review",
+      "revision_manifest",
+      "reader_navigation",
+      "accessibility_companion",
+      "delivery_wrapper",
+      "release_gate"
+    ]
+  },
+  "learning": {
+    "generation": "lesson:binary-requirement-stickiness:2026-09-17",
+    "shared_primitive_ref": "sdk:rotfl-binary-variable-invariant-abi",
+    "bins_receipt": null,
+    "peer_replay": null,
+    "affected_return": null,
+    "cadence_wake": null
+  },
+  "closure": {
+    "sdk_source_written": true,
+    "publisher_adopter_wake_written": false,
+    "desktop_adopter_wake_written": false,
+    "veilrift_adopter_wake_written": false,
+    "authenticated_bins_readback": false,
+    "peer_replay": false,
+    "closed": false
+  }
+}
