@@ -2,6 +2,16 @@
 
 Status: EXPERIMENTAL DONOR ONLY. Not production-ready. No authority, provider-effect, billing, deployment, legal-effect, or runtime-readiness is implied.
 
+## Provenance split — factual chronology only
+
+User states that the original Base44 shell, launcher, desktop/projection-folder concept, Xibalba underground atmosphere, cog-background treatment, parallax/dust/rotation work, and related visual/interaction concepts were created by the user before separation/divorce.
+
+Keep this separate from later work:
+- `PRE-SEPARATION ORIGINAL DONOR`: original shell/launcher/desktop visual and interaction concepts, Xibalba atmosphere, cog brand treatment, and original Base44 concept work.
+- `POST-SEPARATION DERIVATIVE / HARDENING`: 2026 glass-box hardening, SDK donor mapping, Ward/HEX qualification, current installer/launcher integration, cyan Ibal identity substitution, and current xi-io search mapping.
+
+This file records chronology/provenance only. It does not determine legal ownership, family-property classification, valuation, authorship rights against third parties, or entitlement.
+
 Source app: Base44 `xi-io Node` (`693dffcccab0bea12e1e7952`).
 Pre-hardening checkpoint: `6aab7769c3ef330faf770f2c` / `385da9ddb2094440d81fef787edc7b9899647373`.
 Post-hardening checkpoint: `6aab7b5a4e1c60b030e6e7c4` / `7c43367cc26094280ba8cb19894e056af7132096`.
@@ -58,6 +68,7 @@ These remain `EXPERIMENTAL_DONOR` until separately graduated through the shared 
 - `BASE44_PROVIDER_BINDING != XIIO_PROVIDER_BINDING`
 - `VISUAL_BRAND_PRIMITIVE != FULL_SHELL_ADOPTION`
 - `DONOR_BUILD_PASS != STUDIO/TAURI/ARIES_RUNTIME_PASS`
+- `PRE_SEPARATION_ORIGINAL != POST_SEPARATION_HARDENING`
 
 ## Measured donor smoke
 
