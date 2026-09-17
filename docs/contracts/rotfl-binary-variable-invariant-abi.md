@@ -208,6 +208,134 @@ PATCH_RETURNED=0 + HOLD_RETURNED=0 -> LOOP_INCOMPLETE
 FOREMAN_APPLIED=1 without FOREMAN_DISPOSITION_KNOWN=1 -> INVALID
 ```
 
+## Binary Socratic decomposition / User-X test loop
+
+Complex work may be decomposed by asking the smallest binary question whose answer materially changes the next safe action.
+
+This is a composition pattern over the existing binary ABI. It is not a new reasoning engine, workflow engine, task system, UX authority, or domain-truth owner.
+
+Definitions:
+
+```text
+USER = the human/consumer whose outcome and experienced friction matter
+X = the end-to-end experienced outcome, not merely the visible interface
+TEST = a bounded question against a frozen denominator
+ANSWER = KNOWN_TRUE | KNOWN_FALSE | UNKNOWN, represented through masked bits
+```
+
+Human experience evidence and domain/source truth remain distinct:
+
+```text
+USER_REPORT_OF_EXPERIENCE = direct evidence of that user's experience
+USER_REPORT_OF_EXPERIENCE != UNIVERSAL_DOMAIN_TRUTH
+UX_MEASUREMENT != LEGAL/SECURITY/PROVIDER AUTHORITY
+```
+
+A Socratic test cell may bind:
+
+```text
+QUESTION_ID
+PARENT_QUESTION_ID
+SUBJECT_REF
+REQUIREMENT_REF
+EXPECTED_KNOWN_BIT
+EXPECTED_VALUE_BIT
+OBSERVED_KNOWN_BIT
+OBSERVED_VALUE_BIT
+REQUIRED_BIT
+ATOMIC_BIT
+TEMPLATE_FOUND_BIT
+PRIMITIVE_FOUND_BIT
+NEW_CLASS_BIT
+OWNER_REQUIRED_BIT
+SOURCE_REFS
+RETURN_TARGET
+```
+
+### Smallest useful denominator
+
+A question is atomic only when further decomposition would not create a child that is independently testable, independently actionable, or owned/proved by a materially different source/owner.
+
+A useful atomic cell normally has:
+
+```text
+one stable subject
+one invariant/question
+one evidence contract
+one owner/effect boundary
+one KNOWN_TRUE | KNOWN_FALSE | UNKNOWN disposition
+one return target
+```
+
+Hard:
+
+```text
+SMALLER != BETTER_BY_DEFAULT
+ATOMIC != ONE_LINE
+QUESTION != TASK
+TEST != AUTHORITY
+CHILD_PASS != PARENT_PASS
+ONE_GREEN_FIXTURE != WHOLE_EXPERIENCE_PASS
+UNKNOWN != FALSE
+```
+
+### Binary Socratic loop
+
+For one current experience/problem denominator:
+
+1. freeze the current requirement + relationship + experience denominator;
+2. select one required unresolved or contradicted cell;
+3. ask the smallest question whose answer changes a real next action;
+4. bind the exact test/source/fixture and observe the masked binary answer;
+5. if the answer matches expectation, preserve the bit and continue;
+6. if the answer mismatches, first search for an existing template/primitive/owner;
+7. if an existing reusable answer exists, adopt it and verify the affected consumer;
+8. if a genuinely new reusable defect class exists, open/join one miner shaft and return the smallest tested HOT_PATCH;
+9. if the parent requires multiple independently meaningful children, materialize the child denominator and keep the parent unresolved until every required child is known-satisfied;
+10. if a question cannot change work, proof, risk, ownership, or user experience, REAP it as non-material interrogation;
+11. continue until only an irreducible human choice/judgment remains; then route that exact residue to the User;
+12. recompose the affected experience and run the whole-experience/requirement denominator before release.
+
+This is Socratic questioning accelerated by machine-addressable binary state: each answer either closes a cell, narrows the next question, wakes an existing owner, or exposes one exact missing bridge.
+
+### Tests as reusable template/primitive pressure
+
+A test is not merely a release gate. Recurrent test structure is evidence for reusable templates and primitives.
+
+```text
+TEST FAILURE
+-> exact failing invariant/cell
+-> owner + relationship collision
+-> REUSE_EXISTING_TEMPLATE_OR_PRIMITIVE
+ | PRODUCT_SPECIALIZATION
+ | NEW_PORTABLE_CLASS_CANDIDATE
+ | UNKNOWN/HOLD
+-> HOT_PATCH where admitted
+-> verify
+-> RETURN/APPLY_RETURN
+-> affected-only adopter wake
+```
+
+Hard:
+
+```text
+TEST_EXISTS != TEMPLATE
+REPEATED_FAILURE != AUTOMATIC_PRIMITIVE
+REUSE_COUNT != PROMOTION
+TEST_PASS != USER_SUCCESS
+USER_SUCCESS != RELEASE_AUTHORITY
+```
+
+A portable template/primitive is promoted only through the existing lesson/backfeed/qualification path.
+
+### Team/simulation use
+
+A conductor may assign different cells to miners/observers while preserving one frozen denominator.
+
+Each slot returns only generation-bound observed bits, evidence refs, and reason codes. The reducer compares expected vs observed cells, keeps unaffected slots running, wakes only graph-proven affected work, and rejects stale-generation returns.
+
+This allows binary team orchestration without turning prose summaries into machine truth.
+
 ## Release bit
 
 A release decision is derived, never declared by prose.
