@@ -1,0 +1,151 @@
+{
+  "lesson_id": "lesson:whole-experience-hot-patch-force-multiplier",
+  "proof_tier": "PROVEN_ADOPTER_PATTERN",
+  "origin": {
+    "adopter_ref": "adopter:sam_law",
+    "observed_date": "2026-09-17",
+    "failure_signature": "ARTIFACT_LOCAL_FIX_WITHOUT_CLASS_MINER_FANOUT",
+    "source_pattern": "deadline-bound court-package UX and compliance smoke tests",
+    "private_case_facts_included": false
+  },
+  "generalized": {
+    "invariants": [
+      "DURABLE_PERSONA_DISPOSABLE_PROJECTION",
+      "CANARY_NEW_CLASS_REQUIRES_MINER_SHAFT",
+      "MINER_RETURNS_HOT_PATCH_NOT_FINDINGS",
+      "HOT_PATCH_NE_REVISION_NE_DRAFT_NE_DELIVERABLE",
+      "FOREMAN_OWNS_APPLY_RETURN_AND_REVISION_COMPOSITION",
+      "WHOLE_EXPERIENCE_RELEASE_BEFORE_ARTIFACT_RELEASE",
+      "RESPONSE_DENOMINATOR_REQUIRED_BEFORE_FINAL_ASSEMBLY",
+      "PROJECTION_MUST_BIND_TO_LOCATABLE_PROOF_OR_TYPED_GAP",
+      "EVENT_STATE_CHAIN_MUST_NOT_COLLAPSE_TRANSMITTED_SERVED_FILED_ACCEPTED",
+      "ACCESSIBILITY_AID_NE_AUTHORITATIVE_OBJECT",
+      "PATCH_NATIVE_ONCE_EXPORT_ONCE_CHANGED_SURFACE_QA_PLUS_FULL_SANITY",
+      "OWNER_APPROVED_WORDING_NE_MACHINE_VERIFIED_DELIVERY_STATE",
+      "SAME_FINGERPRINT_JOINS_EXISTING_SHAFT",
+      "NEW_PRIMITIVE_CLASS_PROMOTES_TO_WHITE_LABEL_SKILL_AND_LESSON"
+    ],
+    "applies_to": [
+      "ux",
+      "accessibility",
+      "legal_workflow",
+      "software_release",
+      "support",
+      "security",
+      "operations",
+      "documents",
+      "provider_egress",
+      "evidence",
+      "research",
+      "project_management"
+    ],
+    "anti_patterns": [
+      "CANARY_DIES_WITH_FINDINGS_ONLY",
+      "TASK_CHANGE_MINTS_NEW_PERSONA",
+      "MINER_SELF_PROMOTES_FINAL",
+      "PASS_CREATES_NEW_VERSION_WITHOUT_DELTA",
+      "ARTIFACT_CORRECT_BUT_HANDOFF_STALE",
+      "PROJECTION_DESCRIBES_UNLOCATABLE_PROOF",
+      "CHECKLIST_OMISSION_MEANS_NO_RESPONSE_REQUIRED",
+      "ACCESSIBILITY_TEMPLATE_REPLACES_OFFICIAL_SOURCE",
+      "FULL_RERENDER_FOR_UNCHANGED_BYTES",
+      "OWNER_RECONSTRUCTS_MACHINE_KNOWN_STATE"
+    ]
+  },
+  "department_head": {
+    "contract_ref": "docs/contracts/rotfl-department-head-manifest-skill-abi.md",
+    "manifest_required": true,
+    "manifesto_required": true,
+    "permanent_persona_id_required": true,
+    "logical_mailbox_required": true,
+    "ack_schema_required": true,
+    "skill_refs_required": true,
+    "learning_ledger_required": true,
+    "effect_ceiling_required": true
+  },
+  "projection": {
+    "required_fields": [
+      "projection_id",
+      "persona_id",
+      "department_id",
+      "level",
+      "scope",
+      "denominator",
+      "source_generation",
+      "target_generation",
+      "skill_refs",
+      "tool_refs",
+      "metrics",
+      "ttl",
+      "return_target",
+      "effect_ceiling",
+      "ack_state"
+    ]
+  },
+  "hot_patch": {
+    "required_fields": [
+      "patch_id",
+      "canary_id",
+      "persona_id",
+      "projection_id",
+      "target_generation",
+      "affected_consumers",
+      "source_refs",
+      "preconditions",
+      "exact_delta",
+      "tests",
+      "negative_canary",
+      "rollback",
+      "no_effect",
+      "owner_gate",
+      "return_target",
+      "wake"
+    ],
+    "foreman_decisions": ["APPLY", "HOLD", "REJECT"]
+  },
+  "whole_experience": {
+    "default_consumers": [
+      "owner_operator",
+      "end_user",
+      "intake_or_clerk",
+      "signer_or_commissioner",
+      "decision_maker",
+      "receiving_party",
+      "delivery_channel",
+      "cold_successor",
+      "security_privacy_owner",
+      "accessibility_ux_owner",
+      "release_owner"
+    ],
+    "response_exit_states": [
+      "ANSWERED_IN_DELIVERABLE",
+      "RESPONDED_SEPARATELY_WITH_PROOF",
+      "SUPERSEDED",
+      "DEFERRED_WITH_REASON_AND_WAKE",
+      "PROCEDURAL_ONLY_NO_RESPONSE_REQUIRED",
+      "UNKNOWN_BLOCKS_RELEASE"
+    ]
+  },
+  "sdk": {
+    "change_type": "CONTRACT_PLUS_LESSON_FIXTURE",
+    "contract_ref": "docs/contracts/rotfl-department-head-manifest-skill-abi.md",
+    "promotion_ref": "xi lesson promote"
+  },
+  "learning": {
+    "generation": "lesson:whole-experience-hot-patch-force-multiplier:2026-09-17",
+    "observation_ref": "adopter:sam_law:2026-09-17",
+    "shared_primitive_ref": "sdk:rotfl-department-head-manifest-skill-abi",
+    "bins_receipt": null,
+    "peer_replay": null,
+    "affected_return": null,
+    "cadence_wake": null
+  },
+  "closure": {
+    "sdk_source_written": true,
+    "authenticated_bins_readback": false,
+    "independent_peer_replay": false,
+    "affected_adopter_consumption": false,
+    "cadence_admission": false,
+    "closed": false
+  }
+}
