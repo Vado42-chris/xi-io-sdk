@@ -6,6 +6,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
@@ -58,6 +59,7 @@ const tools=[
  {type:'function',function:{name:'edit_workspace_text_file',description:'Create or exactly replace bounded text inside the current workspace. Requires --execute.',parameters:{type:'object',required:['path','operation','new_text'],properties:{path:{type:'string'},operation:{type:'string',enum:['create','replace_exact']},old_text:{type:'string'},new_text:{type:'string'}}}}},
  {type:'function',function:{name:'run_workspace_command',description:'Run one allowlisted executable with structured arguments in the current workspace. Requires --execute.',parameters:{type:'object',required:['command'],properties:{command:{type:'string'},args:{type:'array',items:{type:'string'}}}}}}
 ];
+const toolNames=tools.map((entry)=>entry.function.name);
 
 async function tool(name,a={}) {
   if(name==='read_workspace_text_file') return {content:await fsp.readFile(target(a.path),'utf8')};
@@ -75,13 +77,46 @@ async function tool(name,a={}) {
 async function load(){ try{return JSON.parse(await fsp.readFile(sessionFile,'utf8')).messages||[];}catch{return[];} }
 async function save(messages){ await fsp.mkdir(stateDir,{recursive:true,mode:0o700}); await fsp.writeFile(sessionFile,JSON.stringify({schema:'xiio.cli.local-session/v1',cwd,model,messages:messages.slice(-40)},null,2)+'\n',{mode:0o600}); }
 
+function realizationCorrection(realization) {
+  return {
+    role:'system',
+    content:[
+      'ROTFL_REALIZATION_GATE blocked the previous assistant terminal response.',
+      `BLOCKERS=${realization.blockers.join('|') || 'UNKNOWN'}`,
+      'Do not print JSON that resembles a function/tool call and do not invent tool names.',
+      `Use native tool calls only from: ${toolNames.join(', ')}.`,
+      'Workspace file paths must be relative to the current workspace; never use /LUNAR or another absolute path.',
+      'If no admitted native tool can perform the requested action, return a typed blocker and exact wake. Do not claim the action ran.',
+      'After a native mutation, rely on the tool result/readback before claiming success.',
+    ].join(' '),
+  };
+}
+
 async function chat(messages){
+  const observedToolCalls=[];
   for(let spin=0;spin<6;spin++){
     const res=await fetch(ollama+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:AbortSignal.timeout(300000)});
     if(!res.ok) throw new Error('OLLAMA_HTTP_'+res.status);
     const body=await res.json(), msg=body.message||{}; messages.push(msg);
-    if(!msg.tool_calls?.length) return msg.content||'';
-    for(const call of msg.tool_calls){ let content; try{content=JSON.stringify(await tool(call.function?.name,call.function?.arguments));}catch(e){content=JSON.stringify({ok:false,state:'BLOCKED',reason:e.message});} messages.push({role:'tool',content}); }
+    if(!msg.tool_calls?.length) {
+      const realization=evaluateAgentResponseRealization({
+        responseText:msg.content||'',
+        observedToolCalls,
+        availableToolNames:toolNames,
+        workspacePathMode:'RELATIVE_ONLY',
+      });
+      if(realization.pass) return msg.content||'';
+      messages.push(realizationCorrection(realization));
+      continue;
+    }
+    for(const call of msg.tool_calls){
+      const name=String(call.function?.name||'').trim();
+      if(name) observedToolCalls.push(name);
+      let content;
+      try{content=JSON.stringify(await tool(name,call.function?.arguments));}
+      catch(e){content=JSON.stringify({ok:false,state:'BLOCKED',reason:e.message});}
+      messages.push({role:'tool',content});
+    }
   }
   throw new Error('TOOL_SPIN_LIMIT');
 }
