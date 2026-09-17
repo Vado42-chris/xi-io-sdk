@@ -390,9 +390,12 @@ Compression is an implementation choice. Semantics are invariant.
 This ABI composes with:
 
 - `docs/contracts/rotfl-department-head-manifest-skill-abi.md`
+- `docs/contracts/rotfl-user-experience-socratic-binary-decomposition-abi.md`
 - universal lesson promotion through `xi lesson promote`
 - adopter-specific requirement/response denominators
 - HOT_PATCH and foreman APPLY/HOLD/REJECT
 - RETURN / APPLY_RETURN
+
+The Socratic decomposition ABI uses these cells to reduce a User × Experience into the smallest sufficient evidence-producing questions while preserving the parent denominator.
 
 The binary ABI owns representation and evaluation semantics. It does not own domain authority, source truth, worker admission, security policy, provider effects, or release authorization.
