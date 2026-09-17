@@ -1,0 +1,117 @@
+{
+  "lesson_id": "lesson:user-experience-binary-socratic-decomposition",
+  "proof_tier": "PROVEN_ADOPTER_PATTERN",
+  "observed_date": "2026-09-17",
+  "origin": {
+    "adopter_ref": "adopter:sam_law",
+    "source_pattern": "high-pressure whole-experience UX triage, binary simulations, hot-patch fanout, and repeated rebase/re-onboard dogfood",
+    "private_case_facts_included": false
+  },
+  "contract_ref": "docs/contracts/rotfl-user-experience-binary-socratic-abi.md",
+  "depends_on": [
+    "docs/contracts/rotfl-binary-variable-invariant-abi.md",
+    "docs/contracts/rotfl-serialized-semantic-event-chain-abi.md",
+    "docs/contracts/rotfl-department-head-manifest-skill-abi.md",
+    "fixtures/lessons/whole-experience-hot-patch-force-multiplier.synthetic.json",
+    "fixtures/lessons/binary-requirement-stickiness.synthetic.json"
+  ],
+  "generalized": {
+    "invariants": [
+      "HUMAN_IS_USER",
+      "X_IS_EXPERIENCE",
+      "TEST_IS_DISCOVERY_PLUS_VERIFICATION",
+      "TEST_FINDINGS_DECOMPOSE_TO_SMALLEST_SEMANTIC_LEAF",
+      "UNKNOWN_USES_MASKED_BINARY_STATE",
+      "PROMPT_NOUNS_DO_NOT_DEFINE_EXPERIENCE_DENOMINATOR",
+      "ONE_REQUIRED_FALSE_OR_UNKNOWN_PREVENTS_WHOLE_EXPERIENCE_CLOSURE",
+      "EXISTING_OWNER_COLLISION_BEFORE_NEW_PRIMITIVE",
+      "LOCAL_PATCH_REQUIRES_AFFECTED_CONSUMER_RETEST",
+      "REUSABLE_TEST_PATTERN_CAN_BECOME_TEMPLATE",
+      "REUSABLE_SEMANTIC_LEAF_CAN_BECOME_PRIMITIVE",
+      "RETURN_REAP_REBASE_ARE_PART_OF_THE_TEST_LOOP"
+    ],
+    "anti_patterns": [
+      "UX_EQUALS_UI_ONLY",
+      "TEST_EQUALS_PASS_FAIL_LABEL",
+      "FAILURE_MINTS_NEW_PRIMITIVE",
+      "UNKNOWN_AS_FALSE",
+      "DECOMPOSE_BY_FILE_SIZE_INSTEAD_OF_SEMANTIC_INDEPENDENCE",
+      "LOCAL_GREEN_CALLED_USER_EXPERIENCE_GREEN",
+      "OBSERVER_MUTATES_REVIEWED_SUBJECT",
+      "PATCH_WITHOUT_REQUIREMENT_REPLAY",
+      "RESULT_AND_STOP",
+      "CANARY_WITHOUT_MINER_OR_REAP"
+    ]
+  },
+  "semantic_leaf": {
+    "required_dimensions": [
+      "one_subject",
+      "one_semantic_owner",
+      "one_variable_or_invariant",
+      "one_current_generation",
+      "one_proof_requirement",
+      "one_effect_boundary",
+      "one_independent_test",
+      "one_return_target"
+    ],
+    "split_if": [
+      "multiple_owners",
+      "multiple_independent_causes",
+      "multiple_effect_boundaries",
+      "multiple_independent_tests",
+      "multiple_current_generations"
+    ],
+    "do_not_split_below": "semantic meaning"
+  },
+  "socratic_binary_loop": [
+    "USER_GOAL",
+    "EXPECTED_EXPERIENCE",
+    "OBSERVED_EXPERIENCE",
+    "REQUIRED_INVARIANT_DELTA",
+    "KNOWN_OR_UNKNOWN",
+    "EVIDENCE_BINDING",
+    "SMALLEST_CAUSAL_LEAF",
+    "OWNER_PRIMITIVE_COLLISION",
+    "DISCRIMINATING_TEST",
+    "HOT_PATCH_WAIT_NO_EFFECT_OR_OWNER_DECISION",
+    "RECOMPOSE",
+    "WHOLE_EXPERIENCE_RETEST"
+  ],
+  "sim_reducer_states": [
+    "MATCH",
+    "MISMATCH",
+    "UNKNOWN_OBSERVED",
+    "UNKNOWN_EXPECTED",
+    "STALE_GENERATION",
+    "MISSING_DENOMINATOR_CELL",
+    "EXTRA_UNDECLARED_CELL"
+  ],
+  "promotion": {
+    "template_candidate_when": "the same stable interrogation or denominator structure recurs across structurally similar experiences",
+    "primitive_candidate_when": "the same semantic leaf or behavior recurs with a stable owner, boundary, contract, and tests",
+    "portable_promotion_requires": [
+      "owner_collision",
+      "appropriate_independent_or_second_context_evidence",
+      "source_contract",
+      "affected_adopter_return"
+    ]
+  },
+  "affected_owners": [
+    "sdk",
+    "ibal",
+    "benchmark_x42",
+    "cadence",
+    "reaper",
+    "publisher",
+    "desktop"
+  ],
+  "closure": {
+    "sdk_contract_candidate_written": true,
+    "sdk_lesson_fixture_written": true,
+    "ibal_adopter_return_written": false,
+    "benchmark_adopter_return_written": false,
+    "cadence_reap_rebase_return_written": false,
+    "independent_peer_replay": false,
+    "closed": false
+  }
+}
