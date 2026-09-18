@@ -193,6 +193,8 @@ export function compileLegalBinaryPackage(input){
   hotfolder_wakes.sort((a,b)=>a.priority_rank-b.priority_rank || a.wake_id.localeCompare(b.wake_id));
   const first_red=hotfolder_wakes[0] ?? null;
   const gate_pass=openFacts.length===0 && openItems.length===0;
+  const ownerFactsOnly=openFacts.length>0 && openFacts.every(f=>f.user_choice_bit===1 && f.effect_class==='OWNER');
+  const ownerItemsOnly=openItems.every(i=>i.owner_gate_bit===1 && i.structural_pass===true && i.state==='UNKNOWN');
 
   return Object.freeze({
     schema:LEGAL_BINARY_SCHEMA,
@@ -224,7 +226,7 @@ export function compileLegalBinaryPackage(input){
     hotfolder_wakes,
     first_red,
     gate_pass,
-    owner_review_ready:openItems.length===0 && (gate_pass || (openFacts.length>0 && openFacts.every(f=>f.user_choice_bit===1 || f.effect_class==='OWNER'))),
+    owner_review_ready:gate_pass || (ownerFactsOnly && ownerItemsOnly),
     terminal:false,
     provider_effect:false,
     legal_effect:false,
