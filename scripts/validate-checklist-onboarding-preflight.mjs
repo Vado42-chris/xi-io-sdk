@@ -284,6 +284,28 @@ let checks = 0;
   assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity open_item_refs mismatch/); checks++;
 }
 
+
+{
+  const x = base();
+  x.ack_trinity = structuredClone(x.ack_trinity);
+  x.ack_trinity.trinity[0].checklist.rows[0].state = 'WAIT';
+  x.ack_trinity.trinity[0].checklist.supplied_complete = true;
+  x.ack_trinity.open_item_refs = [];
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity supplied_complete mismatch/); checks++;
+}
+{
+  const x = base();
+  x.ack_trinity = structuredClone(x.ack_trinity);
+  delete x.ack_trinity.trinity[0].punch_card.obligation_state;
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity obligation_state invalid/); checks++;
+}
+{
+  const x = base();
+  x.ack_trinity = structuredClone(x.ack_trinity);
+  x.ack_trinity.trinity[0].punch_card.obligation_state = 'BROKEN';
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity obligation_state invalid/); checks++;
+}
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.checklist-onboarding-preflight-validation/v1',
   result:'PASS',
