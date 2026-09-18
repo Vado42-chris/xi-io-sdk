@@ -85,7 +85,11 @@ function validateAckTrinity(trinity) {
 }
 
 function ackCells(trinity) {
-  const openRefs = new Set(Array.isArray(trinity.open_item_refs) ? trinity.open_item_refs : []);
+  if (!Array.isArray(trinity.open_item_refs)) throw new TypeError('ack_trinity open_item_refs required');
+  const derivedOpen = trinity.trinity.filter((entry) => entry.checklist?.supplied_complete !== true || entry.punch_card?.next === 'RESOLVE_ACK_ITEM').map((entry) => entry.item_ref).sort();
+  const suppliedOpen = [...new Set(trinity.open_item_refs)].sort();
+  if (JSON.stringify(derivedOpen) !== JSON.stringify(suppliedOpen)) throw new TypeError('ack_trinity open_item_refs mismatch');
+  const openRefs = new Set(suppliedOpen);
   return trinity.trinity.map((entry) => {
     if (!bounded(entry.item_ref)) throw new TypeError('ack trinity item_ref invalid');
     const checklistRef = entry.checklist?.checklist_ref;
@@ -151,6 +155,9 @@ export function compileChecklistOnboardingPreflight(input) {
   if (!Array.isArray(input.control_cells) || input.control_cells.length === 0) throw new TypeError('control_cells required');
 
   const controls = input.control_cells.map(normalizeControlCell);
+  for (const axis of ['TOOL','SKILL','LESSON']) {
+    if (!controls.some((cell) => cell.axis === axis && cell.required_bit === 1)) throw new TypeError('missing required qualification axis: ' + axis);
+  }
   const seen = new Set();
   for (const cell of controls) {
     if (seen.has(cell.cell_id)) throw new TypeError('duplicate control cell: ' + cell.cell_id);
@@ -164,6 +171,7 @@ export function compileChecklistOnboardingPreflight(input) {
   }
   for (const role of WAKE_ROLES) {
     if (!roleMap.has(role)) throw new TypeError('missing wake role: ' + role);
+    if (roleMap.get(role).required_bit !== 1) throw new TypeError('wake role must be required: ' + role);
   }
 
   const cells = [...ackCells(input.ack_trinity), ...controls];
