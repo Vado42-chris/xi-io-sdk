@@ -2,6 +2,12 @@ export const CHECKLIST_PREFLIGHT_INPUT_SCHEMA = 'xiio.sdk.checklist-onboarding-p
 export const CHECKLIST_PREFLIGHT_SCHEMA = 'xiio.sdk.checklist-onboarding-preflight/v1';
 
 const AXES = new Set(['TOOL','SKILL','LESSON','WAKE_TEAM']);
+const AXIS_EQUIVALENCE = Object.freeze({
+  TOOL:'TOOL_OPERABILITY',
+  SKILL:'SKILL_HYDRATION',
+  LESSON:'LESSON_CONSUMED',
+  WAKE_TEAM:'WAKE_ROLE_QUALIFICATION',
+});
 const WAKE_ROLES = Object.freeze(['EXECUTE_RESOLVE','DISCOVER_HOSTILE','UX_QUAL_QUANT','OBSERVER_REJOIN']);
 
 const bounded = (value, max = 512) =>
@@ -32,10 +38,12 @@ function normalizeControlCell(raw) {
     if (!bounded(raw[field])) throw new TypeError(field + ' required');
   }
   if (!AXES.has(raw.axis)) throw new TypeError('axis invalid: ' + raw.cell_id);
+  if (raw.equivalence_ref !== AXIS_EQUIVALENCE[raw.axis]) throw new TypeError('axis equivalence invalid: ' + raw.cell_id);
 
   const required = bit(raw.required_bit, raw.cell_id + '.required_bit');
   const material = bit(raw.material_bit, raw.cell_id + '.material_bit');
   const expected = bit(raw.expected_bit, raw.cell_id + '.expected_bit');
+  if (expected !== 1) throw new TypeError('qualification expected_bit must be 1: ' + raw.cell_id);
   const known = bit(raw.observed_known_bit, raw.cell_id + '.observed_known_bit');
   const value = bit(raw.observed_value_bit, raw.cell_id + '.observed_value_bit');
   if (known === 0 && value === 1) throw new TypeError('unknown encoding invalid: ' + raw.cell_id);
@@ -112,15 +120,21 @@ function quantize(cells) {
   }
   return [...groups.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([equivalence_ref,members]) => {
     const required = members.filter((member) => member.required_bit === 1);
-    const states = required.map(stateOf);
-    const state = states.includes('FAIL') ? 'FAIL' : states.includes('UNKNOWN') ? 'UNKNOWN' : 'PASS';
+    const rawStates = members.map((member) => ({ member, state: stateOf(member) }));
+    const state = rawStates.some((row) => row.state === 'FAIL')
+      ? 'FAIL'
+      : rawStates.some((row) => row.state === 'UNKNOWN')
+        ? 'UNKNOWN'
+        : 'PASS';
+    const redMembers = rawStates.filter((row) => row.state === 'FAIL' || row.state === 'UNKNOWN').map((row) => row.member);
     return {
       equivalence_ref,
       state,
       raw_member_count: members.length,
       required_member_count: required.length,
       member_refs: members.map((member) => member.cell_id).sort(),
-      subproblem_refs: [...new Set(required.map((member) => member.subproblem_ref).filter(Boolean))].sort(),
+      red_member_refs: redMembers.map((member) => member.cell_id).sort(),
+      subproblem_refs: [...new Set(redMembers.map((member) => member.subproblem_ref).filter(Boolean))].sort(),
     };
   });
 }
