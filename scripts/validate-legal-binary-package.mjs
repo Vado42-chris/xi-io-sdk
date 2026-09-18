@@ -76,6 +76,7 @@ assert.equal(out.legal_effect,false); checks++;
 
 const unknown=base();
 unknown.facts[1]=fact('affidavit',{answer:'ASK_MORE_DETAILS',source_refs:[],currentness:'UNKNOWN',effect_class:'OWNER',user_choice_bit:1,priority_rank:5});
+unknown.package_items[1].owner_gate_bit=1;
 const unknownOut=compileLegalBinaryPackage(unknown);
 assert.equal(unknownOut.gate_pass,false); checks++;
 assert.equal(unknownOut.first_red.wake_id,'FACT:affidavit'); checks++;
@@ -100,7 +101,7 @@ assert.equal(noFactOut.gate_pass,false); checks++;
 assert.equal(noFactOut.package_rows.find(r=>r.item_id==='affidavit').state,'FAIL'); checks++;
 
 const missingItem=base();
-missingItem.package_items[1]=item('affidavit',['affidavit'],{present_bit:0});
+missingItem.package_items[1]=item('affidavit',['affidavit'],{present_bit:0,owner_gate_bit:1});
 const missingItemOut=compileLegalBinaryPackage(missingItem);
 assert.equal(missingItemOut.gate_pass,false); checks++;
 assert.equal(missingItemOut.owner_review_ready,false); checks++;
