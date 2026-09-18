@@ -10,6 +10,7 @@ const universalInternalPolicy={
   requested_effect_ref:'message:internal-mail:fixture',
   current_instruction_ref:null,
   authorizing_instruction_ref:null,
+  authorized_effect_refs:[],
   draft_plan_propose_prepare_allowed:true,
   user_effect_instruction_bound:false,
   effect_attempt_eligible:false,
