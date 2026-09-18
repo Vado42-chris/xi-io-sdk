@@ -168,3 +168,12 @@ A complete set contributes to `supplied_binding_count`, with state
 `SUPPLIED_UNVERIFIED`; `current_returns` remains zero until authenticated
 verification exists outside this pure projection. Distributed ACK validation
 likewise reports `STRUCTURAL_ONLY`, never worker authentication or execution.
+
+## Universal effect gate
+
+The SDK ACK surface includes a provider-neutral universal effect-gate validator.
+
+`DRAFT / PLAN / PROPOSE / PREPARE` is non-consequential preparation. Any consequential effect requires a CURRENT user instruction bound to the exact occurrence and exact requested effect; prior approval does not persist or replay. The SDK projection never grants effect authority.
+
+Contract: `docs/contracts/universal-current-user-effect-gate-abi.md`.
+Synthetic qualification case study: `docs/case-studies/universal-effect-gate-flatplane-20260918.md`.
