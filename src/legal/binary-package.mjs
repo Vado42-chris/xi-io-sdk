@@ -50,7 +50,7 @@ function normalizeFact(raw,input){
     consumer_refs:refs(raw.consumer_refs),
     effect_class:raw.effect_class ?? 'NONE',
     user_choice_bit:raw.user_choice_bit===1?1:0,
-    currentness:raw.currentness ?? 'CURRENT',
+    currentness:raw.currentness ?? ((raw.answer==='ASK_MORE_DETAILS' && source_refs.length===0) ? 'UNKNOWN' : 'CURRENT'),
     note:bounded(raw.note ?? '',2048)?raw.note:null,
     root_ref:input.root_ref,
   };
