@@ -109,6 +109,7 @@ For work described as `UX`, `user experience`, `Socratic`, `binary`, `test decom
 - `docs/contracts/rotfl-binary-variable-invariant-abi.md` — masked binary truth cells (`UNKNOWN != false`);
 - `docs/contracts/rotfl-department-head-manifest-skill-abi.md` — canary/miner/foreman HOT_PATCH composition;
 - `docs/contracts/rotfl-serialized-semantic-event-chain-abi.md` — ordered binary deltas, observers, CRM/history, and metering projection.
+- `docs/contracts/rotfl-universal-projection-document-comment-control-abi.md` — provider comments are ephemeral occurrence ingress only; current state/control/memory must survive comment deletion and remain usable without comment archaeology.
 
 The short loop is:
 
@@ -116,7 +117,7 @@ The short loop is:
 
 Tests are also reusable-shape discovery inputs. Repeated structural equivalence may produce a test-template or primitive candidate, but never automatic promotion or authority.
 
-Hard: `QUESTION != TASK`, `TEST != TRUTH OWNER`, `LEAF PASS != WHOLE EXPERIENCE PASS`, `UNKNOWN != FALSE`, `REBASE != RESTART`, `TEMPLATE != DOMAIN TRUTH`.
+Hard: `QUESTION != TASK`, `TEST != TRUTH OWNER`, `LEAF PASS != WHOLE EXPERIENCE PASS`, `UNKNOWN != FALSE`, `REBASE != RESTART`, `TEMPLATE != DOMAIN TRUTH`, `COMMENT_BODY != CURRENT_STATE`, `COMMENT_LINK != REQUIRED_USER_PATH`.
 
 ## Reusable learning loop
 
