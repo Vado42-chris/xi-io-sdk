@@ -201,6 +201,51 @@ let checks = 0;
   assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity root_generation mismatch/); checks++;
 }
 
+
+{
+  const x = base();
+  x.control_cells.push(cell('OPTIONAL-TOOL-RED','TOOL','provider.optional','TOOL_OPERABILITY',{
+    required_bit:0,
+    observed_value_bit:0,
+    subproblem_ref:'subproblem:optional-tool-red'
+  }));
+  const out = compileChecklistOnboardingPreflight(x);
+  assert.equal(out.checklist_100s,true); checks++;
+  const toolClass = out.quantization.classes.find((row)=>row.equivalence_ref==='TOOL_OPERABILITY');
+  assert.equal(toolClass.state,'FAIL'); checks++;
+  assert(toolClass.red_member_refs.includes('OPTIONAL-TOOL-RED')); checks++;
+  assert(toolClass.subproblem_refs.includes('subproblem:optional-tool-red')); checks++;
+  assert(out.fractal_wakes.some((row)=>row.equivalence_ref==='TOOL_OPERABILITY')); checks++;
+}
+
+{
+  const x = base();
+  const passTool = x.control_cells.find((row)=>row.cell_id==='TOOL-GITHUB-READ');
+  passTool.subproblem_ref = 'subproblem:stale-pass-ref';
+  const failTool = x.control_cells.find((row)=>row.cell_id==='TOOL-GITHUB-WRITE');
+  failTool.observed_value_bit = 0;
+  failTool.subproblem_ref = null;
+  const out = compileChecklistOnboardingPreflight(x);
+  const toolClass = out.quantization.classes.find((row)=>row.equivalence_ref==='TOOL_OPERABILITY');
+  assert.equal(toolClass.state,'FAIL'); checks++;
+  assert(!toolClass.subproblem_refs.includes('subproblem:stale-pass-ref')); checks++;
+  const wake = out.fractal_wakes.find((row)=>row.equivalence_ref==='TOOL_OPERABILITY');
+  assert.equal(wake.action,'HOLD_AT_ATOMIC_RED'); checks++;
+}
+
+{
+  const x = base();
+  x.control_cells[0].equivalence_ref = 'TOOL_VISIBLE';
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/axis equivalence invalid/); checks++;
+}
+
+{
+  const x = base();
+  x.control_cells[0].expected_bit = 0;
+  x.control_cells[0].observed_value_bit = 0;
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/qualification expected_bit must be 1/); checks++;
+}
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.checklist-onboarding-preflight-validation/v1',
   result:'PASS',
