@@ -44,6 +44,9 @@ export function validateUniversalEffectPolicy(policy) {
   if (policy.prior_approval_replay_allowed !== false) errors.push('PRIOR_APPROVAL_REPLAY_FORBIDDEN');
   const occurrenceBound=BOUNDED_REF(policy.occurrence_ref);
   const effectBound=BOUNDED_REF(policy.requested_effect_ref);
+  const authorizedEffects=Array.isArray(policy.authorized_effect_refs)
+    ? [...new Set(policy.authorized_effect_refs.filter(BOUNDED_REF))]
+    : [];
   const currentBound=BOUNDED_REF(policy.current_instruction_ref);
   const authorizingBound=BOUNDED_REF(policy.authorizing_instruction_ref);
 
@@ -54,10 +57,14 @@ export function validateUniversalEffectPolicy(policy) {
     if (currentBound && authorizingBound && policy.current_instruction_ref !== policy.authorizing_instruction_ref) {
       errors.push('PRIOR_OR_DIFFERENT_INSTRUCTION_NOT_AUTHORITY');
     }
+    if (effectBound && !authorizedEffects.includes(policy.requested_effect_ref)) {
+      errors.push('CURRENT_INSTRUCTION_NOT_BOUND_TO_REQUESTED_EFFECT');
+    }
   }
 
   const userGateBound=policy.consequential && occurrenceBound && effectBound && currentBound && authorizingBound &&
-    policy.current_instruction_ref === policy.authorizing_instruction_ref && errors.length===0;
+    policy.current_instruction_ref === policy.authorizing_instruction_ref &&
+    authorizedEffects.includes(policy.requested_effect_ref) && errors.length===0;
   if (policy.user_effect_instruction_bound !== userGateBound) errors.push('USER_EFFECT_GATE_STATE_MISMATCH');
   if (policy.effect_attempt_eligible !== userGateBound) errors.push('EFFECT_ATTEMPT_ELIGIBILITY_MISMATCH');
   if (policy.effect_authority !== false) errors.push('SDK_EFFECT_AUTHORITY_FORBIDDEN');
