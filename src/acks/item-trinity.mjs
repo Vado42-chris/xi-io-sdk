@@ -11,6 +11,8 @@ const REAP_STATES = new Set(['DONE','PENDING','UNKNOWN','N_A']);
 const bounded = (value, max = 512) =>
   typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= max;
 
+const compareText = (a,b) => a === b ? 0 : a < b ? -1 : 1;
+
 function bit(value, label) {
   if (value !== 0 && value !== 1) throw new TypeError(`${label} must be 0|1`);
   return value;
@@ -48,6 +50,7 @@ function normalizeItem(raw, source, rootGeneration) {
   for (const field of ['item_id','path_ref','label']) {
     if (!bounded(raw[field])) throw new TypeError(`${field} required`);
   }
+  if (raw.item_id.includes('#')) throw new TypeError(`item_id cannot contain #: ${raw.item_id}`);
   const applicable = bit(raw.applicable_bit, `${raw.item_id}.applicable_bit`);
   const required = bit(raw.required_bit, `${raw.item_id}.required_bit`);
   const material = bit(raw.material_bit, `${raw.item_id}.material_bit`);
@@ -222,6 +225,7 @@ export function compileAckItemTrinity(input) {
     for (const field of ['ack_ref','ack_generation','root_generation']) {
       if (!bounded(source[field])) throw new TypeError(`ACK source ${field} required`);
     }
+    if (source.ack_ref.includes('#')) throw new TypeError(`ack_ref cannot contain #: ${source.ack_ref}`);
     if (source.root_generation !== input.root_generation) throw new TypeError(`ACK source root_generation mismatch: ${source.ack_ref}`);
     if (ackRefs.has(source.ack_ref)) throw new TypeError(`duplicate ack_ref: ${source.ack_ref}`);
     ackRefs.add(source.ack_ref);
@@ -235,13 +239,15 @@ export function compileAckItemTrinity(input) {
   }
 
   const trinity = normalized
-    .sort((a,b) => a.ack_ref.localeCompare(b.ack_ref) || a.item_id.localeCompare(b.item_id))
+    .sort((a,b) => compareText(a.ack_ref,b.ack_ref) || compareText(a.item_id,b.item_id))
     .map(compileOne);
 
   const applicableCount = normalized.filter((item) => item.applicable_bit === 1).length;
   const naCount = normalized.length - applicableCount;
   const openItemRefs = trinity
-    .filter((entry) => entry.checklist.supplied_complete !== true)
+    .filter((entry) =>
+      entry.checklist.supplied_complete !== true ||
+      entry.punch_card.next === 'RESOLVE_ACK_ITEM')
     .map((entry) => entry.item_ref);
 
   return Object.freeze({
