@@ -79,6 +79,7 @@ export function compileInternalAgentMessage(input = {}) {
       consequential: ack.effect_policy.consequential,
       occurrence_ref: ack.effect_policy.occurrence_ref,
       requested_effect_ref: ack.effect_policy.requested_effect_ref,
+      authorized_effect_refs: Array.isArray(ack.effect_policy.authorized_effect_refs) ? [...ack.effect_policy.authorized_effect_refs] : [],
       current_user_effect_instruction_bound: ackResult.current_user_effect_instruction_bound,
       effect_attempt_eligible: ackResult.effect_attempt_eligible,
       effect_authority: false,
