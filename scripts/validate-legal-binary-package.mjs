@@ -103,6 +103,7 @@ const missingItem=base();
 missingItem.package_items[1]=item('affidavit',['affidavit'],{present_bit:0});
 const missingItemOut=compileLegalBinaryPackage(missingItem);
 assert.equal(missingItemOut.gate_pass,false); checks++;
+assert.equal(missingItemOut.owner_review_ready,false); checks++;
 assert(missingItemOut.hotfolder_wakes.some(w=>w.wake_id==='ITEM:affidavit')); checks++;
 
 const badMeso=base(); badMeso.scale='MESO'; badMeso.parent_ref=null;
