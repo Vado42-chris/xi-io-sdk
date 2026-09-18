@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import process from 'node:process';
+import path from 'node:path';
 import { compileLegalBinaryPackage } from '../src/legal/binary-package.mjs';
 
 function args(argv){
@@ -22,8 +23,9 @@ const raw=JSON.parse(await fs.readFile(opts.input,'utf8'));
 const result=compileLegalBinaryPackage(raw);
 const text=JSON.stringify(result,null,2)+'\n';
 if(opts.output){
-  await fs.mkdir(new URL('.', new URL(`file://${process.cwd()}/${opts.output}`)),{recursive:true}).catch(()=>{});
-  await fs.writeFile(opts.output,text,'utf8');
+  const target=path.resolve(opts.output);
+  await fs.mkdir(path.dirname(target),{recursive:true});
+  await fs.writeFile(target,text,'utf8');
 } else {
   process.stdout.write(text);
 }
