@@ -89,11 +89,21 @@ function ackCells(trinity) {
   for (const entry of trinity.trinity) {
     const projected = entry.score_card?.projected_state;
     const next = entry.punch_card?.next ?? null;
+    const obligation = entry.punch_card?.obligation_state;
+    if (!['REQUIRED','OPTIONAL','N_A'].includes(obligation)) throw new TypeError('ack_trinity obligation_state invalid: ' + entry.item_ref);
     if (['FAIL','WAIT','UNKNOWN'].includes(projected) && next !== 'RESOLVE_ACK_ITEM') throw new TypeError('ack_trinity punch transition mismatch: ' + entry.item_ref);
     if (projected === 'SUPPLIED_UNVERIFIED' && next !== 'VERIFY_SUPPLIED_STATE') throw new TypeError('ack_trinity punch transition mismatch: ' + entry.item_ref);
     if (projected === 'N_A_WITH_EVIDENCE' && next !== null) throw new TypeError('ack_trinity punch transition mismatch: ' + entry.item_ref);
+    const rows = entry.checklist?.rows;
+    if (!Array.isArray(rows) || rows.length === 0) throw new TypeError('ack_trinity checklist rows required: ' + entry.item_ref);
+    const derivedComplete = rows.every((row) => ['SUPPLIED_UNVERIFIED','N_A'].includes(row?.state));
+    if (entry.checklist?.supplied_complete !== derivedComplete) throw new TypeError('ack_trinity supplied_complete mismatch: ' + entry.item_ref);
   }
-  const derivedOpen = trinity.trinity.filter((entry) => entry.checklist?.supplied_complete !== true || entry.punch_card?.next === 'RESOLVE_ACK_ITEM').map((entry) => entry.item_ref).sort();
+  const derivedOpen = trinity.trinity.filter((entry) => {
+    const rows = entry.checklist.rows;
+    const derivedComplete = rows.every((row) => ['SUPPLIED_UNVERIFIED','N_A'].includes(row?.state));
+    return !derivedComplete || entry.punch_card?.next === 'RESOLVE_ACK_ITEM';
+  }).map((entry) => entry.item_ref).sort();
   const suppliedOpen = [...new Set(trinity.open_item_refs)].sort();
   if (JSON.stringify(derivedOpen) !== JSON.stringify(suppliedOpen)) throw new TypeError('ack_trinity open_item_refs mismatch');
   const openRefs = new Set(suppliedOpen);
