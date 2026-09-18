@@ -1,0 +1,69 @@
+{
+  "schema": "xiio.sdk.legal-binary-package-input/v1",
+  "root_ref": "case:REPLACE",
+  "root_generation": "case:g1",
+  "user_ref": "user:REPLACE",
+  "product_ref": "sam_law",
+  "studio_root_ref": "studio:root",
+  "scale": "META",
+  "parent_ref": null,
+  "impact_assessment_ref": "impact:case:g1",
+  "five_d": {
+    "WHERE": "case/repository/provider scope",
+    "WHAT": "exact legal acceptance denominator",
+    "HOW_WHO": "qualified worker/tool/owner/evidence route",
+    "WHEN": "current generation/deadline/freshness",
+    "WHY": "owner outcome/risk/acceptance reason"
+  },
+  "ack_ref": "ack:legal-package",
+  "ack_generation": "ack:g1",
+  "ack_current_bit": 1,
+  "sdk_ref": "sdk:@xi-io/sdk",
+  "sdk_generation": "REPLACE_WITH_CURRENT_SDK_SHA",
+  "sdk_current_bit": 1,
+  "running_consumption_bit": 1,
+  "work_ref": "work:legal-package",
+  "package_owner_ref": "owner:legal-package",
+  "facts": [
+    {
+      "fact_id": "F001_CASE_IDENTITY",
+      "question": "Is the exact case identity current and source-bound?",
+      "answer": "ASK_MORE_DETAILS",
+      "required_bit": 1,
+      "material_bit": 1,
+      "owner_ref": "owner:case-currentness",
+      "work_ref": "work:legal-package",
+      "source_refs": [],
+      "source_generation": "source:unknown",
+      "issue_refs": [
+        "issue:identity"
+      ],
+      "consumer_refs": [
+        "consumer:package",
+        "consumer:argument"
+      ],
+      "effect_class": "NONE",
+      "user_choice_bit": 0,
+      "currentness": "UNKNOWN",
+      "note": "ASK_MORE_DETAILS is a first-class state; never coerce to NO."
+    }
+  ],
+  "package_items": [
+    {
+      "item_id": "P001_WRITTEN_ARGUMENT",
+      "path_ref": "package/Respondent_Written_Argument.pdf",
+      "role": "COURT_ARTIFACT",
+      "required_bit": 1,
+      "present_bit": 0,
+      "current_bit": 0,
+      "source_bound_bit": 0,
+      "consumer_bound_bit": 0,
+      "owner_gate_bit": 0,
+      "executed_bit": 0,
+      "required_fact_ids": [
+        "F001_CASE_IDENTITY"
+      ],
+      "evidence_refs": []
+    }
+  ]
+}
