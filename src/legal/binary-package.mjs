@@ -53,6 +53,7 @@ function normalizeFact(raw,input){
     effect_class:raw.effect_class ?? 'NONE',
     user_choice_bit:raw.user_choice_bit===1?1:0,
     currentness:raw.currentness ?? ((raw.answer==='ASK_MORE_DETAILS' && source_refs.length===0) ? 'UNKNOWN' : 'CURRENT'),
+    priority_rank:Number.isInteger(raw.priority_rank) && raw.priority_rank>=0 ? raw.priority_rank : 1000,
     note:bounded(raw.note ?? '',2048)?raw.note:null,
     root_ref:input.root_ref,
   };
@@ -186,9 +187,10 @@ export function compileLegalBinaryPackage(input){
   const openFacts=requiredFacts.filter(f=>f.answer!=='YES');
   const openItems=requiredItems.filter(i=>i.state!=='PASS');
   const hotfolder_wakes=[
-    ...openFacts.map(f=>({wake_id:`FACT:${f.fact_id}`,kind:f.answer==='ASK_MORE_DETAILS'?'SOURCE_OR_OWNER':'FACT_RED',owner_ref:f.owner_ref,work_ref:f.work_ref,effect_class:f.effect_class})),
-    ...openItems.map(i=>({wake_id:`ITEM:${i.item_id}`,kind:'PACKAGE_ITEM_RED',owner_ref:input.package_owner_ref ?? input.user_ref,work_ref:input.work_ref,effect_class:'NONE'})),
+    ...openFacts.map(f=>({wake_id:`FACT:${f.fact_id}`,kind:f.answer==='ASK_MORE_DETAILS'?'SOURCE_OR_OWNER':'FACT_RED',owner_ref:f.owner_ref,work_ref:f.work_ref,effect_class:f.effect_class,priority_rank:f.priority_rank})),
+    ...openItems.map(i=>({wake_id:`ITEM:${i.item_id}`,kind:'PACKAGE_ITEM_RED',owner_ref:input.package_owner_ref ?? input.user_ref,work_ref:input.work_ref,effect_class:'NONE',priority_rank:500})),
   ];
+  hotfolder_wakes.sort((a,b)=>a.priority_rank-b.priority_rank || a.wake_id.localeCompare(b.wake_id));
   const first_red=hotfolder_wakes[0] ?? null;
   const gate_pass=openFacts.length===0 && openItems.length===0;
 
@@ -226,6 +228,7 @@ export function compileLegalBinaryPackage(input){
       'USER_DATA -> BINARY_FACT -> DATAFORGE_RECORD -> ACK_TRINITY -> PACKAGE_GATE',
       'META|MESO|MICRO_USE_THE_SAME_BINARY_CALCULUS',
       'EVERY_SCALE_REQUIRES_WHERE_WHAT_HOW_WHO_WHEN_WHY',
+      'ALPHABETICAL_ORDER != PRIORITY',
       'YES != VERIFIED_PROVIDER_EFFECT',
       'NO != UNKNOWN',
       'ASK_MORE_DETAILS != FALSE',
