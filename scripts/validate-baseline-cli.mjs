@@ -229,6 +229,22 @@ assert.equal(normalizeBaselineCommand('100s').verb, 'score');
 assert.equal(normalizeBaselineCommand('inventory').verb, 'census');
 assert.equal(normalizeBaselineCommand('do-whatever').state, 'UNKNOWN_COMMAND');
 
+const universalNoEffectPolicy = {
+  schema:'xiio.sdk.universal-effect-policy/v1',
+  effect_scope:'ACK',
+  consequential:false,
+  occurrence_ref:'occ:baseline-cli',
+  requested_effect_ref:'ack:baseline-cli',
+  current_instruction_ref:null,
+  authorizing_instruction_ref:null,
+  draft_plan_propose_prepare_allowed:true,
+  user_effect_instruction_bound:false,
+  effect_attempt_eligible:false,
+  effect_authority:false,
+  approval_persists:false,
+  prior_approval_replay_allowed:false,
+};
+
 const futureProviderAck = {
   ack_id: 'ack:1',
   root_ref: 'root:1',
@@ -244,6 +260,7 @@ const futureProviderAck = {
   attempt: 0,
   return_target_ref: 'return:root:1',
   observed_at: '2026-09-08T10:00:00Z',
+  effect_policy: universalNoEffectPolicy,
 };
 assert.equal(validateDistributedAck(futureProviderAck).ok, true);
 assert.equal(validateDistributedAck({ ...futureProviderAck, attempt: 1 }).ok, false);
@@ -265,7 +282,7 @@ assert.equal(envelope.state, 'COMPILED_NOT_EXECUTED');
 console.log(`XIIO_SDK_BASELINE_CLI PASS repos=${baseline.repository_denominator} cells=${baseline.cell_denominator} pass=${baseline.state_counts.PASS} partial=${baseline.state_counts.PARTIAL} blocked=${baseline.state_counts.BLOCKED} unknown_preserved=${unknownBaseline.state_counts.UNKNOWN}/14 ack_packets=${ackSet.ack_denominator} current_returns=${burn.current_returns} commands=${catalog.commands.length} provider_agnostic_ack=PASS`);
 
 {
-const base={ack_id:'fixture:ack',root_ref:'fixture:root',work_ref:'fixture:work',baseline_generation:'fixture:g1',target_ref:'fixture:target',provider_family:'fixture:provider',agent_ref:'fixture:agent',capability_profile_ref:'fixture:capability',subject_generation:'fixture:g1',effect_ceiling:'NO_EFFECT',ack_state:'ACK',attempt:0,return_target_ref:'fixture:return',observed_at:'2026-09-08T12:00:00Z'};
+const base={ack_id:'fixture:ack',root_ref:'fixture:root',work_ref:'fixture:work',baseline_generation:'fixture:g1',target_ref:'fixture:target',provider_family:'fixture:provider',agent_ref:'fixture:agent',capability_profile_ref:'fixture:capability',subject_generation:'fixture:g1',effect_ceiling:'NO_EFFECT',ack_state:'ACK',attempt:0,return_target_ref:'fixture:return',observed_at:'2026-09-08T12:00:00Z',effect_policy:{...universalNoEffectPolicy,occurrence_ref:'occ:synthetic',requested_effect_ref:'ack:synthetic'}};
 let checked=0;
 for(const attempt of ['invalid-number','0',false,{},[],NaN,Infinity,-1,0.5,Number.MAX_SAFE_INTEGER+1]){assert.equal(validateDistributedAck({...base,ack_state:'RESULT',attempt}).ok,false);checked++;}
 for(const field of Object.keys(base).filter(x=>x!=='attempt'))for(const value of [' ',{},0,'x'.repeat(257)]){assert.equal(validateDistributedAck({...base,[field]:value}).ok,false);checked++;}
