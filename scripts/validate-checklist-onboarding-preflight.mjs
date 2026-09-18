@@ -246,6 +246,41 @@ let checks = 0;
   assert.throws(()=>compileChecklistOnboardingPreflight(x),/qualification expected_bit must be 1/); checks++;
 }
 
+
+{
+  const x = base();
+  x.control_cells = x.control_cells.filter((row)=>row.axis!=='TOOL');
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/missing required qualification axis: TOOL/); checks++;
+}
+{
+  const x = base();
+  x.control_cells = x.control_cells.filter((row)=>row.axis!=='SKILL');
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/missing required qualification axis: SKILL/); checks++;
+}
+{
+  const x = base();
+  x.control_cells = x.control_cells.filter((row)=>row.axis!=='LESSON');
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/missing required qualification axis: LESSON/); checks++;
+}
+{
+  const x = base();
+  for (const row of x.control_cells.filter((cell)=>cell.axis==='WAKE_TEAM')) row.required_bit=0;
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/wake role must be required/); checks++;
+}
+{
+  const x = base();
+  x.ack_trinity = structuredClone(x.ack_trinity);
+  delete x.ack_trinity.open_item_refs;
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity open_item_refs required/); checks++;
+}
+{
+  const x = base();
+  x.ack_trinity = structuredClone(x.ack_trinity);
+  x.ack_trinity.open_item_refs = [];
+  x.ack_trinity.trinity[0].punch_card.next = 'RESOLVE_ACK_ITEM';
+  assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity open_item_refs mismatch/); checks++;
+}
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.checklist-onboarding-preflight-validation/v1',
   result:'PASS',
