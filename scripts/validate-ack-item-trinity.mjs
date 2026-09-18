@@ -125,6 +125,20 @@ assert.deepEqual(unicodeOut.trinity.map(x=>x.item_ref),unicodeOutReversed.trinit
 assert.deepEqual(unicodeOut.trinity.map(x=>x.trinity_id),unicodeOutReversed.trinity.map(x=>x.trinity_id));
 checks+=2;
 
+const delimiterCollision=base();
+delimiterCollision.ack_sources=[
+  source('ack:a#b',[item('c')]),
+  source('ack:a',[item('b#c')]),
+  source('ack:a%23b',[item('c')]),
+];
+const delimiterCollisionOut=compileAckItemTrinity(delimiterCollision);
+const delimiterRefs=delimiterCollisionOut.trinity.map(x=>x.item_ref);
+assert.equal(new Set(delimiterRefs).size,3);
+assert(delimiterRefs.includes('ack:a%23b#c'));
+assert(delimiterRefs.includes('ack:a#b%23c'));
+assert(delimiterRefs.includes('ack:a%2523b#c'));
+checks+=4;
+
 const callerForgery=base();
 callerForgery.authority_granted=true;
 callerForgery.provider_effect=true;
@@ -152,8 +166,6 @@ hostile(x=>x.ack_sources[0].items[0].work_ref=null,/needs owner_ref and work_ref
 hostile(x=>x.ack_sources[0].items[0].hex_qualification={state:'QUALIFIED',receipt_ref:null},/QUALIFIED requires receipt_ref/);
 hostile(x=>x.ack_sources[0].items[0].currentness={state:'CURRENT',evidence_ref:null},/CURRENT requires evidence_ref/);
 hostile(x=>x.ack_sources[0].items[0].declared_state='INVENTED',/declared_state invalid/);
-hostile(x=>x.ack_sources[0].ack_ref='ack#ward',/ack_ref cannot contain #/);
-hostile(x=>x.ack_sources[0].items[0].item_id='bad#id',/item_id cannot contain #/);
 
 assert(out.hard.includes('SCORECARD != PUNCHCARD'));
 assert(out.hard.includes('CHECKLIST != SCORECARD'));
@@ -165,7 +177,7 @@ console.log(JSON.stringify({
   schema:'xiio.sdk.ack-item-trinity-validation/v1',
   result:'PASS',
   checks,
-  hostiles:12,
+  hostiles:10,
   ack_items:out.ack_item_count,
   punch_cards:out.punch_card_count,
   score_cards:out.score_card_count,
