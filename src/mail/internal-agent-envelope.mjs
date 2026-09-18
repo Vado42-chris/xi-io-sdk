@@ -73,6 +73,19 @@ export function compileInternalAgentMessage(input = {}) {
     source_occurrence_ref: sourceOccurrenceRef,
     subject,
     body_ref: bodyRef,
+    effect_policy: {
+      schema: ack.effect_policy.schema,
+      effect_scope: ack.effect_policy.effect_scope,
+      consequential: ack.effect_policy.consequential,
+      occurrence_ref: ack.effect_policy.occurrence_ref,
+      requested_effect_ref: ack.effect_policy.requested_effect_ref,
+      current_user_effect_instruction_bound: ackResult.current_user_effect_instruction_bound,
+      effect_attempt_eligible: ackResult.effect_attempt_eligible,
+      effect_authority: false,
+      draft_plan_propose_prepare_allowed: ack.effect_policy.draft_plan_propose_prepare_allowed === true,
+      approval_persists: false,
+      prior_approval_replay_allowed: false,
+    },
     sender,
     recipients,
     transport_summary: {
@@ -94,6 +107,10 @@ export function compileInternalAgentMessage(input = {}) {
       'ACK_STRUCTURAL!=AUTHENTICATED',
       'SLACK_DISCOVERABLE!=SUBDOMAIN_EMAIL_PROVEN',
       'SDK_PROJECTION!=PROVIDER_VERIFIER',
+      'INTERNAL_MESSAGE!=EFFECT_AUTHORITY',
+      'ACK!=EFFECT_AUTHORITY',
+      'PRIOR_APPROVAL!=CURRENT_EFFECT_GATE',
+      'DRAFT_PLAN_PROPOSE_PREPARE!=SEND_OR_PROVIDER_WRITE',
     ],
   });
 }
