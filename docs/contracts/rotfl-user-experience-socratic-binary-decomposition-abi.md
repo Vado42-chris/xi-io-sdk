@@ -133,6 +133,39 @@ A leaf may be locally correct while the Experience remains wrong because:
 - an affected consumer was omitted;
 - a stale predecessor remains selectable.
 
+## Commentless current-state canary
+
+A User × Experience is incomplete when required state lives only in a provider comment, review thread, PR body, annotation, or chat turn.
+
+For any experience touched by provider comments, ask the smallest destructive question:
+
+> If every provider comment disappeared now, could the User still recover current state, why it matters, owner/work identity, next action or terminal disposition, proof, and current generation?
+
+Required cells:
+
+```text
+CURRENT_STATE_VISIBLE
+WHY_IT_MATTERS_VISIBLE
+OWNER_OR_WORK_VISIBLE
+NEXT_ACTION_OR_TERMINAL_VISIBLE
+PROOF_LOCATABLE
+CURRENT_GENERATION_VISIBLE_OR_RESOLVABLE
+```
+
+Comments may remain evidence refs or provenance links. They may not be the required path to any cell above.
+
+```text
+COMMENT = EPHEMERAL OCCURRENCE
+COMMENT_BODY != CURRENT_STATE
+COMMENT_THREAD != CONTROL_PLANE
+COMMENT_LINK != REQUIRED_USER_PATH
+MATERIAL_COMMENT_WITHOUT_CANONICAL_PROJECTION != DRAINED
+CURRENT_STATE_REQUIRES_COMMENT_READ -> UX_FAIL
+COMMENT_UNAVAILABLE_AFTER_VERIFIED_PROMOTION -> NO_EFFECT
+```
+
+This is a whole-experience test: machine routing can be locally correct while the User experience still fails if the User must perform comment archaeology.
+
 ## Binary Socratic conductor
 
 Ibal/foreman conductors consume current graph + binary denominator and select the minimum next question/work formation.
