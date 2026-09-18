@@ -144,5 +144,31 @@ let checks=0;
   const x=base(); x.questions.find(n=>n.question_id==='ACT').selected_bit=1;
   assert.throws(()=>compileUserExperienceSocratic(x),/selected question must be unresolved red/); checks++;
 }
+{
+  const x={
+    root_ref:'root:commentless-ux',
+    user_ref:'user:human',
+    experience_ref:'experience:current-state-with-provider-comments',
+    source_generation:'g1',
+    questions:[
+      g('ROOT'),
+      q('CURRENT_STATE_VISIBLE','ROOT'),
+      q('WHY_IT_MATTERS_VISIBLE','ROOT'),
+      q('OWNER_OR_WORK_VISIBLE','ROOT'),
+      q('NEXT_ACTION_OR_TERMINAL_VISIBLE','ROOT'),
+      q('PROOF_LOCATABLE','ROOT',{observed_value_bit:0,selected_bit:1}),
+      q('CURRENT_GENERATION_VISIBLE_OR_RESOLVABLE','ROOT'),
+    ],
+  };
+  const out=compileUserExperienceSocratic(x);
+  assert.equal(out.root_state,'FAIL');
+  assert.equal(out.first_red.question_id,'PROOF_LOCATABLE');
+  assert.equal(out.next.action,'HOT_PATCH_OR_COLLIDE_EXISTING_OWNER');
+  assert.ok(out.hard.includes('COMMENT_BODY!=CURRENT_STATE'));
+  assert.ok(out.hard.includes('COMMENT_THREAD!=CONTROL_PLANE'));
+  assert.ok(out.hard.includes('COMMENT_LINK!=REQUIRED_USER_PATH'));
+  assert.ok(out.hard.includes('CURRENT_STATE_REQUIRES_COMMENT_READ=>UX_FAIL'));
+  checks+=7;
+}
 
-console.log(JSON.stringify({schema:'xiio.sdk.user-experience-socratic-hostiles/v1',result:'PASS',hostiles:26,checks,provider_effects:0,authority_granted:false}));
+console.log(JSON.stringify({schema:'xiio.sdk.user-experience-socratic-hostiles/v1',result:'PASS',hostiles:27,checks,provider_effects:0,authority_granted:false}));
