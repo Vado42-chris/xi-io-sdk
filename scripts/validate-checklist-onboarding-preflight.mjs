@@ -130,6 +130,7 @@ let checks = 0;
   x.ack_trinity = structuredClone(x.ack_trinity);
   const stillOpen = x.ack_trinity.trinity[0].item_ref;
   assert.equal(x.ack_trinity.trinity[0].checklist.supplied_complete,true); checks++;
+  x.ack_trinity.trinity[0].score_card.projected_state = 'WAIT';
   x.ack_trinity.trinity[0].punch_card.next = 'RESOLVE_ACK_ITEM';
   x.ack_trinity.open_item_refs = [stillOpen];
   const out = compileChecklistOnboardingPreflight(x);
