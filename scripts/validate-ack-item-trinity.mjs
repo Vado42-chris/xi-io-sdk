@@ -105,6 +105,26 @@ assert.equal(noEvidenceOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy'
 assert.equal(noEvidenceOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy').score_card.blocker,'POSITIVE_STATE_WITHOUT_EVIDENCE');
 checks+=2;
 
+const unresolvedBound=base();
+unresolvedBound.ack_sources[0].items[0].declared_state='WAIT';
+const unresolvedBoundOut=compileAckItemTrinity(unresolvedBound);
+const unresolvedBoundRow=unresolvedBoundOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy');
+assert.equal(unresolvedBoundRow.checklist.supplied_complete,true);
+assert.equal(unresolvedBoundRow.score_card.projected_state,'WAIT');
+assert(unresolvedBoundOut.open_item_refs.includes('ack:ward#effect-policy'));
+assert.equal(unresolvedBoundOut.selection_state,'X43_SELECTION_REQUIRED');
+checks+=4;
+
+const unicode=base();
+unicode.ack_sources[0].items=[item('é'),item('e\u0301')];
+const unicodeOut=compileAckItemTrinity(unicode);
+const unicodeReversed=structuredClone(unicode);
+unicodeReversed.ack_sources[0].items.reverse();
+const unicodeOutReversed=compileAckItemTrinity(unicodeReversed);
+assert.deepEqual(unicodeOut.trinity.map(x=>x.item_ref),unicodeOutReversed.trinity.map(x=>x.item_ref));
+assert.deepEqual(unicodeOut.trinity.map(x=>x.trinity_id),unicodeOutReversed.trinity.map(x=>x.trinity_id));
+checks+=2;
+
 const callerForgery=base();
 callerForgery.authority_granted=true;
 callerForgery.provider_effect=true;
@@ -132,6 +152,8 @@ hostile(x=>x.ack_sources[0].items[0].work_ref=null,/needs owner_ref and work_ref
 hostile(x=>x.ack_sources[0].items[0].hex_qualification={state:'QUALIFIED',receipt_ref:null},/QUALIFIED requires receipt_ref/);
 hostile(x=>x.ack_sources[0].items[0].currentness={state:'CURRENT',evidence_ref:null},/CURRENT requires evidence_ref/);
 hostile(x=>x.ack_sources[0].items[0].declared_state='INVENTED',/declared_state invalid/);
+hostile(x=>x.ack_sources[0].ack_ref='ack#ward',/ack_ref cannot contain #/);
+hostile(x=>x.ack_sources[0].items[0].item_id='bad#id',/item_id cannot contain #/);
 
 assert(out.hard.includes('SCORECARD != PUNCHCARD'));
 assert(out.hard.includes('CHECKLIST != SCORECARD'));
@@ -143,7 +165,7 @@ console.log(JSON.stringify({
   schema:'xiio.sdk.ack-item-trinity-validation/v1',
   result:'PASS',
   checks,
-  hostiles:10,
+  hostiles:12,
   ack_items:out.ack_item_count,
   punch_cards:out.punch_card_count,
   score_cards:out.score_card_count,
