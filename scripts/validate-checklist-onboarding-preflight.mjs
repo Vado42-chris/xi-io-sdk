@@ -279,6 +279,7 @@ let checks = 0;
   const x = base();
   x.ack_trinity = structuredClone(x.ack_trinity);
   x.ack_trinity.open_item_refs = [];
+  x.ack_trinity.trinity[0].score_card.projected_state = 'WAIT';
   x.ack_trinity.trinity[0].punch_card.next = 'RESOLVE_ACK_ITEM';
   assert.throws(()=>compileChecklistOnboardingPreflight(x),/ack_trinity open_item_refs mismatch/); checks++;
 }
