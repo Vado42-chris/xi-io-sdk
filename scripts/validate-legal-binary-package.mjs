@@ -50,6 +50,9 @@ const base=()=>({
   sdk_current_bit:1,
   running_consumption_bit:1,
   work_ref:'work:legal',
+  scale:'META',
+  five_d:{WHERE:'case:DIV-SA-00005-2026',WHAT:'legal-package-acceptance',HOW_WHO:'headless-sdk+ibal',WHEN:'generation:g1',WHY:'court-deadline-owner-outcome'},
+  impact_assessment_ref:'impact:legal-package:g1',
   package_owner_ref:'owner:sam-law-package',
   facts:[fact('identity'),fact('affidavit')],
   package_items:[item('written-argument',['identity']),item('affidavit',['affidavit'])],
@@ -58,6 +61,8 @@ const base=()=>({
 let checks=0;
 const out=compileLegalBinaryPackage(base());
 assert.equal(out.schema,'xiio.sdk.legal-binary-package/v1'); checks++;
+assert.equal(out.scale,'META'); checks++;
+assert.equal(out.five_d.WHAT,'legal-package-acceptance'); checks++;
 assert.equal(out.fact_denominator,2); checks++;
 assert.equal(out.dataforge_record_denominator,2); checks++;
 assert.equal(out.ack_trinity.trinity_accounting_100,true); checks++;
@@ -88,6 +93,12 @@ missingItem.package_items[1]=item('affidavit',['affidavit'],{present_bit:0});
 const missingItemOut=compileLegalBinaryPackage(missingItem);
 assert.equal(missingItemOut.gate_pass,false); checks++;
 assert(missingItemOut.hotfolder_wakes.some(w=>w.wake_id==='ITEM:affidavit')); checks++;
+
+const badMeso=base(); badMeso.scale='MESO'; badMeso.parent_ref=null;
+assert.throws(()=>compileLegalBinaryPackage(badMeso),/parent_ref required below META/); checks++;
+
+const badFiveD=base(); delete badFiveD.five_d.WHY;
+assert.throws(()=>compileLegalBinaryPackage(badFiveD),/five_d.WHY required/); checks++;
 
 const staleSdk=base(); staleSdk.sdk_current_bit=0;
 assert.throws(()=>compileLegalBinaryPackage(staleSdk),/fresh SDK required/); checks++;
@@ -126,7 +137,7 @@ console.log(JSON.stringify({
   schema:'xiio.sdk.legal-binary-package-validation/v1',
   result:'PASS',
   checks,
-  hostiles:8,
+  hostiles:10,
   fact_denominator:out.fact_denominator,
   dataforge_records:out.dataforge_record_denominator,
   package_items:out.package_item_denominator,
