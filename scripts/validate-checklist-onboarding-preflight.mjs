@@ -162,7 +162,7 @@ let checks = 0;
     'ROUND-' + i,
     'TOOL',
     'rounding:tool:' + i,
-    'ROUNDING_GUARD'
+    'TOOL_OPERABILITY'
   ));
   extras[extras.length - 1].observed_value_bit = 0;
   extras[extras.length - 1].subproblem_ref = 'subproblem:one-open-cell';
