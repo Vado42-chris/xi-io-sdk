@@ -2,12 +2,28 @@
 import assert from 'node:assert/strict';
 import { compileInternalAgentEndpoint, compileInternalAgentMessage } from '../src/mail/internal-agent-envelope.mjs';
 
+const universalInternalPolicy={
+  schema:'xiio.sdk.universal-effect-policy/v1',
+  effect_scope:'MESSAGE',
+  consequential:false,
+  occurrence_ref:'occ:internal-mail:fixture',
+  requested_effect_ref:'message:internal-mail:fixture',
+  current_instruction_ref:null,
+  authorizing_instruction_ref:null,
+  draft_plan_propose_prepare_allowed:true,
+  user_effect_instruction_bound:false,
+  effect_attempt_eligible:false,
+  effect_authority:false,
+  approval_persists:false,
+  prior_approval_replay_allowed:false,
+};
+
 const ack={
   ack_id:'ack:truth:001',root_ref:'github:xi-io.net#794',work_ref:'work:truth:gemini-v2',
   baseline_generation:'truth:g0',target_ref:'agent:chatgpt',provider_family:'internal-mail',
   agent_ref:'agent:chatgpt',capability_profile_ref:'sdk:internal-mail-v1',subject_generation:'truth:g1',
   effect_ceiling:'NO_EFFECT',ack_state:'ACK',attempt:0,return_target_ref:'github:xi-io.net#794',
-  observed_at:'2026-09-09T09:15:00-06:00',
+  observed_at:'2026-09-09T09:15:00-06:00',effect_policy:universalInternalPolicy,
 };
 
 const slackEndpoint=compileInternalAgentEndpoint({
@@ -42,6 +58,10 @@ assert.equal(message.transport_summary.provider_delivered,false);
 assert.equal(message.transport_summary.provider_readback,false);
 assert.equal(message.transport_summary.smtp_proven,false);
 assert.equal(message.authority.provider_write,false);
+assert.equal(message.effect_policy.current_user_effect_instruction_bound,false);
+assert.equal(message.effect_policy.effect_attempt_eligible,false);
+assert.equal(message.effect_policy.effect_authority,false);
+assert.equal(message.effect_policy.draft_plan_propose_prepare_allowed,true);
 assert.ok(message.hard.includes('SLACK_DISCOVERABLE!=SUBDOMAIN_EMAIL_PROVEN'));
 assert.ok(message.hard.includes('PROVIDER_RECEIPT_REF!=PROVIDER_NATIVE_PROOF'));
 
