@@ -220,7 +220,7 @@ export function compileLegalBinaryPackage(input){
     hotfolder_wakes,
     first_red,
     gate_pass,
-    owner_review_ready:gate_pass || openFacts.every(f=>f.user_choice_bit===1 || f.effect_class==='OWNER'),
+    owner_review_ready:openItems.length===0 && (gate_pass || (openFacts.length>0 && openFacts.every(f=>f.user_choice_bit===1 || f.effect_class==='OWNER'))),
     terminal:false,
     provider_effect:false,
     legal_effect:false,
