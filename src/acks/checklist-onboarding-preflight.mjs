@@ -86,6 +86,13 @@ function validateAckTrinity(trinity) {
 
 function ackCells(trinity) {
   if (!Array.isArray(trinity.open_item_refs)) throw new TypeError('ack_trinity open_item_refs required');
+  for (const entry of trinity.trinity) {
+    const projected = entry.score_card?.projected_state;
+    const next = entry.punch_card?.next ?? null;
+    if (['FAIL','WAIT','UNKNOWN'].includes(projected) && next !== 'RESOLVE_ACK_ITEM') throw new TypeError('ack_trinity punch transition mismatch: ' + entry.item_ref);
+    if (projected === 'SUPPLIED_UNVERIFIED' && next !== 'VERIFY_SUPPLIED_STATE') throw new TypeError('ack_trinity punch transition mismatch: ' + entry.item_ref);
+    if (projected === 'N_A_WITH_EVIDENCE' && next !== null) throw new TypeError('ack_trinity punch transition mismatch: ' + entry.item_ref);
+  }
   const derivedOpen = trinity.trinity.filter((entry) => entry.checklist?.supplied_complete !== true || entry.punch_card?.next === 'RESOLVE_ACK_ITEM').map((entry) => entry.item_ref).sort();
   const suppliedOpen = [...new Set(trinity.open_item_refs)].sort();
   if (JSON.stringify(derivedOpen) !== JSON.stringify(suppliedOpen)) throw new TypeError('ack_trinity open_item_refs mismatch');
@@ -104,7 +111,7 @@ function ackCells(trinity) {
       axis: 'ACK',
       subject_ref: entry.item_ref,
       equivalence_ref: 'ACK_TRINITY_ITEM',
-      required_bit: 1,
+      required_bit: entry.punch_card?.obligation_state === 'REQUIRED' ? 1 : 0,
       material_bit: entry.punch_card?.material === true ? 1 : 0,
       expected_bit: 1,
       observed_known_bit: 1,
