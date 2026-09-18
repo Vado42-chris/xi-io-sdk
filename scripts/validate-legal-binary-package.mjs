@@ -16,6 +16,7 @@ const fact=(id,overrides={})=>({
   consumer_refs:['consumer:package'],
   effect_class:'NONE',
   currentness:'CURRENT',
+  priority_rank:100,
   ...overrides
 });
 
@@ -74,13 +75,23 @@ assert.equal(out.provider_effect,false); checks++;
 assert.equal(out.legal_effect,false); checks++;
 
 const unknown=base();
-unknown.facts[1]=fact('affidavit',{answer:'ASK_MORE_DETAILS',source_refs:[],currentness:'UNKNOWN',effect_class:'OWNER',user_choice_bit:1});
+unknown.facts[1]=fact('affidavit',{answer:'ASK_MORE_DETAILS',source_refs:[],currentness:'UNKNOWN',effect_class:'OWNER',user_choice_bit:1,priority_rank:5});
 const unknownOut=compileLegalBinaryPackage(unknown);
 assert.equal(unknownOut.gate_pass,false); checks++;
 assert.equal(unknownOut.first_red.wake_id,'FACT:affidavit'); checks++;
+assert.equal(unknownOut.first_red.priority_rank,5); checks++;
 assert.equal(unknownOut.first_red.kind,'SOURCE_OR_OWNER'); checks++;
 assert.equal(unknownOut.owner_review_ready,true); checks++;
 assert.equal(unknownOut.dataforge_records.find(r=>r.fact_id==='affidavit').known_bit,0); checks++;
+
+
+const priority=base();
+priority.facts[0]=fact('z-last',{answer:'ASK_MORE_DETAILS',source_refs:[],currentness:'UNKNOWN',priority_rank:1});
+priority.facts[1]=fact('a-first',{answer:'ASK_MORE_DETAILS',source_refs:[],currentness:'UNKNOWN',priority_rank:50});
+priority.package_items=[item('one',['z-last']),item('two',['a-first'])];
+const priorityOut=compileLegalBinaryPackage(priority);
+assert.equal(priorityOut.first_red.wake_id,'FACT:z-last'); checks++;
+assert.equal(priorityOut.first_red.priority_rank,1); checks++;
 
 const noFact=base();
 noFact.facts[1]=fact('affidavit',{answer:'NO'});
