@@ -105,6 +105,40 @@ assert.equal(noEvidenceOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy'
 assert.equal(noEvidenceOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy').score_card.blocker,'POSITIVE_STATE_WITHOUT_EVIDENCE');
 checks+=2;
 
+const unresolvedBound=base();
+unresolvedBound.ack_sources[0].items[0].declared_state='WAIT';
+const unresolvedBoundOut=compileAckItemTrinity(unresolvedBound);
+const unresolvedBoundRow=unresolvedBoundOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy');
+assert.equal(unresolvedBoundRow.checklist.supplied_complete,true);
+assert.equal(unresolvedBoundRow.score_card.projected_state,'WAIT');
+assert(unresolvedBoundOut.open_item_refs.includes('ack:ward#effect-policy'));
+assert.equal(unresolvedBoundOut.selection_state,'X43_SELECTION_REQUIRED');
+checks+=4;
+
+const unicode=base();
+unicode.ack_sources[0].items=[item('é'),item('e\u0301')];
+const unicodeOut=compileAckItemTrinity(unicode);
+const unicodeReversed=structuredClone(unicode);
+unicodeReversed.ack_sources[0].items.reverse();
+const unicodeOutReversed=compileAckItemTrinity(unicodeReversed);
+assert.deepEqual(unicodeOut.trinity.map(x=>x.item_ref),unicodeOutReversed.trinity.map(x=>x.item_ref));
+assert.deepEqual(unicodeOut.trinity.map(x=>x.trinity_id),unicodeOutReversed.trinity.map(x=>x.trinity_id));
+checks+=2;
+
+const delimiterCollision=base();
+delimiterCollision.ack_sources=[
+  source('ack:a#b',[item('c')]),
+  source('ack:a',[item('b#c')]),
+  source('ack:a%23b',[item('c')]),
+];
+const delimiterCollisionOut=compileAckItemTrinity(delimiterCollision);
+const delimiterRefs=delimiterCollisionOut.trinity.map(x=>x.item_ref);
+assert.equal(new Set(delimiterRefs).size,3);
+assert(delimiterRefs.includes('ack:a%23b#c'));
+assert(delimiterRefs.includes('ack:a#b%23c'));
+assert(delimiterRefs.includes('ack:a%2523b#c'));
+checks+=4;
+
 const callerForgery=base();
 callerForgery.authority_granted=true;
 callerForgery.provider_effect=true;

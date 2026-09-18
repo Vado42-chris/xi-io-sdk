@@ -11,6 +11,9 @@ const REAP_STATES = new Set(['DONE','PENDING','UNKNOWN','N_A']);
 const bounded = (value, max = 512) =>
   typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= max;
 
+const compareText = (a,b) => a === b ? 0 : a < b ? -1 : 1;
+const encodeIdentityPart = (value) => value.replaceAll('%','%25').replaceAll('#','%23');
+
 function bit(value, label) {
   if (value !== 0 && value !== 1) throw new TypeError(`${label} must be 0|1`);
   return value;
@@ -143,7 +146,7 @@ function checklist(item) {
 }
 
 function compileOne(item) {
-  const itemRef = `${item.ack_ref}#${item.item_id}`;
+  const itemRef = encodeIdentityPart(item.ack_ref) + '#' + encodeIdentityPart(item.item_id);
   const trinityId = digest({
     root_generation:item.root_generation,
     ack_ref:item.ack_ref,
@@ -235,13 +238,15 @@ export function compileAckItemTrinity(input) {
   }
 
   const trinity = normalized
-    .sort((a,b) => a.ack_ref.localeCompare(b.ack_ref) || a.item_id.localeCompare(b.item_id))
+    .sort((a,b) => compareText(a.ack_ref,b.ack_ref) || compareText(a.item_id,b.item_id))
     .map(compileOne);
 
   const applicableCount = normalized.filter((item) => item.applicable_bit === 1).length;
   const naCount = normalized.length - applicableCount;
   const openItemRefs = trinity
-    .filter((entry) => entry.checklist.supplied_complete !== true)
+    .filter((entry) =>
+      entry.checklist.supplied_complete !== true ||
+      entry.punch_card.next === 'RESOLVE_ACK_ITEM')
     .map((entry) => entry.item_ref);
 
   return Object.freeze({
