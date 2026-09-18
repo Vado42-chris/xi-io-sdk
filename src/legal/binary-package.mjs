@@ -6,6 +6,8 @@ export const LEGAL_BINARY_SCHEMA = 'xiio.sdk.legal-binary-package/v1';
 
 const ANSWERS = new Set(['YES','NO','ASK_MORE_DETAILS','N_A']);
 const EFFECTS = new Set(['NONE','OWNER','OATH','SERVICE','FILING','REGISTRY','PROVIDER']);
+const SCALES = new Set(['META','MESO','MICRO']);
+const FIVE_D_KEYS = ['WHERE','WHAT','HOW_WHO','WHEN','WHY'];
 const bounded = (v,max=1024) => typeof v==='string' && v.trim()===v && v.length>0 && v.length<=max;
 const refs = (v=[]) => {
   if(!Array.isArray(v)) throw new TypeError('refs must be array');
@@ -89,6 +91,11 @@ export function compileLegalBinaryPackage(input){
   for(const k of ['root_ref','root_generation','user_ref','product_ref','studio_root_ref','ack_ref','ack_generation','sdk_ref','sdk_generation','work_ref']) {
     if(!bounded(input[k])) throw new TypeError(`${k} required`);
   }
+  if(!SCALES.has(input.scale)) throw new TypeError('scale must be META|MESO|MICRO');
+  if(!input.five_d || typeof input.five_d!=='object' || Array.isArray(input.five_d)) throw new TypeError('five_d required');
+  for(const key of FIVE_D_KEYS) if(!bounded(input.five_d[key])) throw new TypeError(`five_d.${key} required`);
+  if(input.scale!=='META' && !bounded(input.parent_ref)) throw new TypeError('parent_ref required below META');
+  if(input.scale!=='MICRO' && !bounded(input.impact_assessment_ref)) throw new TypeError('impact_assessment_ref required at META/MESO');
   if(input.ack_current_bit!==1) throw new TypeError('fresh ACK required');
   if(input.sdk_current_bit!==1) throw new TypeError('fresh SDK required');
   if(input.running_consumption_bit!==1) throw new TypeError('running ACK/SDK consumption required');
@@ -106,6 +113,10 @@ export function compileLegalBinaryPackage(input){
     schema:'xiio.sdk.ack-item-trinity-input/v1',
     root_ref:input.root_ref,
     root_generation:input.root_generation,
+    scale:input.scale,
+    parent_ref:input.parent_ref ?? null,
+    impact_assessment_ref:input.impact_assessment_ref ?? null,
+    five_d:{...input.five_d},
     studio_root_ref:input.studio_root_ref,
     ack_sources:[{
       ack_ref:input.ack_ref,
@@ -213,6 +224,8 @@ export function compileLegalBinaryPackage(input){
     legal_effect:false,
     hard:[
       'USER_DATA -> BINARY_FACT -> DATAFORGE_RECORD -> ACK_TRINITY -> PACKAGE_GATE',
+      'META|MESO|MICRO_USE_THE_SAME_BINARY_CALCULUS',
+      'EVERY_SCALE_REQUIRES_WHERE_WHAT_HOW_WHO_WHEN_WHY',
       'YES != VERIFIED_PROVIDER_EFFECT',
       'NO != UNKNOWN',
       'ASK_MORE_DETAILS != FALSE',
