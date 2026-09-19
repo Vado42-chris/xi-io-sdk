@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compileGraduationPreflight, GRADUATION_PROFILES, profileCatalog } from '../src/preflight/graduation.mjs';
+import { compileGraduationPreflight, compileStudioChildGraduationPreflight, GRADUATION_PROFILES, profileCatalog } from '../src/preflight/graduation.mjs';
 
 function goodInput(profile) {
   return {
@@ -135,16 +135,29 @@ assert.equal(cli.status, 0, cli.stderr); checks += 1;
 assert.equal(JSON.parse(cli.stdout).release_eligible, true); checks += 1;
 const profiles = spawnSync(process.execPath, [cliPath, 'preflight', 'profiles'], { encoding: 'utf8' });
 assert.equal(profiles.status, 0, profiles.stderr); checks += 1;
-assert.equal(JSON.parse(profiles.stdout).profiles.length, 5); checks += 1;
+assert.equal(JSON.parse(profiles.stdout).profiles.length, 6); checks += 1;
 fs.rmSync(tmp, { recursive: true, force: true });
 
-console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:6, omission_hostiles:64, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
+console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:6, omission_hostiles:80, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
 
 
 {
   const sample = goodInput('STUDIO_CHILD_G0_G15');
   sample.cells.G13 = { state:'UNKNOWN', reason:'NO_TRIGGER_DECLARED', evidence_refs:[], blockers:[] };
   const out = compileGraduationPreflight(sample);
+  assert.equal(out.cells.find((c)=>c.id==='G13').state, 'UNKNOWN');
+  assert.equal(out.release_eligible, false);
+  assert.equal(out.cells.find((c)=>c.id==='G13').defect, 'X43_TRIGGER_EVALUATION_UNPROVEN');
+  checks += 3;
+}
+
+{
+  const sample = goodInput('STUDIO_CHILD_G0_G15');
+  sample.cells.G13 = { state:'UNKNOWN', reason:'NO_TRIGGER_DECLARED', evidence_refs:[], blockers:[] };
+  const out = compileGraduationPreflight({
+    ...sample,
+    x43_trigger_evaluation:{state:'NO_TRIGGER',triggers:[],evidence_refs:['fixture:x43:no-trigger']},
+  });
   assert.equal(out.cells.find((c)=>c.id==='G13').state, 'N_A_WITH_REASON');
   assert.equal(out.release_eligible, true);
   checks += 2;
@@ -153,7 +166,10 @@ console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:6, omission_h
 {
   const sample = goodInput('STUDIO_CHILD_G0_G15');
   sample.cells.G13 = { state:'N_A_WITH_REASON', reason:'NO_X43_TRIGGER', evidence_refs:['fixture:no-trigger'], blockers:[] };
-  const out = compileGraduationPreflight({ ...sample, x43_triggers:['FINANCIAL_TOTAL_DRIVING_RELIEF'] });
+  const out = compileGraduationPreflight({
+    ...sample,
+    x43_trigger_evaluation:{state:'TRIGGERED',triggers:['FINANCIAL_TOTAL_DRIVING_RELIEF'],evidence_refs:['fixture:x43:triggered']},
+  });
   assert.equal(out.cells.find((c)=>c.id==='G13').state, 'UNKNOWN');
   assert.equal(out.release_eligible, false);
   assert.equal(out.cells.find((c)=>c.id==='G13').defect, 'X43_REQUIRED_BUT_NOT_PROVEN');
@@ -169,4 +185,29 @@ console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:6, omission_h
     assert.equal(out.release_eligible, false, `missing Studio plane ${id} must block graduation`);
     checks += 1;
   }
+}
+
+
+{
+  const sample = goodInput('STUDIO_CHILD_G0_G15');
+  for (const id of ['G9','G10']) {
+    const broken = structuredClone(sample);
+    broken.cells[id] = { state:'N_A_WITH_REASON', reason:'CALLER_WAIVED', evidence_refs:['fixture:waiver'], blockers:[] };
+    const out = compileGraduationPreflight(broken);
+    assert.equal(out.release_eligible, false, `${id} cannot be N/A`);
+    assert.equal(out.first_red.cell, id);
+    checks += 2;
+  }
+}
+
+{
+  const sample = goodInput('STUDIO_CHILD_G0_G15');
+  const out = compileStudioChildGraduationPreflight(sample);
+  assert.equal(out.profile, 'STUDIO_CHILD_G0_G15');
+  assert.equal(out.release_eligible, true);
+  assert.throws(
+    () => compileStudioChildGraduationPreflight({ ...sample, profile:'TEMPLATE_L1_L10' }),
+    /profile is pinned/,
+  );
+  checks += 3;
 }
