@@ -1,0 +1,386 @@
+{
+  "schema": "xiio.sdk.chain-recovery-self-ack-fixture/v1",
+  "operator_id": "STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+  "occurrence_ref": "CANARY-060",
+  "self_ack": {
+    "ack_id": "ack:self:canary-060:g1",
+    "root_ref": "root:sam-law:chain-loss-recovery",
+    "work_ref": "work:canary-060:self-ack",
+    "baseline_generation": "canary-060:g1",
+    "target_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "provider_family": "xiio-internal",
+    "agent_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "capability_profile_ref": "profile:tttf-chain-recovery",
+    "subject_generation": "framework:994993a58229f83c785b5b025f402cae15a0bbae",
+    "effect_ceiling": "NO_EFFECT",
+    "ack_state": "ACK",
+    "attempt": 0,
+    "return_target_ref": "case-study:xiio/receipts/canary-060-chain-loss-recovery-g1.json",
+    "observed_at": "2026-09-19T15:15:00-06:00",
+    "effect_policy": {
+      "schema": "xiio.sdk.universal-effect-policy/v1",
+      "effect_scope": "ACK",
+      "consequential": false,
+      "occurrence_ref": "CANARY-060",
+      "requested_effect_ref": "ACK:CANARY-060",
+      "current_instruction_ref": null,
+      "authorizing_instruction_ref": null,
+      "authorized_effect_refs": [],
+      "draft_plan_propose_prepare_allowed": true,
+      "user_effect_instruction_bound": false,
+      "effect_attempt_eligible": false,
+      "effect_authority": false,
+      "approval_persists": false,
+      "prior_approval_replay_allowed": false
+    },
+    "rotfl": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-060:chain-loss-recovery",
+      "knowledge_return_refs": [
+        "crm:canary-060:chain-loss-recovery"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-060:chain-loss-recovery"
+      ],
+      "reusable_tool_refs": [
+        "tool:onboarding-heuristics-burnmap",
+        "tool:runtime-rotfl-test-gate",
+        "tool:tttf-chain-recovery",
+        "tool:human-form-flatpack",
+        "tool:universal-effect-policy"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-060",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-060:rotfl-template",
+          "runtime_readback_ref": "readback:canary-060:rotfl-template",
+          "next_input_ref": "next:canary-060:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-060",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-060:rotfl-template",
+          "runtime_readback_ref": "readback:canary-060:rotfl-template",
+          "next_input_ref": "next:canary-060:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-060",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-060:rotfl-template",
+          "runtime_readback_ref": "readback:canary-060:rotfl-template",
+          "next_input_ref": "next:canary-060:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-060:self-ack:15",
+      "affected_refs": [
+        "affected:framework",
+        "affected:sdk",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:inbox-crm",
+        "affected:drive-preflight",
+        "affected:ward",
+        "affected:case-study"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:surface-stop-before-subterranean-reap",
+      "next_ref": "next:canary-060:compile-heuristic-denominator",
+      "wake_ref": "wake:canary-060:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-060:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-060:slop-and-stale-carriers"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-060",
+      "currentness_checked_at": "2026-09-19T15:15:00-06:00"
+    }
+  },
+  "trinity_input": {
+    "schema": "xiio.sdk.ack-item-trinity-input/v1",
+    "root_ref": "root:sam-law:chain-loss-recovery",
+    "root_generation": "canary-060:g1",
+    "studio_root_ref": "studio:current:canary-060",
+    "rotfl_context": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-060:chain-loss-recovery",
+      "knowledge_return_refs": [
+        "crm:canary-060:chain-loss-recovery"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-060:chain-loss-recovery"
+      ],
+      "reusable_tool_refs": [
+        "tool:onboarding-heuristics-burnmap",
+        "tool:runtime-rotfl-test-gate",
+        "tool:tttf-chain-recovery",
+        "tool:human-form-flatpack",
+        "tool:universal-effect-policy"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-060",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-060:rotfl-template",
+          "runtime_readback_ref": "readback:canary-060:rotfl-template",
+          "next_input_ref": "next:canary-060:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-060",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-060:rotfl-template",
+          "runtime_readback_ref": "readback:canary-060:rotfl-template",
+          "next_input_ref": "next:canary-060:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-060",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-060:rotfl-template",
+          "runtime_readback_ref": "readback:canary-060:rotfl-template",
+          "next_input_ref": "next:canary-060:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-060:self-ack:15",
+      "affected_refs": [
+        "affected:framework",
+        "affected:sdk",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:inbox-crm",
+        "affected:drive-preflight",
+        "affected:ward",
+        "affected:case-study"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:surface-stop-before-subterranean-reap",
+      "next_ref": "next:canary-060:compile-heuristic-denominator",
+      "wake_ref": "wake:canary-060:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-060:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-060:slop-and-stale-carriers"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-060",
+      "currentness_checked_at": "2026-09-19T15:15:00-06:00"
+    },
+    "ack_sources": [
+      {
+        "ack_ref": "ack:self:canary-060:g1",
+        "ack_generation": "canary-060:g1",
+        "root_generation": "canary-060:g1",
+        "items": [
+          {
+            "item_id": "ACK60-01",
+            "path_ref": "chain.ack60-01",
+            "label": "Verified TTTF-008/TICRUN-034 source is current evidence",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:tttf",
+            "work_ref": "work:canary-060:source",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TTTF-008",
+              "drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TICRUN-034"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:994993a58229f83c785b5b025f402cae15a0bbae"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK60-02",
+            "path_ref": "chain.ack60-02",
+            "label": "DOWNWALK resolves buried seed, owner harm, affected stack, custody, prior guardrails, dogfood kernel, false-green and inheritance risk",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-heuristics",
+            "work_ref": "work:canary-060:downwalk",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TTTF-008"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:994993a58229f83c785b5b025f402cae15a0bbae"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK60-03",
+            "path_ref": "chain.ack60-03",
+            "label": "UPWALK resolves package gate, patch target, registry row, replay condition and exact next action",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-heuristics",
+            "work_ref": "work:canary-060:upwalk",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TTTF-008"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:994993a58229f83c785b5b025f402cae15a0bbae"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK60-04",
+            "path_ref": "chain.ack60-04",
+            "label": "Affected teammates consume chain-recovery hotpatch without owner restatement",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:studio-router",
+            "work_ref": "work:canary-060:team-hotpatch",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "case-study:CANARY-060",
+              "studio:current"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:994993a58229f83c785b5b025f402cae15a0bbae"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK60-05",
+            "path_ref": "chain.ack60-05",
+            "label": "CRM KnowledgeReturn persists, reverse-reads, then RETURN/APPLY_RETURN/REAP rejoins parent",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:inbox-crm",
+            "work_ref": "work:canary-060:crm-return",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "inbox:crm-knowledge-return",
+              "framework:rotfl-global-heartbeat"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:994993a58229f83c785b5b025f402cae15a0bbae"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "ack_items": 5,
+    "pass_declared": 1,
+    "wait_declared": 4,
+    "authority_granted": false,
+    "provider_effect": false,
+    "external_communication": false,
+    "terminal": false
+  }
+}
