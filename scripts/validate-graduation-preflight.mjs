@@ -21,8 +21,8 @@ function goodInput(profile) {
 
 let checks = 0;
 const catalog = profileCatalog();
-assert.equal(catalog.profiles.length, 5); checks += 1;
-assert.deepEqual(catalog.profiles.map((p) => p.denominator), [14,10,14,16,10]); checks += 1;
+assert.equal(catalog.profiles.length, 6); checks += 1;
+assert.deepEqual(catalog.profiles.map((p) => p.denominator), [14,10,14,16,10,10]); checks += 1;
 
 let omissionHostiles = 0;
 for (const profile of Object.keys(GRADUATION_PROFILES)) {
@@ -44,7 +44,7 @@ for (const profile of Object.keys(GRADUATION_PROFILES)) {
     omissionHostiles += 1;
   }
 }
-assert.equal(omissionHostiles, 64); checks += 1;
+assert.equal(omissionHostiles, 74); checks += 1;
 
 {
   const sample = goodInput('TEMPLATE_L1_L10');
@@ -105,6 +105,22 @@ assert.equal(omissionHostiles, 64); checks += 1;
   checks += 2;
 }
 
+{
+  const sample = goodInput('STUDIO_CHILD_G0_G9');
+  const clean = compileGraduationPreflight(sample);
+  assert.equal(clean.release_eligible, true);
+  assert.equal(clean.graduated_through, 'G9');
+  checks += 2;
+
+  for (const id of ['G1','G2','G3','G4','G5','G6','G7','G8','G9']) {
+    const broken = structuredClone(sample);
+    broken.cells[id] = { state:'UNKNOWN', reason:'MISSING_RECONNECT_EVIDENCE', evidence_refs:[], blockers:['wake:'+id] };
+    const out = compileGraduationPreflight(broken);
+    assert.equal(out.release_eligible, false, `STUDIO_CHILD_G0_G9 reconnect ${id} must block`);
+    checks += 1;
+  }
+}
+
 assert.throws(() => compileGraduationPreflight({ ...goodInput('TEMPLATE_L1_L10'), profile: 'NOPE' }), /unknown graduation profile/); checks += 1;
 const extra = goodInput('TEMPLATE_L1_L10');
 extra.cells.EXTRA = { state: 'PASS', evidence_refs: ['fixture:x'] };
@@ -122,4 +138,4 @@ assert.equal(profiles.status, 0, profiles.stderr); checks += 1;
 assert.equal(JSON.parse(profiles.stdout).profiles.length, 5); checks += 1;
 fs.rmSync(tmp, { recursive: true, force: true });
 
-console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:5, omission_hostiles:64, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
+console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:6, omission_hostiles:64, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
