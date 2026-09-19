@@ -319,4 +319,4 @@ SCALE_CHANGES_DENOMINATOR_NOT_ABI
 EVERY_STUDIO_CHILD_USES_THE_SAME_GRADUATION_PROFILE
 ```
 
-Canonical graduation profile: `STUDIO_CHILD_G0_G9`.
+Canonical graduation profile: `STUDIO_CHILD_G0_G15`. Studio-child consumers must use the pinned Studio-child entry point; generic profiles cannot substitute.
