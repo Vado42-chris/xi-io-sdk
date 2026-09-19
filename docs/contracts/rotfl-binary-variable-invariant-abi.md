@@ -286,3 +286,37 @@ This ABI composes with:
 The Socratic decomposition ABI uses these cells to reduce a User × Experience into the smallest sufficient evidence-producing questions while preserving the parent denominator.
 
 The binary ABI owns representation and evaluation semantics. It does not own domain authority, source truth, worker admission, security policy, provider effects, or release authorization.
+
+
+## Studio child reconnect graduation
+
+Every Studio child uses the same automated graduation seam.
+
+```text
+BINS_RESOURCE_VERSION
+  -> HEADLESS_SKILL_RECALL
+  -> SDK_PRIMITIVE_INVARIANTS
+  -> PUBLISHER_TEMPLATE_RECIPE
+  -> BRAND_VARIABLE_RECONNECT
+  -> IMPLEMENTATION_VARIABLE_RECONNECT
+  -> RCUBE_BINARY_SIMULATION
+  -> METERED_RUNTIME_OR_BUILD_PROOF
+  -> RETURN / APPLY_RETURN / READBACK / REAP
+```
+
+SDK owns the invariant side of the seam. Publisher owns composition. Brand and implementation attach only as externally bound binary variables at reconnect.
+
+Hard:
+
+```text
+SDK_PRIMITIVE != PUBLISHER_TEMPLATE
+PUBLISHER_TEMPLATE != SDK_PRIMITIVE
+BRAND_VARIABLE != INVARIANT
+IMPLEMENTATION_VARIABLE != INVARIANT
+BINS_RESOURCE_VERSION != LIVE_RUNTIME
+HEADLESS_SKILL_RECALL != PROVIDER_EFFECT
+SCALE_CHANGES_DENOMINATOR_NOT_ABI
+EVERY_STUDIO_CHILD_USES_THE_SAME_GRADUATION_PROFILE
+```
+
+Canonical graduation profile: `STUDIO_CHILD_G0_G15`. Studio-child consumers must use the pinned Studio-child entry point; generic profiles cannot substitute.
