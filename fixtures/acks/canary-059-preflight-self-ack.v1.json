@@ -1,0 +1,647 @@
+{
+  "schema": "xiio.sdk.preflight-self-ack-fixture/v1",
+  "operator_id": "STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+  "occurrence_ref": "CANARY-059",
+  "self_ack": {
+    "ack_id": "ack:self:canary-059:g1",
+    "root_ref": "root:sam-law:preflight-negative-space",
+    "work_ref": "work:canary-059:self-ack",
+    "baseline_generation": "canary-059:g1",
+    "target_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "provider_family": "xiio-internal",
+    "agent_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "capability_profile_ref": "profile:preflight-negative-space",
+    "subject_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+    "effect_ceiling": "NO_EFFECT",
+    "ack_state": "ACK",
+    "attempt": 0,
+    "return_target_ref": "case-study:xiio/receipts/canary-059-negative-space-preflight-g1.json",
+    "observed_at": "2026-09-19T14:45:00-06:00",
+    "effect_policy": {
+      "schema": "xiio.sdk.universal-effect-policy/v1",
+      "effect_scope": "ACK",
+      "consequential": false,
+      "occurrence_ref": "CANARY-059",
+      "requested_effect_ref": "ACK:CANARY-059",
+      "current_instruction_ref": null,
+      "authorizing_instruction_ref": null,
+      "authorized_effect_refs": [],
+      "draft_plan_propose_prepare_allowed": true,
+      "user_effect_instruction_bound": false,
+      "effect_attempt_eligible": false,
+      "effect_authority": false,
+      "approval_persists": false,
+      "prior_approval_replay_allowed": false
+    },
+    "rotfl": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-059:negative-space-preflight",
+      "knowledge_return_refs": [
+        "crm:canary-059:preflight-negative-space"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-059:preflight-negative-space"
+      ],
+      "reusable_tool_refs": [
+        "tool:onboarding-heuristics-burnmap",
+        "tool:runtime-rotfl-test-gate",
+        "tool:human-form-flatpack",
+        "tool:egress-engine",
+        "tool:universal-effect-policy"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-059",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-059:rotfl-template",
+          "runtime_readback_ref": "readback:canary-059:rotfl-template",
+          "next_input_ref": "next:canary-059:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-059",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-059:rotfl-template",
+          "runtime_readback_ref": "readback:canary-059:rotfl-template",
+          "next_input_ref": "next:canary-059:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-059",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-059:rotfl-template",
+          "runtime_readback_ref": "readback:canary-059:rotfl-template",
+          "next_input_ref": "next:canary-059:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-059:self-ack:15",
+      "affected_refs": [
+        "affected:framework",
+        "affected:sdk",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:inbox-crm",
+        "affected:drive-preflight",
+        "affected:ward",
+        "affected:case-study"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:package-member-identity-not-frozen",
+      "next_ref": "next:canary-059:compile-heuristic-denominator",
+      "wake_ref": "wake:canary-059:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-059:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-059:slop-and-stale-carriers"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-059",
+      "currentness_checked_at": "2026-09-19T14:45:00-06:00"
+    }
+  },
+  "trinity_input": {
+    "schema": "xiio.sdk.ack-item-trinity-input/v1",
+    "root_ref": "root:sam-law:preflight-negative-space",
+    "root_generation": "canary-059:g1",
+    "studio_root_ref": "studio:current:canary-059",
+    "rotfl_context": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-059:negative-space-preflight",
+      "knowledge_return_refs": [
+        "crm:canary-059:preflight-negative-space"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-059:preflight-negative-space"
+      ],
+      "reusable_tool_refs": [
+        "tool:onboarding-heuristics-burnmap",
+        "tool:runtime-rotfl-test-gate",
+        "tool:human-form-flatpack",
+        "tool:egress-engine",
+        "tool:universal-effect-policy"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-059",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-059:rotfl-template",
+          "runtime_readback_ref": "readback:canary-059:rotfl-template",
+          "next_input_ref": "next:canary-059:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-059",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-059:rotfl-template",
+          "runtime_readback_ref": "readback:canary-059:rotfl-template",
+          "next_input_ref": "next:canary-059:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4",
+          "runtime_ref": "runtime:rotfl:canary-059",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-059:rotfl-template",
+          "runtime_readback_ref": "readback:canary-059:rotfl-template",
+          "next_input_ref": "next:canary-059:heuristic-sim",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-059:self-ack:15",
+      "affected_refs": [
+        "affected:framework",
+        "affected:sdk",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:inbox-crm",
+        "affected:drive-preflight",
+        "affected:ward",
+        "affected:case-study"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:package-member-identity-not-frozen",
+      "next_ref": "next:canary-059:compile-heuristic-denominator",
+      "wake_ref": "wake:canary-059:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-059:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-059:slop-and-stale-carriers"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-059",
+      "currentness_checked_at": "2026-09-19T14:45:00-06:00"
+    },
+    "ack_sources": [
+      {
+        "ack_ref": "ack:self:canary-059:g1",
+        "ack_generation": "canary-059:g1",
+        "root_generation": "canary-059:g1",
+        "items": [
+          {
+            "item_id": "ACK59-01",
+            "path_ref": "preflight.ack59-01",
+            "label": "Current owner directive is executable ingress",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+            "work_ref": "work:canary-059:self-ack",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "case-study:CANARY-059"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-02",
+            "path_ref": "preflight.ack59-02",
+            "label": "Canonical heuristic profile resolved before work",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-heuristics",
+            "work_ref": "work:canary-059:heuristic-denominator",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "framework:standards/heuristics/swarm-evaluation-profile.v1.json",
+              "framework:standards/onboarding/heuristics-burnmap-gate.v1.json"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-03",
+            "path_ref": "preflight.ack59-03",
+            "label": "Pre-flight inclusion defaults OUT",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-ux-projection",
+            "work_ref": "work:canary-059:negative-space",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "drive:1gi1De0Ly5ecim6l4okFk9rEviwOSwl_O",
+              "drive:1fMuRJrmLLcy88j0WcOGFeaK1fiNV3hlHW-W1t0xCtUU"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-04",
+            "path_ref": "preflight.ack59-04",
+            "label": "Exact package member identity frozen",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sam_law-package",
+            "work_ref": "work:canary-059:freeze-members",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "drive:1VMA1DwepwtklF7ibR7q1X0xq6huqXdSv7yVCCqUv-JM"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-05",
+            "path_ref": "preflight.ack59-05",
+            "label": "Every candidate source/currentness state verified",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sam_law-source-custody",
+            "work_ref": "work:canary-059:source-currentness",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "framework:managed-currentness-lease"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-06",
+            "path_ref": "preflight.ack59-06",
+            "label": "Every included member provenance/custody bound",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:bins",
+            "work_ref": "work:canary-059:provenance",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "framework:heuristics-burnmap-gate#custody"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-07",
+            "path_ref": "preflight.ack59-07",
+            "label": "Drive pre-flight visibility is private/not-shared",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:ward",
+            "work_ref": "work:canary-059:privacy",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "drive-readback:1gi1De0Ly5ecim6l4okFk9rEviwOSwl_O:not_shared"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-08",
+            "path_ref": "preflight.ack59-08",
+            "label": "Legal role and qualifier state correct for each member",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sam_law",
+            "work_ref": "work:canary-059:legal-role",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "sam-law:legal-hard-qualifier"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-09",
+            "path_ref": "preflight.ack59-09",
+            "label": "Duplicate/superseded/unnecessary candidates excluded",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:reaper",
+            "work_ref": "work:canary-059:exclusion",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "framework:reap-denominator",
+              "framework:force-multiplier-index"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-10",
+            "path_ref": "preflight.ack59-10",
+            "label": "Evidence readiness explicit before inclusion",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sam_law",
+            "work_ref": "work:canary-059:evidence-readiness",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "sam-law:court-value-gate:11/21"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-11",
+            "path_ref": "preflight.ack59-11",
+            "label": "Consequential egress blocked until exact-current effect gate",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sdk-effect-gate",
+            "work_ref": "work:canary-059:no-effect",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "sdk:5675cb89545f7681e2953038988bcddb9bd763ea:universal-effect-policy"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-12",
+            "path_ref": "preflight.ack59-12",
+            "label": "CRM KnowledgeReturn persisted and reverse-read",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:inbox-crm",
+            "work_ref": "work:canary-059:crm-return",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "inbox:crm-knowledge-return"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-13",
+            "path_ref": "preflight.ack59-13",
+            "label": "Affected teammates consume Trinity hotpatch",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:studio-router",
+            "work_ref": "work:canary-059:team-hotpatch",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "framework:affected-set"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-14",
+            "path_ref": "preflight.ack59-14",
+            "label": "Sim produces measurable court-value/owner-cog delta",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sam_law",
+            "work_ref": "work:canary-059:value-delta",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "sam-law:court-value-gate",
+              "framework:polyrhythm-meter"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK59-15",
+            "path_ref": "preflight.ack59-15",
+            "label": "Result→RETURN→APPLY_RETURN→REAP completes with readback",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:case-study-reducer",
+            "work_ref": "work:canary-059:return-apply-reap",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "framework:rotfl-global-heartbeat"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:1f6eeb08a5b692fef2da7e988a468d41f5ae34b4"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "ack_items": 15,
+    "pass_declared": 5,
+    "wait_declared": 10,
+    "authority_granted": false,
+    "provider_effect": false,
+    "external_communication": false,
+    "terminal": false
+  }
+}
