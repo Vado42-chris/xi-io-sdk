@@ -64,6 +64,22 @@ function fileLike(token) {
   return /\.[A-Za-z0-9.]{1,12}$/.test(base) ? normalized : null;
 }
 
+function unsafeBasenameCandidates(raw) {
+  const out = [];
+  const re = /(?:^|[\s"'\`])((?:\.\.\/|\/|[A-Za-z]:\\)[^\s"'\`]+?)(?=$|[\s"'\`])/g;
+  let match;
+  while ((match = re.exec(raw))) {
+    const normalizedSeparators = match[1].replace(/\\/g, '/');
+    const base = path.posix.basename(normalizedSeparators);
+    if (/^[A-Za-z0-9._ -]+\.[A-Za-z0-9.]{1,12}$/.test(base)) out.push(base);
+  }
+  return [...new Set(out)];
+}
+
+function explicitlyWorkspaceRoot(raw) {
+  return /\b(?:current\s+(?:working\s+)?directory|workspace\s+root|root\s+of\s+the\s+workspace|root\s+of\s+workspace|workspace-relative|in\s+the\s+workspace)\b/i.test(raw);
+}
+
 function folderLike(token) {
   const normalized = normalizeRelative(token);
   if (!normalized || normalized.includes('.')) return null;
@@ -106,6 +122,8 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
 
   const candidates = [...new Set([...directPaths, ...inferred])].map(normalizeRelative).filter(Boolean);
   const unsafeMention = /(?:^|\s)(?:\.\.\/|\/[^\s]+|[A-Za-z]:\\)/.test(raw);
+  const recoverableUnsafeBasenames = explicitlyWorkspaceRoot(raw) ? unsafeBasenameCandidates(raw) : [];
+  for (const base of recoverableUnsafeBasenames) if (!candidates.includes(base)) candidates.push(base);
   let state = 'UNKNOWN';
   let resolved_path = null;
   let owner_reprompt_needed = true;
@@ -118,7 +136,9 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
     state = 'RESOLVED';
     resolved_path = candidates[0];
     owner_reprompt_needed = false;
-    reason = 'UNIQUE_SAFE_WORKSPACE_RELATIVE_PATH';
+    reason = unsafeMention && recoverableUnsafeBasenames.includes(resolved_path)
+      ? 'UNSAFE_PATH_RECOVERED_TO_WORKSPACE_ROOT'
+      : 'UNIQUE_SAFE_WORKSPACE_RELATIVE_PATH';
   } else if (candidates.length > 1) {
     state = 'NEEDS_DISAMBIGUATION';
     reason = 'MULTIPLE_SAFE_ARTIFACT_CANDIDATES';
@@ -147,6 +167,9 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
       'PATH_RESOLUTION!=EXECUTION_AUTHORITY',
       'ARCHIVE_IDENTIFIED!=ARCHIVE_CONTENTS_READ',
       'AMBIGUOUS_PATH!=GUESSED_PATH',
+      'PARENT_TRAVERSAL!=WORKSPACE_PATH',
+      'WORKSPACE_ROOT_CONTEXT_MAY_SALVAGE_BASENAME',
+      'SALVAGED_BASENAME!=PATH_TRAVERSAL_AUTHORITY',
     ]),
   });
 }
