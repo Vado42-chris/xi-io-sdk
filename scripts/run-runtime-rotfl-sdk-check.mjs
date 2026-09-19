@@ -45,6 +45,8 @@ for(let i=0;i<commands.length;i++){
     simulated_cost_microunits:(elapsed/1000)*rate.microunits_per_second,
     stdout_digest:sha(p.stdout),
     stderr_digest:sha(p.stderr),
+    stdout_tail:String(p.stdout||'').slice(-4000),
+    stderr_tail:String(p.stderr||'').slice(-4000),
     result_ref:resultRef,
     runtime_rotfl_receipt_ref:'sdk:runtime-rotfl-suite:current',
     force_multiplier_disposition:'REUSED_EXISTING',
@@ -59,7 +61,7 @@ const heatmap=Object.fromEntries(PLANES.map(plane=>{
     observed:xs.length,
     pass:xs.reduce((n,x)=>n+x.value_bit,0),
     zero:xs.reduce((n,x)=>n+(x.value_bit===1?0:1),0),
-    root_cause_labels:[...new Set(xs.filter(x=>x.value_bit===0).map(x=>'TEST_EXIT_NONZERO'))],
+    root_cause_labels:[...new Set(xs.filter(x=>x.value_bit===0).map(x=>'TEST_EXIT_NONZERO:'+x.test_ref))],
   }];
 }));
 const totalCost=rows.reduce((n,x)=>n+x.simulated_cost_microunits,0);
@@ -84,6 +86,14 @@ const receipt={
   heatmap_complete_bit:PLANES.every(p=>heatmap[p].observed===heatmap[p].denominator)?1:0,
   local_repair_during_explosion:false,
   root_reduction_after_full_heatmap:true,
+  failed_rows:rows.filter(x=>x.value_bit===0).map(x=>({
+    test_ref:x.test_ref,
+    plane:x.plane,
+    command:x.command,
+    result_ref:x.result_ref,
+    stdout_tail:x.stdout_tail,
+    stderr_tail:x.stderr_tail,
+  })),
   rows,
   effect_authority:false,
   provider_effects:0,
