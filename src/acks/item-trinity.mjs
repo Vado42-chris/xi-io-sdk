@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import { validateRotflAckContext } from './distributed.mjs';
+import { compileRotflAckTemplateRoute } from './rotfl-template.mjs';
 
 export const ACK_ITEM_TRINITY_INPUT_SCHEMA = 'xiio.sdk.ack-item-trinity-input/v1';
 export const ACK_ITEM_TRINITY_SCHEMA = 'xiio.sdk.ack-item-trinity/v1';
@@ -145,7 +147,7 @@ function checklist(item) {
   return rows;
 }
 
-function compileOne(item) {
+function compileOne(item, rotflContext) {
   const itemRef = encodeIdentityPart(item.ack_ref) + '#' + encodeIdentityPart(item.item_id);
   const trinityId = digest({
     root_generation:item.root_generation,
@@ -157,6 +159,16 @@ function compileOne(item) {
   const score = scoreState(item);
   const checklistRows = checklist(item);
   const applicable = item.applicable_bit === 1;
+  const templateRoute = compileRotflAckTemplateRoute({ item_ref:itemRef, rotfl:rotflContext });
+  if (applicable) {
+    checklistRows.unshift({
+      id:'ROTFL_TEMPLATE_RUNTIME',
+      state:templateRoute.runtime_complete ? 'SUPPLIED_UNVERIFIED' : 'WAIT',
+      reason:templateRoute.runtime_complete ? 'TEMPLATE_RUNTIME_RECEIPTS_SUPPLIED_NOT_AUTHENTICATED' : 'TEMPLATE_RUNTIME_INCOMPLETE',
+    });
+  } else {
+    checklistRows.unshift({id:'ROTFL_TEMPLATE_RUNTIME',state:'N_A',reason:'ITEM_NOT_APPLICABLE'});
+  }
 
   return {
     item_ref:itemRef,
@@ -174,10 +186,14 @@ function compileOne(item) {
       work_ref:item.work_ref,
       obligation_state:!applicable ? 'N_A' : item.required_bit === 1 ? 'REQUIRED' : 'OPTIONAL',
       material:item.material_bit === 1,
-      next:!applicable ? null : score.state === 'SUPPLIED_UNVERIFIED' ? 'VERIFY_SUPPLIED_STATE' : 'RESOLVE_ACK_ITEM',
+      next:!applicable ? null
+        : !templateRoute.runtime_complete ? 'EXECUTE_ROTFL_TEMPLATE'
+        : score.state === 'SUPPLIED_UNVERIFIED' ? 'VERIFY_SUPPLIED_STATE' : 'RESOLVE_ACK_ITEM',
+      rotfl_template_route_ref:templateRoute.route_id,
       authority_granted:false,
       provider_effect:false,
     },
+    template_route:templateRoute,
     score_card:{
       schema:'xiio.sdk.ack-item-score-card/v1',
       score_ref:`score:${trinityId}`,
@@ -189,6 +205,8 @@ function compileOne(item) {
       hex_qualification_state:item.hex_qualification.state,
       currentness_state:item.currentness.state,
       closure_credit:false,
+      rotfl_template_runtime_complete:templateRoute.runtime_complete,
+      rotfl_template_route_ref:templateRoute.route_id,
       authority_granted:false,
       provider_effect:false,
     },
@@ -196,6 +214,7 @@ function compileOne(item) {
       schema:'xiio.sdk.ack-item-checklist/v1',
       checklist_ref:`checklist:${trinityId}`,
       item_ref:itemRef,
+      rotfl_template_route_ref:templateRoute.route_id,
       rows:checklistRows,
       supplied_complete:checklistRows.every((row) => ['SUPPLIED_UNVERIFIED','N_A'].includes(row.state)),
       closure_100:false,
@@ -217,6 +236,8 @@ export function compileAckItemTrinity(input) {
     if (!bounded(input[field])) throw new TypeError(`${field} required`);
   }
   if (!Array.isArray(input.ack_sources) || input.ack_sources.length === 0) throw new TypeError('ack_sources required');
+  const rotflVerdict = validateRotflAckContext(input.rotfl_context);
+  if (!rotflVerdict.ok) throw new TypeError('rotfl_context invalid: '+rotflVerdict.errors.join('|'));
 
   const ackRefs = new Set();
   const normalized = [];
@@ -239,7 +260,7 @@ export function compileAckItemTrinity(input) {
 
   const trinity = normalized
     .sort((a,b) => compareText(a.ack_ref,b.ack_ref) || compareText(a.item_id,b.item_id))
-    .map(compileOne);
+    .map((item) => compileOne(item, input.rotfl_context));
 
   const applicableCount = normalized.filter((item) => item.applicable_bit === 1).length;
   const naCount = normalized.length - applicableCount;
@@ -267,6 +288,10 @@ export function compileAckItemTrinity(input) {
     silent_remainder:0,
     open_item_refs:openItemRefs,
     selection_state:openItemRefs.length ? 'X43_SELECTION_REQUIRED' : 'VERIFY_SUPPLIED_TRINITY',
+    rotfl_required:true,
+    rotfl_context:structuredClone(input.rotfl_context),
+    rotfl_template_runtime_complete:rotflVerdict.template_runtime_complete,
+    rotfl_template_run_count:rotflVerdict.template_run_count,
     trinity,
     authority_granted:false,
     provider_effect:false,
@@ -284,6 +309,9 @@ export function compileAckItemTrinity(input) {
       'OPEN_ITEM_LIST != X43_PRIORITY',
       'ARRAY_ORDER != PRIORITY',
       'RESULT != RETURN != APPLY_RETURN',
+      'ACK_ITEM_WITHOUT_ROTFL_TEMPLATE_ROUTE != TRINITY',
+      'ACK_TEMPLATE_REF != ACK_TEMPLATE_EXECUTED',
+      'TEMPLATE_RUNTIME_PASS != EFFECT_AUTHORITY',
       'SDK_PROJECTION != EFFECT_AUTHORITY',
     ],
   });
