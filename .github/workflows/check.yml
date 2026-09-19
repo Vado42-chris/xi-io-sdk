@@ -17,4 +17,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - run: npm run check
+      - name: Run SDK checks
+        run: npm run check
+      - name: Upload SDK ROTFL heatmap receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sdk-runtime-rotfl-${{ github.sha }}
+          path: out/runtime-rotfl-sdk-check.current.json
+          if-no-files-found: error
