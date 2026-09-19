@@ -22,6 +22,42 @@ const item = (id, overrides={}) => ({
   ...overrides,
 });
 
+const rotfl = () => ({
+  schema:'xiio.sdk.rotfl-ack-context/v1',
+  hvt_order_ref:'control:hvt:g1',
+  knowledge_return_refs:['crm:knowledge:g1'],
+  bins_resource_refs:['bins:resource:g1'],
+  reusable_tool_refs:['tool:rotfl'],
+  reusable_template_refs:['template:KnowledgeReturn','template:OnboardingPack','template:hot-patch-cadence'],
+  template_runs:['template:KnowledgeReturn','template:OnboardingPack','template:hot-patch-cadence'].map(ref=>({
+    schema:'xiio.sdk.rotfl-ack-template-run/v1',
+    template_ref:ref,
+    template_generation:'template:g1',
+    runtime_ref:'runtime:rotfl-template',
+    runtime_generation:'runtime:g1',
+    runtime_rotfl_receipt_ref:'receipt:rotfl:g1',
+    runtime_readback_ref:'readback:rotfl:g1',
+    next_input_ref:'next:g1',
+    state:'EXECUTED',
+    known_bit:1,
+    value_bit:1,
+    talk_action_zero_bit:1,
+    time_money_bound_bit:1,
+  })),
+  coverage_profile_ref:'coverage:five-scale',
+  truncation_denominator_ref:'denom:truncation:g1',
+  affected_refs:['affected:ack'],
+  no_effect_refs:['no-effect:sibling'],
+  first_red_ref:'red:first',
+  next_ref:'next:g1',
+  wake_ref:'wake:g1',
+  fallback_ref:'fallback:g1',
+  apply_return_target_ref:'apply-return:g1',
+  reap_refs:['reap:g1'],
+  cold_start_readback_ref:'crm:readback:g1',
+  currentness_checked_at:'2026-09-19T12:00:00-06:00',
+});
+
 const source = (ref, items, overrides={}) => ({
   ack_ref:ref,
   ack_generation:`generation:${ref}`,
@@ -35,6 +71,7 @@ const base = () => ({
   root_ref:'studio:root',
   root_generation:'root:g1',
   studio_root_ref:'studio:suite:current',
+  rotfl_context:rotfl(),
   ack_sources:[
     source('ack:ward',[item('effect-policy')]),
     source('ack:ibal',[
@@ -58,14 +95,23 @@ assert.equal(out.n_a_count,1);
 assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 assert.equal(out.external_communication,false);
-checks+=12;
+assert.equal(out.rotfl_required,true);
+assert.equal(out.rotfl_template_runtime_complete,true);
+assert.equal(out.rotfl_template_run_count,3);
+checks+=15;
 
 for(const entry of out.trinity){
   assert.equal(entry.punch_card.item_ref,entry.item_ref);
   assert.equal(entry.score_card.item_ref,entry.item_ref);
   assert.equal(entry.checklist.item_ref,entry.item_ref);
+  assert.equal(entry.template_route.item_ref,entry.item_ref);
+  assert.equal(entry.template_route.runtime_complete,true);
+  assert.equal(entry.template_route.template_pass,3);
+  assert.equal(entry.punch_card.rotfl_template_route_ref,entry.template_route.route_id);
+  assert.equal(entry.score_card.rotfl_template_route_ref,entry.template_route.route_id);
+  assert.equal(entry.checklist.rotfl_template_route_ref,entry.template_route.route_id);
 }
-checks+=9;
+checks+=27;
 
 const ward=out.trinity.find(x=>x.item_ref==='ack:ward#effect-policy');
 assert.equal(ward.score_card.declared_state,'PASS');
@@ -86,7 +132,7 @@ checks+=4;
 const na=out.trinity.find(x=>x.item_ref==='ack:ibal#not-applicable');
 assert.equal(na.punch_card.obligation_state,'N_A');
 assert.equal(na.score_card.projected_state,'N_A_WITH_EVIDENCE');
-assert.equal(na.checklist.rows.length,7);
+assert.equal(na.checklist.rows.length,8);
 assert(na.checklist.rows.every(row=>row.state==='N_A'));
 checks+=4;
 
@@ -150,6 +196,16 @@ assert.equal(forgedOut.trinity[0].score_card.closure_credit,false);
 assert.equal(forgedOut.trinity[0].checklist.closure_100,false);
 checks+=4;
 
+const templateWait=base();
+Object.assign(templateWait.rotfl_context.template_runs[0],{state:'WAIT',known_bit:1,value_bit:0});
+const templateWaitOut=compileAckItemTrinity(templateWait);
+assert.equal(templateWaitOut.rotfl_template_runtime_complete,false);
+const templateWaitItem=templateWaitOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy');
+assert.equal(templateWaitItem.punch_card.next,'EXECUTE_ROTFL_TEMPLATE');
+assert.equal(templateWaitItem.checklist.first_open.id,'ROTFL_TEMPLATE_RUNTIME');
+assert.equal(templateWaitItem.template_route.template_zero,1);
+checks+=5;
+
 const hostile = (mutate, pattern) => {
   const x=base();
   mutate(x);
@@ -166,6 +222,8 @@ hostile(x=>x.ack_sources[0].items[0].work_ref=null,/needs owner_ref and work_ref
 hostile(x=>x.ack_sources[0].items[0].hex_qualification={state:'QUALIFIED',receipt_ref:null},/QUALIFIED requires receipt_ref/);
 hostile(x=>x.ack_sources[0].items[0].currentness={state:'CURRENT',evidence_ref:null},/CURRENT requires evidence_ref/);
 hostile(x=>x.ack_sources[0].items[0].declared_state='INVENTED',/declared_state invalid/);
+hostile(x=>x.rotfl_context.template_runs=[],/rotfl_context invalid/);
+hostile(x=>x.rotfl_context.template_runs[0].template_ref='template:undeclared',/rotfl_context invalid/);
 
 assert(out.hard.includes('SCORECARD != PUNCHCARD'));
 assert(out.hard.includes('CHECKLIST != SCORECARD'));
@@ -177,7 +235,7 @@ console.log(JSON.stringify({
   schema:'xiio.sdk.ack-item-trinity-validation/v1',
   result:'PASS',
   checks,
-  hostiles:10,
+  hostiles:12,
   ack_items:out.ack_item_count,
   punch_cards:out.punch_card_count,
   score_cards:out.score_card_count,
