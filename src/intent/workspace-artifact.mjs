@@ -79,7 +79,8 @@ function unsafeBasenameCandidates(raw) {
   let match;
   while ((match = re.exec(raw))) {
     const normalizedSeparators = match[1].replace(/\\/g, '/');
-    const base = path.posix.basename(normalizedSeparators);
+    const proseTrimmed = normalizedSeparators.replace(/[,:;!?]+$/g, '').replace(/\.(?=[)\]}]*$)/g, '').replace(/[)\]}]+$/g, '');
+    const base = path.posix.basename(proseTrimmed);
     if (/^[A-Za-z0-9._ -]+\.[A-Za-z0-9.]{1,12}$/.test(base)) out.push(base);
   }
   return [...new Set(out)];
@@ -181,6 +182,7 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
       'SALVAGED_BASENAME!=PATH_TRAVERSAL_AUTHORITY',
       'WRITE_INTENT_PRESERVED_WITHOUT_WRITE_AUTHORITY',
       'MACHINE_RESOLVABLE_PATH!=OWNER_REPROMPT',
+      'PROSE_PUNCTUATION!=PATH_IDENTITY',
     ]),
   });
 }
