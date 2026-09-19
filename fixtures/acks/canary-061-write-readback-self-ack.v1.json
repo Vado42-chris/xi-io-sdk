@@ -1,0 +1,407 @@
+{
+  "schema": "xiio.sdk.write-readback-self-ack-fixture/v1",
+  "operator_id": "STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+  "occurrence_ref": "CANARY-061",
+  "self_ack": {
+    "ack_id": "ack:self:canary-061:g1",
+    "root_ref": "root:workspace-write-readback-fidelity",
+    "work_ref": "work:canary-061:self-ack",
+    "baseline_generation": "canary-061:g1",
+    "target_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "provider_family": "xiio-internal",
+    "agent_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "capability_profile_ref": "profile:workspace-write-readback-fidelity",
+    "subject_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+    "effect_ceiling": "NO_EFFECT",
+    "ack_state": "ACK",
+    "attempt": 0,
+    "return_target_ref": "case-study:xiio/receipts/canary-061-write-readback-fidelity-g1.json",
+    "observed_at": "2026-09-19T15:25:00-06:00",
+    "effect_policy": {
+      "schema": "xiio.sdk.universal-effect-policy/v1",
+      "effect_scope": "ACK",
+      "consequential": false,
+      "occurrence_ref": "CANARY-061",
+      "requested_effect_ref": "ACK:CANARY-061",
+      "current_instruction_ref": null,
+      "authorizing_instruction_ref": null,
+      "authorized_effect_refs": [],
+      "draft_plan_propose_prepare_allowed": true,
+      "user_effect_instruction_bound": false,
+      "effect_attempt_eligible": false,
+      "effect_authority": false,
+      "approval_persists": false,
+      "prior_approval_replay_allowed": false
+    },
+    "rotfl": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-061:workspace-write-readback-fidelity",
+      "knowledge_return_refs": [
+        "crm:canary-061:write-readback-fidelity"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-061:write-readback-fidelity"
+      ],
+      "reusable_tool_refs": [
+        "tool:artifact-mutation-guard",
+        "tool:workspace-artifact-intent",
+        "tool:crm-tool-qualification",
+        "tool:runtime-rotfl-test-gate",
+        "tool:tttf-chain-recovery"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+          "runtime_ref": "runtime:rotfl:canary-061",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-061:rotfl-template",
+          "runtime_readback_ref": "readback:canary-061:rotfl-template",
+          "next_input_ref": "next:canary-061:write-readback-hostile",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+          "runtime_ref": "runtime:rotfl:canary-061",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-061:rotfl-template",
+          "runtime_readback_ref": "readback:canary-061:rotfl-template",
+          "next_input_ref": "next:canary-061:write-readback-hostile",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+          "runtime_ref": "runtime:rotfl:canary-061",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-061:rotfl-template",
+          "runtime_readback_ref": "readback:canary-061:rotfl-template",
+          "next_input_ref": "next:canary-061:write-readback-hostile",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-061:self-ack:6",
+      "affected_refs": [
+        "affected:framework-artifact-mutation-guard",
+        "affected:sdk-workspace-artifact",
+        "affected:inbox-crm-tool-qualification",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:case-study"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:tool-write-ack-echo-bytecount-misclaimed-as-readback",
+      "next_ref": "next:canary-061:patch-shared-write-verification-owner",
+      "wake_ref": "wake:canary-061:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-061:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-061:false-write-success-carriers"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-061",
+      "currentness_checked_at": "2026-09-19T15:25:00-06:00"
+    }
+  },
+  "trinity_input": {
+    "schema": "xiio.sdk.ack-item-trinity-input/v1",
+    "root_ref": "root:workspace-write-readback-fidelity",
+    "root_generation": "canary-061:g1",
+    "studio_root_ref": "studio:current:canary-061",
+    "rotfl_context": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-061:workspace-write-readback-fidelity",
+      "knowledge_return_refs": [
+        "crm:canary-061:write-readback-fidelity"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-061:write-readback-fidelity"
+      ],
+      "reusable_tool_refs": [
+        "tool:artifact-mutation-guard",
+        "tool:workspace-artifact-intent",
+        "tool:crm-tool-qualification",
+        "tool:runtime-rotfl-test-gate",
+        "tool:tttf-chain-recovery"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+          "runtime_ref": "runtime:rotfl:canary-061",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-061:rotfl-template",
+          "runtime_readback_ref": "readback:canary-061:rotfl-template",
+          "next_input_ref": "next:canary-061:write-readback-hostile",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+          "runtime_ref": "runtime:rotfl:canary-061",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-061:rotfl-template",
+          "runtime_readback_ref": "readback:canary-061:rotfl-template",
+          "next_input_ref": "next:canary-061:write-readback-hostile",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458",
+          "runtime_ref": "runtime:rotfl:canary-061",
+          "runtime_generation": "rotfl:24e87412ba6a7385e89e5b371a6c5834137b1826",
+          "runtime_rotfl_receipt_ref": "receipt:canary-061:rotfl-template",
+          "runtime_readback_ref": "readback:canary-061:rotfl-template",
+          "next_input_ref": "next:canary-061:write-readback-hostile",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-061:self-ack:6",
+      "affected_refs": [
+        "affected:framework-artifact-mutation-guard",
+        "affected:sdk-workspace-artifact",
+        "affected:inbox-crm-tool-qualification",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:case-study"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:tool-write-ack-echo-bytecount-misclaimed-as-readback",
+      "next_ref": "next:canary-061:patch-shared-write-verification-owner",
+      "wake_ref": "wake:canary-061:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-061:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-061:false-write-success-carriers"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-061",
+      "currentness_checked_at": "2026-09-19T15:25:00-06:00"
+    },
+    "ack_sources": [
+      {
+        "ack_ref": "ack:self:canary-061:g1",
+        "ack_generation": "canary-061:g1",
+        "root_generation": "canary-061:g1",
+        "items": [
+          {
+            "item_id": "ACK61-01",
+            "path_ref": "write.ack61-01",
+            "label": "Collision resolves existing Artifact Mutation Guard and CRM tool-qualification owners",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-artifact-mutation-guard",
+            "work_ref": "work:canary-061:owner-collision",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "framework:scripts/compile-artifact-mutation-guard.mjs",
+              "inbox:server/crm-knowledge-returns.mjs#assertToolQualification"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK61-02",
+            "path_ref": "write.ack61-02",
+            "label": "Tool acknowledgement is separated from independent destination readback",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-artifact-mutation-guard",
+            "work_ref": "work:canary-061:readback-semantics",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "agent-output:write-success-example-contents-17-bytes"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK61-03",
+            "path_ref": "write.ack61-03",
+            "label": "Echoed content and byte count cannot mint persisted-content credit",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-artifact-mutation-guard",
+            "work_ref": "work:canary-061:echo-byte-hostile",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "agent-output:write-success-example-contents-17-bytes"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK61-04",
+            "path_ref": "write.ack61-04",
+            "label": "Workspace write intent/path identity stays bound through destination readback",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sdk-workspace-artifact",
+            "work_ref": "work:canary-061:path-target-readback",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "sdk:@xi-io/sdk/intent/workspace-artifact"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK61-05",
+            "path_ref": "write.ack61-05",
+            "label": "Affected team hotpatch consumes exact write-verification rule without owner restatement",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:studio-router",
+            "work_ref": "work:canary-061:team-hotpatch",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "studio:current",
+              "sam_law:current"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK61-06",
+            "path_ref": "write.ack61-06",
+            "label": "CRM KnowledgeReturn persists and reverse-reads before team-memory credit",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:inbox-crm",
+            "work_ref": "work:canary-061:crm-return",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "inbox:crm-knowledge-return"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "framework:4f02df8238ee673d54e0e7f9ccccf3c1ab011458"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "ack_items": 6,
+    "pass_declared": 1,
+    "wait_declared": 5,
+    "authority_granted": false,
+    "provider_effect": false,
+    "external_communication": false,
+    "terminal": false
+  }
+}
