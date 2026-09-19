@@ -1,6 +1,7 @@
 import { validateRotflAckTemplateRuns } from './rotfl-template.mjs';
 const STATES = new Set(['POSTED','ACK','REJECT','WAIT','ATTEMPTED','RESULT','RETURN','APPLY_RETURN']);
 const PRE_ATTEMPT_STATES = new Set(['POSTED','ACK','REJECT','WAIT']);
+const TERMINAL_ROTFL_STATES = new Set(['RESULT','RETURN','APPLY_RETURN']);
 const NONBLANK = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 256;
 const BOUNDED_REF = value => typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= 512;
 const ROTFL_SCHEMA = 'xiio.sdk.rotfl-ack-context/v1';
@@ -99,10 +100,14 @@ export function validateDistributedAck(envelope) {
 export function validateRotflDistributedAck(envelope) {
   const structural = validateDistributedAck(envelope);
   const rotfl = validateRotflAckContext(envelope?.rotfl);
+  const lifecycleErrors = [];
+  if (TERMINAL_ROTFL_STATES.has(envelope?.ack_state) && rotfl.template_runtime_complete !== true) {
+    lifecycleErrors.push('ROTFL_TEMPLATE_RUNTIME_REQUIRED_BEFORE_TERMINAL_ACK_STATE');
+  }
   return {
     ...structural,
-    ok: structural.ok && rotfl.ok,
-    errors: [...structural.errors, ...rotfl.errors],
+    ok: structural.ok && rotfl.ok && lifecycleErrors.length === 0,
+    errors: [...structural.errors, ...rotfl.errors, ...lifecycleErrors],
     rotfl_complete: rotfl.ok && rotfl.template_runtime_complete,
     template_runtime_complete: rotfl.template_runtime_complete,
   };
