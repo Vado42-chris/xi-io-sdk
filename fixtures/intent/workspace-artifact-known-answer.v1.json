@@ -78,6 +78,18 @@
         "owner_reprompt_needed": false,
         "reason": "UNSAFE_PATH_RECOVERED_TO_WORKSPACE_ROOT"
       }
+    },
+    {
+      "id": "burnmap-write-workspace-root-salvaged",
+      "input": "Write the burn map to /../../burnmap.txt. That path is not workspace-relative; burnmap.txt is in the current working directory / workspace root.",
+      "expect": {
+        "state": "RESOLVED",
+        "resolved_path": "burnmap.txt",
+        "artifact_class": "TEXT",
+        "requested_operation": "WRITE_TEXT",
+        "owner_reprompt_needed": false,
+        "reason": "UNSAFE_PATH_RECOVERED_TO_WORKSPACE_ROOT"
+      }
     }
   ]
 }
