@@ -5,6 +5,10 @@ const TERMINAL_ROTFL_STATES = new Set(['RESULT','RETURN','APPLY_RETURN']);
 const NONBLANK = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 256;
 const BOUNDED_REF = value => typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= 512;
 const ROTFL_SCHEMA = 'xiio.sdk.rotfl-ack-context/v1';
+export const UNIVERSAL_EFFECT_POLICY_SCHEMA = 'xiio.sdk.universal-effect-policy/v1';
+export const UNIVERSAL_EFFECT_SCOPES = Object.freeze([
+  'EXTERNAL','INTERNAL','INTER_APP','INTER_DEPARTMENT','API','SDK','ACK','PROVIDER','CRM','SWITCHBOARD','REPOSITORY','DEPLOYMENT','MESSAGE','FILE_MUTATION','OTHER_CONSEQUENTIAL'
+]);
 const ROTFL_LIST_FIELDS = [
   'knowledge_return_refs','bins_resource_refs','reusable_tool_refs','reusable_template_refs',
   'affected_refs','no_effect_refs','reap_refs',
@@ -27,6 +31,63 @@ function timestamp(value) {
 function typedOrRef(value) {
   if (!BOUNDED_REF(value)) return false;
   return /^(?:N_A|WAIT|UNKNOWN|NO_EFFECT):/.test(value) || !/^(?:N_A|WAIT|UNKNOWN|NO_EFFECT)$/i.test(value);
+}
+
+export function validateUniversalEffectPolicy(policy) {
+  const errors=[];
+  if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+    return {ok:false,errors:['EFFECT_POLICY_INVALID'],user_gate_bound:false,effect_attempt_eligible:false,authority_granted:false};
+  }
+  if (policy.schema !== UNIVERSAL_EFFECT_POLICY_SCHEMA) errors.push('EFFECT_POLICY_SCHEMA_INVALID');
+  if (!UNIVERSAL_EFFECT_SCOPES.includes(policy.effect_scope)) errors.push('EFFECT_SCOPE_INVALID');
+  if (typeof policy.consequential !== 'boolean') errors.push('EFFECT_CONSEQUENTIAL_INVALID');
+  if (policy.draft_plan_propose_prepare_allowed !== true) errors.push('PREPARATION_POLICY_INVALID');
+  if (policy.approval_persists !== false) errors.push('EFFECT_APPROVAL_PERSISTS_FORBIDDEN');
+  if (policy.prior_approval_replay_allowed !== false) errors.push('PRIOR_APPROVAL_REPLAY_FORBIDDEN');
+  const occurrenceBound=BOUNDED_REF(policy.occurrence_ref);
+  const effectBound=BOUNDED_REF(policy.requested_effect_ref);
+  const authorizedEffects=Array.isArray(policy.authorized_effect_refs)
+    ? [...new Set(policy.authorized_effect_refs.filter(BOUNDED_REF))]
+    : [];
+  const currentBound=BOUNDED_REF(policy.current_instruction_ref);
+  const authorizingBound=BOUNDED_REF(policy.authorizing_instruction_ref);
+
+  if (policy.consequential) {
+    if (!occurrenceBound || !effectBound) errors.push('EXACT_EFFECT_OCCURRENCE_UNBOUND');
+    if (!currentBound) errors.push('CURRENT_USER_INSTRUCTION_REF_MISSING');
+    if (!authorizingBound) errors.push('AUTHORIZING_INSTRUCTION_REF_MISSING');
+    if (currentBound && authorizingBound && policy.current_instruction_ref !== policy.authorizing_instruction_ref) {
+      errors.push('PRIOR_OR_DIFFERENT_INSTRUCTION_NOT_AUTHORITY');
+    }
+    if (effectBound && !authorizedEffects.includes(policy.requested_effect_ref)) {
+      errors.push('CURRENT_INSTRUCTION_NOT_BOUND_TO_REQUESTED_EFFECT');
+    }
+  }
+
+  const userGateBound=Boolean(
+    policy.consequential
+    && occurrenceBound
+    && effectBound
+    && currentBound
+    && authorizingBound
+    && policy.current_instruction_ref === policy.authorizing_instruction_ref
+    && authorizedEffects.includes(policy.requested_effect_ref)
+    && errors.length === 0
+  );
+  if (policy.user_effect_instruction_bound !== userGateBound) errors.push('USER_EFFECT_GATE_STATE_MISMATCH');
+  if (policy.effect_attempt_eligible !== userGateBound) errors.push('EFFECT_ATTEMPT_ELIGIBILITY_MISMATCH');
+  if (policy.effect_authority !== false) errors.push('SDK_EFFECT_AUTHORITY_FORBIDDEN');
+  if (!policy.consequential && (policy.user_effect_instruction_bound === true || policy.effect_attempt_eligible === true)) {
+    errors.push('NO_EFFECT_CANNOT_MINT_EFFECT_GATE');
+  }
+
+  return {
+    ok:errors.length===0,
+    errors,
+    user_gate_bound:userGateBound,
+    effect_attempt_eligible:userGateBound,
+    authority_granted:false,
+  };
 }
 
 function validList(value) {
@@ -94,7 +155,18 @@ export function validateDistributedAck(envelope) {
   }
   if (envelope.ack_state==='ATTEMPTED' && envelope.attempt===0) errors.push('ATTEMPTED_REQUIRES_POSITIVE_ATTEMPT');
   if (!timestamp(envelope.observed_at)) errors.push('OBSERVED_AT_INVALID');
-  return {ok:errors.length===0,errors,provider_agnostic:true,proof_state:'STRUCTURAL_ONLY',authenticated:false,authority_granted:false};
+  const effectPolicy=validateUniversalEffectPolicy(envelope.effect_policy);
+  if (!effectPolicy.ok) errors.push(...effectPolicy.errors.map(x=>`EFFECT_POLICY:${x}`));
+  return {
+    ok:errors.length===0,
+    errors,
+    provider_agnostic:true,
+    proof_state:'STRUCTURAL_ONLY',
+    authenticated:false,
+    authority_granted:false,
+    current_user_effect_instruction_bound:effectPolicy.user_gate_bound,
+    effect_attempt_eligible:effectPolicy.effect_attempt_eligible,
+  };
 }
 
 export function validateRotflDistributedAck(envelope) {
@@ -113,8 +185,19 @@ export function validateRotflDistributedAck(envelope) {
   };
 }
 
-export function makeAckTarget({target_ref,provider_family,agent_ref,capability_profile_ref,effect_ceiling='NO_EFFECT'}) {
-  const target={target_ref,provider_family,agent_ref,capability_profile_ref,effect_ceiling};
-  if (Object.values(target).some(value=>!NONBLANK(value))) throw new TypeError('ACK target fields must be bounded nonblank strings');
-  return Object.fromEntries(Object.entries(target).map(([key,value])=>[key,value.trim()]));
+export function makeAckTarget({target_ref,provider_family,agent_ref,capability_profile_ref,effect_ceiling='NO_EFFECT',effect_policy=null}) {
+  const target={target_ref,provider_family,agent_ref,capability_profile_ref,effect_ceiling,effect_policy};
+  for (const key of ['target_ref','provider_family','agent_ref','capability_profile_ref','effect_ceiling']) {
+    if (!NONBLANK(target[key])) throw new TypeError('ACK target fields must be bounded nonblank strings');
+  }
+  const effectVerdict=validateUniversalEffectPolicy(effect_policy);
+  if (!effectVerdict.ok) throw new TypeError(`ACK target effect policy invalid: ${effectVerdict.errors.join('|')}`);
+  return {
+    target_ref:target_ref.trim(),
+    provider_family:provider_family.trim(),
+    agent_ref:agent_ref.trim(),
+    capability_profile_ref:capability_profile_ref.trim(),
+    effect_ceiling:effect_ceiling.trim(),
+    effect_policy:structuredClone(effect_policy),
+  };
 }
