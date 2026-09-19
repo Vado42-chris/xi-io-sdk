@@ -125,24 +125,73 @@ function normalizeCell(id, label, raw = {}) {
   return { id, label, state: effective, declared_state: state, reason, evidence_refs: evidence, blockers, defect };
 }
 
+function normalizeX43TriggerEvaluation(input) {
+  const raw = input?.x43_trigger_evaluation;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { state:'UNKNOWN', triggers:[], evidence_refs:[] };
+  }
+  const state = raw.state === 'TRIGGERED' || raw.state === 'NO_TRIGGER' ? raw.state : 'UNKNOWN';
+  const triggers = Array.isArray(raw.triggers)
+    ? [...new Set(raw.triggers.filter((v) => bounded(v)))].sort()
+    : [];
+  const evidence_refs = Array.isArray(raw.evidence_refs)
+    ? [...new Set(raw.evidence_refs.filter((v) => bounded(v)))].sort()
+    : [];
+  return { state, triggers, evidence_refs };
+}
+
 function applyStudioChildConditionalGates(profileId, cells, input) {
   if (profileId !== 'STUDIO_CHILD_G0_G15') return cells;
-  const triggers = Array.isArray(input.x43_triggers) ? input.x43_triggers.filter(Boolean) : [];
   const x43 = cells.find((cell) => cell.id === 'G13');
-  if (x43 && triggers.length === 0 && x43.declared_state === 'UNKNOWN') {
-    x43.state = 'N_A_WITH_REASON';
-    x43.reason = 'NO_X43_TRIGGER';
-    x43.evidence_refs = ['sdk:studio-child:x43-trigger-denominator-empty'];
-    x43.blockers = [];
-    x43.defect = null;
+  const evaluation = normalizeX43TriggerEvaluation(input);
+
+  if (!x43) return cells;
+
+  if (evaluation.state === 'NO_TRIGGER') {
+    if (evaluation.evidence_refs.length === 0) {
+      x43.state = 'UNKNOWN';
+      x43.reason = 'X43_NO_TRIGGER_EVIDENCE_MISSING';
+      x43.evidence_refs = [];
+      x43.blockers = ['wake:x43-trigger-evaluation'];
+      x43.defect = 'X43_TRIGGER_EVALUATION_UNPROVEN';
+      return cells;
+    }
+    if (x43.declared_state === 'UNKNOWN' || x43.declared_state === 'N_A_WITH_REASON') {
+      x43.state = 'N_A_WITH_REASON';
+      x43.reason = 'NO_X43_TRIGGER';
+      x43.evidence_refs = evaluation.evidence_refs;
+      x43.blockers = [];
+      x43.defect = null;
+    }
+    return cells;
   }
-  if (x43 && triggers.length > 0 && x43.state === 'N_A_WITH_REASON') {
+
+  if (evaluation.state === 'TRIGGERED') {
+    const triggerRefs = evaluation.triggers.length ? evaluation.triggers : ['UNSPECIFIED_TRIGGER'];
+    if (x43.state !== 'PASS') {
+      x43.state = 'UNKNOWN';
+      x43.reason = 'X43_TRIGGER_PRESENT';
+      x43.evidence_refs = evaluation.evidence_refs;
+      x43.blockers = [...new Set([...(x43.blockers || []), ...triggerRefs.map((t) => `x43:${t}`)])].sort();
+      x43.defect = 'X43_REQUIRED_BUT_NOT_PROVEN';
+    }
+    return cells;
+  }
+
+  if (x43.state !== 'PASS') {
     x43.state = 'UNKNOWN';
-    x43.reason = 'X43_TRIGGER_PRESENT';
-    x43.blockers = [...new Set([...(x43.blockers || []), ...triggers.map((t) => `x43:${t}`)])].sort();
-    x43.defect = 'X43_REQUIRED_BUT_NOT_PROVEN';
+    x43.reason = 'X43_TRIGGER_EVALUATION_UNKNOWN';
+    x43.blockers = [...new Set([...(x43.blockers || []), 'wake:x43-trigger-evaluation'])].sort();
+    x43.defect = 'X43_TRIGGER_EVALUATION_UNPROVEN';
   }
   return cells;
+}
+
+function passLikeForProfile(profileId, cell) {
+  if (cell.state === 'PASS') return true;
+  if (cell.state !== 'N_A_WITH_REASON') return false;
+  if (profileId !== 'STUDIO_CHILD_G0_G15') return true;
+  return cell.id === 'G13';
 }
 
 export function compileGraduationPreflight(input) {
@@ -162,11 +211,10 @@ export function compileGraduationPreflight(input) {
     profile.map(([id, label]) => normalizeCell(id, label, supplied[id])),
     input,
   );
-  const passLike = (cell) => cell.state === 'PASS' || cell.state === 'N_A_WITH_REASON';
-  const firstRed = cells.find((cell) => !passLike(cell)) || null;
+  const firstRed = cells.find((cell) => !passLikeForProfile(profileId, cell)) || null;
   let graduatedThrough = null;
   for (const cell of cells) {
-    if (!passLike(cell)) break;
+    if (!passLikeForProfile(profileId, cell)) break;
     graduatedThrough = cell.id;
   }
   const counts = Object.fromEntries([...STATES].map((state) => [state, cells.filter((cell) => cell.state === state).length]));
@@ -213,6 +261,9 @@ export function compileGraduationPreflight(input) {
       'X42_PASS!=X43_N_A_WHEN_TRIGGERED',
       'X43_N_A_WITH_TRIGGER!=VALID',
       'X43_REQUIRED_ONLY_WHEN_TRIGGER_PREDICATE_TRUE',
+      'X43_TRIGGER_EVALUATION_MISSING!=NO_TRIGGER',
+      'STUDIO_CHILD_G9_G10_REQUIRE_PASS_NOT_N_A',
+      'STUDIO_CHILD_ENTRYPOINT_PINS_PROFILE',
     ],
   };
 }
@@ -228,4 +279,16 @@ export function profileCatalog() {
     authority_granted: false,
     provider_effect: false,
   };
+}
+
+
+export function compileStudioChildGraduationPreflight(input = {}) {
+  if (input?.profile && input.profile !== 'STUDIO_CHILD_G0_G15') {
+    throw new TypeError('Studio child graduation profile is pinned to STUDIO_CHILD_G0_G15');
+  }
+  return compileGraduationPreflight({
+    ...input,
+    profile: 'STUDIO_CHILD_G0_G15',
+    subject_class: 'STUDIO_CHILD',
+  });
 }
