@@ -281,3 +281,12 @@ console.log(JSON.stringify({mode:'SYNTHETIC_SOURCE_CONFORMANCE_ONLY',checks:chec
 
 
 }
+
+
+// parent traversal burnmap path hostile: must fail closed before reading outside workspace.
+{
+  const cliPath=new URL('../bin/xi.mjs', import.meta.url);
+  const bad=spawnSync(process.execPath,[cliPath.pathname,'burnmap','compile','--baseline','../../burnmap.txt'],{encoding:'utf8'});
+  assert.equal(bad.status,2);
+  assert.equal(bad.stdout,'');
+}

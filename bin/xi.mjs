@@ -37,15 +37,26 @@ function args(argv) {
   return { flags, positionals };
 }
 
-function readJson(file, label) {
+function workspaceRelativePath(file, label, { allowDash = false } = {}) {
   if (!file) throw new Error(`${label} path is required`);
-  return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
+  if (allowDash && file === '-') return '-';
+  if (path.isAbsolute(file)) throw new Error(`${label} path must be workspace-relative`);
+  const normalized = path.normalize(file);
+  const segments = normalized.split(path.sep);
+  if (normalized === '..' || normalized.startsWith(`..${path.sep}`) || segments.includes('..')) {
+    throw new Error(`${label} path must stay inside the workspace`);
+  }
+  return path.resolve(process.cwd(), normalized);
+}
+
+function readJson(file, label) {
+  return JSON.parse(fs.readFileSync(workspaceRelativePath(file, label), 'utf8'));
 }
 
 function writeOutput(value, out) {
   const payload = `${JSON.stringify(value, null, 2)}\n`;
   if (!out || out === '-') process.stdout.write(payload);
-  else fs.writeFileSync(path.resolve(out), payload, 'utf8');
+  else fs.writeFileSync(workspaceRelativePath(out, '--out'), payload, 'utf8');
 }
 
 function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []) {
