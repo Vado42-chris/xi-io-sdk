@@ -63,17 +63,23 @@ export const GRADUATION_PROFILES = Object.freeze({
     ['W14','POSTMORTEM_LEARNING'],
     ['W15','VERIFIED_LESSON_PROMOTION'],
   ]),
-  STUDIO_CHILD_G0_G9: Object.freeze([
-    ['G0','LOCAL_CURRENTNESS'],
-    ['G1','BINS_RESOURCE_VERSION_CUSTODY'],
-    ['G2','HEADLESS_SKILL_RECALL'],
-    ['G3','SDK_PRIMITIVE_INVARIANTS'],
-    ['G4','PUBLISHER_TEMPLATE_RECIPE'],
-    ['G5','BRAND_VARIABLE_RECONNECT'],
-    ['G6','IMPLEMENTATION_VARIABLE_RECONNECT'],
-    ['G7','RCUBE_BINARY_SIMULATION'],
-    ['G8','METERED_RUNTIME_OR_BUILD_PROOF'],
-    ['G9','RETURN_APPLY_RETURN_READBACK_REAP'],
+  STUDIO_CHILD_G0_G15: Object.freeze([
+    ['G0','LOCAL_CURRENTNESS_AND_PROJECT_BASELINE'],
+    ['G1','BINS_RESOURCE_VERSION_AND_LIBRARY_CUSTODY'],
+    ['G2','API_GLASS_BOX_CURRENT_TOOL_AND_SKILL_ROSTER'],
+    ['G3','RESUME_PERSONA_SKILL_CONTEXT'],
+    ['G4','CALENDAR_CHRONAL_DEADLINE_CONTEXT'],
+    ['G5','TIMESHEETS_EFFORT_TIME_METER_CONTEXT'],
+    ['G6','HEADLESS_SKILL_RECALL'],
+    ['G7','SDK_PRIMITIVE_INVARIANTS'],
+    ['G8','PUBLISHER_TEMPLATE_RECIPE'],
+    ['G9','BRAND_VARIABLE_RECONNECT'],
+    ['G10','IMPLEMENTATION_VARIABLE_RECONNECT'],
+    ['G11','RCUBE_BINARY_SIMULATION'],
+    ['G12','X42_HOSTILE_QUALIFICATION'],
+    ['G13','X43_CONDITIONAL_DEEP_REVIEW'],
+    ['G14','METERED_RUNTIME_OR_BUILD_PROOF'],
+    ['G15','RETURN_APPLY_RETURN_READBACK_REAP'],
   ]),
   WARD_E0_E9: Object.freeze([
     ['E0','EXACT_ADAPTER_SURFACE_AND_GENERATION'],
@@ -119,6 +125,26 @@ function normalizeCell(id, label, raw = {}) {
   return { id, label, state: effective, declared_state: state, reason, evidence_refs: evidence, blockers, defect };
 }
 
+function applyStudioChildConditionalGates(profileId, cells, input) {
+  if (profileId !== 'STUDIO_CHILD_G0_G15') return cells;
+  const triggers = Array.isArray(input.x43_triggers) ? input.x43_triggers.filter(Boolean) : [];
+  const x43 = cells.find((cell) => cell.id === 'G13');
+  if (x43 && triggers.length === 0 && x43.declared_state === 'UNKNOWN') {
+    x43.state = 'N_A_WITH_REASON';
+    x43.reason = 'NO_X43_TRIGGER';
+    x43.evidence_refs = ['sdk:studio-child:x43-trigger-denominator-empty'];
+    x43.blockers = [];
+    x43.defect = null;
+  }
+  if (x43 && triggers.length > 0 && x43.state === 'N_A_WITH_REASON') {
+    x43.state = 'UNKNOWN';
+    x43.reason = 'X43_TRIGGER_PRESENT';
+    x43.blockers = [...new Set([...(x43.blockers || []), ...triggers.map((t) => `x43:${t}`)])].sort();
+    x43.defect = 'X43_REQUIRED_BUT_NOT_PROVEN';
+  }
+  return cells;
+}
+
 export function compileGraduationPreflight(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('preflight input must be an object');
   const profileId = input.profile;
@@ -131,7 +157,11 @@ export function compileGraduationPreflight(input) {
   const extras = Object.keys(supplied).filter((id) => !known.has(id));
   if (extras.length) throw new TypeError(`unknown graduation cells: ${extras.join(',')}`);
 
-  const cells = profile.map(([id, label]) => normalizeCell(id, label, supplied[id]));
+  const cells = applyStudioChildConditionalGates(
+    profileId,
+    profile.map(([id, label]) => normalizeCell(id, label, supplied[id])),
+    input,
+  );
   const passLike = (cell) => cell.state === 'PASS' || cell.state === 'N_A_WITH_REASON';
   const firstRed = cells.find((cell) => !passLike(cell)) || null;
   let graduatedThrough = null;
@@ -176,6 +206,13 @@ export function compileGraduationPreflight(input) {
       'IMPLEMENTATION_VARIABLE!=SDK_INVARIANT',
       'HEADLESS_RECALL!=LIVE_RUNTIME',
       'GRADUATED_CHILD!=PUBLISHED_OR_EFFECT_AUTHORIZED',
+      'RESUME_CONTEXT!=HUMAN_AUTHORITY',
+      'CALENDAR_CONTEXT!=CADENCE_AUTHORITY',
+      'TIMESHEET_METER!=BILLABLE_FACT',
+      'API_GLASS_BOX_VISIBLE!=TOOL_CONNECTED_OR_AUTHORIZED',
+      'X42_PASS!=X43_N_A_WHEN_TRIGGERED',
+      'X43_N_A_WITH_TRIGGER!=VALID',
+      'X43_REQUIRED_ONLY_WHEN_TRIGGER_PREDICATE_TRUE',
     ],
   };
 }
