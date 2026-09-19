@@ -47,6 +47,23 @@ const rotfl = {
   currentness_checked_at: '2026-09-16T22:30:00-06:00',
 };
 
+const universalEffectPolicy = {
+  schema:'xiio.sdk.universal-effect-policy/v1',
+  effect_scope:'ACK',
+  consequential:false,
+  occurrence_ref:'occ:ack:fixture',
+  requested_effect_ref:'ack:fixture',
+  current_instruction_ref:null,
+  authorizing_instruction_ref:null,
+  authorized_effect_refs:[],
+  draft_plan_propose_prepare_allowed:true,
+  user_effect_instruction_bound:false,
+  effect_attempt_eligible:false,
+  effect_authority:false,
+  approval_persists:false,
+  prior_approval_replay_allowed:false,
+};
+
 const baseAck = {
   ack_id: 'ack:rotfl:fixture',
   root_ref: 'root:fixture',
@@ -62,12 +79,22 @@ const baseAck = {
   attempt: 0,
   return_target_ref: 'return:fixture',
   observed_at: '2026-09-16T22:30:00-06:00',
+  effect_policy: universalEffectPolicy,
 };
 
 let checks = 0;
 assert.equal(validateRotflAckContext(rotfl).ok, true); checks += 1;
 assert.equal(validateRotflAckContext(rotfl).template_runtime_complete, true); checks += 1;
 assert.equal(validateDistributedAck(baseAck).ok, true); checks += 1;
+assert.equal(validateDistributedAck({...baseAck,effect_policy:null}).ok,false); checks += 1;
+const currentEffect={...universalEffectPolicy,effect_scope:'API',consequential:true,occurrence_ref:'occ:api:1',requested_effect_ref:'api:write:1',current_instruction_ref:'instruction:current:1',authorizing_instruction_ref:'instruction:current:1',authorized_effect_refs:['api:write:1'],user_effect_instruction_bound:true,effect_attempt_eligible:true};
+const currentEffectAck={...baseAck,effect_ceiling:'PROVIDER_WRITE',effect_policy:currentEffect};
+assert.equal(validateDistributedAck(currentEffectAck).ok,true); checks += 1;
+assert.equal(validateDistributedAck({...currentEffectAck,effect_policy:{...currentEffect,authorizing_instruction_ref:'instruction:old',user_effect_instruction_bound:false,effect_attempt_eligible:false}}).ok,false); checks += 1;
+assert.equal(validateDistributedAck({...currentEffectAck,effect_policy:{...currentEffect,effect_authority:true}}).ok,false); checks += 1;
+const wrongEffectVerdict=validateDistributedAck({...currentEffectAck,effect_policy:{...currentEffect,authorized_effect_refs:['api:write:OTHER'],user_effect_instruction_bound:false,effect_attempt_eligible:false}});
+assert.equal(wrongEffectVerdict.ok,false); checks += 1;
+assert(wrongEffectVerdict.errors.some(x=>x.includes('CURRENT_INSTRUCTION_NOT_BOUND_TO_REQUESTED_EFFECT'))); checks += 1;
 assert.equal(validateRotflDistributedAck(baseAck).ok, false); checks += 1;
 assert.equal(validateRotflDistributedAck({ ...baseAck, rotfl }).ok, true); checks += 1;
 const incompleteRotfl=structuredClone(rotfl);
