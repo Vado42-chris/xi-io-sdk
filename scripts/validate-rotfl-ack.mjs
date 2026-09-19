@@ -18,6 +18,21 @@ const rotfl = {
   bins_resource_refs: ['bins:resource:fixture:v1'],
   reusable_tool_refs: ['sdk:cli:xi'],
   reusable_template_refs: ['template:rotfl-ack:v1'],
+  template_runs: [{
+    schema:'xiio.sdk.rotfl-ack-template-run/v1',
+    template_ref:'template:rotfl-ack:v1',
+    template_generation:'template:g1',
+    runtime_ref:'runtime:rotfl-template',
+    runtime_generation:'runtime:g1',
+    runtime_rotfl_receipt_ref:'receipt:rotfl-template:g1',
+    runtime_readback_ref:'readback:rotfl-template:g1',
+    next_input_ref:'next:rotfl-template:g1',
+    state:'EXECUTED',
+    known_bit:1,
+    value_bit:1,
+    talk_action_zero_bit:1,
+    time_money_bound_bit:1,
+  }],
   coverage_profile_ref: 'coverage:micro-meso-macro-meta',
   truncation_denominator_ref: 'sim:3x3x3:fixture',
   affected_refs: ['work:affected:fixture'],
@@ -51,9 +66,17 @@ const baseAck = {
 
 let checks = 0;
 assert.equal(validateRotflAckContext(rotfl).ok, true); checks += 1;
+assert.equal(validateRotflAckContext(rotfl).template_runtime_complete, true); checks += 1;
 assert.equal(validateDistributedAck(baseAck).ok, true); checks += 1;
 assert.equal(validateRotflDistributedAck(baseAck).ok, false); checks += 1;
 assert.equal(validateRotflDistributedAck({ ...baseAck, rotfl }).ok, true); checks += 1;
+const incompleteRotfl=structuredClone(rotfl);
+Object.assign(incompleteRotfl.template_runs[0],{state:'WAIT',known_bit:1,value_bit:0});
+assert.equal(validateRotflAckContext(incompleteRotfl).ok,true); checks += 1;
+assert.equal(validateRotflAckContext(incompleteRotfl).template_runtime_complete,false); checks += 1;
+const terminalIncomplete=validateRotflDistributedAck({...baseAck,ack_state:'RESULT',attempt:1,rotfl:incompleteRotfl});
+assert.equal(terminalIncomplete.ok,false); checks += 1;
+assert(terminalIncomplete.errors.includes('ROTFL_TEMPLATE_RUNTIME_REQUIRED_BEFORE_TERMINAL_ACK_STATE')); checks += 1;
 
 for (const field of Object.keys(rotfl)) {
   const sample = structuredClone(rotfl);
