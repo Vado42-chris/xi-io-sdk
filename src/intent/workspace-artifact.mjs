@@ -33,12 +33,21 @@ function extensionFor(candidate) {
   return compound || path.posix.extname(lower);
 }
 
-function classifyArtifact(candidate) {
+function operationForIntent(raw, artifactClass, fallback) {
+  const text = String(raw || '');
+  const wantsWrite = /\b(?:write|save|create|update|edit|append|replace|store|persist|materialize)\b/i.test(text);
+  const wantsRead = /\b(?:read|open|inspect|view|show|load|access)\b/i.test(text);
+  if (artifactClass === 'TEXT' && wantsWrite) return 'WRITE_TEXT';
+  if (wantsRead) return fallback;
+  return fallback;
+}
+
+function classifyArtifact(candidate, raw = '') {
   const ext = extensionFor(candidate);
-  if (ARCHIVE_EXTENSIONS.includes(ext)) return { artifact_class: 'ARCHIVE', operation: 'INSPECT_ARCHIVE' };
-  if (TEXT_EXTENSIONS.has(ext) || !ext) return { artifact_class: 'TEXT', operation: 'READ_TEXT' };
-  if (BINARY_EXTENSIONS.has(ext)) return { artifact_class: 'BINARY', operation: 'INSPECT_BINARY_METADATA' };
-  return { artifact_class: 'UNKNOWN', operation: 'INSPECT_ARTIFACT' };
+  if (ARCHIVE_EXTENSIONS.includes(ext)) return { artifact_class: 'ARCHIVE', operation: operationForIntent(raw, 'ARCHIVE', 'INSPECT_ARCHIVE') };
+  if (TEXT_EXTENSIONS.has(ext) || !ext) return { artifact_class: 'TEXT', operation: operationForIntent(raw, 'TEXT', 'READ_TEXT') };
+  if (BINARY_EXTENSIONS.has(ext)) return { artifact_class: 'BINARY', operation: operationForIntent(raw, 'BINARY', 'INSPECT_BINARY_METADATA') };
+  return { artifact_class: 'UNKNOWN', operation: operationForIntent(raw, 'UNKNOWN', 'INSPECT_ARTIFACT') };
 }
 
 function quotedTokens(raw) {
@@ -145,7 +154,7 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
   }
 
   const classification = resolved_path
-    ? classifyArtifact(resolved_path)
+    ? classifyArtifact(resolved_path, raw)
     : { artifact_class: 'UNKNOWN', operation: 'UNKNOWN' };
 
   return Object.freeze({
@@ -170,6 +179,8 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
       'PARENT_TRAVERSAL!=WORKSPACE_PATH',
       'WORKSPACE_ROOT_CONTEXT_MAY_SALVAGE_BASENAME',
       'SALVAGED_BASENAME!=PATH_TRAVERSAL_AUTHORITY',
+      'WRITE_INTENT_PRESERVED_WITHOUT_WRITE_AUTHORITY',
+      'MACHINE_RESOLVABLE_PATH!=OWNER_REPROMPT',
     ]),
   });
 }
