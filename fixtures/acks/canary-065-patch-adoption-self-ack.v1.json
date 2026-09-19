@@ -1,0 +1,512 @@
+{
+  "schema": "xiio.sdk.patch-adoption-self-ack-fixture/v1",
+  "operator_id": "STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+  "occurrence_ref": "CANARY-065",
+  "self_ack": {
+    "ack_id": "ack:self:canary-065:g1",
+    "root_ref": "root:sam-law:post-patch-adoption",
+    "work_ref": "work:canary-065:self-ack",
+    "baseline_generation": "canary-065:g1",
+    "target_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "provider_family": "xiio-internal",
+    "agent_ref": "operator:STUDIO-SAMLAW-ONBOARD-SIM-20260919-01",
+    "capability_profile_ref": "profile:patch-adoption",
+    "subject_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+    "effect_ceiling": "NO_EFFECT",
+    "ack_state": "ACK",
+    "attempt": 0,
+    "return_target_ref": "case-study:xiio/receipts/canary-065-post-patch-adoption-fail-g1.json",
+    "observed_at": "2026-09-19T15:50:00-06:00",
+    "effect_policy": {
+      "schema": "xiio.sdk.universal-effect-policy/v1",
+      "effect_scope": "ACK",
+      "consequential": false,
+      "occurrence_ref": "CANARY-065",
+      "requested_effect_ref": "ACK:CANARY-065",
+      "current_instruction_ref": null,
+      "authorizing_instruction_ref": null,
+      "authorized_effect_refs": [],
+      "draft_plan_propose_prepare_allowed": true,
+      "user_effect_instruction_bound": false,
+      "effect_attempt_eligible": false,
+      "effect_authority": false,
+      "approval_persists": false,
+      "prior_approval_replay_allowed": false
+    },
+    "rotfl": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-065:post-patch-adoption",
+      "knowledge_return_refs": [
+        "crm:canary-065:patch-adoption"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-065:patch-adoption"
+      ],
+      "reusable_tool_refs": [
+        "tool:instruction-custody",
+        "tool:context-stack-governor",
+        "tool:chain-recovery",
+        "tool:artifact-mutation-guard",
+        "tool:knowledge-return"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+          "runtime_ref": "runtime:rotfl:canary-065",
+          "runtime_generation": "rotfl:canary-065:g1",
+          "runtime_rotfl_receipt_ref": "receipt:canary-065:self-ack",
+          "runtime_readback_ref": "readback:canary-065:self-ack",
+          "next_input_ref": "next:canary-065:mhp-runtime-audit",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+          "runtime_ref": "runtime:rotfl:canary-065",
+          "runtime_generation": "rotfl:canary-065:g1",
+          "runtime_rotfl_receipt_ref": "receipt:canary-065:self-ack",
+          "runtime_readback_ref": "readback:canary-065:self-ack",
+          "next_input_ref": "next:canary-065:mhp-runtime-audit",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+          "runtime_ref": "runtime:rotfl:canary-065",
+          "runtime_generation": "rotfl:canary-065:g1",
+          "runtime_rotfl_receipt_ref": "receipt:canary-065:self-ack",
+          "runtime_readback_ref": "readback:canary-065:self-ack",
+          "next_input_ref": "next:canary-065:mhp-runtime-audit",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-065:self-ack:10",
+      "affected_refs": [
+        "affected:framework",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:inbox-crm",
+        "affected:zed",
+        "affected:ollama"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:mhp-audit-not-yet-runtime-compiled",
+      "next_ref": "next:canary-065:compile-mhp20-into-chain-recovery",
+      "wake_ref": "wake:canary-065:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-065:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-065:shadow-carrier-and-prose-sink"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-065",
+      "currentness_checked_at": "2026-09-19T15:50:00-06:00"
+    }
+  },
+  "trinity_input": {
+    "schema": "xiio.sdk.ack-item-trinity-input/v1",
+    "root_ref": "root:sam-law:post-patch-adoption",
+    "root_generation": "canary-065:g1",
+    "studio_root_ref": "studio:current:canary-065",
+    "rotfl_context": {
+      "schema": "xiio.sdk.rotfl-ack-context/v1",
+      "hvt_order_ref": "hvt:canary-065:post-patch-adoption",
+      "knowledge_return_refs": [
+        "crm:canary-065:patch-adoption"
+      ],
+      "bins_resource_refs": [
+        "bins:canary-065:patch-adoption"
+      ],
+      "reusable_tool_refs": [
+        "tool:instruction-custody",
+        "tool:context-stack-governor",
+        "tool:chain-recovery",
+        "tool:artifact-mutation-guard",
+        "tool:knowledge-return"
+      ],
+      "reusable_template_refs": [
+        "template:KnowledgeReturn",
+        "template:OnboardingPack",
+        "template:hot-patch-cadence"
+      ],
+      "template_runs": [
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:KnowledgeReturn",
+          "template_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+          "runtime_ref": "runtime:rotfl:canary-065",
+          "runtime_generation": "rotfl:canary-065:g1",
+          "runtime_rotfl_receipt_ref": "receipt:canary-065:self-ack",
+          "runtime_readback_ref": "readback:canary-065:self-ack",
+          "next_input_ref": "next:canary-065:mhp-runtime-audit",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:OnboardingPack",
+          "template_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+          "runtime_ref": "runtime:rotfl:canary-065",
+          "runtime_generation": "rotfl:canary-065:g1",
+          "runtime_rotfl_receipt_ref": "receipt:canary-065:self-ack",
+          "runtime_readback_ref": "readback:canary-065:self-ack",
+          "next_input_ref": "next:canary-065:mhp-runtime-audit",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        },
+        {
+          "schema": "xiio.sdk.rotfl-ack-template-run/v1",
+          "template_ref": "template:hot-patch-cadence",
+          "template_generation": "framework:b4bb54a46c8927856b6050c73956eae5ea6f16b6",
+          "runtime_ref": "runtime:rotfl:canary-065",
+          "runtime_generation": "rotfl:canary-065:g1",
+          "runtime_rotfl_receipt_ref": "receipt:canary-065:self-ack",
+          "runtime_readback_ref": "readback:canary-065:self-ack",
+          "next_input_ref": "next:canary-065:mhp-runtime-audit",
+          "state": "EXECUTED",
+          "known_bit": 1,
+          "value_bit": 1,
+          "talk_action_zero_bit": 1,
+          "time_money_bound_bit": 1
+        }
+      ],
+      "coverage_profile_ref": "heuristics:SWARM-HEURISTICS-BASELINE-20260905-A",
+      "truncation_denominator_ref": "denominator:canary-065:self-ack:10",
+      "affected_refs": [
+        "affected:framework",
+        "affected:studio",
+        "affected:sam_law",
+        "affected:inbox-crm",
+        "affected:zed",
+        "affected:ollama"
+      ],
+      "no_effect_refs": [
+        "no-effect:external-send",
+        "no-effect:court-file",
+        "no-effect:service"
+      ],
+      "first_red_ref": "red:mhp-audit-not-yet-runtime-compiled",
+      "next_ref": "next:canary-065:compile-mhp20-into-chain-recovery",
+      "wake_ref": "wake:canary-065:affected-consumers",
+      "fallback_ref": "fallback:typed-wait-no-owner-reconstruction",
+      "apply_return_target_ref": "apply-return:canary-065:studio-samlaw-crm",
+      "reap_refs": [
+        "reap:canary-065:shadow-carrier-and-prose-sink"
+      ],
+      "cold_start_readback_ref": "studio:current:canary-065",
+      "currentness_checked_at": "2026-09-19T15:50:00-06:00"
+    },
+    "ack_sources": [
+      {
+        "ack_ref": "ack:self:canary-065:g1",
+        "ack_generation": "canary-065:g1",
+        "root_generation": "canary-065:g1",
+        "items": [
+          {
+            "item_id": "ACK65-01",
+            "path_ref": "adoption.ack65-01",
+            "label": "Canonical TTTF structure and IDs are destination-read and collision-free",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:tttf",
+            "work_ref": "work:canary-065:carrier-integrity",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "Drive:1Zw3KiVBeo0GhqwCqa6ouR6JgY1s9bP66DRroSQ9HipM#sections24-30",
+              "Drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TTTF-013-018"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-02",
+            "path_ref": "adoption.ack65-02",
+            "label": "Shadow-mirror failure is bound to canonical TTTF-015 and post-patch reoffense to TTTF-018",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:tttf",
+            "work_ref": "work:canary-065:semantic-identity",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "Drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TTTF-015",
+              "Drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#TTTF-018"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-03",
+            "path_ref": "adoption.ack65-03",
+            "label": "MHP denominator remains frozen at 20 classes",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:chain-recovery",
+            "work_ref": "work:canary-065:mhp-denominator",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "Drive:1Zw3KiVBeo0GhqwCqa6ouR6JgY1s9bP66DRroSQ9HipM#section25"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-04",
+            "path_ref": "adoption.ack65-04",
+            "label": "Original six critical MHP misses remain preserved as baseline",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:chain-recovery",
+            "work_ref": "work:canary-065:mhp-baseline",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "Drive:1Zw3KiVBeo0GhqwCqa6ouR6JgY1s9bP66DRroSQ9HipM#section25"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-05",
+            "path_ref": "adoption.ack65-05",
+            "label": "Live replay is mapped to exact MHP hits without rewriting denominator",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:chain-recovery",
+            "work_ref": "work:canary-065:live-replay-map",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "Drive:10XpZj-Mey4Rnq4-4ODAosJJPoAr8ky0qCj6RrZftQ0w#MHPRUN-001"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-06",
+            "path_ref": "adoption.ack65-06",
+            "label": "Patch adoption is executable in canonical runtime owner",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:framework-chain-recovery",
+            "work_ref": "work:canary-065:adoption-runtime",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "framework:scripts/lib/compile-chain-recovery.mjs"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-07",
+            "path_ref": "adoption.ack65-07",
+            "label": "Ingress-format denial is treated as MHP-002 subtype, not a new mutable denominator",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:instruction-custody",
+            "work_ref": "work:canary-065:format-denial",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "case-study:CANARY-065"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-08",
+            "path_ref": "adoption.ack65-08",
+            "label": "Carrier receipt fields are executable and checked against requested/actual carrier",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:artifact-mutation-guard",
+            "work_ref": "work:canary-065:carrier-receipt",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "Drive:1Zw3KiVBeo0GhqwCqa6ouR6JgY1s9bP66DRroSQ9HipM#section29"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-09",
+            "path_ref": "adoption.ack65-09",
+            "label": "Current FORCE-017R route is pinned without resurrecting stale CT-17/CT-18 work",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:sam_law",
+            "work_ref": "work:canary-065:package-route",
+            "declared_state": "PASS",
+            "evidence_refs": [
+              "Drive:1tVyRgvNUQSKXF4cWjCW-E-0hk56ri28kYAtNdsh28Z8"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          },
+          {
+            "item_id": "ACK65-10",
+            "path_ref": "adoption.ack65-10",
+            "label": "Affected team/CRM/fresh-worker replay consumes the adoption guard",
+            "applicable_bit": 1,
+            "required_bit": 1,
+            "material_bit": 1,
+            "owner_ref": "owner:studio-router",
+            "work_ref": "work:canary-065:fanout",
+            "declared_state": "WAIT",
+            "evidence_refs": [
+              "studio:current",
+              "inbox:crm",
+              "sam_law:current"
+            ],
+            "hex_qualification": {
+              "state": "UNVERIFIED",
+              "receipt_ref": null
+            },
+            "currentness": {
+              "state": "CURRENT",
+              "evidence_ref": "case-study:CANARY-065"
+            },
+            "result_ref": null,
+            "return_ref": null,
+            "apply_return_ref": null,
+            "reap_state": "PENDING"
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "ack_items": 10,
+    "pass_declared": 6,
+    "wait_declared": 4,
+    "terminal": false,
+    "authority_granted": false,
+    "provider_effect": false
+  }
+}
