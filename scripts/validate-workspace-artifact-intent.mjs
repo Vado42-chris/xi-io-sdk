@@ -12,7 +12,7 @@ for (const row of fixture.cases) {
   assert.equal(result.raw_preserved, true, `${row.id}.raw_preserved`);
   assert.equal(result.authority_granted, false, `${row.id}.authority`);
 }
-const write = resolveWorkspaceArtifactIntent('Write Example contents. to burnmap.txt in the workspace root.');
+const write = resolveWorkspaceArtifactIntent('Write Example contents. to "burnmap.txt" in the workspace root.');
 assert.equal(write.requested_operation,'WRITE_TEXT');
 assert.equal(write.write_verification_contract.applies_when,true);
 assert.equal(write.write_verification_contract.tool_ack_alone_is_pass,false);
