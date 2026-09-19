@@ -1,3 +1,4 @@
+import { validateRotflAckTemplateRuns } from './rotfl-template.mjs';
 const STATES = new Set(['POSTED','ACK','REJECT','WAIT','ATTEMPTED','RESULT','RETURN','APPLY_RETURN']);
 const PRE_ATTEMPT_STATES = new Set(['POSTED','ACK','REJECT','WAIT']);
 const NONBLANK = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 256;
@@ -48,7 +49,16 @@ export function validateRotflAckContext(rotfl) {
   if (TRANSPORT_ONLY.test(rotfl.cold_start_readback_ref || '')) errors.push('ROTFL_TRANSPORT_ONLY:cold_start_readback_ref');
   const noEffect = new Set(Array.isArray(rotfl.no_effect_refs) ? rotfl.no_effect_refs : []);
   if ((Array.isArray(rotfl.affected_refs) ? rotfl.affected_refs : []).some(ref => noEffect.has(ref))) errors.push('ROTFL_AFFECTED_NO_EFFECT_OVERLAP');
-  return { ok:errors.length === 0, errors, schema:ROTFL_SCHEMA, complete:errors.length === 0 };
+  const templateVerdict = validateRotflAckTemplateRuns(rotfl.reusable_template_refs, rotfl.template_runs);
+  if (!templateVerdict.ok) errors.push(...templateVerdict.errors.map(x => 'ROTFL_'+x));
+  return {
+    ok:errors.length === 0,
+    errors,
+    schema:ROTFL_SCHEMA,
+    complete:errors.length === 0 && templateVerdict.runtime_complete,
+    template_runtime_complete:templateVerdict.runtime_complete,
+    template_run_count:templateVerdict.run_count,
+  };
 }
 
 export function attachRotflContextToAckSet(ackSet, rotfl) {
@@ -93,7 +103,8 @@ export function validateRotflDistributedAck(envelope) {
     ...structural,
     ok: structural.ok && rotfl.ok,
     errors: [...structural.errors, ...rotfl.errors],
-    rotfl_complete: rotfl.ok,
+    rotfl_complete: rotfl.ok && rotfl.template_runtime_complete,
+    template_runtime_complete: rotfl.template_runtime_complete,
   };
 }
 
