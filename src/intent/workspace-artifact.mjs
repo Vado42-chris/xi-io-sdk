@@ -171,6 +171,22 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
     reason,
     authority_granted: false,
     effect_ceiling: 'NO_EFFECT_RESOLUTION_ONLY',
+    write_verification_contract: Object.freeze({
+      applies_when: classification.operation === 'WRITE_TEXT',
+      semantic_owner_ref: 'Vado42-chris/xi-io.net:scripts/compile-artifact-mutation-guard.mjs',
+      required_after_attempt: Object.freeze([
+        'TOOL_RESULT_ACKNOWLEDGED',
+        'DESTINATION_READBACK_VERIFIED',
+        'TARGET_IDENTITY_VERIFIED',
+        'PERSISTED_CONTENT_VERIFIED',
+        'BYTE_COUNT_MATCHED',
+        'SEMANTIC_EFFECT_VERIFIED',
+      ]),
+      tool_ack_alone_is_pass: false,
+      echoed_content_alone_is_pass: false,
+      byte_count_alone_is_pass: false,
+      authority_granted: false,
+    }),
     hard: Object.freeze([
       'NATURAL_LANGUAGE_PATH_HINT!=OWNER_REPROMPT',
       'TEXT_READ_TOOL!=ARCHIVE_INSPECTOR',
@@ -183,6 +199,10 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
       'WRITE_INTENT_PRESERVED_WITHOUT_WRITE_AUTHORITY',
       'MACHINE_RESOLVABLE_PATH!=OWNER_REPROMPT',
       'PROSE_PUNCTUATION!=PATH_IDENTITY',
+      'WRITE_REQUEST!=WRITE_VERIFIED',
+      'WRITE_TOOL_ACK!=DESTINATION_READBACK',
+      'ECHOED_CONTENT!=PERSISTED_CONTENT',
+      'BYTE_COUNT_MATCH!=SEMANTIC_EFFECT',
     ]),
   });
 }
