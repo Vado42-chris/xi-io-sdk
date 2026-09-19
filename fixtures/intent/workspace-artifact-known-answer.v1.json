@@ -4,27 +4,80 @@
     {
       "id": "folder-plus-quoted-zip",
       "input": "read the contents of \"console.zip\" inside the \"consoles\" folder",
-      "expect": {"state":"RESOLVED","resolved_path":"consoles/console.zip","artifact_class":"ARCHIVE","requested_operation":"INSPECT_ARCHIVE","owner_reprompt_needed":false}
+      "expect": {
+        "state": "RESOLVED",
+        "resolved_path": "consoles/console.zip",
+        "artifact_class": "ARCHIVE",
+        "requested_operation": "INSPECT_ARCHIVE",
+        "owner_reprompt_needed": false
+      }
     },
     {
       "id": "explicit-relative-zip",
       "input": "inspect consoles/console.zip",
-      "expect": {"state":"RESOLVED","resolved_path":"consoles/console.zip","artifact_class":"ARCHIVE","requested_operation":"INSPECT_ARCHIVE","owner_reprompt_needed":false}
+      "expect": {
+        "state": "RESOLVED",
+        "resolved_path": "consoles/console.zip",
+        "artifact_class": "ARCHIVE",
+        "requested_operation": "INSPECT_ARCHIVE",
+        "owner_reprompt_needed": false
+      }
     },
     {
       "id": "text-in-folder",
       "input": "read \"README.md\" in the \"docs\" folder",
-      "expect": {"state":"RESOLVED","resolved_path":"docs/README.md","artifact_class":"TEXT","requested_operation":"READ_TEXT","owner_reprompt_needed":false}
+      "expect": {
+        "state": "RESOLVED",
+        "resolved_path": "docs/README.md",
+        "artifact_class": "TEXT",
+        "requested_operation": "READ_TEXT",
+        "owner_reprompt_needed": false
+      }
     },
     {
       "id": "multiple-artifacts",
       "input": "inspect \"a.zip\" and \"b.zip\"",
-      "expect": {"state":"NEEDS_DISAMBIGUATION","resolved_path":null,"artifact_class":"UNKNOWN","requested_operation":"UNKNOWN","owner_reprompt_needed":true}
+      "expect": {
+        "state": "NEEDS_DISAMBIGUATION",
+        "resolved_path": null,
+        "artifact_class": "UNKNOWN",
+        "requested_operation": "UNKNOWN",
+        "owner_reprompt_needed": true
+      }
     },
     {
       "id": "traversal-blocked",
       "input": "read ../secrets.zip",
-      "expect": {"state":"BLOCKED","resolved_path":null,"artifact_class":"UNKNOWN","requested_operation":"UNKNOWN","owner_reprompt_needed":true}
+      "expect": {
+        "state": "BLOCKED",
+        "resolved_path": null,
+        "artifact_class": "UNKNOWN",
+        "requested_operation": "UNKNOWN",
+        "owner_reprompt_needed": true
+      }
+    },
+    {
+      "id": "burnmap-traversal-blocked",
+      "input": "read /../../burnmap.txt",
+      "expect": {
+        "state": "BLOCKED",
+        "resolved_path": null,
+        "artifact_class": "UNKNOWN",
+        "requested_operation": "UNKNOWN",
+        "owner_reprompt_needed": true
+      }
+    },
+    {
+      "id": "burnmap-workspace-root-salvaged",
+      "input": "The path /../../burnmap.txt is not workspace-relative. burnmap.txt is in the current working directory / workspace root; read it from there.",
+      "expect": {
+        "state": "RESOLVED",
+        "resolved_path": "burnmap.txt",
+        "artifact_class": "TEXT",
+        "requested_operation": "READ_TEXT",
+        "owner_reprompt_needed": false,
+        "reason": "UNSAFE_PATH_RECOVERED_TO_WORKSPACE_ROOT"
+      }
     }
   ]
 }
