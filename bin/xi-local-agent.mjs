@@ -7,6 +7,7 @@ import readline from 'node:readline/promises';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
+import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
@@ -60,6 +61,87 @@ const tools=[
  {type:'function',function:{name:'run_workspace_command',description:'Run one allowlisted executable with structured arguments in the current workspace. Requires --execute.',parameters:{type:'object',required:['command'],properties:{command:{type:'string'},args:{type:'array',items:{type:'string'}}}}}}
 ];
 const toolNames=tools.map((entry)=>entry.function.name);
+
+export function localToolCatalog() {
+  return {
+    schema:'xiio.cli.local-tool-registry/v1',
+    workspace:cwd,
+    execution:execute?'BOUNDED':'PREVIEW',
+    provider_effect:false,
+    tools:tools.map((entry)=>({
+      name:entry.function.name,
+      description:entry.function.description,
+      execute_required:/Requires --execute\./.test(entry.function.description),
+    })),
+  };
+}
+
+export async function localRuntimeStatus() {
+  let ollamaState='UNREACHABLE';
+  let availableModels=[];
+  try {
+    const res=await fetch(ollama+'/api/tags',{signal:AbortSignal.timeout(1500)});
+    if(res.ok){
+      const body=await res.json();
+      availableModels=(body.models||[]).map((row)=>row?.name).filter(Boolean);
+      ollamaState=availableModels.includes(model)?'READY_MODEL_PRESENT':'READY_MODEL_NOT_LISTED';
+    } else ollamaState='HTTP_'+res.status;
+  } catch(error) {
+    ollamaState='UNREACHABLE';
+  }
+  return {
+    schema:'xiio.cli.local-runtime-status/v1',
+    cwd,
+    model,
+    ollama_endpoint:ollama,
+    ollama_state:ollamaState,
+    model_present:availableModels.includes(model),
+    available_model_count:availableModels.length,
+    execution:execute?'BOUNDED':'PREVIEW',
+    tools:toolNames,
+    provider_effect:false,
+    automatic_cloud_fallback:false,
+  };
+}
+
+function printHumanRegistry(kind='all') {
+  const catalog=commandCatalog();
+  const local=localToolCatalog();
+  if(kind==='tools' || kind==='all'){
+    console.log('\nLocal workspace tools');
+    for(const row of local.tools){
+      console.log(`  ${row.name.padEnd(28)} ${row.execute_required?'[--execute]':'[read]'}  ${row.description}`);
+    }
+  }
+  if(kind==='commands' || kind==='ack' || kind==='all'){
+    console.log(kind==='ack'?'\nACK commands':'\nCommand registry');
+    for(const row of catalog.commands){
+      if(kind==='ack' && !row.id.startsWith('ack.')) continue;
+      console.log(`  ${row.cli.padEnd(28)} ${row.effect.padEnd(20)} ${row.purpose}`);
+    }
+  }
+}
+
+function printInteractiveHelp() {
+  console.log([
+    '',
+    'xi-io local operator',
+    '  Ask normally to use Ollama in this workspace.',
+    '  /workspace   current directory, model, mode, Ollama state',
+    '  /tools       local read/edit/run tool registry',
+    '  /commands    ACK/baseline/cadence command registry',
+    '  /ack         ACK command subset',
+    '  /model       selected local Ollama model',
+    '  /clear       clear this workspace session history',
+    '  /status      compact runtime status',
+    '  /exit        close xi-io',
+    '',
+    execute
+      ? 'Execution mode: bounded edit/run tools are enabled.'
+      : 'Preview mode: reads are available. Restart with: xi-io --execute',
+    ''
+  ].join('\n'));
+}
 
 async function tool(name,a={}) {
   if(name==='read_workspace_text_file') return {content:await fsp.readFile(target(a.path),'utf8')};
@@ -176,9 +258,60 @@ export async function main(){
     await runOneShot(messages);
     return;
   }
+  const runtime=await localRuntimeStatus();
   const rl=readline.createInterface({input:process.stdin,output:process.stdout});
-  process.stdout.write(`xi-io: CLI alpha\nModel: ${model} (Ollama)\nWorkspace: ${cwd}\nExecution: ${execute?'BOUNDED':'PREVIEW'}\nPrompt: xi> (local, free)\nType /exit to close.\n\n`);
-  try{ while(true){ const input=(await rl.question('xi> ')).trim(); if(!input)continue; if(input==='/exit'||input==='/quit')break; if(input==='/status'){console.log(JSON.stringify({model,cwd,execute,session:sessionFile},null,2));continue;} messages.push({role:'user',content:input}); try{console.log('\n'+await chat(messages)+'\n');await save(messages.filter(m=>m.role!=='system'));}catch(e){console.error(`\nXIIO_CLI_BLOCKED=${e.message}\n`);} } } finally{rl.close();}
+  process.stdout.write([
+    '',
+    'xi-io local operator',
+    `Workspace: ${cwd}`,
+    `Model: ${model}`,
+    `Ollama: ${runtime.ollama_state}`,
+    `Mode: ${execute?'BOUNDED EXECUTION':'PREVIEW / READ-ONLY'}`,
+    'Prompt: xi>',
+    'Type /help for commands.',
+    '',
+  ].join('\n'));
+  try{
+    while(true){
+      const input=(await rl.question('xi> ')).trim();
+      if(!input)continue;
+      if(input==='/exit'||input==='/quit')break;
+      if(input==='/help'){printInteractiveHelp();continue;}
+      if(input==='/tools'){printHumanRegistry('tools');continue;}
+      if(input==='/commands'||input==='/registry'){printHumanRegistry('commands');continue;}
+      if(input==='/ack'){printHumanRegistry('ack');continue;}
+      if(input==='/model'){console.log(`model=${model} ollama=${ollama}`);continue;}
+      if(input==='/workspace'){
+        console.log(JSON.stringify(await localRuntimeStatus(),null,2));
+        continue;
+      }
+      if(input==='/status'){
+        const status=await localRuntimeStatus();
+        console.log(JSON.stringify({
+          model:status.model,
+          workspace:status.cwd,
+          execution:status.execution,
+          ollama_state:status.ollama_state,
+          session:sessionFile,
+          tool_count:status.tools.length,
+        },null,2));
+        continue;
+      }
+      if(input==='/clear'){
+        messages=[systemMessage()];
+        await save([]);
+        console.log('session=cleared');
+        continue;
+      }
+      messages.push({role:'user',content:input});
+      try{
+        console.log('\n'+await chat(messages)+'\n');
+        await save(messages.filter(m=>m.role!=='system'));
+      }catch(e){
+        console.error(`\nXIIO_CLI_BLOCKED=${e.message}\n`);
+      }
+    }
+  } finally{rl.close();}
 }
 
 if(import.meta.url===new URL(`file://${process.argv[1]}`).href) main();
