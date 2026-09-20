@@ -74,6 +74,25 @@ const doctor=run(['doctor']);
 assert.equal(doctor.status,0);
 const doctorJson=JSON.parse(doctor.stdout);
 assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
+assert.equal(doctorJson.status,'PARTIAL_LOCAL_DEPENDENCY_RUNNING');
+assert.equal(doctorJson.state_ladder.installed.state,'PASS');
+assert.equal(doctorJson.state_ladder.dependency_running.scope,'OLLAMA_ONLY');
+assert.equal(doctorJson.state_ladder.operator_running.scope,'CURRENT_CLI_PROCESS_ONLY');
+assert.equal(doctorJson.state_ladder.runtime_executed.state,'NOT_PROVEN');
+assert.equal(doctorJson.state_ladder.deployed.state,'NOT_OBSERVED');
+assert.equal(doctorJson.state_ladder.live.state,'NOT_OBSERVED');
+assert.equal(doctorJson.state_ladder.usable.state,'NOT_PROVEN');
+for(const hard of [
+  'INSTALLED != RUNNING',
+  'DEPENDENCY_RUNNING != OPERATOR_RUNNING',
+  'OPERATOR_RUNNING != RUNTIME_EXECUTED',
+  'RUNTIME_EXECUTED != DEPLOYED',
+  'DEPLOYED != LIVE',
+  'LIVE != USABLE',
+  'OLLAMA_READY != XIIO_RUNTIME_READY',
+  'PREVIEW != EXECUTION',
+  'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE'
+]) assert.ok(doctorJson.hard_state_separation.includes(hard),hard);
 assert.equal(doctorJson.provider_effect,false);
 assert.equal(doctorJson.automatic_cloud_fallback,false);
 assert.ok(doctorJson.local_tools.length>=10);
