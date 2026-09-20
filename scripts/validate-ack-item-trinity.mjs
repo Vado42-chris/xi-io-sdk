@@ -24,7 +24,8 @@ const item = (id, overrides={}) => ({
 });
 
 const orderEvidence=Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:ack-item:${id}`]]));
-const orderOfOperations=()=>compileRotflOrderOfOperations({source_generation:'fixture:g1',completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),evidence_refs:orderEvidence});
+const orderPreflight=Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:ack-item:preflight:${id}`]]));
+const orderOfOperations=()=>compileRotflOrderOfOperations({source_generation:'fixture:g1',completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),evidence_refs:orderEvidence,preflight_refs:orderPreflight});
 
 const rotfl = () => ({
   schema:'xiio.sdk.rotfl-ack-context/v1',
