@@ -127,7 +127,144 @@
         "reap:canary-059:slop-and-stale-carriers"
       ],
       "cold_start_readback_ref": "studio:current:canary-059",
-      "currentness_checked_at": "2026-09-19T14:45:00-06:00"
+      "currentness_checked_at": "2026-09-19T14:45:00-06:00",
+      "order_of_operations": {
+        "schema": "xiio.sdk.rotfl-order-of-operations/v1",
+        "profile_ref": "sdk:rotfl-ack-oor:v1",
+        "source_generation": "fixture:canary-059-preflight-self-ack.v1.json:g1",
+        "steps": [
+          {
+            "id": "O0",
+            "label": "REBASE_PROVIDER_CURRENT"
+          },
+          {
+            "id": "O1",
+            "label": "REFRESH_CONNECTED_TOOL_ROSTER"
+          },
+          {
+            "id": "O2",
+            "label": "CONSUME_CURRENT_HANDOFF_FABRIC"
+          },
+          {
+            "id": "O3",
+            "label": "CRM_FIRST_EACH_PASS"
+          },
+          {
+            "id": "O4",
+            "label": "TASKS_BUGZILLA_DOTPROJECT_CURRENTNESS"
+          },
+          {
+            "id": "O5",
+            "label": "DATAFORGE_INGRESS_EGRESS_CURRENTNESS"
+          },
+          {
+            "id": "O6",
+            "label": "BINS_CUSTODY_AND_CONVERSATION_CURRENTNESS"
+          },
+          {
+            "id": "O7",
+            "label": "API_GLASS_BOX_CAPABILITY_CURRENTNESS"
+          },
+          {
+            "id": "O8",
+            "label": "WARD_EFFECT_POLICY_CURRENTNESS"
+          },
+          {
+            "id": "O9",
+            "label": "SWITCHBOARD_ADMISSION_CURRENTNESS"
+          },
+          {
+            "id": "O10",
+            "label": "SELECT_EXISTING_FORCE_MULTIPLIER"
+          },
+          {
+            "id": "O11",
+            "label": "GREENIE_PLAN_AND_SIM_BEFORE_EXECUTE"
+          },
+          {
+            "id": "O12",
+            "label": "ACK_ATTEMPT_RESULT_RETURN_APPLY_RETURN_READBACK"
+          },
+          {
+            "id": "O13",
+            "label": "REAP_AND_FRESH_WORKER_REPLAY"
+          }
+        ],
+        "completed_step_ids": [
+          "O0",
+          "O1",
+          "O2",
+          "O3",
+          "O4",
+          "O5",
+          "O6",
+          "O7",
+          "O8",
+          "O9",
+          "O10",
+          "O11"
+        ],
+        "current_step_id": "O12",
+        "evidence_refs": {
+          "O0": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O0"
+          ],
+          "O1": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O1"
+          ],
+          "O2": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O2"
+          ],
+          "O3": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O3"
+          ],
+          "O4": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O4"
+          ],
+          "O5": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O5"
+          ],
+          "O6": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O6"
+          ],
+          "O7": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O7"
+          ],
+          "O8": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O8"
+          ],
+          "O9": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O9"
+          ],
+          "O10": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O10"
+          ],
+          "O11": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O11"
+          ]
+        },
+        "pre_attempt_ready": true,
+        "mutation_admitted": true,
+        "complete": false,
+        "authority_granted": false,
+        "provider_effect": false,
+        "hard": [
+          "REBASE!=ONBOARD",
+          "GIT_CURRENT!=OPERATING_CONTEXT_CURRENT",
+          "HANDOFF_AVAILABLE_AND_UNREAD=PREFLIGHT_DEFECT",
+          "PLUGIN_AVAILABLE_AND_UNUSED=PREFLIGHT_DEFECT",
+          "CRM_FIRST_EACH_PASS",
+          "TASKS=BUGZILLA+DOTPROJECT",
+          "DATAFORGE_UUID!=PROVIDER_NATIVE_ID",
+          "BINS_CUSTODY_BEFORE_PROVIDER_PROJECTION",
+          "WARD!=SWITCHBOARD",
+          "GREENIE_POSTED!=GREENIE_RETURNED",
+          "SIM_PASS!=MUTATION_AUTHORITY",
+          "RESULT!=RETURN!=APPLY_RETURN!=REAP",
+          "MERGED!=REAP_COMPLETE",
+          "GOLDEN_ONLY=FALSE_GREEN"
+        ]
+      }
     }
   },
   "trinity_input": {
@@ -229,7 +366,144 @@
         "reap:canary-059:slop-and-stale-carriers"
       ],
       "cold_start_readback_ref": "studio:current:canary-059",
-      "currentness_checked_at": "2026-09-19T14:45:00-06:00"
+      "currentness_checked_at": "2026-09-19T14:45:00-06:00",
+      "order_of_operations": {
+        "schema": "xiio.sdk.rotfl-order-of-operations/v1",
+        "profile_ref": "sdk:rotfl-ack-oor:v1",
+        "source_generation": "fixture:canary-059-preflight-self-ack.v1.json:g1",
+        "steps": [
+          {
+            "id": "O0",
+            "label": "REBASE_PROVIDER_CURRENT"
+          },
+          {
+            "id": "O1",
+            "label": "REFRESH_CONNECTED_TOOL_ROSTER"
+          },
+          {
+            "id": "O2",
+            "label": "CONSUME_CURRENT_HANDOFF_FABRIC"
+          },
+          {
+            "id": "O3",
+            "label": "CRM_FIRST_EACH_PASS"
+          },
+          {
+            "id": "O4",
+            "label": "TASKS_BUGZILLA_DOTPROJECT_CURRENTNESS"
+          },
+          {
+            "id": "O5",
+            "label": "DATAFORGE_INGRESS_EGRESS_CURRENTNESS"
+          },
+          {
+            "id": "O6",
+            "label": "BINS_CUSTODY_AND_CONVERSATION_CURRENTNESS"
+          },
+          {
+            "id": "O7",
+            "label": "API_GLASS_BOX_CAPABILITY_CURRENTNESS"
+          },
+          {
+            "id": "O8",
+            "label": "WARD_EFFECT_POLICY_CURRENTNESS"
+          },
+          {
+            "id": "O9",
+            "label": "SWITCHBOARD_ADMISSION_CURRENTNESS"
+          },
+          {
+            "id": "O10",
+            "label": "SELECT_EXISTING_FORCE_MULTIPLIER"
+          },
+          {
+            "id": "O11",
+            "label": "GREENIE_PLAN_AND_SIM_BEFORE_EXECUTE"
+          },
+          {
+            "id": "O12",
+            "label": "ACK_ATTEMPT_RESULT_RETURN_APPLY_RETURN_READBACK"
+          },
+          {
+            "id": "O13",
+            "label": "REAP_AND_FRESH_WORKER_REPLAY"
+          }
+        ],
+        "completed_step_ids": [
+          "O0",
+          "O1",
+          "O2",
+          "O3",
+          "O4",
+          "O5",
+          "O6",
+          "O7",
+          "O8",
+          "O9",
+          "O10",
+          "O11"
+        ],
+        "current_step_id": "O12",
+        "evidence_refs": {
+          "O0": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O0"
+          ],
+          "O1": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O1"
+          ],
+          "O2": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O2"
+          ],
+          "O3": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O3"
+          ],
+          "O4": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O4"
+          ],
+          "O5": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O5"
+          ],
+          "O6": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O6"
+          ],
+          "O7": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O7"
+          ],
+          "O8": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O8"
+          ],
+          "O9": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O9"
+          ],
+          "O10": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O10"
+          ],
+          "O11": [
+            "fixture:canary-059-preflight-self-ack.v1.json:O11"
+          ]
+        },
+        "pre_attempt_ready": true,
+        "mutation_admitted": true,
+        "complete": false,
+        "authority_granted": false,
+        "provider_effect": false,
+        "hard": [
+          "REBASE!=ONBOARD",
+          "GIT_CURRENT!=OPERATING_CONTEXT_CURRENT",
+          "HANDOFF_AVAILABLE_AND_UNREAD=PREFLIGHT_DEFECT",
+          "PLUGIN_AVAILABLE_AND_UNUSED=PREFLIGHT_DEFECT",
+          "CRM_FIRST_EACH_PASS",
+          "TASKS=BUGZILLA+DOTPROJECT",
+          "DATAFORGE_UUID!=PROVIDER_NATIVE_ID",
+          "BINS_CUSTODY_BEFORE_PROVIDER_PROJECTION",
+          "WARD!=SWITCHBOARD",
+          "GREENIE_POSTED!=GREENIE_RETURNED",
+          "SIM_PASS!=MUTATION_AUTHORITY",
+          "RESULT!=RETURN!=APPLY_RETURN!=REAP",
+          "MERGED!=REAP_COMPLETE",
+          "GOLDEN_ONLY=FALSE_GREEN"
+        ]
+      }
     },
     "ack_sources": [
       {
