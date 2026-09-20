@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { compileAckItemTrinity } from '../src/acks/item-trinity.mjs';
+import { compileRotflOrderOfOperations, ROTFL_ORDER_STEPS } from '../src/preflight/order-of-operations.mjs';
 
 const item = (id, overrides={}) => ({
   item_id:id,
@@ -22,8 +23,12 @@ const item = (id, overrides={}) => ({
   ...overrides,
 });
 
+const orderEvidence=Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:ack-item:${id}`]]));
+const orderOfOperations=()=>compileRotflOrderOfOperations({source_generation:'fixture:g1',completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),evidence_refs:orderEvidence});
+
 const rotfl = () => ({
   schema:'xiio.sdk.rotfl-ack-context/v1',
+  order_of_operations:orderOfOperations(),
   hvt_order_ref:'control:hvt:g1',
   knowledge_return_refs:['crm:knowledge:g1'],
   bins_resource_refs:['bins:resource:g1'],
