@@ -12,7 +12,7 @@ import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
 const once = process.argv.includes('--once');
-const model = process.env.XIIO_OLLAMA_MODEL || 'qwen2.5-coder:7b';
+const model = process.env.XIIO_OLLAMA_MODEL || 'llama3.1:8b';
 const ollama = 'http://127.0.0.1:11434';
 const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'xi-io', 'cli');
 const workspaceId = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
@@ -99,6 +99,7 @@ export async function localRuntimeStatus() {
     ollama_state:ollamaState,
     model_present:availableModels.includes(model),
     available_model_count:availableModels.length,
+    available_models:availableModels.slice(0,100),
     execution:execute?'BOUNDED':'PREVIEW',
     tools:toolNames,
     provider_effect:false,
@@ -134,6 +135,7 @@ function printInteractiveHelp() {
     '  /commands    ACK/baseline/cadence command registry',
     '  /ack         ACK command subset',
     '  /model       selected local Ollama model',
+    '  /models      installed Ollama models',
     '  /clear       clear this workspace session history',
     '  /status      compact runtime status',
     '  /exit        close xi-io',
@@ -349,6 +351,11 @@ export async function main(){
       if(input==='/commands'||input==='/registry'){printHumanRegistry('commands');continue;}
       if(input==='/ack'){printHumanRegistry('ack');continue;}
       if(input==='/model'){console.log(`model=${model} ollama=${ollama}`);continue;}
+      if(input==='/models'){
+        const status=await localRuntimeStatus();
+        console.log((status.available_models||[]).join('\n') || 'NO_MODELS_REPORTED');
+        continue;
+      }
       if(input==='/workspace'){
         console.log(JSON.stringify(await localRuntimeStatus(),null,2));
         continue;
