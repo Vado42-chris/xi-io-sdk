@@ -1,6 +1,10 @@
+import { ROTFL_ORDER_STEPS } from './order-of-operations.mjs';
 const STATES = new Set(['PASS','FAIL','WAIT','N_A_WITH_REASON','UNKNOWN']);
 
 export const GRADUATION_PROFILES = Object.freeze({
+  ACK_ROTFL_O0_O13: Object.freeze(
+    ROTFL_ORDER_STEPS.map(({id,label}) => [id,label])
+  ),
   ROOT_R0_R13: Object.freeze([
     ['R0','ROOT_IDENTITY'],
     ['R1','PROVIDER_CURRENT_ACCEPTED_REF'],
