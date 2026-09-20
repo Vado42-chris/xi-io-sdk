@@ -30,6 +30,7 @@ assert.match(help.stdout,/xi-io local operator/);
 assert.match(help.stdout,/xi-io registry tools/);
 assert.match(help.stdout,/xi-io --execute/);
 assert.match(help.stdout,/xi-io models/);
+assert.match(help.stdout,/xi-io recover aries-runner/);
 
 const commands=run(['registry','commands']);
 assert.equal(commands.status,0);
@@ -90,6 +91,8 @@ assert.match(binSource,/top === null/);
 assert.match(binSource,/top === '--execute'/);
 assert.match(binSource,/top === '--model'/);
 assert.match(binSource,/launchLocalOperator/);
+assert.match(binSource,/recoverAriesRunner/);
+assert.match(binSource,/top === 'recover'/);
 assert.match(agentSource,/xi-io @ibal local operator/);
 assert.match(agentSource,/XIIO_OLLAMA_MODEL \|\| 'llama3\.1:8b'/);
 assert.match(agentSource,/\/tools/);
