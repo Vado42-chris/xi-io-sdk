@@ -312,7 +312,51 @@ async function doctor() {
   const local = localToolCatalog();
   process.stdout.write(JSON.stringify({
     schema:'xiio.cli.human-doctor/v1',
-    status:runtime.ollama_state.startsWith('READY_') ? 'READY_LOCAL' : 'WAIT_LOCAL_OLLAMA',
+    status:runtime.ollama_state.startsWith('READY_') ? 'PARTIAL_LOCAL_DEPENDENCY_RUNNING' : 'WAIT_LOCAL_DEPENDENCY',
+    state_ladder:{
+      installed:{
+        state:'PASS',
+        proof:'xi-io CLI process is executing from installed SDK root'
+      },
+      dependency_running:{
+        state:runtime.ollama_state.startsWith('READY_')?'PASS':'WAIT',
+        proof:runtime.ollama_state,
+        scope:'OLLAMA_ONLY'
+      },
+      operator_running:{
+        state:'PASS',
+        proof:'xi-io doctor process is running locally',
+        scope:'CURRENT_CLI_PROCESS_ONLY'
+      },
+      runtime_executed:{
+        state:runtime.execution==='BOUNDED'?'PARTIAL':'NOT_PROVEN',
+        proof:runtime.execution,
+        note:'Execution mode availability is not proof that a target workflow/runtime path executed.'
+      },
+      deployed:{
+        state:'NOT_OBSERVED',
+        proof:null
+      },
+      live:{
+        state:'NOT_OBSERVED',
+        proof:null
+      },
+      usable:{
+        state:'NOT_PROVEN',
+        proof:null
+      }
+    },
+    hard_state_separation:[
+      'INSTALLED != RUNNING',
+      'DEPENDENCY_RUNNING != OPERATOR_RUNNING',
+      'OPERATOR_RUNNING != RUNTIME_EXECUTED',
+      'RUNTIME_EXECUTED != DEPLOYED',
+      'DEPLOYED != LIVE',
+      'LIVE != USABLE',
+      'OLLAMA_READY != XIIO_RUNTIME_READY',
+      'PREVIEW != EXECUTION',
+      'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE'
+    ],
     workspace:runtime.cwd,
     model:runtime.model,
     ollama_endpoint:runtime.ollama_endpoint,
