@@ -49,6 +49,8 @@ for(const name of [
   'list_workspace_files',
   'search_workspace_text',
   'read_workspace_text_file',
+  'read_workspace_git',
+  'read_local_runtime_status',
   'edit_workspace_text_file',
   'run_workspace_command',
   'list_xiio_registry',
@@ -73,7 +75,7 @@ const doctorJson=JSON.parse(doctor.stdout);
 assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
 assert.equal(doctorJson.provider_effect,false);
 assert.equal(doctorJson.automatic_cloud_fallback,false);
-assert.ok(doctorJson.local_tools.length>=8);
+assert.ok(doctorJson.local_tools.length>=10);
 assert.ok(doctorJson.ack_commands.includes('xi ack distribute'));
 
 const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-workspace-'));
@@ -104,6 +106,8 @@ const aliasBin=path.join(tempHome,'.local','bin','xi');
 assert.ok(fs.existsSync(installedBin));
 assert.ok(fs.existsSync(aliasBin));
 assert.ok((fs.statSync(installedBin).mode & 0o111)!==0);
+assert.ok(fs.existsSync(path.join(tempHome,'.local','share','xi-io','cli','env.sh')));
+assert.ok(fs.readFileSync(path.join(tempHome,'.bashrc'),'utf8').includes('xi-io-cli-managed-path'));
 
 const fromAnywhere=spawnSync(installedBin,['registry','tools'],{
   cwd:os.tmpdir(),
@@ -134,7 +138,7 @@ console.log(JSON.stringify({
   registry_sdk:true,
   registry_primitives:true,
   ollama_local_only:true,
-  native_tool_surface:8,
+  native_tool_surface:10,
   provider_effects:0,
   authority_granted:false,
   hostiles:{
