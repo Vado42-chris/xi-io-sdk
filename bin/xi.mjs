@@ -13,10 +13,63 @@ import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baselin
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
 import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 import { compileGraduationPreflight, profileCatalog } from '../src/preflight/graduation.mjs';
-import { runCli } from '../src/cli/public-exports.mjs';
+import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
+import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 function usage(code = 0) {
-  const text = `xi-io SDK CLI\n\nPure compilers:\n  xi baseline compile --input <snapshot.json> [--out <baseline.json>]\n  xi product compile --input <products.json> [--out <product-baseline.json>]\n  xi fleet delivery --input <fleet-delivery.json> [--out <fleet-gate.json>]\n  xi 100s compile --input <four-scale.json> [--out <scorecard.json>]\n  xi preflight compile --input <graduation.json> [--out <preflight.json>]\n  xi preflight profiles [--out <profiles.json>]\n  xi cadence continue --input <continuation.json> [--out <continuation-result.json>]\n  xi studio topology --input <install.json> [--out <topology.json>]\n  xi studio roster --input <registry.json> [--out <roster.json>]\n  xi stack compile --input <mini-prompt.json> [--out <punchcards.json>]\n  xi stack reap --input <punchcards.json> --card <C001> --receipt <ref> [--verified true]\n  xi work egress --input <work-egress.json> [--out <projection.json>]\n  xi ack distribute --baseline <baseline.json> --rotfl <rotfl-context.json> [--out <acks.json>]\n  xi ack validate --input <ack.json> [--out <validation.json>]\n  xi burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]\n  xi lesson promote --input <lesson.json> [--out <promotion.json>]\n\nProvider-neutral Ibal command envelopes:\n  xi baseline census [--subject <ref>]\n  xi baseline classify [--subject <ref>]\n  xi baseline hydrate [--subject <ref>]\n  xi baseline qualify [--subject <ref>]\n  xi baseline main [--subject <ref>]\n  xi baseline destew [--subject <ref>]\n  xi baseline sdk [--subject <ref>]\n  xi baseline score [--subject <ref>]\n  xi baseline burn [--subject <ref>]\n  xi baseline return [--subject <ref>]\n  xi baseline ratchet [--subject <ref>]\n\nLocal Ollama agent:\n  xi chat [--execute]\n\nPublic SDK calculations:\n  xi sdk commands\n  xi sdk call <export>  # JSON stdin: {"args":[...]}\n\nCatalog:\n  xi lexicon commands\n\nThe SDK never discovers accounts, calls AI providers, delivers ACKs, mutates repositories, grants authority, merges, deploys, or claims runtime currentness. Host Ibal/framework adapters consume command envelopes and return receipts.\n`;
+  const text = `xi-io local operator + SDK CLI
+
+Start here:
+  xi-io                         Open local Ollama operator in the current directory
+  xi-io <directory>             Open local Ollama operator in that directory
+  xi-io --execute               Open with bounded edit/run tools enabled
+  xi-io <directory> --execute   Open that workspace with bounded tools enabled
+
+Human registries:
+  xi-io registry                Show command + local tool registries
+  xi-io registry commands       Show ACK/baseline/cadence command registry
+  xi-io registry ack            Show ACK commands only
+  xi-io registry tools          Show local Ollama workspace tools
+  xi-io registry sdk            Show exact public SDK callables
+  xi-io registry primitives     Show public SDK primitive catalog
+  xi-io doctor                  Show workspace/Ollama/tool readiness
+
+Interactive slash commands:
+  /help /workspace /tools /commands /ack /model /status /clear /exit
+
+Pure compilers:
+  xi-io baseline compile --input <snapshot.json> [--out <baseline.json>]
+  xi-io product compile --input <products.json> [--out <product-baseline.json>]
+  xi-io fleet delivery --input <fleet-delivery.json> [--out <fleet-gate.json>]
+  xi-io 100s compile --input <four-scale.json> [--out <scorecard.json>]
+  xi-io preflight compile --input <graduation.json> [--out <preflight.json>]
+  xi-io preflight profiles [--out <profiles.json>]
+  xi-io cadence continue --input <continuation.json> [--out <continuation-result.json>]
+  xi-io studio topology --input <install.json> [--out <topology.json>]
+  xi-io studio roster --input <registry.json> [--out <roster.json>]
+  xi-io stack compile --input <mini-prompt.json> [--out <punchcards.json>]
+  xi-io stack reap --input <punchcards.json> --card <C001> --receipt <ref> [--verified true]
+  xi-io work egress --input <work-egress.json> [--out <projection.json>]
+  xi-io ack distribute --baseline <baseline.json> --rotfl <rotfl-context.json> [--out <acks.json>]
+  xi-io ack validate --input <ack.json> [--out <validation.json>]
+  xi-io burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]
+  xi-io lesson promote --input <lesson.json> [--out <promotion.json>]
+
+Provider-neutral Ibal envelopes:
+  xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
+
+Local Ollama:
+  xi-io chat [--execute]
+  xi-io                         # same human-facing local operator
+
+Public SDK calculations:
+  xi-io sdk commands
+  xi-io sdk call <export>       # JSON stdin: {"args":[...]}
+
+The local operator uses Ollama only. No automatic cloud fallback.
+Workspace tools are bounded to the selected directory.
+CLI_COMMAND != AUTHORITY · ACK_PACKET != DELIVERY · RESULT != RETURN != APPLY_RETURN
+`;
   (code ? process.stderr : process.stdout).write(text);
   process.exit(code);
 }
@@ -37,15 +90,26 @@ function args(argv) {
   return { flags, positionals };
 }
 
-function readJson(file, label) {
+function workspaceRelativePath(file, label, { allowDash = false } = {}) {
   if (!file) throw new Error(`${label} path is required`);
-  return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
+  if (allowDash && file === '-') return '-';
+  if (path.isAbsolute(file)) throw new Error(`${label} path must be workspace-relative`);
+  const normalized = path.normalize(file);
+  const segments = normalized.split(path.sep);
+  if (normalized === '..' || normalized.startsWith(`..${path.sep}`) || segments.includes('..')) {
+    throw new Error(`${label} path must stay inside the workspace`);
+  }
+  return path.resolve(process.cwd(), normalized);
+}
+
+function readJson(file, label) {
+  return JSON.parse(fs.readFileSync(workspaceRelativePath(file, label), 'utf8'));
 }
 
 function writeOutput(value, out) {
   const payload = `${JSON.stringify(value, null, 2)}\n`;
   if (!out || out === '-') process.stdout.write(payload);
-  else fs.writeFileSync(path.resolve(out), payload, 'utf8');
+  else fs.writeFileSync(workspaceRelativePath(out, '--out'), payload, 'utf8');
 }
 
 function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []) {
@@ -70,18 +134,95 @@ function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []
   };
 }
 
-if (process.argv.length === 3 && ['--help', '-h'].includes(process.argv[2])) usage(0);
+function isDirectory(value) {
+  if (!value || value.startsWith('-')) return false;
+  try { return fs.statSync(path.resolve(value)).isDirectory(); } catch { return false; }
+}
 
-if (process.argv[2] === 'chat') {
+async function launchLocalOperator(argv = []) {
+  const workspaceArg = argv.find((value) => !value.startsWith('-') && value !== 'chat' && value !== 'shell');
+  if (workspaceArg) process.chdir(fs.realpathSync(path.resolve(workspaceArg)));
   const { main } = await import('./xi-local-agent.mjs');
   await main();
-} else if (process.argv[2] === 'sdk') {
+}
+
+async function registry(kind = 'all') {
+  const commands = commandCatalog();
+  if (kind === 'commands' || kind === 'all' || kind === 'ack') {
+    process.stdout.write(kind === 'ack' ? 'ACK command registry\n' : 'Command registry\n');
+    for (const row of commands.commands) {
+      if (kind === 'ack' && !row.id.startsWith('ack.')) continue;
+      process.stdout.write(`  ${row.cli.padEnd(28)} ${row.effect.padEnd(20)} ${row.purpose}\n`);
+    }
+  }
+  if (kind === 'tools' || kind === 'all') {
+    const { localToolCatalog } = await import('./xi-local-agent.mjs');
+    const local = localToolCatalog();
+    process.stdout.write('\nLocal Ollama workspace tools\n');
+    for (const row of local.tools) {
+      process.stdout.write(`  ${row.name.padEnd(28)} ${row.execute_required?'[--execute]':'[read]'}  ${row.description}\n`);
+    }
+  }
+  if (kind === 'sdk' || kind === 'all') {
+    const publicSdk = commandLexicon();
+    process.stdout.write('\nPublic SDK callables\n');
+    for (const row of publicSdk.commands) {
+      process.stdout.write(`  ${row.command.padEnd(34)} ${row.specifier}\n`);
+    }
+  }
+  if (kind === 'primitives') {
+    process.stdout.write(JSON.stringify(primitiveCatalog, null, 2) + '\n');
+  }
+}
+
+async function doctor() {
+  const { localRuntimeStatus, localToolCatalog } = await import('./xi-local-agent.mjs');
+  const runtime = await localRuntimeStatus();
+  const local = localToolCatalog();
+  process.stdout.write(JSON.stringify({
+    schema:'xiio.cli.human-doctor/v1',
+    status:runtime.ollama_state.startsWith('READY_') ? 'READY_LOCAL' : 'WAIT_LOCAL_OLLAMA',
+    workspace:runtime.cwd,
+    model:runtime.model,
+    ollama_endpoint:runtime.ollama_endpoint,
+    ollama_state:runtime.ollama_state,
+    execution:runtime.execution,
+    local_tools:local.tools,
+    ack_commands:commandCatalog().commands.filter((row)=>row.id.startsWith('ack.')).map((row)=>row.cli),
+    command_registry_count:commandCatalog().commands.length,
+    public_sdk_callable_count:commandLexicon().commands.length,
+    primitive_catalog_count:Array.isArray(primitiveCatalog.primitives)?primitiveCatalog.primitives.length:0,
+    provider_effect:false,
+    automatic_cloud_fallback:false,
+  }, null, 2) + '\n');
+}
+
+if (process.argv.length === 3 && ['--help', '-h'].includes(process.argv[2])) usage(0);
+
+const top = process.argv[2] || null;
+const topArgs = process.argv.slice(2);
+
+if (
+  top === null
+  || top === 'chat'
+  || top === 'shell'
+  || top === '--execute'
+  || isDirectory(top)
+) {
+  await launchLocalOperator(topArgs);
+} else if (top === 'registry') {
+  const kind = process.argv[3] || 'all';
+  if (!['all','commands','ack','tools','sdk','primitives'].includes(kind)) usage(1);
+  await registry(kind);
+} else if (top === 'doctor' || top === 'workspace') {
+  await doctor();
+} else if (top === 'sdk') {
   const argv = process.argv.slice(3);
   const call = argv.length === 1 && argv[0] === 'commands' ? ['--commands']
     : argv[0] === 'call' ? argv.slice(1) : [];
   process.exitCode = await runCli(call);
 } else {
-try {
+try {try {
   const { flags, positionals } = args(process.argv.slice(2));
   if (positionals.length < 2) usage(1);
   const [family, action, ...rest] = positionals;
