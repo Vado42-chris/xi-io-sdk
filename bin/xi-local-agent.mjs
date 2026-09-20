@@ -4,10 +4,14 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
+import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
+import { commandLexicon } from '../src/cli/public-exports.mjs';
+import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
@@ -19,6 +23,12 @@ const workspaceId = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
 const sessionFile = path.join(stateDir, `session-${workspaceId}.json`);
 const blocked = new Set(['.git', '.ssh', 'node_modules']);
 const commands = new Set(['git', 'node', 'npm', 'python', 'python3', 'bash']);
+const xiCli = fileURLToPath(new URL('./xi.mjs', import.meta.url));
+const xiioFamilies = new Set([
+  'baseline','product','fleet','100s','preflight','cadence','studio','stack',
+  'work','ack','burnmap','lesson','lexicon','sdk',
+]);
+const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--returns']);
 const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
 const MAX_ONCE_INPUT_BYTES = 65_536;
 
@@ -59,6 +69,9 @@ const tools=[
  {type:'function',function:{name:'list_workspace_files',description:'List bounded files and directories inside the current workspace. Read-only.',parameters:{type:'object',properties:{path:{type:'string'},max_results:{type:'integer'}}}}},
  {type:'function',function:{name:'search_workspace_text',description:'Search bounded text files inside the current workspace for a literal string. Read-only.',parameters:{type:'object',required:['query'],properties:{query:{type:'string'},path:{type:'string'},max_results:{type:'integer'}}}}},
  {type:'function',function:{name:'read_workspace_text_file',description:'Read one text file inside the current workspace. Read-only.',parameters:{type:'object',required:['path'],properties:{path:{type:'string'}}}}},
+ {type:'function',function:{name:'list_xiio_registry',description:'Read xi-io command, ACK, SDK callable, primitive, or local-tool registry. Read-only and grants no authority.',parameters:{type:'object',required:['kind'],properties:{kind:{type:'string',enum:['commands','ack','sdk','primitives','tools']}}}}},
+ {type:'function',function:{name:'resolve_xiio_command',description:'Resolve a xi-io alias, hashtag, slash command, or command name through the canonical command lexicon. Read-only.',parameters:{type:'object',required:['token'],properties:{token:{type:'string'}}}}},
+ {type:'function',function:{name:'run_xiio_cli_command',description:'Run one bounded xi-io SDK/projection command in the current workspace. No provider effects. Local --out writes require --execute.',parameters:{type:'object',required:['args'],properties:{args:{type:'array',items:{type:'string'}},stdin_text:{type:'string'}}}}},
  {type:'function',function:{name:'edit_workspace_text_file',description:'Create or exactly replace bounded text inside the current workspace. Requires --execute.',parameters:{type:'object',required:['path','operation','new_text'],properties:{path:{type:'string'},operation:{type:'string',enum:['create','replace_exact']},old_text:{type:'string'},new_text:{type:'string'}}}}},
  {type:'function',function:{name:'run_workspace_command',description:'Run one allowlisted executable with structured arguments in the current workspace. Requires --execute.',parameters:{type:'object',required:['command'],properties:{command:{type:'string'},args:{type:'array',items:{type:'string'}}}}}}
 ];
@@ -128,10 +141,10 @@ function printHumanRegistry(kind='all') {
 function printInteractiveHelp() {
   console.log([
     '',
-    'xi-io local operator',
-    '  Ask normally to use Ollama in this workspace.',
+    'xi-io @ibal local operator',
+    '  Ask @ibal normally. Ollama handles local reasoning and native tool calls in this workspace.',
     '  /workspace   current directory, model, mode, Ollama state',
-    '  /tools       local list/search/read/edit/run tool registry',
+    '  /tools       local workspace + xi-io registry/ACK tool surface',
     '  /commands    ACK/baseline/cadence command registry',
     '  /ack         ACK command subset',
     '  /model       selected local Ollama model',
@@ -211,10 +224,90 @@ async function searchWorkspaceText(a={}) {
   return {workspace:cwd,path:rel,query,results:hits,truncated:hits.length>=max};
 }
 
+function humanCommandCatalog() {
+  const catalog=commandCatalog();
+  return {
+    ...catalog,
+    commands:(catalog.commands||[]).map((row)=>({
+      ...row,
+      cli:String(row.cli||'').replace(/^xi\b/,'xi-io'),
+    })),
+  };
+}
+
+function readXiioRegistry(kind) {
+  if(kind==='commands') return humanCommandCatalog();
+  if(kind==='ack') return {
+    schema:'xiio.cli.ack-registry/v1',
+    authority_granted:false,
+    provider_effect:false,
+    commands:humanCommandCatalog().commands.filter((row)=>row.id.startsWith('ack.')),
+  };
+  if(kind==='sdk') return commandLexicon();
+  if(kind==='primitives') return primitiveCatalog;
+  if(kind==='tools') return localToolCatalog();
+  throw new Error('REGISTRY_KIND_DENIED');
+}
+
+function validateXiioCliArgs(argv) {
+  if(!Array.isArray(argv) || argv.length<1 || argv.length>64) throw new Error('XIIO_ARGS_INVALID');
+  if(argv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
+  if(!xiioFamilies.has(argv[0])) throw new Error('XIIO_COMMAND_FAMILY_DENIED');
+  for(let i=0;i<argv.length;i+=1){
+    const flag=argv[i];
+    if(!xiioPathFlags.has(flag)) continue;
+    const value=argv[i+1];
+    if(!value || value.startsWith('--')) throw new Error('XIIO_PATH_VALUE_REQUIRED');
+    if(flag==='--out' && value==='-'){i+=1;continue;}
+    target(value);
+    if(flag==='--out' && !execute) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_EXECUTE');
+    i+=1;
+  }
+  return argv;
+}
+
+async function runXiioCliCommand(a={}) {
+  const argv=validateXiioCliArgs(a.args);
+  const stdin=String(a.stdin_text || '');
+  if(Buffer.byteLength(stdin)>1_048_576) throw new Error('XIIO_STDIN_TOO_LARGE');
+  return new Promise((resolveRun,reject)=>{
+    const child=spawn(process.execPath,[xiCli,...argv],{
+      cwd,
+      env:process.env,
+      stdio:['pipe','pipe','pipe'],
+    });
+    let stdout='';let stderr='';
+    const timer=setTimeout(()=>child.kill('SIGTERM'),120000);
+    const add=(key,chunk)=>{
+      const text=chunk.toString();
+      if(key==='stdout' && Buffer.byteLength(stdout)<1_048_576) stdout+=text;
+      if(key==='stderr' && Buffer.byteLength(stderr)<262144) stderr+=text;
+    };
+    child.stdout.on('data',(chunk)=>add('stdout',chunk));
+    child.stderr.on('data',(chunk)=>add('stderr',chunk));
+    child.on('error',(error)=>{clearTimeout(timer);reject(error);});
+    child.on('close',(code)=>{
+      clearTimeout(timer);
+      resolveRun({
+        ok:code===0,
+        exit_code:code,
+        stdout:stdout.slice(0,1_048_576),
+        stderr:stderr.slice(0,262144),
+        provider_effect:false,
+        authority_granted:false,
+      });
+    });
+    child.stdin.end(stdin);
+  });
+}
+
 async function tool(name,a={}) {
   if(name==='list_workspace_files') return listWorkspaceFiles(a);
   if(name==='search_workspace_text') return searchWorkspaceText(a);
   if(name==='read_workspace_text_file') return {content:await fsp.readFile(target(a.path),'utf8')};
+  if(name==='list_xiio_registry') return readXiioRegistry(String(a.kind||''));
+  if(name==='resolve_xiio_command') return resolveLexiconCommand(String(a.token||''));
+  if(name==='run_xiio_cli_command') return runXiioCliCommand(a);
   if(name==='edit_workspace_text_file') {
     if(!execute) return {ok:false,state:'BLOCKED',reason:'START_WITH_XI_CHAT_EXECUTE'};
     const p=target(a.path), next=String(a.new_text??''); if(Buffer.byteLength(next)>262144) throw new Error('EDIT_TOO_LARGE');
@@ -286,7 +379,7 @@ async function readOneShotInput() {
 }
 
 function systemMessage() {
-  return {role:'system',content:`You are xi-io CLI, a local-first terminal agent. Workspace: ${cwd}. Use tools for evidence and action. Never print pseudo-tool JSON. Never delegate to, invoke, recommend, or relay commands through Kiro or another paid agent. If an admitted tool can perform the requested action, call it instead of describing a command for the owner to transport. Execution is ${execute?'admitted for bounded tools':'preview-only'}. State the first unresolved executable edge and next action.`};
+  return {role:'system',content:`You are @ibal inside the xi-io local operator, a local-first terminal conductor. Workspace: ${cwd}. Use tools and registries for evidence and action. Never print pseudo-tool JSON. Never delegate to, invoke, recommend, or relay commands through Kiro or another paid agent. If an admitted tool can perform the requested action, call it instead of describing a command for the owner to transport. Execution is ${execute?'admitted for bounded tools':'preview-only'}. State the first unresolved executable edge and next action.`};
 }
 
 async function runOneShot(messages) {
