@@ -51,6 +51,9 @@ for(const name of [
   'read_workspace_text_file',
   'edit_workspace_text_file',
   'run_workspace_command',
+  'list_xiio_registry',
+  'resolve_xiio_command',
+  'run_xiio_cli_command',
 ]) assert.ok(tools.stdout.includes(name),name);
 
 const sdk=run(['registry','sdk']);
@@ -70,7 +73,7 @@ const doctorJson=JSON.parse(doctor.stdout);
 assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
 assert.equal(doctorJson.provider_effect,false);
 assert.equal(doctorJson.automatic_cloud_fallback,false);
-assert.ok(doctorJson.local_tools.length>=5);
+assert.ok(doctorJson.local_tools.length>=8);
 assert.ok(doctorJson.ack_commands.includes('xi ack distribute'));
 
 const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-workspace-'));
@@ -83,7 +86,7 @@ assert.match(binSource,/top === null/);
 assert.match(binSource,/top === '--execute'/);
 assert.match(binSource,/top === '--model'/);
 assert.match(binSource,/launchLocalOperator/);
-assert.match(agentSource,/xi-io local operator/);
+assert.match(agentSource,/xi-io @ibal local operator/);
 assert.match(agentSource,/XIIO_OLLAMA_MODEL \|\| 'llama3\.1:8b'/);
 assert.match(agentSource,/\/tools/);
 assert.match(agentSource,/\/commands/);
@@ -131,7 +134,7 @@ console.log(JSON.stringify({
   registry_sdk:true,
   registry_primitives:true,
   ollama_local_only:true,
-  workspace_discovery_tools:5,
+  native_tool_surface:8,
   provider_effects:0,
   authority_granted:false,
   hostiles:{
