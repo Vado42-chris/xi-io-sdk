@@ -56,7 +56,9 @@ async function run(command, args = []) {
 }
 
 const tools=[
- {type:'function',function:{name:'read_workspace_text_file',description:'Read one text file inside the current workspace.',parameters:{type:'object',required:['path'],properties:{path:{type:'string'}}}}},
+ {type:'function',function:{name:'list_workspace_files',description:'List bounded files and directories inside the current workspace. Read-only.',parameters:{type:'object',properties:{path:{type:'string'},max_results:{type:'integer'}}}}},
+ {type:'function',function:{name:'search_workspace_text',description:'Search bounded text files inside the current workspace for a literal string. Read-only.',parameters:{type:'object',required:['query'],properties:{query:{type:'string'},path:{type:'string'},max_results:{type:'integer'}}}}},
+ {type:'function',function:{name:'read_workspace_text_file',description:'Read one text file inside the current workspace. Read-only.',parameters:{type:'object',required:['path'],properties:{path:{type:'string'}}}}},
  {type:'function',function:{name:'edit_workspace_text_file',description:'Create or exactly replace bounded text inside the current workspace. Requires --execute.',parameters:{type:'object',required:['path','operation','new_text'],properties:{path:{type:'string'},operation:{type:'string',enum:['create','replace_exact']},old_text:{type:'string'},new_text:{type:'string'}}}}},
  {type:'function',function:{name:'run_workspace_command',description:'Run one allowlisted executable with structured arguments in the current workspace. Requires --execute.',parameters:{type:'object',required:['command'],properties:{command:{type:'string'},args:{type:'array',items:{type:'string'}}}}}}
 ];
@@ -128,7 +130,7 @@ function printInteractiveHelp() {
     'xi-io local operator',
     '  Ask normally to use Ollama in this workspace.',
     '  /workspace   current directory, model, mode, Ollama state',
-    '  /tools       local read/edit/run tool registry',
+    '  /tools       local list/search/read/edit/run tool registry',
     '  /commands    ACK/baseline/cadence command registry',
     '  /ack         ACK command subset',
     '  /model       selected local Ollama model',
@@ -143,7 +145,73 @@ function printInteractiveHelp() {
   ].join('\n'));
 }
 
+async function listWorkspaceFiles(a={}) {
+  const start=target(a.path || '.');
+  const max=Math.max(1,Math.min(500,Number(a.max_results || 200)));
+  const rows=[];
+  async function walk(abs,rel,depth){
+    if(rows.length>=max || depth>6)return;
+    const entries=await fsp.readdir(abs,{withFileTypes:true});
+    entries.sort((x,y)=>x.name.localeCompare(y.name,'en'));
+    for(const entry of entries){
+      if(rows.length>=max)break;
+      if(blocked.has(entry.name) || /^\.env(?:\.|$)/i.test(entry.name))continue;
+      const childRel=rel==='.'?entry.name:path.join(rel,entry.name);
+      rows.push({path:childRel,type:entry.isDirectory()?'directory':entry.isFile()?'file':'other'});
+      if(entry.isDirectory()) await walk(path.join(abs,entry.name),childRel,depth+1);
+    }
+  }
+  const rel=path.relative(cwd,start)||'.';
+  await walk(start,rel,0);
+  return {workspace:cwd,path:rel,results:rows,truncated:rows.length>=max};
+}
+
+async function searchWorkspaceText(a={}) {
+  const query=String(a.query || '');
+  if(!query || query.length>512)throw new Error('SEARCH_QUERY_INVALID');
+  const start=target(a.path || '.');
+  const max=Math.max(1,Math.min(200,Number(a.max_results || 50)));
+  const hits=[];
+  async function walk(abs,rel,depth){
+    if(hits.length>=max || depth>6)return;
+    const entries=await fsp.readdir(abs,{withFileTypes:true});
+    for(const entry of entries){
+      if(hits.length>=max)break;
+      if(blocked.has(entry.name) || /^\.env(?:\.|$)/i.test(entry.name))continue;
+      const childAbs=path.join(abs,entry.name);
+      const childRel=rel==='.'?entry.name:path.join(rel,entry.name);
+      if(entry.isDirectory()){
+        await walk(childAbs,childRel,depth+1);
+        continue;
+      }
+      if(!entry.isFile())continue;
+      let stat;
+      try{stat=await fsp.stat(childAbs);}catch{continue;}
+      if(stat.size>524288)continue;
+      let content;
+      try{content=await fsp.readFile(childAbs,'utf8');}catch{continue;}
+      if(content.includes('\u0000'))continue;
+      const lines=content.split(/\r?\n/);
+      for(let i=0;i<lines.length && hits.length<max;i++){
+        const column=lines[i].indexOf(query);
+        if(column<0)continue;
+        hits.push({
+          path:childRel,
+          line:i+1,
+          column:column+1,
+          preview:lines[i].slice(Math.max(0,column-120),column+query.length+120),
+        });
+      }
+    }
+  }
+  const rel=path.relative(cwd,start)||'.';
+  await walk(start,rel,0);
+  return {workspace:cwd,path:rel,query,results:hits,truncated:hits.length>=max};
+}
+
 async function tool(name,a={}) {
+  if(name==='list_workspace_files') return listWorkspaceFiles(a);
+  if(name==='search_workspace_text') return searchWorkspaceText(a);
   if(name==='read_workspace_text_file') return {content:await fsp.readFile(target(a.path),'utf8')};
   if(name==='edit_workspace_text_file') {
     if(!execute) return {ok:false,state:'BLOCKED',reason:'START_WITH_XI_CHAT_EXECUTE'};
