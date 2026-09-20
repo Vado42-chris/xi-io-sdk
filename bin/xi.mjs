@@ -222,7 +222,7 @@ if (
     : argv[0] === 'call' ? argv.slice(1) : [];
   process.exitCode = await runCli(call);
 } else {
-try {try {
+try {
   const { flags, positionals } = args(process.argv.slice(2));
   if (positionals.length < 2) usage(1);
   const [family, action, ...rest] = positionals;
