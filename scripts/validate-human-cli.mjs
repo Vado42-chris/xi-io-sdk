@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const root=fileURLToPath(new URL('../',import.meta.url));
+const bin=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
+
+function run(args,{cwd=root,input='',env={}}={}){
+  const result=spawnSync(process.execPath,[bin,...args],{
+    cwd,
+    input,
+    encoding:'utf8',
+    timeout:12_000,
+    maxBuffer:4*1024*1024,
+    env:{...process.env,...env},
+  });
+  assert.equal(result.error,undefined);
+  return result;
+}
+
+const help=run(['--help']);
+assert.equal(help.status,0);
+assert.match(help.stdout,/xi-io local operator/);
+assert.match(help.stdout,/xi-io registry tools/);
+assert.match(help.stdout,/xi-io --execute/);
+assert.match(help.stdout,/xi-io models/);
+
+const commands=run(['registry','commands']);
+assert.equal(commands.status,0);
+assert.match(commands.stdout,/xi-io ack distribute/);
+assert.match(commands.stdout,/xi-io cadence continue/);
+assert.doesNotMatch(commands.stdout,/^\s+xi ack distribute/m);
+
+const ack=run(['registry','ack']);
+assert.equal(ack.status,0);
+assert.match(ack.stdout,/ACK command registry/);
+assert.match(ack.stdout,/xi-io ack distribute/);
+assert.match(ack.stdout,/xi-io ack validate/);
+
+const tools=run(['registry','tools']);
+assert.equal(tools.status,0);
+for(const name of [
+  'list_workspace_files',
+  'search_workspace_text',
+  'read_workspace_text_file',
+  'edit_workspace_text_file',
+  'run_workspace_command',
+]) assert.ok(tools.stdout.includes(name),name);
+
+const sdk=run(['registry','sdk']);
+assert.equal(sdk.status,0);
+assert.match(sdk.stdout,/Public SDK callables/);
+assert.match(sdk.stdout,/compileContinuationCycle/);
+
+const primitives=run(['registry','primitives']);
+assert.equal(primitives.status,0);
+const primitiveJson=JSON.parse(primitives.stdout);
+assert.equal(primitiveJson.schema,'xiio.sdk.primitive-catalog/v2');
+assert.ok(Array.isArray(primitiveJson.primitives) && primitiveJson.primitives.length>0);
+
+const doctor=run(['doctor']);
+assert.equal(doctor.status,0);
+const doctorJson=JSON.parse(doctor.stdout);
+assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
+assert.equal(doctorJson.provider_effect,false);
+assert.equal(doctorJson.automatic_cloud_fallback,false);
+assert.ok(doctorJson.local_tools.length>=5);
+assert.ok(doctorJson.ack_commands.includes('xi ack distribute'));
+
+const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-workspace-'));
+const interactive=run([workspace],{
+  input:'/tools\n/exit\n',
+  cwd:root,
+  env:{XIIO_OLLAMA_MODEL:'llama3.1:8b'},
+});
+assert.equal(interactive.status,0);
+assert.match(interactive.stdout,/xi-io local operator/);
+assert.ok(interactive.stdout.includes('Workspace: '+workspace));
+assert.match(interactive.stdout,/list_workspace_files/);
+assert.match(interactive.stdout,/search_workspace_text/);
+
+const selectedModel=run(['--model','validation-model',workspace],{
+  input:'/exit\n',
+  cwd:root,
+});
+assert.equal(selectedModel.status,0);
+assert.match(selectedModel.stdout,/Model: validation-model/);
+
+const tempHome=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-home-'));
+const install=run(['install'],{env:{HOME:tempHome}});
+assert.equal(install.status,0);
+const installReceipt=JSON.parse(install.stdout);
+assert.equal(installReceipt.installed,true);
+assert.equal(installReceipt.default_entry,'xi-io');
+const installedBin=path.join(tempHome,'.local','bin','xi-io');
+const aliasBin=path.join(tempHome,'.local','bin','xi');
+assert.ok(fs.existsSync(installedBin));
+assert.ok(fs.existsSync(aliasBin));
+assert.ok((fs.statSync(installedBin).mode & 0o111)!==0);
+
+const fromAnywhere=spawnSync(installedBin,['registry','tools'],{
+  cwd:os.tmpdir(),
+  encoding:'utf8',
+  timeout:10_000,
+  env:{...process.env,HOME:tempHome},
+});
+assert.equal(fromAnywhere.error,undefined);
+assert.equal(fromAnywhere.status,0);
+assert.match(fromAnywhere.stdout,/Local Ollama workspace tools/);
+assert.match(fromAnywhere.stdout,/read_workspace_text_file/);
+
+const traversal=run(['burnmap','compile','--baseline','../../outside.json']);
+assert.equal(traversal.status,2);
+assert.equal(traversal.stdout,'');
+
+fs.rmSync(workspace,{recursive:true,force:true});
+fs.rmSync(tempHome,{recursive:true,force:true});
+
+console.log(JSON.stringify({
+  schema:'xiio.cli.human-facing-proof/v1',
+  status:'PASS',
+  default_human_entry:true,
+  any_directory:true,
+  cwd_independent_install:true,
+  registry_commands:true,
+  registry_ack:true,
+  registry_tools:true,
+  registry_sdk:true,
+  registry_primitives:true,
+  ollama_local_only:true,
+  workspace_discovery_tools:5,
+  provider_effects:0,
+  authority_granted:false,
+  hostiles:{
+    path_traversal:'BLOCKED',
+    automatic_cloud_fallback:'ABSENT',
+  },
+}));
