@@ -245,16 +245,52 @@ function installLocalCli() {
     fs.chmodSync(dest,0o755);
   }
 
+  const envFile=path.join(shareDir,'env.sh');
+  const envScript=[
+    '# xi-io CLI PATH',
+    'case ":$PATH:" in',
+    '  *":$HOME/.local/bin:"*) ;;',
+    '  *) export PATH="$HOME/.local/bin:$PATH" ;;',
+    'esac',
+    '',
+  ].join('\n');
+  fs.writeFileSync(envFile,envScript,{encoding:'utf8',mode:0o600});
+
+  const shell=path.basename(process.env.SHELL || 'bash');
+  const shellRc=shell==='zsh'
+    ? path.join(home,'.zshrc')
+    : shell==='bash'
+      ? path.join(home,'.bashrc')
+      : null;
+  let shellRcState='UNSUPPORTED_SHELL';
+  if(shellRc){
+    const marker='# xi-io-cli-managed-path';
+    const sourceLine=`[ -r "$HOME/.local/share/xi-io/cli/env.sh" ] && . "$HOME/.local/share/xi-io/cli/env.sh" ${marker}`;
+    let current='';
+    try{current=fs.readFileSync(shellRc,'utf8');}catch{}
+    if(!current.includes(marker)){
+      const prefix=current && !current.endsWith('\n')?'\n':'';
+      fs.appendFileSync(shellRc,prefix+sourceLine+'\n',{encoding:'utf8'});
+      shellRcState='ADDED';
+    } else {
+      shellRcState='ALREADY_PRESENT';
+    }
+  }
+
   const receipt={
     schema:'xiio.cli.install/v1',
     installed:true,
     sdk_root:root,
     root_file:rootFile,
+    env_file:envFile,
+    shell_rc:shellRc,
+    shell_rc_state:shellRcState,
     bins:bins.map((name)=>path.join(binDir,name)),
     default_entry:'xi-io',
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
     commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io doctor'],
+    activate_current_shell:'export PATH="$HOME/.local/bin:$PATH"',
     authority_granted:false,
     provider_effect:false,
   };
