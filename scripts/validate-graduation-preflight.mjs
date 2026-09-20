@@ -21,8 +21,8 @@ function goodInput(profile) {
 
 let checks = 0;
 const catalog = profileCatalog();
-assert.equal(catalog.profiles.length, 5); checks += 1;
-assert.deepEqual(catalog.profiles.map((p) => p.denominator), [14,10,14,16,10]); checks += 1;
+assert.equal(catalog.profiles.length, 6); checks += 1;
+assert.deepEqual(catalog.profiles.map((p) => p.denominator), [14,14,10,14,16,10]); checks += 1;
 
 let omissionHostiles = 0;
 for (const profile of Object.keys(GRADUATION_PROFILES)) {
@@ -44,7 +44,7 @@ for (const profile of Object.keys(GRADUATION_PROFILES)) {
     omissionHostiles += 1;
   }
 }
-assert.equal(omissionHostiles, 64); checks += 1;
+assert.equal(omissionHostiles, 78); checks += 1;
 
 {
   const sample = goodInput('TEMPLATE_L1_L10');
@@ -119,7 +119,7 @@ assert.equal(cli.status, 0, cli.stderr); checks += 1;
 assert.equal(JSON.parse(cli.stdout).release_eligible, true); checks += 1;
 const profiles = spawnSync(process.execPath, [cliPath, 'preflight', 'profiles'], { encoding: 'utf8' });
 assert.equal(profiles.status, 0, profiles.stderr); checks += 1;
-assert.equal(JSON.parse(profiles.stdout).profiles.length, 5); checks += 1;
+assert.equal(JSON.parse(profiles.stdout).profiles.length, 6); checks += 1;
 fs.rmSync(tmp, { recursive: true, force: true });
 
-console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:5, omission_hostiles:64, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
+console.log(JSON.stringify({ mode:'GRADUATION_PREFLIGHT', profiles:6, omission_hostiles:78, checks, result:'PASS', effects:0, ward_profile:'WARD_E0_E9' }));
