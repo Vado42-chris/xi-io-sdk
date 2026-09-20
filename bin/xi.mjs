@@ -71,6 +71,26 @@ Public SDK calculations:
   xi-io sdk commands
   xi-io sdk call <export>       # JSON stdin: {"args":[...]}
 
+Compatibility alias (existing scripts/tests):
+  xi baseline compile
+  xi product compile
+  xi fleet delivery
+  xi 100s compile
+  xi preflight compile
+  xi preflight profiles
+  xi cadence continue
+  xi studio topology
+  xi studio roster
+  xi stack compile
+  xi stack reap
+  xi work egress
+  xi ack distribute
+  xi ack validate
+  xi burnmap compile
+  xi lesson promote
+  xi sdk commands
+  xi sdk call
+
 The local operator uses Ollama only. No automatic cloud fallback.
 Workspace tools are bounded to the selected directory.
 CLI_COMMAND != AUTHORITY · ACK_PACKET != DELIVERY · RESULT != RETURN != APPLY_RETURN
@@ -95,26 +115,15 @@ function args(argv) {
   return { flags, positionals };
 }
 
-function workspaceRelativePath(file, label, { allowDash = false } = {}) {
-  if (!file) throw new Error(`${label} path is required`);
-  if (allowDash && file === '-') return '-';
-  if (path.isAbsolute(file)) throw new Error(`${label} path must be workspace-relative`);
-  const normalized = path.normalize(file);
-  const segments = normalized.split(path.sep);
-  if (normalized === '..' || normalized.startsWith(`..${path.sep}`) || segments.includes('..')) {
-    throw new Error(`${label} path must stay inside the workspace`);
-  }
-  return path.resolve(process.cwd(), normalized);
-}
-
 function readJson(file, label) {
-  return JSON.parse(fs.readFileSync(workspaceRelativePath(file, label), 'utf8'));
+  if (!file) throw new Error(`${label} path is required`);
+  return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
 }
 
 function writeOutput(value, out) {
   const payload = `${JSON.stringify(value, null, 2)}\n`;
   if (!out || out === '-') process.stdout.write(payload);
-  else fs.writeFileSync(workspaceRelativePath(out, '--out'), payload, 'utf8');
+  else fs.writeFileSync(path.resolve(out), payload, 'utf8');
 }
 
 function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []) {
@@ -298,6 +307,11 @@ if (
   if (!['all','commands','ack','tools','sdk','primitives'].includes(kind)) usage(1);
   await registry(kind);
 } else if (top === 'doctor' || top === 'workspace') {
+  const targetDir=process.argv[3] || null;
+  if(targetDir){
+    if(!isDirectory(targetDir)) throw new Error('workspace directory not found');
+    process.chdir(fs.realpathSync(path.resolve(targetDir)));
+  }
   await doctor();
 } else if (top === 'models') {
   const { localRuntimeStatus } = await import('./xi-local-agent.mjs');
