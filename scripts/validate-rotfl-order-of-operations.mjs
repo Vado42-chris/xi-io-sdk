@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { compileRotflOrderOfOperations, validateRotflOrderOfOperations, rotflOrderCatalog, ROTFL_ORDER_STEPS } from '../src/preflight/order-of-operations.mjs';
 
 const evidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:evidence:${id}`]]));
-const ids = ROTFL_ORDER_STEPS.map(({id})=>id;
+const ids = ROTFL_ORDER_STEPS.map(({id})=>id);
 
 const clean = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
