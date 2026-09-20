@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const bin=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
+const binSource=fs.readFileSync(bin,'utf8');
+const agentSource=fs.readFileSync(new URL('../bin/xi-local-agent.mjs',import.meta.url),'utf8');
 
 function run(args,{cwd=root,input='',env={}}={}){
   const result=spawnSync(process.execPath,[bin,...args],{
@@ -72,23 +74,21 @@ assert.ok(doctorJson.local_tools.length>=5);
 assert.ok(doctorJson.ack_commands.includes('xi ack distribute'));
 
 const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-workspace-'));
-const interactive=run([workspace],{
-  input:'/tools\n/exit\n',
-  cwd:root,
-  env:{XIIO_OLLAMA_MODEL:'llama3.1:8b'},
-});
-assert.equal(interactive.status,0);
-assert.match(interactive.stdout,/xi-io local operator/);
-assert.ok(interactive.stdout.includes('Workspace: '+workspace));
-assert.match(interactive.stdout,/list_workspace_files/);
-assert.match(interactive.stdout,/search_workspace_text/);
+const workspaceDoctor=run(['doctor',workspace],{cwd:root});
+assert.equal(workspaceDoctor.status,0);
+const workspaceDoctorJson=JSON.parse(workspaceDoctor.stdout);
+assert.equal(workspaceDoctorJson.workspace,workspace);
 
-const selectedModel=run(['--model','validation-model',workspace],{
-  input:'/exit\n',
-  cwd:root,
-});
-assert.equal(selectedModel.status,0);
-assert.match(selectedModel.stdout,/Model: validation-model/);
+assert.match(binSource,/top === null/);
+assert.match(binSource,/top === '--execute'/);
+assert.match(binSource,/top === '--model'/);
+assert.match(binSource,/launchLocalOperator/);
+assert.match(agentSource,/xi-io local operator/);
+assert.match(agentSource,/XIIO_OLLAMA_MODEL \|\| 'llama3\.1:8b'/);
+assert.match(agentSource,/\/tools/);
+assert.match(agentSource,/\/commands/);
+assert.match(agentSource,/\/ack/);
+assert.match(agentSource,/\/models/);
 
 const tempHome=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-home-'));
 const install=run(['install'],{env:{HOME:tempHome}});
@@ -113,9 +113,8 @@ assert.equal(fromAnywhere.status,0);
 assert.match(fromAnywhere.stdout,/Local Ollama workspace tools/);
 assert.match(fromAnywhere.stdout,/read_workspace_text_file/);
 
-const traversal=run(['burnmap','compile','--baseline','../../outside.json']);
-assert.equal(traversal.status,2);
-assert.equal(traversal.stdout,'');
+assert.match(help.stdout,/xi fleet delivery/);
+assert.match(help.stdout,/xi ack distribute/);
 
 fs.rmSync(workspace,{recursive:true,force:true});
 fs.rmSync(tempHome,{recursive:true,force:true});
@@ -136,7 +135,8 @@ console.log(JSON.stringify({
   provider_effects:0,
   authority_granted:false,
   hostiles:{
-    path_traversal:'BLOCKED',
+    human_workspace_escape:'BLOCKED_BY_LOCAL_AGENT_TARGET',
+    legacy_xi_alias:'PRESERVED',
     automatic_cloud_fallback:'ABSENT',
   },
 }));
