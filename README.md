@@ -49,6 +49,53 @@ const state = normalizeProviderFailure({
 
 The SDK is the car. The protected framework is the gas and management system.
 
+## Human terminal operator
+
+The canonical human-facing command is `xi-io` (with `xi` retained as the terse SDK alias).
+
+From any terminal after installation:
+
+```sh
+xi-io
+```
+
+opens the local Ollama operator in the current directory. A different workspace can be selected directly:
+
+```sh
+xi-io ~/path/to/project
+xi-io ~/path/to/project --execute
+xi-io --model llama3.1:8b ~/path/to/project
+```
+
+Preview mode exposes read-only workspace discovery: bounded file listing, literal text search, and text-file reads. `--execute` additionally admits the existing bounded edit and structured command tools. Workspace tools remain constrained to the selected directory and there is no automatic cloud fallback.
+
+Human discovery surfaces are first-class:
+
+```sh
+xi-io doctor
+xi-io models
+xi-io registry
+xi-io registry commands
+xi-io registry ack
+xi-io registry tools
+xi-io registry sdk
+xi-io registry primitives
+```
+
+Inside the interactive shell, use `/help`, `/workspace`, `/tools`, `/commands`, `/ack`, `/model`, `/models`, `/status`, `/clear`, and `/exit`.
+
+To install the command from an SDK checkout:
+
+```sh
+node bin/xi.mjs install
+hash -r
+xi-io doctor
+```
+
+The installer writes real wrappers to `~/.local/bin/xi-io` and `~/.local/bin/xi`, plus a managed source pointer under `~/.local/share/xi-io/cli/sdk.path`. The wrapper is cwd-independent. The selected workspace is the human's current directory or explicit directory argument, not the CLI source checkout.
+
+Hard: `HUMAN_ENTRY != SDK_INTERNAL_COMMAND`, `LOCAL_OLLAMA != CLOUD_FALLBACK`, `WORKSPACE_READ != EFFECT_AUTHORITY`, `--execute != MERGE_OR_PROVIDER_AUTHORITY`, `REGISTRY_DISCOVERY != ADMISSION`.
+
 ## Agent CLI
 
 The package installs `xi`, with `xi-io` as an alias for the same binary. Its SDK command family is a local JSON adapter over nine existing public
