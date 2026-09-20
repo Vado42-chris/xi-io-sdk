@@ -129,9 +129,32 @@ await test('INVALID_ADAPTER_STATE_FAILS_CLOSED', async () => {
   }), /BABYSIT_HOST_ADAPTER_STATE_INVALID/);
 });
 
+await test('TEN_CONSECUTIVE_BABYSIT_RUNS_REACH_TERMINAL', async () => {
+  for (let run = 1; run <= 10; run += 1) {
+    const initial = base();
+    initial.backlog = Array.from({ length: 3 }, (_, index) => ({
+      id: 'R' + run + '-W' + (index + 1),
+      state: 'RUNNABLE',
+      priority: index + 1,
+    }));
+    const result = await runBabysitHost({
+      initial_state: initial,
+      max_iterations: 10,
+      step: ({ state, packet }) => ({
+        ...state,
+        backlog: state.backlog.map((item) => item.id === packet.work_ref ? { ...item, state: 'DONE' } : item),
+      }),
+    });
+    assert.equal(result.loop_state, 'TERMINAL');
+    assert.equal(result.adapter_calls, 3);
+    assert.equal(result.terminal, true);
+  }
+});
+
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 8,
+  cases: 9,
+  ten_consecutive_runs: true,
   ten_increment_babysit: true,
   host_continue_is_executed: true,
   allowed_stops: ['TRUE_WAIT', 'OWNER_ONLY', 'TERMINAL'],
