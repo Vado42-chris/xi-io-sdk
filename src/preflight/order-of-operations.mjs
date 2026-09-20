@@ -1,5 +1,6 @@
 export const ROTFL_ORDER_SCHEMA = 'xiio.sdk.rotfl-order-of-operations/v1';
 export const ROTFL_ORDER_PROFILE_REF = 'sdk:rotfl-ack-oor:v1';
+export const ROTFL_INCREMENT_PREFLIGHT_PROFILE_REF = 'sdk:rotfl-ack-increment-preflight:v1';
 
 export const ROTFL_ORDER_STEPS = Object.freeze([
   Object.freeze({ id:'O0', label:'REBASE_PROVIDER_CURRENT' }),
@@ -41,6 +42,8 @@ export function validateRotflOrderOfOperations(value) {
   }
   if (value.schema !== ROTFL_ORDER_SCHEMA) errors.push('ROTFL_OOR_SCHEMA_INVALID');
   if (value.profile_ref !== ROTFL_ORDER_PROFILE_REF) errors.push('ROTFL_OOR_PROFILE_INVALID');
+  if (value.increment_preflight_profile_ref !== ROTFL_INCREMENT_PREFLIGHT_PROFILE_REF) errors.push('ROTFL_OOR_INCREMENT_PREFLIGHT_PROFILE_INVALID');
+  if (value.preflight_before_every_increment !== true) errors.push('ROTFL_OOR_INCREMENT_PREFLIGHT_DISABLED');
   if (!bounded(value.source_generation)) errors.push('ROTFL_OOR_SOURCE_GENERATION_INVALID');
 
   const completed = Array.isArray(value.completed_step_ids) ? value.completed_step_ids : [];
@@ -55,8 +58,10 @@ export function validateRotflOrderOfOperations(value) {
   if ((value.current_step_id ?? null) !== expectedCurrent) errors.push('ROTFL_OOR_CURRENT_STEP_MISMATCH');
 
   const evidence = normalizeEvidence(value.evidence_refs);
+  const preflight = normalizeEvidence(value.preflight_refs);
   for (const id of completed) {
     if (!Array.isArray(evidence[id]) || evidence[id].length === 0) errors.push('ROTFL_OOR_COMPLETED_WITHOUT_EVIDENCE:'+id);
+    if (!Array.isArray(preflight[id]) || preflight[id].length === 0) errors.push('ROTFL_OOR_INCREMENT_WITHOUT_PREFLIGHT:'+id);
   }
 
   const preAttemptIndex = canonicalIds.indexOf(ROTFL_PRE_ATTEMPT_LAST_STEP);
@@ -84,11 +89,14 @@ export function compileRotflOrderOfOperations(input={}) {
   const provisional = {
     schema: ROTFL_ORDER_SCHEMA,
     profile_ref: ROTFL_ORDER_PROFILE_REF,
+    increment_preflight_profile_ref: ROTFL_INCREMENT_PREFLIGHT_PROFILE_REF,
+    preflight_before_every_increment: true,
     source_generation: input.source_generation || null,
     steps: ROTFL_ORDER_STEPS.map((step)=>({...step})),
     completed_step_ids: completed,
     current_step_id: completed.length < canonicalIds.length ? canonicalIds[completed.length] : null,
     evidence_refs: evidence,
+    preflight_refs: normalizeEvidence(input.preflight_refs),
     pre_attempt_ready: completed.length > canonicalIds.indexOf(ROTFL_PRE_ATTEMPT_LAST_STEP),
     mutation_admitted: completed.length > canonicalIds.indexOf(ROTFL_PRE_ATTEMPT_LAST_STEP),
     complete: completed.length === canonicalIds.length,
@@ -109,6 +117,10 @@ export function compileRotflOrderOfOperations(input={}) {
       'RESULT!=RETURN!=APPLY_RETURN!=REAP',
       'MERGED!=REAP_COMPLETE',
       'GOLDEN_ONLY=FALSE_GREEN',
+      'EVERY_INCREMENT_REQUIRES_PREFLIGHT',
+      'INCREMENT_WITHOUT_PREFLIGHT!=COMPLETE',
+      'PREFLIGHT_PASS_AT_PRIOR_INCREMENT!=CURRENT_INCREMENT_PREFLIGHT',
+      'DRIFT_BETWEEN_INCREMENTS->REENTER_PREFLIGHT',
     ],
   };
   const verdict = validateRotflOrderOfOperations(provisional);
@@ -120,6 +132,8 @@ export function rotflOrderCatalog() {
   return Object.freeze({
     schema:'xiio.sdk.rotfl-order-catalog/v1',
     profile_ref:ROTFL_ORDER_PROFILE_REF,
+    increment_preflight_profile_ref:ROTFL_INCREMENT_PREFLIGHT_PROFILE_REF,
+    preflight_before_every_increment:true,
     denominator:ROTFL_ORDER_STEPS.length,
     pre_attempt_last_step:ROTFL_PRE_ATTEMPT_LAST_STEP,
     steps:ROTFL_ORDER_STEPS.map((step)=>({...step})),
