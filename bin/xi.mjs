@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
@@ -33,6 +35,7 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness
+  xi-io install                 Install xi-io + xi wrappers into ~/.local/bin
 
 Interactive slash commands:
   /help /workspace /tools /commands /ack /model /status /clear /exit
@@ -134,6 +137,10 @@ function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []
   };
 }
 
+function humanCli(value) {
+  return String(value || '').replace(/^xi\b/, 'xi-io');
+}
+
 function isDirectory(value) {
   if (!value || value.startsWith('-')) return false;
   try { return fs.statSync(path.resolve(value)).isDirectory(); } catch { return false; }
@@ -152,7 +159,7 @@ async function registry(kind = 'all') {
     process.stdout.write(kind === 'ack' ? 'ACK command registry\n' : 'Command registry\n');
     for (const row of commands.commands) {
       if (kind === 'ack' && !row.id.startsWith('ack.')) continue;
-      process.stdout.write(`  ${row.cli.padEnd(28)} ${row.effect.padEnd(20)} ${row.purpose}\n`);
+      process.stdout.write(`  ${humanCli(row.cli).padEnd(28)} ${row.effect.padEnd(20)} ${row.purpose}\n`);
     }
   }
   if (kind === 'tools' || kind === 'all') {
@@ -175,6 +182,55 @@ async function registry(kind = 'all') {
   }
 }
 
+function installLocalCli() {
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const home=os.homedir();
+  const binDir=path.join(home,'.local','bin');
+  const shareDir=path.join(home,'.local','share','xi-io','cli');
+  const stateDir=path.join(process.env.XDG_STATE_HOME || path.join(home,'.local','state'),'xi-io','cli');
+  const rootFile=path.join(shareDir,'sdk.path');
+  fs.mkdirSync(binDir,{recursive:true});
+  fs.mkdirSync(shareDir,{recursive:true});
+  fs.mkdirSync(stateDir,{recursive:true});
+  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
+
+  const wrapper=[
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    'ROOT_FILE="$HOME/.local/share/xi-io/cli/sdk.path"',
+    '[[ -r "$ROOT_FILE" ]] || { echo "xi-io: missing $ROOT_FILE" >&2; exit 1; }',
+    'ROOT="$(tr -d "\\r\\n" < "$ROOT_FILE")"',
+    'NODE="${XIIO_NODE:-$HOME/.nvm/versions/node/v24.11.1/bin/node}"',
+    '[[ -x "$NODE" ]] || NODE="$(command -v node)"',
+    'exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
+    '',
+  ].join('\n');
+
+  const bins=['xi-io','xi'];
+  for(const name of bins){
+    const dest=path.join(binDir,name);
+    try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
+    fs.writeFileSync(dest,wrapper,{encoding:'utf8',mode:0o755});
+    fs.chmodSync(dest,0o755);
+  }
+
+  const receipt={
+    schema:'xiio.cli.install/v1',
+    installed:true,
+    sdk_root:root,
+    root_file:rootFile,
+    bins:bins.map((name)=>path.join(binDir,name)),
+    default_entry:'xi-io',
+    workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
+    ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
+    commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io doctor'],
+    authority_granted:false,
+    provider_effect:false,
+  };
+  fs.writeFileSync(path.join(stateDir,'install.current.json'),JSON.stringify(receipt,null,2)+'\n',{encoding:'utf8',mode:0o600});
+  process.stdout.write(JSON.stringify(receipt,null,2)+'\n');
+}
+
 async function doctor() {
   const { localRuntimeStatus, localToolCatalog } = await import('./xi-local-agent.mjs');
   const runtime = await localRuntimeStatus();
@@ -194,6 +250,11 @@ async function doctor() {
     primitive_catalog_count:Array.isArray(primitiveCatalog.primitives)?primitiveCatalog.primitives.length:0,
     provider_effect:false,
     automatic_cloud_fallback:false,
+    installed_bins:[
+      path.join(os.homedir(),'.local','bin','xi-io'),
+      path.join(os.homedir(),'.local','bin','xi'),
+    ].map((bin)=>({bin,exists:fs.existsSync(bin)})),
+    sdk_root:path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),
   }, null, 2) + '\n');
 }
 
@@ -216,6 +277,8 @@ if (
   await registry(kind);
 } else if (top === 'doctor' || top === 'workspace') {
   await doctor();
+} else if (top === 'install') {
+  installLocalCli();
 } else if (top === 'sdk') {
   const argv = process.argv.slice(3);
   const call = argv.length === 1 && argv[0] === 'commands' ? ['--commands']
