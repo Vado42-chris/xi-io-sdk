@@ -74,9 +74,14 @@ const doctor=run(['doctor']);
 assert.equal(doctor.status,0);
 const doctorJson=JSON.parse(doctor.stdout);
 assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
-assert.equal(doctorJson.status,'PARTIAL_LOCAL_DEPENDENCY_RUNNING');
+assert.ok(['PARTIAL_LOCAL_DEPENDENCY_RUNNING','WAIT_LOCAL_DEPENDENCY'].includes(doctorJson.status));
 assert.equal(doctorJson.state_ladder.installed.state,'PASS');
 assert.equal(doctorJson.state_ladder.dependency_running.scope,'OLLAMA_ONLY');
+if (doctorJson.state_ladder.dependency_running.state === 'PASS') {
+  assert.equal(doctorJson.status,'PARTIAL_LOCAL_DEPENDENCY_RUNNING');
+} else {
+  assert.equal(doctorJson.status,'WAIT_LOCAL_DEPENDENCY');
+}
 assert.equal(doctorJson.state_ladder.operator_running.scope,'CURRENT_CLI_PROCESS_ONLY');
 assert.equal(doctorJson.state_ladder.runtime_executed.state,'NOT_PROVEN');
 assert.equal(doctorJson.state_ladder.deployed.state,'NOT_OBSERVED');
