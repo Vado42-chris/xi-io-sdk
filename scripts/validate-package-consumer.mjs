@@ -89,7 +89,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 14);
+  assert.equal(discovery.commands.length, 16);
   assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationDirective'));
