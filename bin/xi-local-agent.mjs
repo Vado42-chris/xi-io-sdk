@@ -237,6 +237,21 @@ async function readWorkspaceGit(a={}) {
     || path.isAbsolute(value)
     || value.split(/[\\/]+/).includes('..')
   ))) throw new Error('GIT_READ_ARGS_DENIED');
+  const globallyDenied=args.some((value)=>(
+    /^--output(?:=|$)/.test(value)
+    || value==='--ext-diff'
+    || value==='--no-index'
+  ));
+  if(globallyDenied) throw new Error('GIT_READ_MUTATION_OR_ESCAPE_DENIED');
+  if(operation==='branch'){
+    const branchReadFlags=new Set([
+      '--show-current','--list','-a','-r','-v','-vv','--merged','--no-merged',
+      '--contains','--no-contains',
+    ]);
+    if(args.some((value)=>!branchReadFlags.has(value))){
+      throw new Error('GIT_BRANCH_READ_ARGS_DENIED');
+    }
+  }
   return new Promise((resolveRead,reject)=>{
     const child=spawn('git',[operation,...args],{
       cwd,
