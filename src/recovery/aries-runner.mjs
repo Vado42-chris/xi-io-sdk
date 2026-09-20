@@ -60,7 +60,7 @@ export function discoverInboxRecovery({env=process.env}={}){
   const explicit=env.XIIO_DOGFOOD_WORKTREE;
   if(explicit){
     const script=path.join(explicit,RECOVERY_REL);
-    if(fs.isFileSync(script)) candidates.push(script);
+    if(fs.existsSync(script) && fs.statSync(script).isFile()) candidates.push(script);
   }
   candidates.push(...findMatches(roots(env),'*/.tmp/worktrees/dogfood-runtime-main/'+RECOVERY_REL));
   if(!candidates.length) candidates.push(...findMatches(roots(env),'*/xi-io-Inbox/'+RECOVERY_REL));
