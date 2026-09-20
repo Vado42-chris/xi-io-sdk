@@ -311,7 +311,9 @@ async function doctor() {
     ollama_state:runtime.ollama_state,
     execution:runtime.execution,
     local_tools:local.tools,
-    ack_commands:commandCatalog().commands.filter((row)=>row.id.startsWith('ack.')).map((row)=>row.cli),
+    ack_commands:commandCatalog().commands
+      .filter((row)=>row.id.startsWith('ack.'))
+      .map((row)=>humanCli(row.cli)),
     command_registry_count:commandCatalog().commands.length,
     public_sdk_callable_count:commandLexicon().commands.length,
     primitive_catalog_count:Array.isArray(primitiveCatalog.primitives)?primitiveCatalog.primitives.length:0,
