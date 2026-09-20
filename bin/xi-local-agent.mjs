@@ -69,6 +69,8 @@ const tools=[
  {type:'function',function:{name:'list_workspace_files',description:'List bounded files and directories inside the current workspace. Read-only.',parameters:{type:'object',properties:{path:{type:'string'},max_results:{type:'integer'}}}}},
  {type:'function',function:{name:'search_workspace_text',description:'Search bounded text files inside the current workspace for a literal string. Read-only.',parameters:{type:'object',required:['query'],properties:{query:{type:'string'},path:{type:'string'},max_results:{type:'integer'}}}}},
  {type:'function',function:{name:'read_workspace_text_file',description:'Read one text file inside the current workspace. Read-only.',parameters:{type:'object',required:['path'],properties:{path:{type:'string'}}}}},
+ {type:'function',function:{name:'read_workspace_git',description:'Read current workspace git state with a bounded read-only git verb: status, diff, log, show, rev-parse, or branch.',parameters:{type:'object',required:['operation'],properties:{operation:{type:'string',enum:['status','diff','log','show','rev-parse','branch']},args:{type:'array',items:{type:'string'}}}}}},
+ {type:'function',function:{name:'read_local_runtime_status',description:'Read current xi-io workspace, Ollama model/readiness, execution mode, and available native tools. Read-only.',parameters:{type:'object',properties:{}}}},
  {type:'function',function:{name:'list_xiio_registry',description:'Read xi-io command, ACK, SDK callable, primitive, or local-tool registry. Read-only and grants no authority.',parameters:{type:'object',required:['kind'],properties:{kind:{type:'string',enum:['commands','ack','sdk','primitives','tools']}}}}},
  {type:'function',function:{name:'resolve_xiio_command',description:'Resolve a xi-io alias, hashtag, slash command, or command name through the canonical command lexicon. Read-only.',parameters:{type:'object',required:['token'],properties:{token:{type:'string'}}}}},
  {type:'function',function:{name:'run_xiio_cli_command',description:'Run one bounded xi-io SDK/projection command in the current workspace. No provider effects. Local --out writes require --execute.',parameters:{type:'object',required:['args'],properties:{args:{type:'array',items:{type:'string'}},stdin_text:{type:'string'}}}}},
@@ -144,7 +146,7 @@ function printInteractiveHelp() {
     'xi-io @ibal local operator',
     '  Ask @ibal normally. Ollama handles local reasoning and native tool calls in this workspace.',
     '  /workspace   current directory, model, mode, Ollama state',
-    '  /tools       local workspace + xi-io registry/ACK tool surface',
+    '  /tools       local files/git/runtime + xi-io registry/ACK tool surface',
     '  /commands    ACK/baseline/cadence command registry',
     '  /ack         ACK command subset',
     '  /model       selected local Ollama model',
@@ -222,6 +224,47 @@ async function searchWorkspaceText(a={}) {
   const rel=path.relative(cwd,start)||'.';
   await walk(start,rel,0);
   return {workspace:cwd,path:rel,query,results:hits,truncated:hits.length>=max};
+}
+
+async function readWorkspaceGit(a={}) {
+  const operation=String(a.operation||'').trim();
+  const allowed=new Set(['status','diff','log','show','rev-parse','branch']);
+  if(!allowed.has(operation)) throw new Error('GIT_READ_OPERATION_DENIED');
+  const args=Array.isArray(a.args)?a.args:[];
+  if(args.length>24 || args.some((value)=>(
+    typeof value!=='string'
+    || value.includes('\0')
+    || path.isAbsolute(value)
+    || value.split(/[\\/]+/).includes('..')
+  ))) throw new Error('GIT_READ_ARGS_DENIED');
+  return new Promise((resolveRead,reject)=>{
+    const child=spawn('git',[operation,...args],{
+      cwd,
+      env:{...process.env,GIT_OPTIONAL_LOCKS:'0'},
+      stdio:['ignore','pipe','pipe'],
+    });
+    let stdout='';let stderr='';
+    const timer=setTimeout(()=>child.kill('SIGTERM'),15000);
+    const add=(key,chunk)=>{
+      const text=chunk.toString();
+      if(key==='stdout' && Buffer.byteLength(stdout)<524288) stdout+=text;
+      if(key==='stderr' && Buffer.byteLength(stderr)<131072) stderr+=text;
+    };
+    child.stdout.on('data',(chunk)=>add('stdout',chunk));
+    child.stderr.on('data',(chunk)=>add('stderr',chunk));
+    child.on('error',(error)=>{clearTimeout(timer);reject(error);});
+    child.on('close',(code)=>{
+      clearTimeout(timer);
+      resolveRead({
+        ok:code===0,
+        operation,
+        exit_code:code,
+        stdout:stdout.slice(0,524288),
+        stderr:stderr.slice(0,131072),
+        provider_effect:false,
+      });
+    });
+  });
 }
 
 function humanCommandCatalog() {
@@ -305,6 +348,8 @@ async function tool(name,a={}) {
   if(name==='list_workspace_files') return listWorkspaceFiles(a);
   if(name==='search_workspace_text') return searchWorkspaceText(a);
   if(name==='read_workspace_text_file') return {content:await fsp.readFile(target(a.path),'utf8')};
+  if(name==='read_workspace_git') return readWorkspaceGit(a);
+  if(name==='read_local_runtime_status') return localRuntimeStatus();
   if(name==='list_xiio_registry') return readXiioRegistry(String(a.kind||''));
   if(name==='resolve_xiio_command') return resolveLexiconCommand(String(a.token||''));
   if(name==='run_xiio_cli_command') return runXiioCliCommand(a);
