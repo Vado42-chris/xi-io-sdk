@@ -25,6 +25,7 @@ Start here:
   xi-io                         Open local Ollama operator in the current directory
   xi-io <directory>             Open local Ollama operator in that directory
   xi-io --execute               Open with bounded edit/run tools enabled
+  xi-io --model llama3.1:8b     Choose an installed Ollama model for this session
   xi-io <directory> --execute   Open that workspace with bounded tools enabled
 
 Human registries:
@@ -35,10 +36,11 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness
+  xi-io models                  List installed Ollama models
   xi-io install                 Install xi-io + xi wrappers into ~/.local/bin
 
 Interactive slash commands:
-  /help /workspace /tools /commands /ack /model /status /clear /exit
+  /help /workspace /tools /commands /ack /model /models /status /clear /exit
 
 Pure compilers:
   xi-io baseline compile --input <snapshot.json> [--out <baseline.json>]
@@ -147,8 +149,27 @@ function isDirectory(value) {
 }
 
 async function launchLocalOperator(argv = []) {
-  const workspaceArg = argv.find((value) => !value.startsWith('-') && value !== 'chat' && value !== 'shell');
-  if (workspaceArg) process.chdir(fs.realpathSync(path.resolve(workspaceArg)));
+  let workspaceArg = null;
+  for (let i=0;i<argv.length;i+=1) {
+    const value=argv[i];
+    if (value === 'chat' || value === 'shell' || value === '--execute') continue;
+    if (value === '--model') {
+      const selected=argv[i+1];
+      if(!selected || selected.startsWith('--')) throw new Error('--model requires a value');
+      process.env.XIIO_OLLAMA_MODEL=selected;
+      i+=1;
+      continue;
+    }
+    if (!value.startsWith('-')) {
+      if (workspaceArg) throw new Error('only one workspace directory may be selected');
+      workspaceArg=value;
+    }
+  }
+  if (workspaceArg) {
+    const resolved=path.resolve(workspaceArg);
+    if(!isDirectory(resolved)) throw new Error('workspace directory not found');
+    process.chdir(fs.realpathSync(resolved));
+  }
   const { main } = await import('./xi-local-agent.mjs');
   await main();
 }
@@ -268,6 +289,7 @@ if (
   || top === 'chat'
   || top === 'shell'
   || top === '--execute'
+  || top === '--model'
   || isDirectory(top)
 ) {
   await launchLocalOperator(topArgs);
@@ -277,6 +299,10 @@ if (
   await registry(kind);
 } else if (top === 'doctor' || top === 'workspace') {
   await doctor();
+} else if (top === 'models') {
+  const { localRuntimeStatus } = await import('./xi-local-agent.mjs');
+  const status=await localRuntimeStatus();
+  process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
 } else if (top === 'sdk') {
