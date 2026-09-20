@@ -15,6 +15,7 @@ import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baselin
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
 import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 import { compileGraduationPreflight, profileCatalog } from '../src/preflight/graduation.mjs';
+import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
@@ -57,6 +58,7 @@ Pure compilers:
   xi-io work egress --input <work-egress.json> [--out <projection.json>]
   xi-io ack distribute --baseline <baseline.json> --rotfl <rotfl-context.json> [--out <acks.json>]
   xi-io ack validate --input <ack.json> [--out <validation.json>]
+  xi-io ack order [--out <order.json>]
   xi-io burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]
   xi-io lesson promote --input <lesson.json> [--out <promotion.json>]
 
@@ -86,6 +88,7 @@ Compatibility alias (existing scripts/tests):
   xi work egress
   xi ack distribute
   xi ack validate
+  xi ack order
   xi burnmap compile
   xi lesson promote
   xi sdk commands
@@ -402,6 +405,8 @@ try {
   } else if (family === 'ack' && action === 'validate') {
     const envelope = readJson(flags.input, '--input');
     writeOutput({ schema: 'xiio.sdk.distributed-ack-validation/v1', ...validateRotflDistributedAck(envelope) }, flags.out);
+  } else if (family === 'ack' && action === 'order') {
+    writeOutput(rotflOrderCatalog(), flags.out);
   } else if (family === 'burnmap' && action === 'compile') {
     const baseline = readJson(flags.baseline, '--baseline');
     const returns = flags.returns ? readJson(flags.returns, '--returns') : [];
