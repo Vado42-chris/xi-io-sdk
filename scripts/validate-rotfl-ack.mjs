@@ -10,9 +10,18 @@ import {
   validateRotflDistributedAck,
   attachRotflContextToAckSet,
 } from '../src/acks/distributed.mjs';
+import { compileRotflOrderOfOperations, ROTFL_ORDER_STEPS } from '../src/preflight/order-of-operations.mjs';
+
+const orderEvidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:oor:${id}`]]));
+const orderOfOperations = compileRotflOrderOfOperations({
+  source_generation:'fixture:g1',
+  completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),
+  evidence_refs:orderEvidence,
+});
 
 const rotfl = {
   schema: 'xiio.sdk.rotfl-ack-context/v1',
+  order_of_operations: orderOfOperations,
   hvt_order_ref: 'control:hvt-order:pass7',
   knowledge_return_refs: ['crm:knowledge-return:fixture'],
   bins_resource_refs: ['bins:resource:fixture:v1'],
@@ -97,6 +106,14 @@ assert.equal(wrongEffectVerdict.ok,false); checks += 1;
 assert(wrongEffectVerdict.errors.some(x=>x.includes('CURRENT_INSTRUCTION_NOT_BOUND_TO_REQUESTED_EFFECT'))); checks += 1;
 assert.equal(validateRotflDistributedAck(baseAck).ok, false); checks += 1;
 assert.equal(validateRotflDistributedAck({ ...baseAck, rotfl }).ok, true); checks += 1;
+const earlyOrder = compileRotflOrderOfOperations({
+  source_generation:'fixture:g1',
+  completed_step_ids:['O0','O1','O2'],
+  evidence_refs:orderEvidence,
+});
+const earlyAckVerdict=validateRotflDistributedAck({ ...baseAck, rotfl:{...rotfl,order_of_operations:earlyOrder} });
+assert.equal(earlyAckVerdict.ok,false); checks += 1;
+assert(earlyAckVerdict.errors.includes('ROTFL_OOR_PRE_ATTEMPT_REQUIRED_BEFORE_ACK_OR_ATTEMPT')); checks += 1;
 const incompleteRotfl=structuredClone(rotfl);
 Object.assign(incompleteRotfl.template_runs[0],{state:'WAIT',known_bit:1,value_bit:0});
 assert.equal(validateRotflAckContext(incompleteRotfl).ok,true); checks += 1;
@@ -163,6 +180,11 @@ assert.equal(JSON.parse(validateCurrent.stdout).ok, true); checks += 1;
 const validateLegacy = spawnSync(process.execPath, [cliPath, 'ack', 'validate', '--input', legacyAckFile], { encoding: 'utf8' });
 assert.equal(validateLegacy.status, 0, validateLegacy.stderr); checks += 1;
 assert.equal(JSON.parse(validateLegacy.stdout).ok, false); checks += 1;
+const orderCli = spawnSync(process.execPath, [cliPath, 'ack', 'order'], { encoding: 'utf8' });
+assert.equal(orderCli.status, 0, orderCli.stderr); checks += 1;
+const orderPayload=JSON.parse(orderCli.stdout);
+assert.equal(orderPayload.denominator,14); checks += 1;
+assert.deepEqual(orderPayload.steps.map((x)=>x.id),ROTFL_ORDER_STEPS.map((x)=>x.id)); checks += 1;
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(JSON.stringify({ mode:'ROTFL_ACK_HOTFIX', checks, result:'PASS', effects:0 }));

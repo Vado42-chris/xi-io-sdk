@@ -10,6 +10,7 @@ import * as SelfDrive from '../cadence/self-drive.mjs';
 import * as Lexicon from '../lexicon/resolve-token.mjs';
 import * as Adoption from '../adoption/primitive-plan.mjs';
 import * as Callables from '../callables/resolve.mjs';
+import * as OrderOfOperations from '../preflight/order-of-operations.mjs';
 
 const MAX_BYTES = 1_048_576;
 const modules = [
@@ -22,6 +23,7 @@ const modules = [
   ['@xi-io/sdk/command-lexicon/resolve', Lexicon],
   ['@xi-io/sdk/adoption', Adoption],
   ['@xi-io/sdk/callables', Callables],
+  ['@xi-io/sdk/preflight/order-of-operations', OrderOfOperations],
 ];
 const arity = {
   normalizeProviderFailure: [1, 1],
@@ -38,6 +40,8 @@ const arity = {
   resolveCallable: [2, 2],
   callableUuidFor: [2, 2],
   listCallablePrimitives: [1, 1],
+  compileRotflOrderOfOperations: [1, 1],
+  validateRotflOrderOfOperations: [1, 1],
 };
 const commands = new Map();
 for (const [specifier, module] of modules) {
