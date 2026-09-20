@@ -1,4 +1,5 @@
 import { validateRotflAckTemplateRuns } from './rotfl-template.mjs';
+import { validateRotflOrderOfOperations } from '../preflight/order-of-operations.mjs';
 const STATES = new Set(['POSTED','ACK','REJECT','WAIT','ATTEMPTED','RESULT','RETURN','APPLY_RETURN']);
 const PRE_ATTEMPT_STATES = new Set(['POSTED','ACK','REJECT','WAIT']);
 const TERMINAL_ROTFL_STATES = new Set(['RESULT','RETURN','APPLY_RETURN']);
@@ -113,13 +114,19 @@ export function validateRotflAckContext(rotfl) {
   if ((Array.isArray(rotfl.affected_refs) ? rotfl.affected_refs : []).some(ref => noEffect.has(ref))) errors.push('ROTFL_AFFECTED_NO_EFFECT_OVERLAP');
   const templateVerdict = validateRotflAckTemplateRuns(rotfl.reusable_template_refs, rotfl.template_runs);
   if (!templateVerdict.ok) errors.push(...templateVerdict.errors.map(x => 'ROTFL_'+x));
+  const orderVerdict = validateRotflOrderOfOperations(rotfl.order_of_operations);
+  if (!orderVerdict.ok) errors.push(...orderVerdict.errors.map(x => 'ROTFL_'+x));
   return {
     ok:errors.length === 0,
     errors,
     schema:ROTFL_SCHEMA,
-    complete:errors.length === 0 && templateVerdict.runtime_complete,
+    complete:errors.length === 0 && templateVerdict.runtime_complete && orderVerdict.complete,
     template_runtime_complete:templateVerdict.runtime_complete,
     template_run_count:templateVerdict.run_count,
+    order_of_operations_ok:orderVerdict.ok,
+    order_of_operations_complete:orderVerdict.complete,
+    order_of_operations_pre_attempt_ready:orderVerdict.pre_attempt_ready,
+    order_of_operations_next_step:orderVerdict.next_step_id,
   };
 }
 
@@ -173,6 +180,10 @@ export function validateRotflDistributedAck(envelope) {
   const structural = validateDistributedAck(envelope);
   const rotfl = validateRotflAckContext(envelope?.rotfl);
   const lifecycleErrors = [];
+  if (['ACK','ATTEMPTED','RESULT','RETURN','APPLY_RETURN'].includes(envelope?.ack_state)
+      && rotfl.order_of_operations_pre_attempt_ready !== true) {
+    lifecycleErrors.push('ROTFL_OOR_PRE_ATTEMPT_REQUIRED_BEFORE_ACK_OR_ATTEMPT');
+  }
   if (TERMINAL_ROTFL_STATES.has(envelope?.ack_state) && rotfl.template_runtime_complete !== true) {
     lifecycleErrors.push('ROTFL_TEMPLATE_RUNTIME_REQUIRED_BEFORE_TERMINAL_ACK_STATE');
   }
@@ -180,8 +191,11 @@ export function validateRotflDistributedAck(envelope) {
     ...structural,
     ok: structural.ok && rotfl.ok && lifecycleErrors.length === 0,
     errors: [...structural.errors, ...rotfl.errors, ...lifecycleErrors],
-    rotfl_complete: rotfl.ok && rotfl.template_runtime_complete,
+    rotfl_complete: rotfl.ok && rotfl.template_runtime_complete && rotfl.order_of_operations_complete,
     template_runtime_complete: rotfl.template_runtime_complete,
+    order_of_operations_complete: rotfl.order_of_operations_complete,
+    order_of_operations_pre_attempt_ready: rotfl.order_of_operations_pre_attempt_ready,
+    order_of_operations_next_step: rotfl.order_of_operations_next_step,
   };
 }
 
