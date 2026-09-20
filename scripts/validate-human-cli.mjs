@@ -76,7 +76,9 @@ assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
 assert.equal(doctorJson.provider_effect,false);
 assert.equal(doctorJson.automatic_cloud_fallback,false);
 assert.ok(doctorJson.local_tools.length>=10);
-assert.ok(doctorJson.ack_commands.includes('xi ack distribute'));
+assert.ok(doctorJson.ack_commands.includes('xi-io ack distribute'));
+assert.ok(doctorJson.ack_commands.includes('xi-io ack validate'));
+assert.equal(doctorJson.ack_commands.some((row)=>/^xi\s/.test(row)),false);
 
 const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-workspace-'));
 const workspaceDoctor=run(['doctor',workspace],{cwd:root});
