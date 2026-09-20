@@ -159,20 +159,21 @@ function isDirectory(value) {
 
 async function launchLocalOperator(argv = []) {
   let workspaceArg = null;
+  const valueFlags = new Set(['--model','--input']);
+  const booleanFlags = new Set(['--execute','--once']);
   for (let i=0;i<argv.length;i+=1) {
     const value=argv[i];
-    if (value === 'chat' || value === 'shell' || value === '--execute') continue;
-    if (value === '--model') {
+    if (value === 'chat' || value === 'shell' || booleanFlags.has(value)) continue;
+    if (valueFlags.has(value)) {
       const selected=argv[i+1];
-      if(!selected || selected.startsWith('--')) throw new Error('--model requires a value');
-      process.env.XIIO_OLLAMA_MODEL=selected;
+      if(!selected || selected.startsWith('--')) throw new Error(`${value} requires a value`);
+      if (value === '--model') process.env.XIIO_OLLAMA_MODEL=selected;
       i+=1;
       continue;
     }
-    if (!value.startsWith('-')) {
-      if (workspaceArg) throw new Error('only one workspace directory may be selected');
-      workspaceArg=value;
-    }
+    if (value.startsWith('-')) continue;
+    if (workspaceArg) throw new Error('only one workspace directory may be selected');
+    workspaceArg=value;
   }
   if (workspaceArg) {
     const resolved=path.resolve(workspaceArg);
