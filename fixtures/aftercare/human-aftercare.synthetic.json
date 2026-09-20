@@ -1,0 +1,57 @@
+{
+  "subject_ref": "fixture:human-aftercare",
+  "generation": "g1",
+  "what_changed": "A reusable human aftercare primitive was added.",
+  "what_human_should_do_now": "Open START HERE, then use the listed templates.",
+  "what_not_to_do": [
+    "Do not treat internal control JSON as the human deliverable."
+  ],
+  "resume_pointer": "docs/templates/HUMAN-AFTERCARE-START-HERE.template.md",
+  "requirements": [
+    {
+      "id": "R1",
+      "label": "Human START HERE exists",
+      "state": "PASS",
+      "evidence_ref": "docs/templates/HUMAN-AFTERCARE-START-HERE.template.md",
+      "next_action": null
+    }
+  ],
+  "templates": [
+    {
+      "id": "T1",
+      "title": "Project requirements checklist",
+      "purpose": "Track human outcomes and current proof.",
+      "surface_ref": "docs/templates/PROJECT-REQUIREMENTS-CHECKLIST.template.md",
+      "state": "PASS"
+    }
+  ],
+  "impact": {
+    "MICRO": {
+      "state": "PASS",
+      "affected_refs": [
+        "human-aftercare"
+      ],
+      "evidence_refs": [
+        "fixture"
+      ]
+    },
+    "MESO": {
+      "state": "WAIT",
+      "affected_refs": [
+        "aftercare"
+      ],
+      "evidence_refs": [],
+      "next_action": "validate workflow"
+    },
+    "MACRO": {
+      "state": "UNKNOWN",
+      "affected_refs": [],
+      "evidence_refs": []
+    },
+    "META": {
+      "state": "UNKNOWN",
+      "affected_refs": [],
+      "evidence_refs": []
+    }
+  }
+}
