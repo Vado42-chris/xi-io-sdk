@@ -13,10 +13,12 @@ import {
 import { compileRotflOrderOfOperations, ROTFL_ORDER_STEPS } from '../src/preflight/order-of-operations.mjs';
 
 const orderEvidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:oor:${id}`]]));
+const orderPreflight = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:preflight:${id}`]]));
 const orderOfOperations = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
   completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),
   evidence_refs:orderEvidence,
+  preflight_refs:orderPreflight,
 });
 
 const rotfl = {
@@ -110,6 +112,7 @@ const earlyOrder = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
   completed_step_ids:['O0','O1','O2'],
   evidence_refs:orderEvidence,
+  preflight_refs:orderPreflight,
 });
 const earlyAckVerdict=validateRotflDistributedAck({ ...baseAck, rotfl:{...rotfl,order_of_operations:earlyOrder} });
 assert.equal(earlyAckVerdict.ok,false); checks += 1;
