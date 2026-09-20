@@ -260,8 +260,52 @@
           "SIM_PASS!=MUTATION_AUTHORITY",
           "RESULT!=RETURN!=APPLY_RETURN!=REAP",
           "MERGED!=REAP_COMPLETE",
-          "GOLDEN_ONLY=FALSE_GREEN"
-        ]
+          "GOLDEN_ONLY=FALSE_GREEN",
+          "EVERY_INCREMENT_REQUIRES_PREFLIGHT",
+          "INCREMENT_WITHOUT_PREFLIGHT!=COMPLETE",
+          "PREFLIGHT_PASS_AT_PRIOR_INCREMENT!=CURRENT_INCREMENT_PREFLIGHT",
+          "DRIFT_BETWEEN_INCREMENTS->REENTER_PREFLIGHT"
+        ],
+        "increment_preflight_profile_ref": "sdk:rotfl-ack-increment-preflight:v1",
+        "preflight_before_every_increment": true,
+        "preflight_refs": {
+          "O0": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O0"
+          ],
+          "O1": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O1"
+          ],
+          "O2": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O2"
+          ],
+          "O3": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O3"
+          ],
+          "O4": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O4"
+          ],
+          "O5": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O5"
+          ],
+          "O6": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O6"
+          ],
+          "O7": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O7"
+          ],
+          "O8": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O8"
+          ],
+          "O9": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O9"
+          ],
+          "O10": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O10"
+          ],
+          "O11": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O11"
+          ]
+        }
       }
     }
   },
@@ -497,8 +541,52 @@
           "SIM_PASS!=MUTATION_AUTHORITY",
           "RESULT!=RETURN!=APPLY_RETURN!=REAP",
           "MERGED!=REAP_COMPLETE",
-          "GOLDEN_ONLY=FALSE_GREEN"
-        ]
+          "GOLDEN_ONLY=FALSE_GREEN",
+          "EVERY_INCREMENT_REQUIRES_PREFLIGHT",
+          "INCREMENT_WITHOUT_PREFLIGHT!=COMPLETE",
+          "PREFLIGHT_PASS_AT_PRIOR_INCREMENT!=CURRENT_INCREMENT_PREFLIGHT",
+          "DRIFT_BETWEEN_INCREMENTS->REENTER_PREFLIGHT"
+        ],
+        "increment_preflight_profile_ref": "sdk:rotfl-ack-increment-preflight:v1",
+        "preflight_before_every_increment": true,
+        "preflight_refs": {
+          "O0": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O0"
+          ],
+          "O1": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O1"
+          ],
+          "O2": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O2"
+          ],
+          "O3": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O3"
+          ],
+          "O4": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O4"
+          ],
+          "O5": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O5"
+          ],
+          "O6": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O6"
+          ],
+          "O7": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O7"
+          ],
+          "O8": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O8"
+          ],
+          "O9": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O9"
+          ],
+          "O10": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O10"
+          ],
+          "O11": [
+            "fixture:canary-065-patch-adoption-self-ack.v1.json:preflight:O11"
+          ]
+        }
       }
     },
     "ack_sources": [
