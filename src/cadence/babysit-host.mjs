@@ -48,7 +48,7 @@ export async function runBabysitHost(input = {}) {
         loop_state: directive.stop_class,
         terminal: directive.stop_class === 'TERMINAL',
         yield_allowed: true,
-        iterations: directive.length,
+        iterations: directives.length,
         directive_count: directives.length,
         adapter_calls: adapterCalls,
         bugs: [...bugs],
@@ -56,7 +56,8 @@ export async function runBabysitHost(input = {}) {
         final_directive: clone(directive),
         directives,
         effects: 0,
-        effect_ceiling: 'HOST_OWNS_EFFECT_AUTHORITY',
+        effect_authority: false,
+        effect_ceiling: 'SDK_PROJECTION_ONLY__HOST_MUST_ENFORCE_EFFECT_AUTHORITY',
         hard: [
           'REPORT != LOOP_EXIT',
           'RESULT != LOOP_EXIT',
