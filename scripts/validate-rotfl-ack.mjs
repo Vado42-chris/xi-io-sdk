@@ -12,7 +12,7 @@ import {
 } from '../src/acks/distributed.mjs';
 import { compileRotflOrderOfOperations, ROTFL_ORDER_STEPS } from '../src/preflight/order-of-operations.mjs';
 
-const orderEvidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[\`fixture:oor:\${id}\`]]));
+const orderEvidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:oor:${id}`]]));
 const orderOfOperations = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
   completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),
