@@ -17,6 +17,7 @@ import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 import { compileGraduationPreflight, profileCatalog } from '../src/preflight/graduation.mjs';
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
+import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 function usage(code = 0) {
@@ -61,6 +62,10 @@ Pure compilers:
   xi-io ack order [--out <order.json>]
   xi-io burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]
   xi-io lesson promote --input <lesson.json> [--out <promotion.json>]
+
+Runtime recovery:
+  xi-io recover aries-runner            Plan/check only, no mutation
+  xi-io recover aries-runner --execute  Start existing Aries runner only, then read back provider state
 
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
@@ -361,6 +366,13 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'recover') {
+  const target = process.argv[3] || null;
+  const executeRecovery = process.argv.includes('--execute');
+  if (target !== 'aries-runner') usage(1);
+  const result = recoverAriesRunner({execute:executeRecovery});
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
 } else if (top === 'sdk') {
   const argv = process.argv.slice(3);
   const call = argv.length === 1 && argv[0] === 'commands' ? ['--commands']
