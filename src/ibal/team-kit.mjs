@@ -39,6 +39,9 @@ export function compileIbalTeamKit(input={}){
     hot_folder_ref:clean(input.hot_folder_ref,'hot_folder_ref',1024),
     ack_template_refs:refs(input.ack_template_refs,'ack_template_refs'),
     return_target_ref:clean(input.return_target_ref,'return_target_ref',1024),
+    disclosure_ref:clean(input.disclosure_ref||input.flatpack_template_ref,'disclosure_ref',1024),
+    tool_call_budget:int(input.tool_call_budget??3,'tool_call_budget',1,10),
+    max_items_per_pass:int(input.max_items_per_pass??10,'max_items_per_pass',1,25),
     effect_ceiling:input.effect_ceiling??0,
     authority_granted:false,
     provider_effect:false,
@@ -56,6 +59,10 @@ export function compileIbalTeamKit(input={}){
       'HOT_FOLDER_REQUIRED',
       'ACK_TEMPLATE_REQUIRED',
       'RETURN_TARGET_REQUIRED',
+      'PROGRESSIVE_DISCLOSURE_REQUIRED',
+      'ONE_PASS_TOOL_CALLS_MUST_STAY_WITHIN_BUDGET',
+      'ARTICLE_OR_FLATPACK_FIRST__DETAIL_ON_DEMAND',
+      'TOOL_FLOOD=>HOTPATCH_AND_COLLAPSE',
       'TEAM_KIT!=EFFECT_AUTHORITY'
     ])
   });
