@@ -36,6 +36,7 @@ await test('TEN_RUNNABLE_INCREMENTS_ARE_BABYSAT_TO_TERMINAL', async () => {
   const result = await runBabysitHost({
     initial_state: initial,
     max_iterations: 20,
+    reduce_ten:()=>({collapse_to_1:true,hotpatch_required:false}),
     step: ({ state, packet }) => ({
       ...state,
       backlog: state.backlog.map((item) => item.id === packet.work_ref ? { ...item, state: 'DONE' } : item),
@@ -46,6 +47,8 @@ await test('TEN_RUNNABLE_INCREMENTS_ARE_BABYSAT_TO_TERMINAL', async () => {
   assert.equal(result.directive_count, 11);
   assert.equal(result.yield_allowed, true);
   assert.equal(result.terminal, true);
+  assert.equal(result.ten_receipts.length,1);
+  assert.equal(result.ten_receipts[0].collapse_to_1,true);
 });
 
 await test('ELEVENTH_STEP_REQUIRES_TEN_REDUCER', async () => {
