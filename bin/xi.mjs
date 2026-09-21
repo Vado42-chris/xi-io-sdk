@@ -22,6 +22,7 @@ import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileColdStartFlatpack } from '../src/flatpack/cold-start.mjs';
+import { compileMultiLoopRefire } from '../src/cadence/refire.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 function usage(code = 0) {
@@ -60,6 +61,7 @@ Pure compilers:
   xi-io crm current [--root <root>] [--require <KR-1,KR-2>] [--limit <N>]
   xi-io graph cube --input <dependency-cube.json> [--out <projection.json>]
   xi-io flatpack cold-start --input <cold-start.json> [--out <flatpack.json>]
+  xi-io refire compile --input <refire.json> [--out <refire-result.json>]
   xi-io cadence continue --input <continuation.json> [--out <continuation-result.json>]
   xi-io studio topology --input <install.json> [--out <topology.json>]
   xi-io studio roster --input <registry.json> [--out <roster.json>]
@@ -99,6 +101,7 @@ Compatibility alias (existing scripts/tests):
   xi crm current
   xi graph cube
   xi flatpack cold-start
+  xi refire compile
   xi cadence continue
   xi studio topology
   xi studio roster
@@ -467,6 +470,8 @@ try {
     writeOutput(compileDependencyCube(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'flatpack' && action === 'cold-start') {
     writeOutput(compileColdStartFlatpack(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'refire' && action === 'compile') {
+    writeOutput(compileMultiLoopRefire(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'studio' && action === 'topology') {
     writeOutput(compileStudioHeadlessTopology(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'stack' && action === 'compile') {
