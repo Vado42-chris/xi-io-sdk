@@ -11,6 +11,7 @@ import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileMiniPromptStack, applyMiniPromptReceipt } from '../src/cadence/mini-prompt-stack.mjs';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
+import { compileProjectProjection } from '../src/projections/project-projection.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
 import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
@@ -57,6 +58,7 @@ Pure compilers:
   xi-io stack compile --input <mini-prompt.json> [--out <punchcards.json>]
   xi-io stack reap --input <punchcards.json> --card <C001> --receipt <ref> [--verified true]
   xi-io work egress --input <work-egress.json> [--out <projection.json>]
+  xi-io project projection --input <project-projection.json> [--out <projection.json>]
   xi-io ack distribute --baseline <baseline.json> --rotfl <rotfl-context.json> [--out <acks.json>]
   xi-io ack validate --input <ack.json> [--out <validation.json>]
   xi-io ack order [--out <order.json>]
@@ -91,6 +93,7 @@ Compatibility alias (existing scripts/tests):
   xi stack compile
   xi stack reap
   xi work egress
+  xi project projection
   xi ack distribute
   xi ack validate
   xi ack order
@@ -450,6 +453,8 @@ try {
     writeOutput(compileContinuationCycle(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'work' && action === 'egress') {
     writeOutput(compileWorkEgressProjection(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'project' && action === 'projection') {
+    writeOutput(compileProjectProjection(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'baseline') {
     const command = normalizeBaselineCommand(action);
     if (!command.verb || command.verb === 'compile') usage(1);
