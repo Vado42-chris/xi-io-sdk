@@ -82,6 +82,16 @@ export function compileProgressGateGraduation(input={}){
   const cells=[];
   const add=(id,state,evidence_refs=[],reason=null)=>cells.push({id,state,evidence_refs:[...new Set(evidence_refs)],reason});
 
+  const hundreds=input.current_100s||{};
+  const hundredsPass=hundreds.current===true
+    && hundreds.denominator===100
+    && hundreds.silent_remainder===0
+    && typeof hundreds.generation==='string' && hundreds.generation.length>0
+    && typeof hundreds.evidence_ref==='string' && hundreds.evidence_ref.length>0;
+  add('G00_CURRENT_100S',hundredsPass?'PASS':'FAIL',
+    hundredsPass?[hundreds.evidence_ref]:[],
+    hundredsPass?null:'CURRENT_100S_NOT_BOUND');
+
   add('G01_SEQUENTIAL_ROLE',
     current_role===target.previous_role?'PASS':'FAIL',
     [`current:${current_role}`,`required_previous:${target.previous_role}`],
@@ -202,6 +212,9 @@ export function compileProgressGateGraduation(input={}){
     rank_promotion_authority:false,
     hard:[
       'PROGRESS_GATED_ROLE!=GAMIFY_LEVEL',
+      'CURRENT_100S_REQUIRED_FOR_GRADUATION',
+      'CURRENT_100S_DENOMINATOR_MUST_EQUAL_100',
+      'SILENT_REMAINDER_GT_0!=GRADUATION',
       'GAMIFY_BONUS!=GRADUATION',
       'ROLE_SKIP!=GRADUATION',
       'CURRENT_BASELINES_REQUIRED_EACH_ATTEMPT',
