@@ -111,8 +111,10 @@ export function compileTriageIngress(input={}){
     simulated_team_denominator:teams.length,
     simulated_teams:teams,
     live_materialized_teams:0,
-    live_materialization_state:'SEPARATE_ACK_QUALIFICATION_REQUIRED',
-    next:!triageRequired?'CONTINUE_SINGLETON_ATOMIC_GATE':missingPartition?'CENSUS_PARTITIONS_THEN_RECOMPILE':'RUN_SIM_TEAMS_PARALLEL_THEN_QUANTIZE_RETURNS',
+    internal_live_dispatches:0,
+    external_live_dispatches:0,
+    live_materialization_state:'FORBIDDEN_DURING_SELF_REPAIR__SEPARATE_ACK_QUALIFICATION_REQUIRED_AFTER_ROOT_GREEN',
+    next:!triageRequired?'CONTINUE_SINGLETON_ATOMIC_GATE':missingPartition?'CENSUS_PARTITIONS_THEN_RECOMPILE':'RUN_SIM_TEAMS_IN_PROCESS_THEN_QUANTIZE_RETURNS__NO_LIVE_DISPATCH',
     authority_granted:false,
     effect_authority:0,
     hard:[
@@ -124,6 +126,10 @@ export function compileTriageIngress(input={}){
       'QUANTIZE_BEFORE_TEAM_FANOUT',
       'N_SIM_TEAMS_ALLOWED',
       'SIM_TEAM!=LIVE_TEAM',
+      'SELF_REPAIR_BEFORE_INTERNAL_LIVE_FANOUT',
+      'SELF_REPAIR_BEFORE_EXTERNAL_LIVE_FANOUT',
+      'INTERNAL_LIVE_FANOUT=0_DURING_ROOT_REPAIR',
+      'EXTERNAL_LIVE_FANOUT=0_DURING_ROOT_REPAIR',
       'TEAM_PROJECTION!=DISPATCH',
       'TRIAGE_REQUIRED+SERIAL_SELF_RESEARCH=TIMING_FAIL',
       'LIVE_MATERIALIZATION_REQUIRES_ACK_AND_PROGRESS_GATE'
