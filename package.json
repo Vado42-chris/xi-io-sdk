@@ -61,7 +61,8 @@
     "./data/qual-quant-topography": "./src/data/qual-quant-topography.mjs",
     "./bridges/crm-current": "./src/bridges/crm-current.mjs",
     "./graphs/dependency-cube": "./src/graphs/dependency-cube.mjs",
-    "./ibal/triage-ingress": "./src/ibal/triage-ingress.mjs"
+    "./ibal/triage-ingress": "./src/ibal/triage-ingress.mjs",
+    "./ibal/team-kit": "./src/ibal/team-kit.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
@@ -84,6 +85,7 @@
     "check:qual-quant-topography": "node scripts/validate-qual-quant-topography.mjs",
     "check:crm-current-bridge": "node scripts/validate-crm-current-bridge.mjs",
     "check:dependency-cube": "node scripts/validate-dependency-cube.mjs",
-    "check:triage-ingress": "node scripts/validate-triage-ingress.mjs"
+    "check:triage-ingress": "node scripts/validate-triage-ingress.mjs",
+    "check:ibal-team-kit": "node scripts/validate-ibal-team-kit.mjs"
   }
 }
