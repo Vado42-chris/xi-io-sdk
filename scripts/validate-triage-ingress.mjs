@@ -39,6 +39,9 @@ assert.equal(r.raw_partition_denominator,4);
 assert.equal(r.quantized_partition_denominator,3);
 assert.equal(r.simulated_team_denominator,3);
 assert.equal(r.live_materialized_teams,0);
+assert.equal(r.internal_live_dispatches,0);
+assert.equal(r.external_live_dispatches,0);
+assert.match(r.next,/NO_LIVE_DISPATCH/);
 assert.equal(r.simulated_teams.every(t=>t.roles.length===3),true);
 
 {
