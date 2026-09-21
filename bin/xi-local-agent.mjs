@@ -26,7 +26,7 @@ const commands = new Set(['git', 'node', 'npm', 'python', 'python3', 'bash']);
 const xiCli = fileURLToPath(new URL('./xi.mjs', import.meta.url));
 const xiioFamilies = new Set([
   'baseline','product','fleet','100s','preflight','cadence','studio','stack',
-  'work','ack','burnmap','lesson','lexicon','sdk',
+  'work','ack','burnmap','lesson','lexicon','sdk','crm','graph','flatpack','refire',
 ]);
 const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--returns']);
 const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
