@@ -15,6 +15,18 @@ assert.equal(glassEdges.length,4);
 assert(glassEdges.every(e=>e.currentness==='UNKNOWN'));
 assert.equal(glassEdges.find(e=>e.edge_id==='glass:live_promotion_allowed').state,'FAIL');
 
+// UNVERIFIED_SUBSTRING_HOSTILE: "UNVERIFIED" contains "VERIFIED" but must never earn currentness.
+{
+ const hostile={...glass,verification_state:'SUPPLIED_UNVERIFIED_LOCAL_READBACK',semantic_projection:{currentness_credit:0}};
+ const edges=dependencyEdgesFromGlassBox(hostile,{affected_project_refs:['proj:search']});
+ assert(edges.every(e=>e.currentness==='UNKNOWN'));
+}
+{
+ const verified={...glass,verification_state:'VERIFIED_CURRENT',semantic_projection:{currentness_credit:0}};
+ const edges=dependencyEdgesFromGlassBox(verified,{affected_project_refs:['proj:search']});
+ assert(edges.every(e=>e.currentness==='CURRENT'));
+}
+
 function base(){
  return {
   schema:'xiio.sdk.dependency-cube/v1',
