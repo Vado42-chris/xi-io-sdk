@@ -105,7 +105,9 @@ export function dependencyEdgesFromGlassBox(envelope,{affected_project_refs=[],o
   const gates=envelope.data?.gates;
   if(!gates||typeof gates!=='object'||Array.isArray(gates))throw new TypeError('glass_gates_INVALID');
   const evidence=[...(envelope.evidence_refs||[]),...(envelope.receipt_refs||[])].filter(Boolean);
-  const currentnessState=envelope.semantic_projection?.currentness_credit>0||String(envelope.verification_state||'').includes('VERIFIED')
+  const verificationState=String(envelope.verification_state||'').trim().toUpperCase();
+  const verifiedStates=new Set(['VERIFIED','VERIFIED_CURRENT','PROVIDER_VERIFIED','NATIVE_READBACK_VERIFIED']);
+  const currentnessState=envelope.semantic_projection?.currentness_credit>0||verifiedStates.has(verificationState)
     ? 'CURRENT':'UNKNOWN';
   return Object.entries(gates).map(([gate,value])=>{
     const raw=String(value||'').toUpperCase();
