@@ -19,7 +19,17 @@ for token in \
   "@ibal conductor" \
   "OWNER_AS_CLOCK = FAIL" \
   "ACK_LEDGER_WITHOUT_SDK_CONSUMER = STEW" \
-  "B10_NO_PROSE_ONLY_ACK"; do
+  "B10_NO_PROSE_ONLY_ACK" \
+  "OWNER_TO_IBAL_INGRESS_OPEN_OR_TYPED_BLOCK" \
+  "IBAL_TO_TEAM_PROVIDER_EGRESS_OPEN_OR_TYPED_BLOCK" \
+  "BILLING_HOLD_STATE" \
+  "ADMISSION_HOLD_STATE" \
+  "EFFECT_HOLD_STATE" \
+  "ACK_UUID_CURRENT" \
+  "NO_OWNER_RELAY_FOR_MACHINE_RESOLVABLE_STATE" \
+  "DO_NOT_EXTERNALIZE_FIRST" \
+  "INGRESS_OPEN != EGRESS_OPEN" \
+  "ONE_SIDED_PROVIDER_GATE != COMMUNICATION_HEALTH"; do
   case "$spec" in *"$token"*) ;; *) fail "MISSING_TOKEN_${token// /_}" ;; esac
 done
 printf '{"schema":"xiio.sdk.ack-bounce.validator/v1","state":"PASS","spec":"standards/ack/ack-bounce-metered-loop.v1.json","effect_authority":0,"surfaces":["ACK lifecycle","bounce rules","metered billing syncopation","team sync","ROTFL monitor binding"],"hard":"ACK ledger without SDK consumer is stew; prose ACK is not ACK packet"}\n'
