@@ -53,7 +53,7 @@ function base(){
    {edge_id:'ext:web',dependency_key:'provider.web',target_ref:'provider:web',owner_ref:'SearchProvider',state:'TRUE_WAIT',currentness:'UNKNOWN',evidence_refs:[],wake:'BIND_WEB_PROVIDER',affected_project_refs:['proj:search']},
    {edge_id:'ext:canlii',dependency_key:'provider.canlii',target_ref:'provider:canlii',owner_ref:'Plugins',state:'TRUE_WAIT',currentness:'UNKNOWN',evidence_refs:[],wake:'BUILD_CANLII_ADAPTER',affected_project_refs:['proj:sam_law']}
   ],
-  glass_edges:glassEdges
+  glass_edges:glassEdges.map((edge)=>({...edge}))
  };
 }
 const clean=compileDependencyCube(base());
