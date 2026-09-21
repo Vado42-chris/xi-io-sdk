@@ -307,7 +307,19 @@
           "O11": [
             "fixture:canary-060-chain-recovery-self-ack.v1.json:preflight:O11"
           ]
-        }
+        },
+        "managed_current": {
+          "provider_current_ref": "fixture:provider-current:g1",
+          "studio_handoff_ref": "fixture:studio-current-handoff:g1",
+          "studio_session_ingress_ref": "fixture:studio-current-session-ingress:g1",
+          "current_selector_ref": "fixture:current-selector:g1",
+          "waterfall_ref": "fixture:waterfall:g1",
+          "registered_backlog_ref": "fixture:registered-backlog:g1",
+          "waterfall_generation": "g1",
+          "registered_backlog_generation": "g1",
+          "owner_restatement_count": 0
+        },
+        "managed_current_bound": true
       }
     }
   },
@@ -590,7 +602,19 @@
           "O11": [
             "fixture:canary-060-chain-recovery-self-ack.v1.json:preflight:O11"
           ]
-        }
+        },
+        "managed_current": {
+          "provider_current_ref": "fixture:provider-current:g1",
+          "studio_handoff_ref": "fixture:studio-current-handoff:g1",
+          "studio_session_ingress_ref": "fixture:studio-current-session-ingress:g1",
+          "current_selector_ref": "fixture:current-selector:g1",
+          "waterfall_ref": "fixture:waterfall:g1",
+          "registered_backlog_ref": "fixture:registered-backlog:g1",
+          "waterfall_generation": "g1",
+          "registered_backlog_generation": "g1",
+          "owner_restatement_count": 0
+        },
+        "managed_current_bound": true
       }
     },
     "ack_sources": [

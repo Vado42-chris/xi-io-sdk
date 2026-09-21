@@ -4,9 +4,21 @@ import { compileRotflOrderOfOperations, validateRotflOrderOfOperations, rotflOrd
 const evidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:evidence:${id}`]]));
 const preflight = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:preflight:${id}`]]));
 const ids = ROTFL_ORDER_STEPS.map(({id})=>id);
+const managedCurrent={
+  provider_current_ref:'github:xi-io-sdk@fixture-main',
+  studio_handoff_ref:'github:xi-io-studio/STUDIO-CURRENT-HANDOFF.current.json',
+  studio_session_ingress_ref:'github:xi-io-studio/STUDIO-CURRENT-SESSION-INGRESS.current.json',
+  current_selector_ref:'studio:current-selector:g1',
+  waterfall_ref:'waterfall:fixture:g1',
+  registered_backlog_ref:'backlog:fixture:g1',
+  waterfall_generation:'g1',
+  registered_backlog_generation:'g1',
+  owner_restatement_count:0,
+};
 
 const clean = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
+  managed_current:managedCurrent,
   completed_step_ids:ids.slice(0,12),
   evidence_refs:evidence,
   preflight_refs:preflight,
@@ -25,8 +37,8 @@ assert.deepEqual(catalog.steps.map((x)=>x.id),ids);
 let rejected=0;
 let falseGreen=0;
 
-for(let i=0;i<110;i+=1){
-  const mode=i%11;
+for(let i=0;i<150;i+=1){
+  const mode=i%15;
   const candidate=JSON.parse(JSON.stringify(clean));
 
   if(mode===0) candidate.completed_step_ids=['O0','O2'];
@@ -40,18 +52,23 @@ for(let i=0;i<110;i+=1){
   if(mode===8) candidate.source_generation='';
   if(mode===9) candidate.profile_ref='sdk:rotfl-ack-oor:wrong';
   if(mode===10) candidate.preflight_refs.O7=[];
+  if(mode===11) candidate.managed_current.provider_current_ref=null;
+  if(mode===12) candidate.managed_current.studio_handoff_ref=null;
+  if(mode===13) candidate.managed_current.registered_backlog_generation='g2';
+  if(mode===14) candidate.managed_current.owner_restatement_count=1;
 
   const verdict=validateRotflOrderOfOperations(candidate);
   if(verdict.ok) falseGreen += 1;
   else rejected += 1;
 }
 
-assert.equal(rejected,110);
+assert.equal(rejected,150);
 assert.equal(falseGreen,0);
 
 for(let n=0;n<=ROTFL_ORDER_STEPS.length;n+=1){
   const prefix=compileRotflOrderOfOperations({
     source_generation:`fixture:g${n}`,
+    managed_current:managedCurrent,
     completed_step_ids:ids.slice(0,n),
     evidence_refs:evidence,
     preflight_refs:preflight,
@@ -65,7 +82,7 @@ for(let n=0;n<=ROTFL_ORDER_STEPS.length;n+=1){
 console.log(JSON.stringify({
   mode:'ROTFL_ACK_ORDER_OF_OPERATIONS',
   denominator:ROTFL_ORDER_STEPS.length,
-  hostile_denominator:110,
+  hostile_denominator:150,
   increment_preflight_required:true,
   increment_preflight_denominator:ROTFL_ORDER_STEPS.length,
   hostile_rejected:rejected,

@@ -26,6 +26,32 @@ const bounded = (value, max=512) =>
 
 const canonicalIds = Object.freeze(ROTFL_ORDER_STEPS.map((step)=>step.id));
 
+const managedCurrentFields = Object.freeze([
+  'provider_current_ref',
+  'studio_handoff_ref',
+  'studio_session_ingress_ref',
+  'current_selector_ref',
+  'waterfall_ref',
+  'registered_backlog_ref',
+  'waterfall_generation',
+  'registered_backlog_generation',
+]);
+
+function normalizeManagedCurrent(value={}) {
+  const out={};
+  for (const key of managedCurrentFields) out[key]=bounded(value?.[key]) ? value[key] : null;
+  out.owner_restatement_count=Number.isInteger(value?.owner_restatement_count) && value.owner_restatement_count>=0
+    ? value.owner_restatement_count
+    : null;
+  return out;
+}
+
+function managedCurrentBound(value) {
+  return managedCurrentFields.every((key)=>bounded(value?.[key]))
+    && value.waterfall_generation===value.registered_backlog_generation
+    && value.owner_restatement_count===0;
+}
+
 function normalizeEvidence(value={}) {
   const out={};
   for (const [key, refs] of Object.entries(value || {})) {
@@ -57,6 +83,24 @@ export function validateRotflOrderOfOperations(value) {
   const expectedCurrent = completed.length < canonicalIds.length ? canonicalIds[completed.length] : null;
   if ((value.current_step_id ?? null) !== expectedCurrent) errors.push('ROTFL_OOR_CURRENT_STEP_MISMATCH');
 
+  const managedCurrent=normalizeManagedCurrent(value.managed_current);
+  if (completed.includes('O0') && !managedCurrent.provider_current_ref) {
+    errors.push('ROTFL_OOR_O0_PROVIDER_CURRENT_UNBOUND');
+  }
+  if (completed.includes('O2')) {
+    for (const key of managedCurrentFields.filter((key)=>key!=='provider_current_ref')) {
+      if (!managedCurrent[key]) errors.push('ROTFL_OOR_O2_MANAGED_CURRENT_UNBOUND:'+key);
+    }
+    if (managedCurrent.waterfall_generation && managedCurrent.registered_backlog_generation
+      && managedCurrent.waterfall_generation!==managedCurrent.registered_backlog_generation) {
+      errors.push('ROTFL_OOR_WATERFALL_BACKLOG_GENERATION_MISMATCH');
+    }
+    if (managedCurrent.owner_restatement_count===null) errors.push('ROTFL_OOR_OWNER_RESTATEMENT_COUNT_REQUIRED');
+    else if (managedCurrent.owner_restatement_count!==0) errors.push('ROTFL_OOR_OWNER_RESTATEMENT_NONZERO');
+  }
+  const managedBound=managedCurrentBound(managedCurrent);
+  if (value.managed_current_bound !== managedBound) errors.push('ROTFL_OOR_MANAGED_CURRENT_STATE_MISMATCH');
+
   const evidence = normalizeEvidence(value.evidence_refs);
   const preflight = normalizeEvidence(value.preflight_refs);
   for (const id of completed) {
@@ -80,18 +124,22 @@ export function validateRotflOrderOfOperations(value) {
     next_step_id: expectedCurrent,
     completed_count: completed.length,
     denominator: canonicalIds.length,
+    managed_current_bound: managedBound,
   };
 }
 
 export function compileRotflOrderOfOperations(input={}) {
   const completed = Array.isArray(input.completed_step_ids) ? [...input.completed_step_ids] : [];
   const evidence = normalizeEvidence(input.evidence_refs);
+  const managedCurrent=normalizeManagedCurrent(input.managed_current);
   const provisional = {
     schema: ROTFL_ORDER_SCHEMA,
     profile_ref: ROTFL_ORDER_PROFILE_REF,
     increment_preflight_profile_ref: ROTFL_INCREMENT_PREFLIGHT_PROFILE_REF,
     preflight_before_every_increment: true,
     source_generation: input.source_generation || null,
+    managed_current: managedCurrent,
+    managed_current_bound: managedCurrentBound(managedCurrent),
     steps: ROTFL_ORDER_STEPS.map((step)=>({...step})),
     completed_step_ids: completed,
     current_step_id: completed.length < canonicalIds.length ? canonicalIds[completed.length] : null,
@@ -121,6 +169,9 @@ export function compileRotflOrderOfOperations(input={}) {
       'INCREMENT_WITHOUT_PREFLIGHT!=COMPLETE',
       'PREFLIGHT_PASS_AT_PRIOR_INCREMENT!=CURRENT_INCREMENT_PREFLIGHT',
       'DRIFT_BETWEEN_INCREMENTS->REENTER_PREFLIGHT',
+      'STUDIO_CURRENT_UNBOUND!=PRE_ATTEMPT_READY',
+      'WATERFALL_BACKLOG_GENERATION_MISMATCH=FAIL_CLOSED',
+      'OWNER_RESTATEMENT_NONZERO!=ADMITTED_COLD_START',
     ],
   };
   const verdict = validateRotflOrderOfOperations(provisional);
@@ -134,6 +185,7 @@ export function rotflOrderCatalog() {
     profile_ref:ROTFL_ORDER_PROFILE_REF,
     increment_preflight_profile_ref:ROTFL_INCREMENT_PREFLIGHT_PROFILE_REF,
     preflight_before_every_increment:true,
+    managed_current_required:true,
     denominator:ROTFL_ORDER_STEPS.length,
     pre_attempt_last_step:ROTFL_PRE_ATTEMPT_LAST_STEP,
     steps:ROTFL_ORDER_STEPS.map((step)=>({...step})),
