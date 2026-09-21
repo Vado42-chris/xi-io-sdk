@@ -14,8 +14,20 @@ import { compileRotflOrderOfOperations, ROTFL_ORDER_STEPS } from '../src/preflig
 
 const orderEvidence = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:oor:${id}`]]));
 const orderPreflight = Object.fromEntries(ROTFL_ORDER_STEPS.map(({id})=>[id,[`fixture:preflight:${id}`]]));
+const managedCurrent = {
+  "provider_current_ref": "fixture:provider-current:g1",
+  "studio_handoff_ref": "fixture:studio-current-handoff:g1",
+  "studio_session_ingress_ref": "fixture:studio-current-session-ingress:g1",
+  "current_selector_ref": "fixture:current-selector:g1",
+  "waterfall_ref": "fixture:waterfall:g1",
+  "registered_backlog_ref": "fixture:registered-backlog:g1",
+  "waterfall_generation": "g1",
+  "registered_backlog_generation": "g1",
+  "owner_restatement_count": 0
+};
 const orderOfOperations = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
+  managed_current:managedCurrent,
   completed_step_ids:ROTFL_ORDER_STEPS.map(({id})=>id).slice(0,12),
   evidence_refs:orderEvidence,
   preflight_refs:orderPreflight,
@@ -110,6 +122,7 @@ assert.equal(validateRotflDistributedAck(baseAck).ok, false); checks += 1;
 assert.equal(validateRotflDistributedAck({ ...baseAck, rotfl }).ok, true); checks += 1;
 const earlyOrder = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
+  managed_current:managedCurrent,
   completed_step_ids:['O0','O1','O2'],
   evidence_refs:orderEvidence,
   preflight_refs:orderPreflight,
