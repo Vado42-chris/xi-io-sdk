@@ -18,6 +18,7 @@ function good(role){
     source_generation:generation,
     current_role:spec.previous_role,
     target_role:role,
+    current_100s:{current:true,generation:'G1',denominator:100,silent_remainder:0,evidence_ref:'fixture:100s:g1'},
     project_baselines:Object.fromEntries(['SDK_BASELINE_CURRENT','ACK_BASELINE_CURRENT','ORGANIZATIONAL_INTENT_CURRENT','CURRENT_SELECTOR_CURRENT'].map(id=>[id,{state:'PASS',evidence_refs:[`fixture:${id}`]}])),
     preflight_receipts:Object.fromEntries(spec.required_profiles.map(profile=>[profile,{compiled_receipt:goodProfile(profile),evidence_ref:`fixture:receipt:${profile}`} ])),
     hostile_test:{denominator:100,hostile_rejected:100,false_green:0,fixture_ref:'fixture:hostiles:100',receipt_ref:'fixture:hostiles:receipt'},
@@ -45,6 +46,7 @@ for(const role of catalog.roles.map(x=>x.role)){
 }
 
 const hostileMutators=[
+  x=>{x.current_100s.current=false;},
   x=>{x.current_role='UNQUALIFIED';},
   x=>{x.project_baselines.ACK_BASELINE_CURRENT={state:'FAIL',evidence_refs:['x']};},
   x=>{delete x.preflight_receipts[Object.keys(x.preflight_receipts)[0]];},
