@@ -15,6 +15,9 @@ function goodKit(role='EXECUTE_RESOLVE'){
     hot_folder_ref:'framework:standards/preflight/trinity-metered-hotpatch.v1.json',
     ack_template_refs:['sdk:acks/rotfl-template'],
     return_target_ref:'search:SEARCH_GLOBAL_PRIORITY_G1',
+    disclosure_ref:'sdk:articles/progressive-disclosure',
+    tool_call_budget:3,
+    max_items_per_pass:10,
     effect_ceiling:0,
   };
 }
@@ -29,7 +32,7 @@ function goodTen(){
   };
 }
 
-for(const role of IBAL_TEAM_ROLES) assert.equal(compileIbalTeamKit(goodKit(role)).kit_complete,true);
+for(const role of IBAL_TEAM_ROLES){ const k=compileIbalTeamKit(goodKit(role)); assert.equal(k.kit_complete,true); assert.equal(k.tool_call_budget,3); assert.equal(k.max_items_per_pass,10); assert(k.disclosure_ref); }
 assert.equal(compileIbalTenReducer(goodTen()).collapse_to_1,true);
 
 const mutations=[
@@ -40,6 +43,9 @@ const mutations=[
   x=>{x.ack_template_refs=[];},
   x=>{x.return_target_ref='';},
   x=>{x.effect_ceiling=1;},
+  x=>{x.disclosure_ref='';},
+  x=>{x.tool_call_budget=11;},
+  x=>{x.max_items_per_pass=26;},
 ];
 let kitRejected=0;
 for(let i=0;i<100;i++){
