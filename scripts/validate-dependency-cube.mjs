@@ -5,7 +5,7 @@ const glass={
  schema:'xiio.api-glass-box.response-envelope/v1',
  request_id:'req-1',
  verification_state:'SUPPLIED_UNVERIFIED_LOCAL_READBACK',
- evidence_refs:['xi-io doctor'],
+ evidence_refs:['cli:xi-io:doctor'],
  receipt_refs:['local-truth:aries:t1'],
  semantic_projection:{currentness_credit:0},
  data:{gates:{local_cli_reachable:'PASS',ollama_reachable:'PASS',source_head_readback:'PASS',live_promotion_allowed:'FAIL'}}
