@@ -19,6 +19,7 @@ import { compileProgressGateGraduation, progressGatedRoleCatalog } from '../src/
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
+import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 function usage(code = 0) {
@@ -54,6 +55,7 @@ Pure compilers:
   xi-io preflight profiles [--out <profiles.json>]
   xi-io preflight role --input <role-graduation.json> [--out <receipt.json>]
   xi-io preflight roles [--out <roles.json>]
+  xi-io crm current [--root <root>] [--require <KR-1,KR-2>] [--limit <N>]
   xi-io cadence continue --input <continuation.json> [--out <continuation-result.json>]
   xi-io studio topology --input <install.json> [--out <topology.json>]
   xi-io studio roster --input <registry.json> [--out <roster.json>]
@@ -90,6 +92,7 @@ Compatibility alias (existing scripts/tests):
   xi preflight profiles
   xi preflight role
   xi preflight roles
+  xi crm current
   xi cadence continue
   xi studio topology
   xi studio roster
@@ -449,6 +452,11 @@ try {
     writeOutput(compileProgressGateGraduation(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'preflight' && action === 'roles') {
     writeOutput(progressGatedRoleCatalog(), flags.out);
+  } else if (family === 'crm' && action === 'current') {
+    const limit = flags.limit == null ? null : Number(flags.limit);
+    if (limit != null && (!Number.isInteger(limit) || limit < 1)) throw new Error('--limit must be a positive integer');
+    const requireIds = flags.require ? String(flags.require).split(',').map((x)=>x.trim()).filter(Boolean) : [];
+    writeOutput(readLocalCrmCurrent({root:flags.root||null,limit,requireIds}), flags.out);
   } else if (family === 'studio' && action === 'topology') {
     writeOutput(compileStudioHeadlessTopology(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'stack' && action === 'compile') {
