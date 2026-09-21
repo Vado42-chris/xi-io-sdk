@@ -15,6 +15,7 @@ import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baselin
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
 import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 import { compileGraduationPreflight, profileCatalog } from '../src/preflight/graduation.mjs';
+import { compileProgressGateGraduation, progressGatedRoleCatalog } from '../src/preflight/progress-gated-roles.mjs';
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
@@ -51,6 +52,8 @@ Pure compilers:
   xi-io 100s compile --input <four-scale.json> [--out <scorecard.json>]
   xi-io preflight compile --input <graduation.json> [--out <preflight.json>]
   xi-io preflight profiles [--out <profiles.json>]
+  xi-io preflight role --input <role-graduation.json> [--out <receipt.json>]
+  xi-io preflight roles [--out <roles.json>]
   xi-io cadence continue --input <continuation.json> [--out <continuation-result.json>]
   xi-io studio topology --input <install.json> [--out <topology.json>]
   xi-io studio roster --input <registry.json> [--out <roster.json>]
@@ -85,6 +88,8 @@ Compatibility alias (existing scripts/tests):
   xi 100s compile
   xi preflight compile
   xi preflight profiles
+  xi preflight role
+  xi preflight roles
   xi cadence continue
   xi studio topology
   xi studio roster
@@ -440,6 +445,10 @@ try {
     writeOutput(compileGraduationPreflight(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'preflight' && action === 'profiles') {
     writeOutput(profileCatalog(), flags.out);
+  } else if (family === 'preflight' && action === 'role') {
+    writeOutput(compileProgressGateGraduation(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'preflight' && action === 'roles') {
+    writeOutput(progressGatedRoleCatalog(), flags.out);
   } else if (family === 'studio' && action === 'topology') {
     writeOutput(compileStudioHeadlessTopology(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'stack' && action === 'compile') {
