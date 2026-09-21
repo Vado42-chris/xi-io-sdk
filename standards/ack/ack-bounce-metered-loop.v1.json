@@ -1,8 +1,8 @@
 {
   "schema": "xiio.sdk.ack-bounce-metered-loop/v1",
   "id": "SDK-ACK-BOUNCE-METERED-LOOP",
-  "status": "SOURCE_CANDIDATE_CURRENT",
-  "updated_at": "2026-09-20T10:52:00-06:00",
+  "status": "SOURCE_CURRENT_TWO_SIDED_THROTTLE_BOUND",
+  "updated_at": "2026-09-21T07:10:00-06:00",
   "operator_id": "SAMLAW-IBAL-DORI-20260920-01",
   "purpose": "Make ACK useful by requiring every worker/team loop to consume ACK packets, bounce unresolved cells back to the owning surface, meter owner harm/cog/time, and refuse false progression when RETURN/APPLY/REAP is missing.",
   "effect_authority": 0,
@@ -18,7 +18,13 @@
     "REAP",
     "NEXT_WAKE"
   ],
-  "binary_values": ["1", "0", "WAIT", "UNKNOWN", "N_A_WITH_EVIDENCE"],
+  "binary_values": [
+    "1",
+    "0",
+    "WAIT",
+    "UNKNOWN",
+    "N_A_WITH_EVIDENCE"
+  ],
   "required_ack_packet_fields": [
     "ack_id",
     "root_ref",
@@ -37,7 +43,13 @@
     "effect_authority",
     "meter",
     "owner_cog_delta",
-    "time_money_delta"
+    "time_money_delta",
+    "owner_to_ibal_ingress_state",
+    "ibal_to_team_provider_egress_state",
+    "billing_hold_state",
+    "admission_hold_state",
+    "effect_hold_state",
+    "ack_uuid_current"
   ],
   "bounce_rules": {
     "missing_ack": "bounce to owner/team ACK surface before selecting new work",
@@ -52,7 +64,12 @@
   "metered_billing_syncopation": {
     "unit": "owner-cog/time/harm meter; no real billing side effect by default",
     "rule": "Every bounce carries tic/cog/hope/trust/time=$ deltas where owner manually turned a machine-resolvable cog.",
-    "packet_density_gears": [1, 3, 9, 27],
+    "packet_density_gears": [
+      1,
+      3,
+      9,
+      27
+    ],
     "compile_before_submit": true,
     "fanout_rule": "Only fan out after ACK packet is compiled and density-selected. Do not flood teams with uncompiled seams.",
     "game_loop": "score PASS only when the ACK packet advances a real lifecycle cell or returns a typed WAIT with exact wake. Repeated prose ACK earns 0."
@@ -89,7 +106,8 @@
     "B07_CONSUMERS_BOUND": "required consumers are represented or typed WAIT",
     "B08_EFFECT_AUTHORITY_SAFE": "effect_authority=0 unless Ward/Switchboard admitted",
     "B09_REAP_ACCOUNTED": "new surfaces have reap state or WAIT_REAP",
-    "B10_NO_PROSE_ONLY_ACK": "chat/prose acknowledgment cannot satisfy SDK ACK primitive"
+    "B10_NO_PROSE_ONLY_ACK": "chat/prose acknowledgment cannot satisfy SDK ACK primitive",
+    "B11_TWO_SIDED_PROVIDER_THROTTLE": "OWNER_TO_IBAL ingress and IBAL_TO_TEAM/provider egress are independently OPEN or typed WAIT; billing/admission/effect holds explicit."
   },
   "hard": [
     "ACK_LEDGER_WITHOUT_SDK_CONSUMER = STEW",
@@ -99,7 +117,57 @@
     "MISSING_REAP != CLOSED",
     "TEAM_FANOUT_WITHOUT_COMPILED_PACKET = FLOOD",
     "METERED_BILLING_SYNCOPATION != PROVIDER_BILLING_SIDE_EFFECT",
-    "OWNER_AS_CLOCK = FAIL"
+    "OWNER_AS_CLOCK = FAIL",
+    "DO_NOT_EXTERNALIZE_FIRST",
+    "INGRESS_OPEN != EGRESS_OPEN",
+    "EGRESS_OPEN != INGRESS_OPEN",
+    "ONE_SIDED_PROVIDER_GATE != COMMUNICATION_HEALTH",
+    "SILENT_THROTTLE != PASS",
+    "OWNER_REPEATS_MACHINE_RESOLVABLE_PACKET = UX_FAIL"
   ],
-  "next": "Add a node-free SDK validator, then update xi-io.net blastwave chain and Studio active packet to mark SDK primitive bound instead of WAIT."
+  "next": "Consumers must project the two-sided throttle cells into Studio current/greenie packets and return typed WAIT rather than externalizing first or using owner as relay.",
+  "provider_metering_two_sided": {
+    "schema": "xiio.sdk.provider-metering-two-sided/v1",
+    "purpose": "Treat provider throttling/admission as two independently observable communication directions. Resolve internal Studio/current state before external/provider fanout.",
+    "directions": {
+      "OWNER_TO_IBAL_INGRESS": {
+        "cell": "OWNER_TO_IBAL_INGRESS_OPEN_OR_TYPED_BLOCK",
+        "pass": "owner/current instruction reaches the conductor and is bound to the current ACK packet",
+        "blocked": "WAIT_OWNER_TO_IBAL_INGRESS with exact provider/admission/billing blocker"
+      },
+      "IBAL_TO_TEAM_PROVIDER_EGRESS": {
+        "cell": "IBAL_TO_TEAM_PROVIDER_EGRESS_OPEN_OR_TYPED_BLOCK",
+        "pass": "compiled ACK packet can reach the affected team/provider surface",
+        "blocked": "WAIT_IBAL_TO_TEAM_PROVIDER_EGRESS with exact provider/admission/billing blocker"
+      }
+    },
+    "shared_cells": [
+      "BILLING_HOLD_STATE",
+      "ADMISSION_HOLD_STATE",
+      "EFFECT_HOLD_STATE",
+      "ACK_UUID_CURRENT",
+      "NO_OWNER_RELAY_FOR_MACHINE_RESOLVABLE_STATE"
+    ],
+    "resolution_order": [
+      "STUDIO_CURRENT",
+      "ACK_UUID_CURRENT",
+      "OWNER_TO_IBAL_INGRESS",
+      "IBAL_TO_TEAM_PROVIDER_EGRESS",
+      "BILLING_HOLD_STATE",
+      "ADMISSION_HOLD_STATE",
+      "EFFECT_HOLD_STATE",
+      "AFFECTED_TEAM_FANOUT"
+    ],
+    "fanout_gate": "Both communication directions must be OPEN or typed WAIT before downstream/provider fanout. A blocked direction may not be silently inferred from the other direction.",
+    "owner_relay_target": 0,
+    "effect_authority": 0,
+    "hard": [
+      "DO_NOT_EXTERNALIZE_FIRST",
+      "INGRESS_OPEN != EGRESS_OPEN",
+      "EGRESS_OPEN != INGRESS_OPEN",
+      "ONE_SIDED_PROVIDER_GATE != COMMUNICATION_HEALTH",
+      "SILENT_THROTTLE != PASS",
+      "OWNER_REPEATS_MACHINE_RESOLVABLE_PACKET = UX_FAIL"
+    ]
+  }
 }
