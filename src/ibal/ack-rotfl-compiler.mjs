@@ -31,6 +31,37 @@ function derivePartitions(ack){
   }));
 }
 
+function compileCogThrottle(raw={},openRefs=[]){
+  const ownerCurrent=int(raw.owner_current??0,'owner_current',0);
+  const ownerBudget=int(raw.owner_budget??0,'owner_budget',0);
+  const aiCurrent=int(raw.ai_current??0,'ai_current',0);
+  const aiBudget=int(raw.ai_budget??0,'ai_budget',0);
+  const maxActive=int(raw.max_active_items??1,'max_active_items',1,10);
+  const ownerOver=ownerCurrent>ownerBudget;
+  const aiOver=aiCurrent>aiBudget;
+  const active=ownerOver||aiOver;
+  const activeRefs=active?openRefs.slice(0,Math.min(maxActive,1)):openRefs.slice(0,maxActive);
+  const deferredRefs=openRefs.filter(x=>!activeRefs.includes(x));
+  return freeze({
+    state:active?'COG_THROTTLE_ACTIVE':'WITHIN_COG_BUDGET',
+    active,
+    owner:{current:ownerCurrent,budget:ownerBudget,over:ownerOver},
+    ai:{current:aiCurrent,budget:aiBudget,over:aiOver},
+    max_active_items:active?1:maxActive,
+    active_refs:activeRefs,
+    deferred_refs:deferredRefs,
+    suppressed_fanout:active,
+    hard:[
+      'OWNER_COG_OVER_BUDGET=>COLLAPSE',
+      'AI_COG_OVER_BUDGET=>COLLAPSE',
+      'COG_THROTTLE_ACTIVE=>ONE_FIRST_RED_ONLY',
+      'COG_THROTTLE_ACTIVE=>NO_NEW_TEAM_KITS',
+      'DEFERRED_WORK!=DROPPED_WORK',
+      'COG_BUDGET!=EFFECT_AUTHORITY'
+    ]
+  });
+}
+
 function compileEconomy(raw={}){
   const measured=raw.measured_elapsed_ms==null?null:int(raw.measured_elapsed_ms,'measured_elapsed_ms',0);
   const rateRaw=raw.rate_card||null;
@@ -164,6 +195,7 @@ export function compileIbalAckRotfl(input={}){
     ack_sources:input.ack_sources,
   });
 
+  const cog=compileCogThrottle(input.cog_pressure||{},ack.open_item_refs);
   const autoPartitions=derivePartitions(ack);
   const partitions=Array.isArray(input.partitions)&&input.partitions.length?input.partitions:autoPartitions;
   const signals={
@@ -184,7 +216,8 @@ export function compileIbalAckRotfl(input={}){
 
   const bindings=input.bindings||{};
   const teamKits=[];
-  for(const team of triage.simulated_teams){
+  const teamSource=cog.active?[]:triage.simulated_teams;
+  for(const team of teamSource){
     for(const role of IBAL_TEAM_ROLES){
       teamKits.push(compileIbalTeamKit({
         team_ref:`${team.simulated_team_ref}:${role}`,
@@ -210,7 +243,9 @@ export function compileIbalAckRotfl(input={}){
   const topography=input.topography?compileQualQuantTopography(input.topography):null;
   const patchMaterials=input.patch_materials&&typeof input.patch_materials==='object'?input.patch_materials:{};
   const open=new Set(ack.open_item_refs);
-  const patchPrep=ack.trinity.filter(x=>open.has(x.item_ref)).map(entry=>
+  const activeOpen=new Set(cog.active?cog.active_refs:ack.open_item_refs);
+  const deferredOpen=ack.open_item_refs.filter(x=>!activeOpen.has(x));
+  const patchPrep=ack.trinity.filter(x=>activeOpen.has(x.item_ref)).map(entry=>
     compilePatchPrep(entry,patchMaterials[entry.item_ref],bindings,input.rotfl_context)
   );
   const economy=compileEconomy(input.metering||{});
@@ -218,9 +253,11 @@ export function compileIbalAckRotfl(input={}){
   const patchFail=patchPrep.filter(x=>x.state==='FAIL_PATCH_PREP').length;
   const patchWait=patchPrep.filter(x=>x.state==='WAIT_PATCH_MATERIAL'||x.state==='PACK_BLOCKED_BY_GATES').length;
 
-  const next=ack.open_item_refs.length===0
-    ? 'VERIFY_SUPPLIED_ACKS_THEN_RETURN'
-    : patchFail>0
+  const next=cog.active&&ack.open_item_refs.length
+    ? 'COG_THROTTLE_FIRST_RED_ONLY'
+    : ack.open_item_refs.length===0
+      ? 'VERIFY_SUPPLIED_ACKS_THEN_RETURN'
+      : patchFail>0
       ? 'FIX_PATCH_PREP_FAILURES'
       : triage.triage_required
         ? 'RUN_SIM_TRIAGE_THEN_REDUCE_AND_PREP_PACKS'
@@ -239,12 +276,17 @@ export function compileIbalAckRotfl(input={}){
       silent_remainder:ack.silent_remainder
     },
     triage,
+    cog_throttle:cog,
+    active_first_red:cog.active_refs[0]||ack.open_item_refs[0]||null,
+    deferred_open_ack_refs:deferredOpen,
     team_kit_denominator:teamKits.length,
     team_kits:teamKits,
     topography_state:topography?(topography.quorum.complete?'QUORUM_COMPLETE':'BLOCKED_QUORUM'):'NOT_BOUND',
     topography,
     flatpack_prep:{
       denominator:patchPrep.length,
+      deferred_denominator:deferredOpen.length,
+      deferred_item_refs:deferredOpen,
       ready,
       wait:patchWait,
       fail:patchFail,
@@ -263,6 +305,9 @@ export function compileIbalAckRotfl(input={}){
       'ACK_PASS!=PATCH_READY',
       'ACK_ITEM!=WORKER',
       'OPEN_ACKS_QUANTIZE_BEFORE_TEAM_FANOUT',
+      'RECIPROCAL_COG_OVERLOAD=>ONE_FIRST_RED_ONLY',
+      'RECIPROCAL_COG_OVERLOAD=>NO_NEW_TEAM_KITS',
+      'DEFERRED_OPEN_ACKS_REMAIN_VISIBLE',
       'SIM_TEAM!=LIVE_TEAM',
       'TEAM_KIT!=DISPATCH',
       'PATCH_PREP!=PATCH_DEPLOY',
