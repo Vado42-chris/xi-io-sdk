@@ -21,6 +21,7 @@ import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
+import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 function usage(code = 0) {
@@ -58,6 +59,7 @@ Pure compilers:
   xi-io preflight roles [--out <roles.json>]
   xi-io crm current [--root <root>] [--require <KR-1,KR-2>] [--limit <N>]
   xi-io graph cube --input <dependency-cube.json> [--out <projection.json>]
+  xi-io ibal compile-acks --input <ack-pack.json> [--out <rotfl-pack.json>]
   xi-io cadence continue --input <continuation.json> [--out <continuation-result.json>]
   xi-io studio topology --input <install.json> [--out <topology.json>]
   xi-io studio roster --input <registry.json> [--out <roster.json>]
@@ -96,6 +98,7 @@ Compatibility alias (existing scripts/tests):
   xi preflight roles
   xi crm current
   xi graph cube
+  xi ibal compile-acks
   xi cadence continue
   xi studio topology
   xi studio roster
@@ -462,6 +465,8 @@ try {
     writeOutput(readLocalCrmCurrent({root:flags.root||null,limit,requireIds}), flags.out);
   } else if (family === 'graph' && action === 'cube') {
     writeOutput(compileDependencyCube(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'ibal' && action === 'compile-acks') {
+    writeOutput(compileIbalAckRotfl(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'studio' && action === 'topology') {
     writeOutput(compileStudioHeadlessTopology(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'stack' && action === 'compile') {
