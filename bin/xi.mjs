@@ -18,6 +18,7 @@ import { compileGraduationPreflight, profileCatalog } from '../src/preflight/gra
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
+import { compileProjectionArray, writeProjectionArray, readProjectionArray } from '../src/local/projection-array.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 function usage(code = 0) {
@@ -62,6 +63,8 @@ Pure compilers:
   xi-io ack order [--out <order.json>]
   xi-io burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]
   xi-io lesson promote --input <lesson.json> [--out <promotion.json>]
+  xi-io projection write --input <projection.json> [--state-root <dir>] [--studio-index <file>] [--out <receipt.json>]
+  xi-io projection read --root <uuid> --work <uuid> --generation <ref> [--state-root <dir>] [--studio-index <file>] [--require-studio true] [--view brief|payload] [--out <readback.json>]
 
 Runtime recovery:
   xi-io recover aries-runner            Plan/check only, no mutation
@@ -469,6 +472,23 @@ try {
     writeOutput(compileOrgBurnMap(baseline, returns), flags.out);
   } else if (family === 'lesson' && action === 'promote') {
     writeOutput(compileLessonPromotion(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'projection' && action === 'write') {
+    const compiled = compileProjectionArray(readJson(flags.input, '--input'));
+    writeOutput(writeProjectionArray(compiled, {
+      state_root: flags['state-root'] || null,
+      studio_index_path: flags['studio-index'] || null,
+    }), flags.out);
+  } else if (family === 'projection' && action === 'read') {
+    writeOutput(readProjectionArray({
+      root_uuid: flags.root,
+      work_uuid: flags.work,
+      generation_ref: flags.generation,
+      state_root: flags['state-root'] || null,
+      studio_index_path: flags['studio-index'] || null,
+      require_studio_index: flags['require-studio'] === 'true',
+      view: flags.view === 'payload' ? 'payload' : 'brief',
+      auto_heal: true,
+    }), flags.out);
   } else if (family === 'lexicon' && action === 'commands') {
     writeOutput(commandCatalog(), flags.out);
   } else usage(1);
