@@ -143,6 +143,22 @@ assert.equal(out.economy.billing_authorized,false);
 assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 assert.equal(out.next,'RUN_SIM_TRIAGE_THEN_REDUCE_AND_PREP_PACKS');
+assert.equal(out.cog_throttle.state,'WITHIN_COG_BUDGET');
+
+const overloadedInput=base();
+overloadedInput.cog_pressure={owner_current:4,owner_budget:1,ai_current:5,ai_budget:2,max_active_items:4};
+const overloaded=compileIbalAckRotfl(overloadedInput);
+assert.equal(overloaded.cog_throttle.state,'COG_THROTTLE_ACTIVE');
+assert.equal(overloaded.cog_throttle.owner.over,true);
+assert.equal(overloaded.cog_throttle.ai.over,true);
+assert.equal(overloaded.cog_throttle.max_active_items,1);
+assert.equal(overloaded.team_kit_denominator,0);
+assert.equal(overloaded.flatpack_prep.denominator,1);
+assert.equal(overloaded.flatpack_prep.deferred_denominator,1);
+assert.equal(overloaded.deferred_open_ack_refs.length,1);
+assert.equal(overloaded.active_first_red,'ack:ibal#currentness-a');
+assert.equal(overloaded.next,'COG_THROTTLE_FIRST_RED_ONLY');
+assert.equal(overloaded.live_worker_count,0);
 
 function validate(candidate){
   try{
@@ -190,6 +206,10 @@ console.log(JSON.stringify({
   flatpack_wait:out.flatpack_prep.wait,
   measured_elapsed_ms:out.economy.measured_elapsed_ms,
   exact_cost_microunits:out.economy.exact_cost_microunits,
+  reciprocal_cog_throttle:overloaded.cog_throttle.state,
+  overloaded_active_items:overloaded.cog_throttle.active_refs.length,
+  overloaded_deferred_items:overloaded.deferred_open_ack_refs.length,
+  overloaded_team_kits:overloaded.team_kit_denominator,
   hostile_denominator:burn.denominator,
   hostile_rejected:burn.rejected,
   false_green:burn.false_green,
