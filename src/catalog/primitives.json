@@ -17,11 +17,13 @@
     "PUBLIC_COMPONENT != PRIVATE_MANAGEMENT_TOPOLOGY",
     "PLAYGROUND_RENDER != QUALIFICATION_OR_OWNER_ACCEPTANCE",
     "DISPATCH_COUNTER != BINS_CURRENT",
-    "CATALOG_COUNT != LIVE_ADOPTION"
+    "CATALOG_COUNT != LIVE_ADOPTION",
+    "TOPOGRAPHY_PROJECTION_LABEL!=CANONICAL_OPERATION",
+    "PATH!=ILLUMINATION"
   ],
   "dispatch": {
     "expected": 40,
-    "materialized_primitives": 36,
+    "materialized_primitives": 37,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
@@ -504,6 +506,17 @@
       "export": "CubeCoordinate",
       "source": "src/flatpack/primitives.mjs",
       "specifier": "@xi-io/sdk/flatpack",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "topography-coordinate",
+      "callable_uuid": "11111111-1111-5111-8111-111111111111",
+      "family": "projection",
+      "kind": "compiler",
+      "export": "compileTopographyCoordinate",
+      "source": "src/projections/topography-coordinate.mjs",
+      "specifier": "@xi-io/sdk/projections/topography-coordinate",
       "styles": [],
       "maturity": "CANDIDATE"
     }
