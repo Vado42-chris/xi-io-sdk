@@ -29,14 +29,96 @@ export async function runBabysitHost(input = {}) {
 
   const maxIterations = integer(input.max_iterations, 100, 1, 10_000, 'BABYSIT_MAX_ITERATIONS');
   const stallLimit = integer(input.stall_limit, 2, 1, 100, 'BABYSIT_STALL_LIMIT');
+  const requireTemporalRebase = input.require_temporal_rebase === true;
+  const tenReducerRequired = input.ten_reducer_required !== false;
+  if (requireTemporalRebase && typeof input.rebase !== 'function') throw new Error('BABYSIT_TEMPORAL_REBASE_ADAPTER_REQUIRED');
 
   let state = clone(input.initial_state);
   let stalled = 0;
   let adapterCalls = 0;
+  let lastObservedAt = null;
+  let currentTen = [];
   const directives = [];
   const bugs = new Set();
+  const temporalRebases = [];
+  const tenReceipts = [];
+  const hotpatchReceipts = [];
 
   for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
+    if (typeof input.rebase === 'function') {
+      let rebased;
+      try {
+        rebased = await input.rebase({ iteration, state: clone(state), previous_observed_at: lastObservedAt });
+      } catch (error) {
+        throw new Error('BABYSIT_TEMPORAL_REBASE_ERROR:' + (error?.message || String(error)));
+      }
+      if (!rebased || typeof rebased !== 'object' || Array.isArray(rebased)) throw new Error('BABYSIT_TEMPORAL_REBASE_INVALID');
+      if (!rebased.state || typeof rebased.state !== 'object' || Array.isArray(rebased.state)) throw new Error('BABYSIT_TEMPORAL_REBASE_STATE_INVALID');
+      const observedAt = String(rebased.observed_at || '').trim();
+      const observedMs = Date.parse(observedAt);
+      if (!observedAt || !Number.isFinite(observedMs)) throw new Error('BABYSIT_TEMPORAL_REBASE_TIME_INVALID');
+      if (lastObservedAt && observedMs < Date.parse(lastObservedAt)) throw new Error('BABYSIT_TEMPORAL_REBASE_TIME_REGRESSION');
+      if (rebased.meter_required === true && !rebased.meter_state) throw new Error('BABYSIT_METER_STATE_REQUIRED');
+      lastObservedAt = observedAt;
+      state = clone(rebased.state);
+      temporalRebases.push({
+        iteration,
+        observed_at: observedAt,
+        deadline_at: rebased.deadline_at || null,
+        remaining_ms: Number.isFinite(Number(rebased.remaining_ms)) ? Number(rebased.remaining_ms) : null,
+        meter_state: rebased.meter_state || null,
+        billing_mode: rebased.billing_mode || null,
+      });
+    }
+
+    if (adapterCalls > 0 && adapterCalls % 10 === 0 && currentTen.length === 10) {
+      if (tenReducerRequired && typeof input.reduce_ten !== 'function') throw new Error('BABYSIT_TEN_REDUCER_REQUIRED');
+      if (typeof input.reduce_ten === 'function') {
+        let receipt;
+        try {
+          receipt = await input.reduce_ten({
+            ten_index: adapterCalls / 10,
+            state: clone(state),
+            steps: clone(currentTen),
+            observed_at: lastObservedAt,
+          });
+        } catch (error) {
+          throw new Error('BABYSIT_TEN_REDUCER_ERROR:' + (error?.message || String(error)));
+        }
+        if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) throw new Error('BABYSIT_TEN_REDUCER_INVALID');
+        tenReceipts.push(clone(receipt));
+        if (receipt.hotpatch_required === true) {
+          if (typeof input.hotpatch !== 'function') throw new Error('BABYSIT_PRESSURE_HOTPATCH_REQUIRED');
+          let patched;
+          try {
+            patched = await input.hotpatch({ state: clone(state), ten_receipt: clone(receipt), observed_at: lastObservedAt });
+          } catch (error) {
+            throw new Error('BABYSIT_PRESSURE_HOTPATCH_ERROR:' + (error?.message || String(error)));
+          }
+          if (!patched || typeof patched !== 'object' || Array.isArray(patched)) throw new Error('BABYSIT_PRESSURE_HOTPATCH_INVALID');
+          state = clone(patched.state || patched);
+          hotpatchReceipts.push(clone(patched.receipt || { ten_index: adapterCalls / 10, state: 'APPLIED' }));
+          let reread;
+          try {
+            reread = await input.reduce_ten({
+              ten_index: adapterCalls / 10,
+              state: clone(state),
+              steps: clone(currentTen),
+              observed_at: lastObservedAt,
+              after_hotpatch: true,
+            });
+          } catch (error) {
+            throw new Error('BABYSIT_TEN_REDUCER_REREAD_ERROR:' + (error?.message || String(error)));
+          }
+          if (!reread || reread.hotpatch_required === true || reread.collapse_to_1 !== true) throw new Error('BABYSIT_TEN_NOT_COLLAPSED_AFTER_HOTPATCH');
+          tenReceipts.push(clone(reread));
+        } else if (receipt.collapse_to_1 !== true) {
+          throw new Error('BABYSIT_TEN_NOT_COLLAPSED');
+        }
+      }
+      currentTen = [];
+    }
+
     const directive = compileContinuationDirective(state);
     directives.push({ iteration, directive: clone(directive) });
     for (const bug of directive.bugs ?? []) bugs.add(bug);
@@ -55,6 +137,10 @@ export async function runBabysitHost(input = {}) {
         final_state: clone(state),
         final_directive: clone(directive),
         directives,
+        temporal_rebase_count: temporalRebases.length,
+        temporal_rebases: temporalRebases,
+        ten_receipts: tenReceipts,
+        hotpatch_receipts: hotpatchReceipts,
         effects: 0,
         effect_authority: false,
         effect_ceiling: 'SDK_PROJECTION_ONLY__HOST_MUST_ENFORCE_EFFECT_AUTHORITY',
@@ -66,6 +152,11 @@ export async function runBabysitHost(input = {}) {
           'TRUE_WAIT | OWNER_ONLY | TERMINAL -> YIELD_ALLOWED',
           'UNCHANGED_STATE_REPEAT -> STALL_FAIL_CLOSED',
           'MAX_ITERATIONS != TERMINAL',
+          'TEMPORAL_REBASE_REQUIRED_WHEN_DEADLINE_OR_METER_BOUND',
+          'EVERY_TEN_REDUCES_MICRO_MESO_MACRO_MEGA_META_BEFORE_CHILD_11',
+          'STACK_LATENCY_OR_TEAM_PRESSURE -> HOTPATCH_BEFORE_NEXT_TEN',
+          'HOTPATCH_REQUIRED != TEN_COLLAPSED',
+          'METER_EVENT != MONEY',
           'SDK_BABYSIT_HOST != EFFECT_AUTHORITY',
         ],
       });
@@ -88,6 +179,13 @@ export async function runBabysitHost(input = {}) {
       throw new Error('BABYSIT_HOST_ADAPTER_ERROR:' + (error?.message || String(error)));
     }
     adapterCalls += 1;
+    currentTen.push({
+      iteration,
+      action: directive.next_packet?.action || null,
+      work_ref: directive.next_packet?.work_ref || null,
+      before_digest: before,
+      after_digest: stable(next),
+    });
 
     if (!next || typeof next !== 'object' || Array.isArray(next)) throw new Error('BABYSIT_HOST_ADAPTER_STATE_INVALID');
     const after = stable(next);
