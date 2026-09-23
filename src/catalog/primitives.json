@@ -32,8 +32,8 @@
     "FILE_CUBE_PREPARABLE != SHIPPED"
   ],
   "dispatch": {
-    "expected": 40,
-    "materialized_primitives": 40,
+    "expected": 41,
+    "materialized_primitives": 41,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
@@ -561,6 +561,17 @@
       "export": "compilePortableArtifactCube",
       "source": "src/documents/portable-artifact-cube.mjs",
       "specifier": "@xi-io/sdk/documents/portable-artifact-cube",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "x-seam-channel-projection",
+      "callable_uuid": "9c3e4dcb-f5e8-52db-9d96-3363a1d60146",
+      "family": "projection",
+      "kind": "compiler",
+      "export": "compileXSeamChannelProjection|verifyXSeamChannelProjection|expectedXSeamChannelId",
+      "source": "src/projections/x-seam-channel.mjs",
+      "specifier": "@xi-io/sdk/projections/x-seam-channel",
       "styles": [],
       "maturity": "CANDIDATE"
     }
