@@ -34,6 +34,7 @@ function ancestorNamed(start,name){
   return null;
 }
 function volumeRoot(cwd,env=process.env){
+  if(env.XIIO_VOLUME_ROOT && dir(env.XIIO_VOLUME_ROOT)) return real(env.XIIO_VOLUME_ROOT);
   const resolved=real(cwd);
   if(!resolved)return null;
   const user=env.USER||path.basename(os.homedir());
