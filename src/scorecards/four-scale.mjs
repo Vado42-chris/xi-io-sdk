@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
 
 export const FOUR_SCALE_SCHEMA = 'xiio.sdk.four-scale-scorecard/v1';
 export const FOUR_SCALE_LAYERS = Object.freeze(['MICRO','MESO','MACRO','META']);
@@ -31,6 +32,7 @@ function normalize(value = {}) {
 }
 
 export function compileFourScaleScorecard(input) {
+  const hexCurrentness = bindHexFloorCurrentness(input?.hex_floor,{subject_ref:input?.subject_ref,subject_generation:input?.subject_generation});
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('input required');
   const observations = input.observations || {};
   const layers = FOUR_SCALE_LAYERS.map((layer) => {
@@ -60,7 +62,9 @@ export function compileFourScaleScorecard(input) {
     authority_granted:false,
     provider_effect:false,
     subject_binding_state:/^(UNKNOWN|UNBOUND|PENDING)$/i.test(input.subject_generation.trim()) ? 'UNBOUND' : 'SUPPLIED_UNVERIFIED',
-    source_currentness:'UNVERIFIED',
+    source_currentness:hexCurrentness.state,
+    hex_projection_ref:hexCurrentness.projection_ref,
+    missing_punchcards:hexCurrentness.missing_punchcards,
     live_claim:false,
     layers,
     compound_display:layers.map(l=>`${l.layer}:${l.display}`).join(' | '),
