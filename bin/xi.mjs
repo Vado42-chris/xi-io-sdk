@@ -152,6 +152,7 @@ Runtime recovery:
 
 Product runtime:
   xi-io hex status                        Probe Hex loopback :8798
+  xi-io hex floor                         Read canonical HEX one-floor projection
   xi-io hex start                         Start existing installed Hex RC
   xi-io hex install                       Install/rejoin Hex RC from current framework
   xi-io hex open                          Open Hex in Studio suite
@@ -786,6 +787,12 @@ async function zedIbalRuntime(action='status'){
 async function productRuntime(family,action){
   if(family==='hex'){
     if(action==='status'||!action) return {schema:'xiio.cli.hex/v1',...(await simpleProbe('http://127.0.0.1:8798/health')),effect_authority:0};
+    if(action==='floor'){
+      const floor=await simpleProbe('http://127.0.0.1:8798/floor',6000);
+      if(floor.state!=='PASS') return {schema:'xiio.cli.hex-floor/v1',state:'TRUE_WAIT',first_red:'HEX_FLOOR_UNREACHABLE',probe:floor,effect_authority:0};
+      const body=floor.json||{};
+      return {...body,schema:body.schema||'xiio.hex.floor/v1',transport:'CLI_TO_HEX_8798',effect_authority:0};
+    }
     if(action==='start'){
       const script=installedHexBin('ibal-control-start.sh');
       if(!fs.existsSync(script)) return {schema:'xiio.cli.hex/v1',state:'TRUE_WAIT',first_red:'HEX_RC_NOT_INSTALLED',next:'xi-io hex install',effect_authority:0};
