@@ -120,6 +120,7 @@ for(let i=0;i<100;i++){
     const env={
       ...process.env,
       HOME:home,
+      XDG_STATE_HOME:path.join(home,'.local','state'),
       USER:'tester',
       XIIO_VOLUME_ROOT:volume,
       XIIO_FRAMEWORK_ROOT:group===1?framework:'',
