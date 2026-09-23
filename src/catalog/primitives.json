@@ -33,7 +33,7 @@
   ],
   "dispatch": {
     "expected": 40,
-    "materialized_primitives": 40,
+    "materialized_primitives": 41,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
@@ -561,6 +561,17 @@
       "export": "compilePortableArtifactCube",
       "source": "src/documents/portable-artifact-cube.mjs",
       "specifier": "@xi-io/sdk/documents/portable-artifact-cube",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "cube-channel",
+      "callable_uuid": "4c9b86c7-34bb-560f-b87e-a42c3376b31d",
+      "family": "geometry",
+      "kind": "compiler",
+      "export": "deriveCubeChannel|sharedXPoints|pointOnCubeX|evaluateChannelConservation",
+      "source": "src/geometry/cube-channel.mjs",
+      "specifier": "@xi-io/sdk/geometry/cube-channel",
       "styles": [],
       "maturity": "CANDIDATE"
     }
