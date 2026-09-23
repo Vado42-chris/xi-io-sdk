@@ -87,6 +87,38 @@ assert.throws(()=>compileFlatpackPacket({
   ],
 }),/QUALIFIER_ID_DUPLICATE/);
 
+
+
+const levelWalk=compileFlatpackPacket({
+  packet_id:'flatpack:level-walk',
+  generation:'g1',
+  one:{
+    current_coordinate:{
+      target_ref:'leaf:search-bins',
+      axis_z_scale:'10S',
+      step_depth:2
+    },
+    local_state:'BLAST_RADIUS_AT_RISK'
+  },
+  two:{
+    relation:'X_UP_PARENT_VIEW',
+    left_ref:'leaf:search-bins',
+    right_ref:'parent:flatplane',
+    projection:'LOOK_DOWN_FROM_PARENT'
+  },
+  qualifiers:[
+    {id:'Q_BURN_MAP_VISIBLE',state:'PASS',bit:1,evidence_ref:'parent:burn-map'},
+    {id:'Q_COLD_MAP_VISIBLE',state:'PASS',bit:1,evidence_ref:'parent:cold-map'},
+    {id:'Q_LOCAL_BLAST_RADIUS_CURRENT',state:'UNKNOWN',bit:null,return_target:'parent:flatplane'},
+    {id:'Q_PARENT_TOPOLOGY_CURRENT',state:'PASS',bit:1,evidence_ref:'parent:g1'},
+  ],
+});
+assert.equal(levelWalk.two.relation,'X_UP_PARENT_VIEW');
+assert.equal(levelWalk.state,'UNKNOWN');
+assert.equal(levelWalk.first_red.id,'Q_LOCAL_BLAST_RADIUS_CURRENT');
+assert.equal(levelWalk.qualifier_denominator,4);
+assert.equal(levelWalk.one.current_coordinate.step_depth,2);
+
 console.log(JSON.stringify({
   status:'PASS',
   schema:'xiio.sdk.flatpack-packet/v0',
