@@ -668,7 +668,7 @@ async function zedIbalRuntime(action='status'){
   const home=os.homedir();
   const ledger=path.join(home,'.local','state','xi-io','ibal-acp-001a','events','operations.ndjson');
   const baseline={
-    zed_process_count:processCount('zed-editor|/zed(\\s|$)|zed\\.app/bin/zed'),
+    zed_process_count:processCount('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
     acp_agent_count:processCount('acp-agent/agent\\.mjs'),
     event_count:ndjsonLineCount(ledger),
   };
@@ -747,7 +747,7 @@ async function zedIbalRuntime(action='status'){
   const receiptPath=path.join(root,'engines','punchcard-plan-bridge','out','zed-ibal-controls-receipt.preview.json');
   const recoverReceipt=readJsonMaybe(receiptPath);
   const after={
-    zed_process_count:processCount('zed-editor|/zed(\\s|$)|zed\\.app/bin/zed'),
+    zed_process_count:processCount('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
     acp_agent_count:processCount('acp-agent/agent\\.mjs'),
     event_count:ndjsonLineCount(ledger),
   };
