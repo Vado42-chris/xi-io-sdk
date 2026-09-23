@@ -22,7 +22,13 @@ function mkFramework(root){
   touch(path.join(root,'scripts','install-xiio-cli'),'#!/usr/bin/env bash\n');
 }
 function result(ok,stdout='',stderr='',status=ok?0:1){
-  return {ok,status,stdout,stderr,error:null};
+  return {
+    ok,
+    status,
+    stdout:String(stdout||'').trim(),
+    stderr:String(stderr||'').trim(),
+    error:null,
+  };
 }
 function fakeExecFactory({framework,workspace,origin='https://github.com/Vado42-chris/xi-io.net.git',localHead='1'.repeat(40),providerHead=localHead,dirty=false,listener=true}){
   return (command,args,{cwd}={})=>{
