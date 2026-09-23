@@ -163,7 +163,8 @@ export function recoverAriesRunner({
   const observed_at=new Date().toISOString();
   const services=discoverRunnerServices({exec});
   const listener=discoverRunnerListener({exec});
-  const dirs=listener?[]:discoverRunnerDirs({env,exec});
+  const hasService=services.length>0;
+  const dirs=(listener||hasService)?[]:discoverRunnerDirs({env,exec});
   const choice=chooseRunner({services,listener,dirs});
   const hostPass=host==='aries';
   const identityPass=choice.kind!=='blocked';
