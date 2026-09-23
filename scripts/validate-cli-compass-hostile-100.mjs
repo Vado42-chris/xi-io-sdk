@@ -188,7 +188,23 @@ for(let i=0;i<100;i++){
 }
 
 if (rejected!==100 || falseGreen!==0) {
-  console.error(JSON.stringify({schema:'xiio.cli.compass-hostile-debug/v1',hostileCount,rejected,falseGreen,failures:receipts.filter((row)=>row.state!=='EXPECTED')},null,2));
+  const failures=receipts.filter((row)=>row.state!=='EXPECTED');
+  const families=new Map();
+  for(const row of failures){
+    const number=Number(String(row.id||'').split('_').at(-1)||0);
+    const family=Math.floor((Math.max(1,number)-1)/10);
+    const key='FAMILY_'+family;
+    const firstLine=String(row.error||row.state||'UNKNOWN').split('\\n')[0].slice(0,240);
+    const existing=families.get(key)||{family,failures:0,samples:[]};
+    existing.failures++;
+    if(existing.samples.length<2) existing.samples.push({id:row.id,state:row.state,error:firstLine});
+    families.set(key,existing);
+  }
+  console.error(JSON.stringify({
+    schema:'xiio.cli.compass-hostile-debug/v2',
+    hostileCount,rejected,falseGreen,
+    families:[...families.values()].sort((a,b)=>a.family-b.family),
+  }));
 }
 assert.equal(hostileCount,100);
 assert.equal(rejected,100);
