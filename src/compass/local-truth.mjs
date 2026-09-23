@@ -236,6 +236,7 @@ export async function compileLocalCompass({
   exec=run,
   probe=probeJson,
   providerRead=env.XIIO_COMPASS_PROVIDER_READ!=='0',
+  runtimeInspect=inspectLocalHttpRuntime,
 }={}){
   const observed_at=new Date().toISOString();
   const home=real(env.HOME||os.homedir());
@@ -264,7 +265,7 @@ export async function compileLocalCompass({
   };
   const ollama=await probe(env.OLLAMA_HOST?String(env.OLLAMA_HOST).replace(/\/$/,'')+'/api/tags':'http://127.0.0.1:11434/api/tags');
   const glass=await probe(env.XIIO_API_GLASS_BOX_READ_URL||'http://127.0.0.1:4390/api/v1/studio/local-truth/read');
-  const inboxRuntime=inspectLocalHttpRuntime({
+  const inboxRuntime=runtimeInspect({
     port:Number(env.XIIO_INBOX_RUNTIME_PORT||8791),
     expectedRepo:env.XIIO_INBOX_RUNTIME_REPO||'Vado42-chris/xi-io-Inbox',
     exec,env,providerRead,
