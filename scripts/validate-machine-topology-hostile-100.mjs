@@ -51,6 +51,19 @@ opus = "=0.4.0"
     env:{...process.env,HOME:os.homedir(),XDG_CACHE_HOME:path.join(tmp,'cache')},
     exec:fakeExecFactory()
   });
+  const nodeOnly=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-node-only-'));
+  try{
+    fs.writeFileSync(path.join(nodeOnly,'package.json'),'{"type":"module"}\n');
+    const nodeState=inspectMachineTopology({
+      workspace:nodeOnly,
+      env:{...process.env,HOME:os.homedir(),XDG_CACHE_HOME:path.join(nodeOnly,'cache')},
+      exec:fakeExecFactory()
+    });
+    assert.equal(nodeState.rust_requirements.cargo,false);
+    assert.equal(nodeState.cells.find(x=>x.id==='CARGO_TARGET_EXECUTABLE').state,'N_A_WITH_EVIDENCE');
+    assert.equal(nodeState.cells.find(x=>x.id==='PKG_CONFIG').state,'N_A_WITH_EVIDENCE');
+    assert.equal(nodeState.cells.find(x=>x.id==='GSTREAMER_METADATA').state,'N_A_WITH_EVIDENCE');
+  } finally { fs.rmSync(nodeOnly,{recursive:true,force:true}); }
   assert.equal(control.source_mount.noexec,true);
   assert.equal(control.cargo_target.strategy,'REROUTE_REQUIRED');
   assert.equal(control.cargo_target.mount.noexec,false);
