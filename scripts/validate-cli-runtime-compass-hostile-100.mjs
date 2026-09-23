@@ -18,7 +18,7 @@ function safeLink(target,p){
   fs.symlinkSync(target,p);
 }
 function result(ok,stdout='',stderr='',status=ok?0:1){
-  return {ok,status,stdout:String(stdout),stderr:String(stderr),error:null};
+  return {ok,status,stdout:String(stdout).trim(),stderr:String(stderr).trim(),error:null};
 }
 function makeExec({cwd,origin,localHead,providerHead,inside=true,dirty=false,listener=true,pid=1534869}){
   return (command,args)=>{
