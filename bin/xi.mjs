@@ -6,6 +6,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
+import { compilePortableSemanticFile } from '../src/documents/portable-semantic-file.mjs';
+import { compilePortableArtifactCube } from '../src/documents/portable-artifact-cube.mjs';
 import { bindHexFloorCurrentness } from '../src/currentness/hex-floor.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
 import { compileFourScaleScorecard } from '../src/scorecards/four-scale.mjs';
@@ -119,6 +121,8 @@ Interactive slash commands:
 Pure compilers:
   xi-io baseline compile --input <snapshot.json> [--out <baseline.json>]
   xi-io product compile --input <products.json> [--out <product-baseline.json>]
+  xi-io file compile --input <file.json> [--out <portable-file.json>]
+  xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
   xi-io fleet delivery --input <fleet-delivery.json> [--out <fleet-gate.json>]
   xi-io 100s compile --input <four-scale.json> [--out <scorecard.json>]
   xi-io preflight compile --input <graduation.json> [--out <preflight.json>]
@@ -1170,6 +1174,10 @@ try {
 
   if (family === 'baseline' && action === 'compile') {
     writeOutput(compilePortfolioBaseline(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'file' && action === 'compile') {
+    writeOutput(compilePortableSemanticFile(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'file' && action === 'cube') {
+    writeOutput(compilePortableArtifactCube(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'product' && action === 'compile') {
     writeOutput(compileProductCapabilityBaseline(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'fleet' && action === 'delivery') {
