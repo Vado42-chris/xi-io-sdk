@@ -240,7 +240,7 @@ assert(/callable_namespace_uuid.*documentation-only/i.test(readme), 'README name
 assert(/caller-trusted/i.test(readme), 'README HTML slots caller-trusted note');
 assert(Array.isArray(catalog.known_gaps) && catalog.known_gaps.length > 0, 'known gaps must remain explicit');
 assert(catalog.dispatch && typeof catalog.dispatch === 'object', 'dispatch counter block required');
-assert.equal(Number(catalog.dispatch.expected), 40, 'dispatch.expected must be 40');
+assert.equal(Number(catalog.dispatch.expected), 41, 'dispatch.expected must be 41');
 assert.equal(Number(catalog.dispatch.materialized_primitives), catalog.primitives.length, 'dispatch.materialized must match primitives');
 assert(index.includes('dispatch-counter'), 'playground must surface dispatch counter');
 assert(index.includes('catalog-currentness'), 'playground must surface catalog vs bins currentness');
