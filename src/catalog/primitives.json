@@ -32,7 +32,7 @@
     "FILE_CUBE_PREPARABLE != SHIPPED"
   ],
   "dispatch": {
-    "expected": 40,
+    "expected": 41,
     "materialized_primitives": 41,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
