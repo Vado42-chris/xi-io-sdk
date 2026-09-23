@@ -426,6 +426,20 @@ async function statusSnapshot() {
     invoked_as:invokedAs,
     sdk_version:SDK_VERSION,
     sdk_root:sdkRoot,
+    xi:{
+      source_generation:map?.roots?.sdk?.selected?.generation || map?.roots?.sdk?.selected?.sha || null,
+      framework_generation:map?.roots?.framework?.selected?.generation || map?.roots?.framework?.selected?.sha || null,
+      source_currentness:map?.roots?.sdk?.selected?.state || map?.roots?.sdk?.state || 'UNKNOWN',
+      evidence_ref:map?.receipt || null
+    },
+    io:{
+      runner_state:runner.state,
+      machine_topology_state:topology.state,
+      products:{hex:hex.state,studio:studio.state,inbox:inbox.state},
+      provider_ingress_state:'OBSERVED_LOCAL_ONLY',
+      provider_egress_state:'NOT_EVALUATED',
+      readback_ref:null
+    },
     compass:map,
     machine_topology:topology,
     runner,
@@ -434,6 +448,7 @@ async function statusSnapshot() {
     authority_granted:false,
     hard:[
       'XI_IO_ALIAS_PARITY_REQUIRED',
+      'XI_SOURCE_STATUS != IO_PROVIDER_STATUS',
       'STATUS != EFFECT_AUTHORITY',
       'SOURCE != RUNNING != LIVE != USABLE',
       'PORT_BOUND != QUALIFIED_RUNTIME',
