@@ -66,6 +66,7 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
+  xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
   xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
   xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
   xi-io models                  List installed Ollama models
@@ -305,6 +306,7 @@ function installLocalCli() {
     'NODE="${XIIO_NODE:-$HOME/.nvm/versions/node/v24.11.1/bin/node}"',
     'if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi',
     '[[ -n "$NODE" && -x "$NODE" ]] || wrapper_fail',
+    'export XIIO_INVOKED_AS="$(basename "$0")"',
     'exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
     '',
   ].join('\n');
@@ -395,6 +397,40 @@ async function compass({persist=true}={}) {
   return {
     ...value,
     receipt:receipt?receipt.current:null,
+  };
+}
+
+async function statusSnapshot() {
+  const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const [map,hex,studio,inbox]=await Promise.all([
+    compileLocalCompass({sdkRoot}),
+    productRuntime('hex','status'),
+    productRuntime('studio','status'),
+    productRuntime('inbox','status'),
+  ]);
+  const runner=runnerStatus();
+  const invokedAs=String(process.env.XIIO_INVOKED_AS || 'direct-bin');
+  const productStates={hex:hex.state,studio:studio.state,inbox:inbox.state};
+  const hardFail=Object.values(productStates).some((v)=>v==='FAIL'||v==='BLOCKED');
+  const waits=Object.values(productStates).filter((v)=>v==='TRUE_WAIT'||v==='FAIL_CURRENT').length
+    + (runner.state==='TRUE_WAIT'||runner.state==='PARTIAL'?1:0);
+  return {
+    schema:'xiio.cli.status/v1',
+    state:hardFail?'FAIL_CURRENT':waits?'PASS_WITH_WAITS':'PASS',
+    invoked_as:invokedAs,
+    sdk_version:SDK_VERSION,
+    sdk_root:sdkRoot,
+    compass:map,
+    runner,
+    products:{hex,studio,inbox},
+    provider_effect:false,
+    authority_granted:false,
+    hard:[
+      'XI_IO_ALIAS_PARITY_REQUIRED',
+      'STATUS != EFFECT_AUTHORITY',
+      'SOURCE != RUNNING != LIVE != USABLE',
+      'PORT_BOUND != QUALIFIED_RUNTIME',
+    ],
   };
 }
 
@@ -648,6 +684,9 @@ if (
   await registry(kind);
 } else if (top === 'compass') {
   process.stdout.write(JSON.stringify(await compass({persist:true}),null,2)+'\n');
+} else if (top === 'status') {
+  const result=await statusSnapshot();
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
 } else if (top === 'doctor' || top === 'workspace') {
   const targetDir=process.argv[3] || null;
   if(targetDir){
