@@ -124,7 +124,7 @@ export function inspectMachineTopology({
 
   const cells=[
     {id:'SOURCE_MOUNT_OBSERVED',state:sourceMount.state==='PASS'?'PASS':'UNKNOWN',value:sourceMount},
-    {id:'CARGO_TARGET_EXECUTABLE',state:targetMount.state==='PASS'&&targetMount.noexec===false?'PASS':targetMount.noexec===true?'FAIL':'UNKNOWN',value:{path:cargoTarget,mount:targetMount}},
+    {id:'CARGO_TARGET_EXECUTABLE',state:req.cargo?(targetMount.state==='PASS'&&targetMount.noexec===false?'PASS':targetMount.noexec===true?'FAIL':'UNKNOWN'):'N_A_WITH_EVIDENCE',value:req.cargo?{path:cargoTarget,mount:targetMount}:{reason:'NO_CARGO_MANIFEST'}},
     {id:'CARGO_AVAILABLE',state:req.cargo?tools.cargo.state:'N_A_WITH_EVIDENCE',value:req.cargo?tools.cargo:{reason:'NO_CARGO_MANIFEST'}},
     {id:'PKG_CONFIG',state:req.pkg_config?tools.pkg_config.state:'N_A_WITH_EVIDENCE',value:req.pkg_config?tools.pkg_config:{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
     {id:'GSTREAMER_METADATA',state:req.gstreamer?(native.gstreamer?.state==='PASS'&&native.gstreamer_app?.state==='PASS'&&native.gstreamer_audio?.state==='PASS'?'PASS':'FAIL'):'N_A_WITH_EVIDENCE',value:req.gstreamer?native:{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
