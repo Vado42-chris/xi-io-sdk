@@ -57,7 +57,7 @@ assert.equal(FILE_CUBE_CELLS.length,10);
 assert.equal(cube.denominator,10);
 assert.equal(cube.state,'PASS');
 assert.equal(cube.closure_100,true);
-assert.equal(cube.counts.pass,10);
+assert.equal(cube.counts.pass,10,JSON.stringify({state:cube.state,counts:cube.counts,first_red:cube.first_red,cells:cube.cells},null,2));
 assert.equal(cube.effect_authority,false);
 
 const unknownProfile=compilePortableArtifactCube({
