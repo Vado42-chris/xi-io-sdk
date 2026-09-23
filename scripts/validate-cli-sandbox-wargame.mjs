@@ -83,7 +83,7 @@ fs.mkdirSync(outside,{recursive:true});
 let normal=spawnSync(golden.bin,['doctor'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,HOME:golden.home}});
 assert.equal(normal.status,0,normal.stderr);
 let doctor=JSON.parse(normal.stdout);
-assert.equal(doctor.schema,'xiio.cli.human-doctor/v1');
+assert.equal(doctor.schema,'xiio.cli.human-doctor/v2');
 assert.equal(doctor.provider_effect,false);
 assert.equal(doctor.automatic_cloud_fallback,false);
 
@@ -190,7 +190,7 @@ for(let i=0;i<10;i++) hostile(`ALIAS_ANYWHERE_${i}`,()=>{
     cwd,encoding:'utf8',timeout:10_000,
     env:{...process.env,HOME:golden.home,XIIO_NODE:`/invalid/node-${i}`}
   });
-  return r.status===0 && (i%2?/Command registry/.test(r.stdout):JSON.parse(r.stdout).schema==='xiio.cli.human-doctor/v1');
+  return r.status===0 && (i%2?/Command registry/.test(r.stdout):JSON.parse(r.stdout).schema==='xiio.cli.human-doctor/v2');
 });
 
 assert.equal(hostileCount,100);
@@ -271,6 +271,7 @@ function timedRun(label,args,{cwd=outside,env={}}={}){
 }
 const latencyRows=[
   timedRun('doctor',['doctor']),
+  timedRun('compass',['compass']),
   timedRun('registry_ack',['registry','ack']),
   timedRun('registry_tools',['registry','tools']),
   timedRun('self_test',['self-test']),
