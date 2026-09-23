@@ -484,7 +484,7 @@ function installedHexBin(name){
   return path.join(os.homedir(),'.local','share','xi-io','hex-rc','current','bin',name);
 }
 function runDetached(command,args=[]){
-  const result=spawnSync('bash',['-lc',`nohup "$1" ${2:+$2} >/tmp/xiio-launch.log 2>&1 &`, 'xiio-launch', command, args.join(' ')],{encoding:'utf8'});
+  const result=spawnSync('bash',['-lc','nohup "$1" >/tmp/xiio-launch.log 2>&1 &', 'xiio-launch', command],{encoding:'utf8'});
   return {state:result.status===0?'PASS':'FAIL',status:result.status,stderr:String(result.stderr||'').trim()};
 }
 function openUrl(url){
