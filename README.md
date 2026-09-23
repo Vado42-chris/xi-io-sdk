@@ -51,7 +51,7 @@ The SDK is the car. The protected framework is the gas and management system.
 
 ## Human terminal operator
 
-The canonical human-facing command is `xi-io` (with `xi` retained as the terse SDK alias).
+The canonical human-facing command is `xi-io`. `xiio` is the no-hyphen human alias, and `xi` remains the terse SDK alias. All three wrappers execute the same SDK runtime.
 
 From any terminal after installation:
 
