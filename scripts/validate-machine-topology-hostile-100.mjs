@@ -46,9 +46,10 @@ opus = "=0.4.0"
     };
   }
 
+  const execCache=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-exec-cache-'));
   const control=inspectMachineTopology({
     workspace:tmp,
-    env:{...process.env,HOME:os.homedir(),XDG_CACHE_HOME:path.join(tmp,'cache')},
+    env:{...process.env,HOME:os.homedir(),XDG_CACHE_HOME:execCache},
     exec:fakeExecFactory()
   });
   const nodeOnly=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-node-only-'));
@@ -110,4 +111,5 @@ opus = "=0.4.0"
   console.log('MACHINE_TOPOLOGY_100S=PASS hostile_rejected=100 false_green=0 noexec_reroute=1 native_version_gate=1');
 } finally {
   fs.rmSync(tmp,{recursive:true,force:true});
+  try { fs.rmSync(execCache,{recursive:true,force:true}); } catch {}
 }
