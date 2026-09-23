@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
@@ -60,6 +61,7 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness
+  xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
   xi-io models                  List installed Ollama models
   xi-io install                 Install xi-io + xi wrappers into ~/.local/bin
 
@@ -416,6 +418,88 @@ async function doctor() {
   }, null, 2) + '\n');
 }
 
+
+async function selfTest() {
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const rows=[];
+  const add=(id,state,evidence=null,firstRed=null)=>rows.push({id,state,evidence,first_red:firstRed});
+  const required=[
+    ['package.json','PACKAGE_JSON'],
+    ['bin/xi.mjs','CLI_ENTRY'],
+    ['bin/xi-local-agent.mjs','LOCAL_AGENT'],
+    ['src/catalog/primitives.json','PRIMITIVE_CATALOG'],
+  ];
+  for(const [rel,id] of required){
+    add(id,fs.existsSync(path.join(root,rel))?'PASS':'FAIL',rel,fs.existsSync(path.join(root,rel))?null:'MISSING_FILE');
+  }
+  const nodeMajor=Number(String(process.versions.node||'0').split('.')[0]);
+  add('NODE_RUNTIME',Number.isInteger(nodeMajor)&&nodeMajor>=22?'PASS':'FAIL',process.versions.node,nodeMajor>=22?null:'NODE_22_PLUS_REQUIRED');
+
+  const runtime=await (await import('./xi-local-agent.mjs')).localRuntimeStatus();
+  add('OLLAMA_LOCAL',runtime.ollama_state.startsWith('READY_')?'PASS':'WAIT',runtime.ollama_state,runtime.ollama_state.startsWith('READY_')?null:'OLLAMA_NOT_READY');
+
+  const catalog=commandCatalog();
+  add('COMMAND_REGISTRY',Array.isArray(catalog.commands)&&catalog.commands.length>0?'PASS':'FAIL',String(catalog.commands?.length||0),catalog.commands?.length?null:'COMMAND_REGISTRY_EMPTY');
+  add('PRIMITIVE_REGISTRY',Array.isArray(primitiveCatalog.primitives)&&primitiveCatalog.primitives.length>0?'PASS':'FAIL',String(primitiveCatalog.primitives?.length||0),primitiveCatalog.primitives?.length?null:'PRIMITIVE_REGISTRY_EMPTY');
+
+  const guard=spawnSync(process.execPath,[fileURLToPath(import.meta.url),'chat','--once','--input','../xiio-self-test-escape'],{
+    cwd:process.cwd(),
+    encoding:'utf8',
+    timeout:10_000,
+    maxBuffer:1_048_576,
+    env:{...process.env,XIIO_OLLAMA_MODEL:'xiio-self-test-do-not-call'},
+  });
+  let guardBody=null;
+  try{guardBody=JSON.parse(guard.stdout||'{}');}catch{}
+  const guardPass=guard.status!==0
+    && guardBody?.schema==='xiio.cli.local-one-shot/v1'
+    && guardBody?.status==='BLOCKED'
+    && guardBody?.first_red==='PATH_DENIED'
+    && guardBody?.provider_effect===false;
+  add('WORKSPACE_ESCAPE_GUARD',guardPass?'PASS':'FAIL',guardPass?'PATH_DENIED':'UNEXPECTED',guardPass?null:'PATH_GUARD_NOT_PROVEN');
+
+  const home=os.homedir();
+  const binPath=path.join(home,'.local','bin','xi-io');
+  const rootFile=path.join(home,'.local','share','xi-io','cli','sdk.path');
+  const installed=fs.existsSync(binPath)&&fs.existsSync(rootFile);
+  if(installed){
+    let pointer='';
+    try{pointer=fs.readFileSync(rootFile,'utf8').trim();}catch{}
+    add('INSTALL_POINTER',pointer===root?'PASS':'FAIL',pointer===root?'CURRENT_ROOT':'DIFFERENT_ROOT',pointer===root?null:'INSTALL_POINTER_DRIFT');
+    const wrapper=spawnSync(binPath,['registry','ack'],{
+      cwd:os.tmpdir(),
+      encoding:'utf8',
+      timeout:10_000,
+      env:{...process.env,HOME:home},
+    });
+    add('INSTALLED_WRAPPER',wrapper.status===0&&/ACK command registry/.test(wrapper.stdout)?'PASS':'FAIL',String(wrapper.status),wrapper.status===0?null:'WRAPPER_EXEC_FAILED');
+  } else {
+    add('INSTALL_POINTER','WAIT','NOT_INSTALLED','RUN_XI_IO_INSTALL');
+    add('INSTALLED_WRAPPER','WAIT','NOT_INSTALLED','RUN_XI_IO_INSTALL');
+  }
+
+  const fail=rows.filter(x=>x.state==='FAIL');
+  const wait=rows.filter(x=>x.state==='WAIT');
+  const receipt={
+    schema:'xiio.cli.self-test/v1',
+    state:fail.length?'FAIL':wait.length?'PASS_WITH_WAITS':'PASS',
+    pass:rows.filter(x=>x.state==='PASS').length,
+    wait:wait.length,
+    fail:fail.length,
+    rows,
+    workspace:process.cwd(),
+    sdk_root:root,
+    model:runtime.model,
+    provider_effect:false,
+    authority_granted:false,
+    automatic_cloud_fallback:false,
+    next:fail[0]?.first_red||wait[0]?.first_red||'READY',
+  };
+  process.stdout.write(JSON.stringify(receipt,null,2)+'\n');
+  process.exitCode=fail.length?2:0;
+}
+
+
 if (process.argv.length === 3 && ['--help', '-h'].includes(process.argv[2])) usage(0);
 
 const top = process.argv[2] || null;
@@ -441,6 +525,8 @@ if (
     process.chdir(fs.realpathSync(path.resolve(targetDir)));
   }
   await doctor();
+} else if (top === 'self-test') {
+  await selfTest();
 } else if (top === 'models') {
   const { localRuntimeStatus } = await import('./xi-local-agent.mjs');
   const status=await localRuntimeStatus();
