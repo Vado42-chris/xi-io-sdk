@@ -59,7 +59,8 @@ for(let i=0;i<100;i++){
     let before=runtime('RED_STALE_OR_NONPROVIDER','f'.repeat(40),'a'.repeat(40));
     let after=runtime('PASS_CURRENT');
     let execute=true;
-    let sourcePrep=()=>({ok:true,mutation:'FAST_FORWARD_CURRENT_REPO',head:'a'.repeat(40)});
+    let prepApplied=false;
+    let sourcePrep=()=>{prepApplied=true;return {ok:true,mutation:'FAST_FORWARD_CURRENT_REPO',head:'a'.repeat(40)};};
     let startRuntime=()=>({ok:true,pid:5000+variant,log:`/tmp/log-${variant}`,mutation:'START_EXISTING_OWNER_DOGFOOD_RUNTIME'});
     let headMatchCheck=()=>({state:'PASS',status:0,stdout:'8 PASS / 0 FAIL',stderr:''});
     let expectedState='PASS_RUNTIME_CURRENT';
@@ -80,7 +81,7 @@ for(let i=0;i<100;i++){
       expectedSelected=null;
     }else if(group===3){
       rows=[behind,dirty];
-      sourcePrep=()=>({ok:true,mutation:'FAST_FORWARD_CURRENT_REPO',head:'a'.repeat(40)});
+      sourcePrep=()=>{prepApplied=true;return {ok:true,mutation:'FAST_FORWARD_CURRENT_REPO',head:'a'.repeat(40)};};
       expectedSelected=behind.path;
     }else if(group===4){
       rows=[behind];
@@ -118,7 +119,7 @@ for(let i=0;i<100;i++){
     const repoInspect=(p)=>{
       const original=rows.find(r=>r.path===p);
       if(!original) return {state:'ABSENT',path:p};
-      if(original.state==='CLEAN_BEHIND' && runtimeCalls>0 && group===3){
+      if(original.state==='CLEAN_BEHIND' && prepApplied && group===3){
         return {...original,state:'CURRENT_CLEAN',local_head:'a'.repeat(40),provider_main:'a'.repeat(40),relation:'EXACT_PROVIDER_MAIN'};
       }
       return original;
