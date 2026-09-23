@@ -1,54 +1,89 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { discoverInboxRecovery, recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
+import { discoverRunnerServices, recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
 
-const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-aries-recovery-test-'));
-const repo=path.join(tmp,'.tmp','worktrees','dogfood-runtime-main');
-fs.mkdirSync(path.join(repo,'scripts'),{recursive:true});
-fs.writeFileSync(path.join(repo,'scripts','aries-runner-local-recovery.sh'),'#!/usr/bin/env bash\necho ARIES_RUNNER_RECOVERY=PASS\n',{mode:0o700});
-let r=spawnSync('git',['init'],{cwd:repo,encoding:'utf8'});
-assert.equal(r.status,0);
-r=spawnSync('git',['remote','add','origin','https://github.com/Vado42-chris/xi-io-Inbox.git'],{cwd:repo,encoding:'utf8'});
-assert.equal(r.status,0);
-fs.writeFileSync(path.join(repo,'README.md'),'fixture\n');
-spawnSync('git',['add','.'],{cwd:repo,encoding:'utf8'});
-spawnSync('git',['-c','user.name=xiio-test','-c','user.email=xiio@test.invalid','commit','-m','fixture'],{cwd:repo,encoding:'utf8'});
+function fakeExecFactory({service='inactive',listener=false,job='queued'}={}){
+  const calls=[];
+  const exec=(command,args=[])=>{
+    calls.push([command,...args]);
+    const joined=[command,...args].join(' ');
+    if(joined.includes('systemctl list-unit-files actions.runner.*.service')) return {ok:true,status:0,stdout:'actions.runner.test.service enabled\n',stderr:''};
+    if(joined.includes('systemctl --user list-unit-files')) return {ok:true,status:0,stdout:'',stderr:''};
+    if(joined.includes('systemctl is-active actions.runner.test.service')) return {ok:service==='active',status:service==='active'?0:3,stdout:service+'\n',stderr:''};
+    if(joined.includes('systemctl start actions.runner.test.service')) { service='active'; return {ok:true,status:0,stdout:'',stderr:''}; }
+    if(joined.startsWith('pgrep -af Runner.Listener')) return listener
+      ? {ok:true,status:0,stdout:'123 /opt/actions-runner/bin/Runner.Listener run\n',stderr:''}
+      : {ok:false,status:1,stdout:'',stderr:''};
+    if(joined.includes('gh api repos/Vado42-chris/xi-io.net/actions/runs/42/jobs')){
+      const status=job==='running'?'in_progress':job;
+      return {ok:true,status:0,stdout:JSON.stringify({jobs:[{id:99,status,conclusion:null,runner_id:status==='queued'?0:7,runner_name:status==='queued'?null:'aries',steps:status==='queued'?[]:[{name:'Require Aries',status:'in_progress'}]}]}),stderr:''};
+    }
+    if(joined.includes('gh api repos/Vado42-chris/xi-io.net/actions/runs/42')){
+      return {ok:true,status:0,stdout:JSON.stringify({id:42,status:job==='running'?'in_progress':job,head_sha:'a'.repeat(40)}),stderr:''};
+    }
+    if(joined.startsWith('find ')) return {ok:true,status:0,stdout:'',stderr:''};
+    return {ok:true,status:0,stdout:'',stderr:''};
+  };
+  return {exec,calls,setListener(v){listener=v;},setJob(v){job=v;}};
+}
 
-const env={...process.env,HOME:tmp,USER:path.basename(tmp),XIIO_DOGFOOD_WORKTREE:repo};
-const discovered=discoverInboxRecovery({env});
-assert.equal(discovered.state,'PASS');
-assert.equal(discovered.selected.repo,repo);
-assert.equal(discovered.selected.origin,'https://github.com/Vado42-chris/xi-io-Inbox.git');
+{
+  const f=fakeExecFactory({service:'inactive',listener:true,job:'running'});
+  const plan=recoverAriesRunner({execute:false,host:'aries',exec:f.exec,env:{...process.env,XIIO_RUNNER_SEARCH_ROOTS:'/tmp'}});
+  assert.equal(plan.state,'PLAN_READY');
+  assert.equal(plan.authority.new_registration,false);
+  assert.equal(plan.authority.token,false);
+}
 
-const plan=recoverAriesRunner({execute:false,env,host:'aries'});
-assert.equal(plan.state,'PLAN_READY');
-assert.equal(plan.checklist.path_owner_input_required,false);
-assert.equal(plan.checklist.new_runner_registration,false);
-assert.equal(plan.punchcards.length,10);
-assert.equal(plan.scorecard.micro,'PASS');
-assert.equal(plan.scorecard.meta,'WAIT');
-assert.equal(plan.next,'RE-RUN_WITH_--execute');
+{
+  const f=fakeExecFactory({service:'inactive',listener:true,job:'running'});
+  const result=recoverAriesRunner({
+    execute:true,host:'aries',exec:f.exec,env:{...process.env,XIIO_RUNNER_SEARCH_ROOTS:'/tmp'},
+    targetRepo:'Vado42-chris/xi-io.net',targetRunId:'42',targetJobId:'99',targetHeadSha:'a'.repeat(40),waitSeconds:0,
+  });
+  assert.equal(result.state,'PASS_RUNTIME_RECOVERY');
+  assert.equal(result.provider.runner_id,7);
+  assert.equal(result.provider.steps,1);
+  assert.equal(result.start.mutation,'START_EXISTING_SYSTEM_SERVICE');
+  assert.ok(f.calls.some(x=>x.join(' ')==='systemctl start actions.runner.test.service'));
+  assert.ok(!f.calls.some(x=>x.join(' ').includes('config.sh')));
+}
 
-const wrongHost=recoverAriesRunner({execute:false,env,host:'not-aries'});
-assert.equal(wrongHost.state,'BLOCKED');
-assert.equal(wrongHost.first_red,'WRONG_HOST');
+{
+  const f=fakeExecFactory({service:'active',listener:true,job:'running'});
+  const result=recoverAriesRunner({execute:true,host:'aries',exec:f.exec,env:{...process.env,XIIO_RUNNER_SEARCH_ROOTS:'/tmp'}});
+  assert.equal(result.state,'PASS_RUNTIME_RECOVERY');
+  assert.equal(result.start.mutation,'NONE');
+}
 
-const noCheckout=recoverAriesRunner({execute:false,env:{...process.env,HOME:path.join(tmp,'missing'),USER:'missing',XIIO_DOGFOOD_WORKTREE:''},host:'aries'});
-assert.equal(noCheckout.state,'BLOCKED');
-assert.equal(noCheckout.first_red,'INBOX_RECOVERY_CHECKOUT_NOT_FOUND');
+{
+  const noRunner=(command,args=[])=>{
+    const joined=[command,...args].join(' ');
+    if(joined.includes('list-unit-files')) return {ok:true,status:0,stdout:'',stderr:''};
+    if(joined.startsWith('pgrep ')) return {ok:false,status:1,stdout:'',stderr:''};
+    if(joined.startsWith('find ')) return {ok:true,status:0,stdout:'',stderr:''};
+    return {ok:true,status:0,stdout:'',stderr:''};
+  };
+  const result=recoverAriesRunner({execute:true,host:'aries',exec:noRunner,env:{...process.env,XIIO_RUNNER_SEARCH_ROOTS:'/tmp'}});
+  assert.equal(result.state,'BLOCKED');
+  assert.equal(result.first_red,'RUNNER_SERVICE_AND_REGISTRATION_NOT_FOUND');
+}
 
-fs.rmSync(tmp,{recursive:true,force:true});
+{
+  const f=fakeExecFactory({service:'active',listener:true});
+  const result=recoverAriesRunner({execute:true,host:'not-aries',exec:f.exec,env:{...process.env,XIIO_RUNNER_SEARCH_ROOTS:'/tmp'}});
+  assert.equal(result.state,'BLOCKED');
+  assert.equal(result.first_red,'WRONG_HOST');
+}
+
 console.log(JSON.stringify({
-  schema:'xiio.cli.aries-runner-recovery-validation/v1',
+  schema:'xiio.cli.aries-runner-recovery-validation/v2',
   status:'PASS',
-  cases:3,
-  owner_path_input_required:false,
-  punchcards:10,
-  scorecard:true,
-  execute_not_tested_on_hosted_runner:true,
+  cases:5,
+  service_first:true,
+  listener_noop:true,
+  exact_provider_job_readback:true,
+  no_new_registration:true,
+  no_token:true,
   provider_effects:0
 }));
