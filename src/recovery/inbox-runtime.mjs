@@ -144,11 +144,16 @@ export function recoverInboxRuntime({
   env=process.env,
   exec=run,
   runtimeInspect=inspectLocalHttpRuntime,
+  repoCandidates=candidateRepos,
+  repoInspect=inspectRepo,
+  sourcePrep=ffOnly,
+  startRuntime=startOwnerRuntime,
+  headMatchCheck=runHeadMatch,
   waitSeconds=45,
 }={}){
   const observed_at=new Date().toISOString();
   const before=runtimeInspect({port:8791,expectedRepo:'Vado42-chris/xi-io-Inbox',exec,env,providerRead:true});
-  const repos=candidateRepos({cwd,env}).map(p=>inspectRepo(p,{exec,env,providerRead:true}));
+  const repos=repoCandidates({cwd,env}).map(p=>repoInspect(p,{exec,env,providerRead:true}));
   const choice=chooseRepo(repos);
   const base={
     schema:'xiio.cli.inbox-runtime-recovery/v1',observed_at,mode:execute?'EXECUTE':'PLAN',
@@ -172,15 +177,15 @@ export function recoverInboxRuntime({
   let selected=choice.row;
   let sourceMutation={ok:true,mutation:'NONE',head:selected.local_head};
   if(choice.kind==='FAST_FORWARDABLE'){
-    sourceMutation=ffOnly(selected,{exec,env});
+    sourceMutation=sourcePrep(selected,{exec,env});
     if(!sourceMutation.ok)return {...base,state:'BLOCKED',first_red:sourceMutation.first_red,sourceMutation,next:'FIX_INBOX_CURRENT_REPO'};
-    selected=inspectRepo(selected.path,{exec,env,providerRead:true});
+    selected=repoInspect(selected.path,{exec,env,providerRead:true});
   }
   if(selected.state!=='CURRENT_CLEAN'){
     return {...base,state:'BLOCKED',first_red:'INBOX_REPO_NOT_CURRENT_CLEAN_AFTER_PREP',selected,sourceMutation,next:'FIX_INBOX_CURRENT_REPO'};
   }
 
-  const start=startOwnerRuntime(selected.path,{env});
+  const start=startRuntime(selected.path,{env});
   if(!start.ok)return {...base,state:'BLOCKED',first_red:start.first_red,selected,sourceMutation,start,next:'FIX_OWNER_RUNTIME_START'};
 
   const deadline=Date.now()+Math.max(1,Number(waitSeconds))*1000;
@@ -189,7 +194,7 @@ export function recoverInboxRuntime({
     sleep(1000);
     after=runtimeInspect({port:8791,expectedRepo:'Vado42-chris/xi-io-Inbox',exec,env,providerRead:true});
   }
-  const headMatch=runHeadMatch(selected.path,selected.provider_main,{env,exec});
+  const headMatch=headMatchCheck(selected.path,selected.provider_main,{env,exec});
   const pass=after.state==='PASS_CURRENT' && headMatch.state==='PASS';
   return {
     ...base,
