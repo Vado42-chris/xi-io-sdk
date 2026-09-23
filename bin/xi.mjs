@@ -94,7 +94,8 @@ Pure compilers:
 
 Runtime recovery:
   xi-io recover aries-runner            Plan/check only, no mutation
-  xi-io recover aries-runner --execute  Start existing Aries runner only, then read back provider state
+  xi-io recover aries-runner --execute [--repo owner/repo --run <id> --job <id> --head <sha>]
+                                      Start existing Aries runner only, then read back exact provider job
 
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
@@ -537,7 +538,16 @@ if (
   const target = process.argv[3] || null;
   const executeRecovery = process.argv.includes('--execute');
   if (target !== 'aries-runner') usage(1);
-  const result = recoverAriesRunner({execute:executeRecovery});
+  const raw = process.argv.slice(4).filter((value)=>value!=='--execute');
+  const { flags } = args(raw);
+  const result = recoverAriesRunner({
+    execute:executeRecovery,
+    targetRepo:flags.repo || undefined,
+    targetRunId:flags.run || undefined,
+    targetJobId:flags.job || undefined,
+    targetHeadSha:flags.head || undefined,
+    waitSeconds:flags.wait?Number(flags.wait):undefined,
+  });
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
   process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
 } else if (top === 'sdk') {

@@ -1,11 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-
-const EXPECTED_ORIGIN=/^(?:git@github\.com:|https:\/\/github\.com\/)Vado42-chris\/xi-io-Inbox(?:\.git)?$/;
-const RECOVERY_REL='scripts/aries-runner-local-recovery.sh';
 
 function run(command,args,{cwd,env=process.env,timeout=15000}={}){
   const result=spawnSync(command,args,{cwd,env,encoding:'utf8',timeout,maxBuffer:4*1024*1024});
@@ -17,179 +14,204 @@ function run(command,args,{cwd,env=process.env,timeout=15000}={}){
     error:result.error?String(result.error.message||result.error):null,
   };
 }
+function sleep(ms){Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms);}
 function sha(value){return 'sha256:'+createHash('sha256').update(String(value||'')).digest('hex');}
-function card(id,label,state,proof_ref=null,blocker=null){
-  return {id,label,state,proof_ref,blocker};
-}
-function git(repo,...args){return run('git',['-C',repo,...args]);}
-function roots(env){
-  const user=env.USER||path.basename(os.homedir());
-  return [...new Set([path.join('/media',user),os.homedir()].filter(p=>fs.existsSync(p)))];
-}
-function findMatches(searchRoots,pattern){
-  const rows=[];
-  for(const root of searchRoots){
-    const r=run('find',[root,'-maxdepth','12','-type','f','-path',pattern,'-print'],{timeout:20000});
-    if(!r.ok && !r.stdout) continue;
-    for(const line of r.stdout.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)) rows.push(line);
+function card(id,label,state,proof_ref=null,blocker=null){return {id,label,state,proof_ref,blocker};}
+function uniq(rows){return [...new Set(rows.filter(Boolean))];}
+
+function parseUnits(text,scope){
+  const out=[];
+  for(const line of String(text||'').split(/\r?\n/)){
+    const unit=line.trim().split(/\s+/)[0];
+    if(!unit || !unit.endsWith('.service')) continue;
+    if(!unit.startsWith('actions.runner.') && unit!=='xiio-github-actions-runner.service') continue;
+    out.push({scope,unit});
   }
-  return rows;
+  return out;
 }
-function inspectCandidate(script){
-  const repo=path.resolve(path.dirname(script),'..');
-  const top=git(repo,'rev-parse','--show-toplevel');
-  if(!top.ok) return null;
-  const resolved=top.stdout.trim();
-  const origin=git(resolved,'remote','get-url','origin');
-  if(!origin.ok || !EXPECTED_ORIGIN.test(origin.stdout.trim())) return null;
-  const head=git(resolved,'rev-parse','HEAD');
-  const branch=git(resolved,'branch','--show-current');
-  const dirty=git(resolved,'status','--porcelain');
+
+export function discoverRunnerServices({exec=run}={}){
+  const system=exec('systemctl',['list-unit-files','actions.runner.*.service','xiio-github-actions-runner.service','--no-legend']);
+  const user=exec('systemctl',['--user','list-unit-files','actions.runner.*.service','xiio-github-actions-runner.service','--no-legend']);
+  const rows=[...parseUnits(system.stdout,'system'),...parseUnits(user.stdout,'user')];
+  const keyed=new Map(rows.map(r=>[`${r.scope}:${r.unit}`,r]));
+  const services=[...keyed.values()];
+  for(const row of services){
+    const args=row.scope==='user'?['--user','is-active',row.unit]:['is-active',row.unit];
+    const state=exec('systemctl',args);
+    row.state=state.stdout.trim()||'inactive';
+  }
+  return services;
+}
+
+export function discoverRunnerListener({exec=run}={}){
+  const r=exec('pgrep',['-af','Runner.Listener']);
+  const lines=r.stdout.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(!lines.length) return null;
+  const paths=[];
+  for(const line of lines){
+    const m=line.match(/\s(\/[^\s]*\/bin\/Runner\.Listener)(?:\s|$)/);
+    if(m) paths.push(path.resolve(path.dirname(m[1]),'..'));
+  }
+  return {state:'RUNNING',lines:lines.length,runner_dirs:uniq(paths)};
+}
+
+export function runnerSearchRoots(env=process.env){
+  const explicit=String(env.XIIO_RUNNER_SEARCH_ROOTS||'').split(':').map(x=>x.trim()).filter(Boolean);
+  if(explicit.length) return uniq(explicit.filter(p=>fs.existsSync(p)));
+  const user=env.USER||path.basename(os.homedir());
+  return uniq([
+    os.homedir(),
+    path.join('/media',user),
+    '/opt','/srv','/mnt',
+  ].filter(p=>fs.existsSync(p)));
+}
+
+export function discoverRunnerDirs({env=process.env,exec=run}={}){
+  const rows=[];
+  for(const root of runnerSearchRoots(env)){
+    const r=exec('find',[root,'-maxdepth','12','-type','f','-name','.runner','-print'],{timeout:30000});
+    for(const marker of r.stdout.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)){
+      const dir=path.dirname(marker);
+      if(fs.existsSync(path.join(dir,'run.sh')) || fs.existsSync(path.join(dir,'bin','Runner.Listener'))) rows.push(dir);
+    }
+  }
+  return uniq(rows);
+}
+
+function chooseRunner({services,listener,dirs}){
+  const active=services.filter(s=>s.state==='active');
+  if(active.length===1) return {kind:'service',...active[0]};
+  if(active.length>1) return {kind:'blocked',first_red:'AMBIGUOUS_ACTIVE_RUNNER_SERVICES'};
+  if(listener?.runner_dirs?.length===1) return {kind:'listener',runner_dir:listener.runner_dirs[0]};
+  if(listener && listener.runner_dirs.length===0) return {kind:'listener',runner_dir:null};
+  if(services.length===1) return {kind:'service',...services[0]};
+  if(services.length>1) return {kind:'blocked',first_red:'AMBIGUOUS_RUNNER_SERVICES'};
+  if(dirs.length===1) return {kind:'run_sh',runner_dir:dirs[0]};
+  if(dirs.length>1) return {kind:'blocked',first_red:'AMBIGUOUS_RUNNER_REGISTRATIONS'};
+  return {kind:'blocked',first_red:'RUNNER_SERVICE_AND_REGISTRATION_NOT_FOUND'};
+}
+
+function startExisting(choice,{exec=run,env=process.env}={}){
+  if(choice.kind==='listener') return {ok:true,mutation:'NONE',state:'active-process'};
+  if(choice.kind==='service'){
+    if(choice.state==='active') return {ok:true,mutation:'NONE',state:'active'};
+    if(choice.scope==='user'){
+      const r=exec('systemctl',['--user','start',choice.unit],{env});
+      const state=exec('systemctl',['--user','is-active',choice.unit],{env}).stdout.trim();
+      return {ok:r.ok&&state==='active',mutation:'START_EXISTING_USER_SERVICE',state,stderr:r.stderr};
+    }
+    let r=exec('systemctl',['start',choice.unit],{env});
+    if(!r.ok) r=exec('sudo',['-n','systemctl','start',choice.unit],{env});
+    const state=exec('systemctl',['is-active',choice.unit],{env}).stdout.trim();
+    return {ok:r.ok&&state==='active',mutation:'START_EXISTING_SYSTEM_SERVICE',state,stderr:r.stderr};
+  }
+  if(choice.kind==='run_sh'){
+    const runSh=path.join(choice.runner_dir,'run.sh');
+    if(!fs.existsSync(runSh)) return {ok:false,mutation:'NONE',state:'missing',stderr:'RUN_SH_MISSING'};
+    const stateRoot=path.join(env.XDG_STATE_HOME||path.join(os.homedir(),'.local','state'),'xi-io','runner-recovery');
+    fs.mkdirSync(stateRoot,{recursive:true,mode:0o700});
+    const log=path.join(stateRoot,`runner-${Date.now()}.log`);
+    const fd=fs.openSync(log,'a',0o600);
+    const child=spawn(runSh,[],{cwd:choice.runner_dir,env,detached:true,stdio:['ignore',fd,fd]});
+    child.unref();
+    fs.closeSync(fd);
+    sleep(1500);
+    const listener=discoverRunnerListener({exec});
+    return {ok:Boolean(listener),mutation:'START_EXISTING_RUN_SH',state:listener?'active-process':'failed',log_ref:log};
+  }
+  return {ok:false,mutation:'NONE',state:'blocked',stderr:choice.first_red||'UNKNOWN'};
+}
+
+function parseJson(text){try{return JSON.parse(text);}catch{return null;}}
+function readTargetJob({repo,runId,jobId,headSha,exec=run}){
+  if(!repo || !runId) return {state:'NOT_REQUESTED',provider_effect:false};
+  const runRes=exec('gh',['api',`repos/${repo}/actions/runs/${runId}`],{timeout:15000});
+  const runBody=parseJson(runRes.stdout);
+  if(!runRes.ok || !runBody) return {state:'RUN_UNREADABLE',run_id:String(runId),provider_effect:false};
+  if(headSha && runBody.head_sha!==headSha) return {state:'HEAD_MISMATCH',run_id:String(runId),observed_head:runBody.head_sha,expected_head:headSha,provider_effect:false};
+  const jobsRes=exec('gh',['api',`repos/${repo}/actions/runs/${runId}/jobs`],{timeout:15000});
+  const jobsBody=parseJson(jobsRes.stdout);
+  if(!jobsRes.ok || !jobsBody) return {state:'JOBS_UNREADABLE',run_id:String(runId),provider_effect:false};
+  const jobs=jobsBody.jobs||[];
+  const job=jobId?jobs.find(j=>String(j.id)===String(jobId)):jobs[0];
+  if(!job) return {state:'JOB_NOT_FOUND',run_id:String(runId),job_id:jobId?String(jobId):null,provider_effect:false};
   return {
-    repo:resolved,
-    script,
-    origin:origin.stdout.trim(),
-    head:head.ok?head.stdout.trim():'UNKNOWN',
-    branch:branch.ok?branch.stdout.trim():'UNKNOWN',
-    dirty:dirty.ok && Boolean(dirty.stdout.trim()),
-    source:path.basename(path.dirname(path.dirname(script)))==='dogfood-runtime-main'?'DOGFOOD_WORKTREE':'INBOX_CHECKOUT',
+    state:String(job.status||'UNKNOWN').toUpperCase(),
+    run_id:String(runId),
+    job_id:String(job.id),
+    runner_id:job.runner_id||0,
+    runner_name:job.runner_name||null,
+    steps:Array.isArray(job.steps)?job.steps.length:0,
+    conclusion:job.conclusion||null,
+    head_sha:runBody.head_sha||null,
+    provider_effect:false,
   };
 }
-export function discoverInboxRecovery({env=process.env}={}){
-  const candidates=[];
-  const explicit=env.XIIO_DOGFOOD_WORKTREE;
-  if(explicit){
-    const script=path.join(explicit,RECOVERY_REL);
-    if(fs.existsSync(script) && fs.statSync(script).isFile()) candidates.push(script);
-  }
-  candidates.push(...findMatches(roots(env),'*/.tmp/worktrees/dogfood-runtime-main/'+RECOVERY_REL));
-  if(!candidates.length) candidates.push(...findMatches(roots(env),'*/xi-io-Inbox/'+RECOVERY_REL));
-  const inspected=[...new Set(candidates)].map(inspectCandidate).filter(Boolean);
-  if(!inspected.length) return {state:'BLOCKED',first_red:'INBOX_RECOVERY_CHECKOUT_NOT_FOUND',candidates:[]};
-  const explicitResolved=explicit?fs.realpathSync(explicit):null;
-  const preferred=inspected.find(x=>explicitResolved && x.repo===explicitResolved)
-    || inspected.find(x=>x.script.includes('/.tmp/worktrees/dogfood-runtime-main/'))
-    || (inspected.length===1?inspected[0]:null);
-  if(!preferred) return {state:'BLOCKED',first_red:'AMBIGUOUS_INBOX_RECOVERY_CHECKOUT',candidates:inspected};
-  return {state:'PASS',first_red:null,selected:preferred,candidates:inspected};
-}
-function parseRecoveryOutput(output){
-  const map={};
-  for(const line of String(output||'').split(/\r?\n/)){
-    const m=line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if(m) map[m[1]]=m[2];
-  }
-  return map;
-}
-export function recoverAriesRunner({execute=false,env=process.env,host=os.hostname().split('.')[0].toLowerCase()}={}){
+
+export function recoverAriesRunner({
+  execute=false,
+  env=process.env,
+  host=os.hostname().split('.')[0].toLowerCase(),
+  targetRepo=env.XIIO_RUNNER_RECOVERY_REPO||null,
+  targetRunId=env.XIIO_RUNNER_RECOVERY_RUN_ID||null,
+  targetJobId=env.XIIO_RUNNER_RECOVERY_JOB_ID||null,
+  targetHeadSha=env.XIIO_RUNNER_RECOVERY_HEAD_SHA||null,
+  waitSeconds=Number(env.XIIO_RUNNER_RECOVERY_WAIT_SECONDS||120),
+  exec=run,
+}={}){
   const observed_at=new Date().toISOString();
-  const discovery=discoverInboxRecovery({env});
+  const services=discoverRunnerServices({exec});
+  const listener=discoverRunnerListener({exec});
+  const dirs=listener?[]:discoverRunnerDirs({env,exec});
+  const choice=chooseRunner({services,listener,dirs});
+  const hostPass=host==='aries';
+  const identityPass=choice.kind!=='blocked';
   const punchcards=[
     card('PC01','HUMAN_CLI_ENTRY','PASS','xi-io recover aries-runner'),
-    card('PC02','HOST_IS_ARIES',host==='aries'?'PASS':'BLOCKED',host,host==='aries'?null:'WRONG_HOST'),
-    card('PC03','INBOX_CHECKOUT_DISCOVERED',discovery.state==='PASS'?'PASS':'BLOCKED',discovery.selected?.repo||null,discovery.first_red),
-    card('PC04','INBOX_ORIGIN_IDENTITY',discovery.selected&&EXPECTED_ORIGIN.test(discovery.selected.origin)?'PASS':'BLOCKED',discovery.selected?.origin||null,discovery.selected?'WRONG_ORIGIN':'NO_CHECKOUT'),
-    card('PC05','CURRENT_RECOVERY_PRIMITIVE_RESOLVABLE','UNPROVEN',null,'PROVIDER_CURRENT_SCRIPT_NOT_YET_BOUND'),
-    card('PC06','EFFECT_BOUNDARY_EXISTING_RUNNER_ONLY','PASS','scripts/aries-runner-local-recovery.sh'),
-    card('PC07','ATTEMPT','WAIT',null,execute?'PREFLIGHT_NOT_COMPLETE':'EXECUTE_NOT_REQUESTED'),
-    card('PC08','RESULT','WAIT',null,'NO_ATTEMPT_RESULT'),
-    card('PC09','PROVIDER_READBACK','WAIT',null,'NO_RUNTIME_RESULT'),
-    card('PC10','RETURN_APPLY_REAP','WAIT',null,'NO_RUNTIME_RESULT'),
+    card('PC02','HOST_IS_ARIES',hostPass?'PASS':'BLOCKED',host,hostPass?null:'WRONG_HOST'),
+    card('PC03','EXISTING_RUNNER_IDENTITY',identityPass?'PASS':'BLOCKED',identityPass?choice.kind:null,identityPass?null:choice.first_red),
+    card('PC04','NO_NEW_REGISTRATION','PASS','hard-boundary'),
+    card('PC05','NO_TOKEN_MINT','PASS','hard-boundary'),
+    card('PC06','ATTEMPT',execute&&hostPass&&identityPass?'READY':'WAIT',null,execute?'PREFLIGHT_BLOCKED':'EXECUTE_NOT_REQUESTED'),
+    card('PC07','RUNNER_LISTENER','WAIT'),
+    card('PC08','PROVIDER_JOB','WAIT'),
+    card('PC09','RESULT','WAIT'),
+    card('PC10','RETURN_APPLY_REAP','WAIT'),
   ];
-  const checklist={
-    host_is_aries:host==='aries',
-    inbox_checkout_discovered:discovery.state==='PASS',
-    correct_origin:Boolean(discovery.selected&&EXPECTED_ORIGIN.test(discovery.selected.origin)),
-    destructive_git_operations:false,
-    new_runner_registration:false,
-    runner_token_creation:false,
-    provider_mutation:false,
-    path_owner_input_required:false,
-  };
-  let first_red=punchcards.find(x=>x.state==='BLOCKED')?.blocker||null;
-  if(first_red || !execute){
-    return {
-      schema:'xiio.cli.aries-runner-recovery/v1',
-      observed_at,
-      mode:execute?'EXECUTE_BLOCKED':'PLAN',
-      state:first_red?'BLOCKED':'PLAN_READY',
-      first_red:first_red||'EXECUTE_NOT_REQUESTED',
-      checklist,
-      punchcards,
-      scorecard:{micro:'PASS',meso:first_red?'BLOCKED':'PASS',macro:'WAIT',meta:'WAIT',closure:false},
-      discovery,
-      authority:{start_existing_runner:execute && !first_red,new_registration:false,token:false,source_mutation:false,provider_effect:false},
-      next:first_red?'FIX_FIRST_RED':'RE-RUN_WITH_--execute',
-    };
-  }
-
-  const repo=discovery.selected.repo;
-  const fetch=git(repo,'fetch','origin','main','--quiet');
-  if(!fetch.ok){
-    punchcards[4]=card('PC05','CURRENT_RECOVERY_PRIMITIVE_RESOLVABLE','BLOCKED',null,'ORIGIN_MAIN_FETCH_FAILED');
-    return {
-      schema:'xiio.cli.aries-runner-recovery/v1',observed_at,mode:'EXECUTE',state:'BLOCKED',
-      first_red:'ORIGIN_MAIN_FETCH_FAILED',checklist,punchcards,
-      scorecard:{micro:'PASS',meso:'BLOCKED',macro:'WAIT',meta:'WAIT',closure:false},
-      discovery,fetch:{status:fetch.status,stderr_digest:sha(fetch.stderr)},next:'RESTORE_GIT_PROVIDER_READ_THEN_RETRY'
-    };
-  }
-  const show=git(repo,'show','origin/main:'+RECOVERY_REL);
-  if(!show.ok || !show.stdout.includes('ARIES_RUNNER_RECOVERY=')){
-    punchcards[4]=card('PC05','CURRENT_RECOVERY_PRIMITIVE_RESOLVABLE','BLOCKED',null,'PROVIDER_CURRENT_RECOVERY_PRIMITIVE_MISSING');
-    return {
-      schema:'xiio.cli.aries-runner-recovery/v1',observed_at,mode:'EXECUTE',state:'BLOCKED',
-      first_red:'PROVIDER_CURRENT_RECOVERY_PRIMITIVE_MISSING',checklist,punchcards,
-      scorecard:{micro:'PASS',meso:'BLOCKED',macro:'WAIT',meta:'WAIT',closure:false},
-      discovery,next:'RECOVER_ACCEPTED_INBOX_PRIMITIVE'
-    };
-  }
-  punchcards[4]=card('PC05','CURRENT_RECOVERY_PRIMITIVE_RESOLVABLE','PASS','origin/main:'+RECOVERY_REL);
-
-  const tempRoot=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-aries-runner-recovery-'));
-  const tempScript=path.join(tempRoot,'aries-runner-local-recovery.sh');
-  fs.writeFileSync(tempScript,show.stdout,{encoding:'utf8',mode:0o700});
-  let attempt;
-  try{
-    attempt=run('bash',[tempScript],{
-      cwd:repo,
-      env:{...env,XIIO_DOGFOOD_WORKTREE:repo},
-      timeout:180000,
-    });
-  } finally {
-    try{fs.rmSync(tempRoot,{recursive:true,force:true});}catch{}
-  }
-  punchcards[6]=card('PC07','ATTEMPT','PASS','bash provider-current recovery primitive');
-  const parsed=parseRecoveryOutput(attempt.stdout+'\n'+attempt.stderr);
-  if(!attempt.ok || parsed.ARIES_RUNNER_RECOVERY!=='PASS'){
-    punchcards[7]=card('PC08','RESULT','BLOCKED',null,parsed.first_red||parsed.FIRST_RED||'RECOVERY_SCRIPT_FAILED');
-    return {
-      schema:'xiio.cli.aries-runner-recovery/v1',observed_at,mode:'EXECUTE',state:'BLOCKED',
-      first_red:parsed.first_red||parsed.FIRST_RED||'RECOVERY_SCRIPT_FAILED',checklist,punchcards,
-      scorecard:{micro:'PASS',meso:'PASS',macro:'BLOCKED',meta:'WAIT',closure:false},
-      discovery,result:{exit_code:attempt.status,stdout_digest:sha(attempt.stdout),stderr_digest:sha(attempt.stderr),parsed},
-      next:'FIX_RETURNED_FIRST_RED_AND_RETRY'
-    };
-  }
-  punchcards[7]=card('PC08','RESULT','PASS',parsed.RECEIPT||'ARIES_RUNNER_RECOVERY=PASS');
-  const providerState=parsed.PROVIDER_STATE||'UNPROVEN';
-  const providerGood=/EXECUTING|COMPLETED_/.test(providerState);
-  punchcards[8]=card('PC09','PROVIDER_READBACK',providerGood?'PASS':'WAIT',providerState,providerGood?null:'PROVIDER_JOB_NOT_YET_EXECUTING');
-  punchcards[9]=card('PC10','RETURN_APPLY_REAP',providerGood?'PASS':'WAIT',parsed.RECEIPT||null,providerGood?null:'WAIT_PROVIDER_EXECUTION');
-
-  return {
-    schema:'xiio.cli.aries-runner-recovery/v1',
-    observed_at,
-    mode:'EXECUTE',
-    state:providerGood?'PASS_RUNTIME_RECOVERY':'WAIT_PROVIDER',
-    first_red:providerGood?null:'PROVIDER_JOB_NOT_YET_EXECUTING',
-    checklist,
+  const first_red=!hostPass?'WRONG_HOST':!identityPass?choice.first_red:null;
+  const base={
+    schema:'xiio.cli.aries-runner-recovery/v2',observed_at,mode:execute?'EXECUTE':'PLAN',
+    host,choice,services,listener_observed:Boolean(listener),search_roots:runnerSearchRoots(env),
+    authority:{existing_runner_start:execute&&hostPass&&identityPass,new_registration:false,token:false,source_mutation:false,provider_effect:false},
     punchcards,
-    scorecard:{micro:'PASS',meso:'PASS',macro:providerGood?'PASS':'WAIT',meta:providerGood?'PASS':'WAIT',closure:providerGood},
-    discovery,
-    result:{exit_code:attempt.status,parsed,stdout_digest:sha(attempt.stdout),stderr_digest:sha(attempt.stderr)},
-    return_apply_reap:providerGood?'COMPLETE_FOR_RUNNER_RECOVERY':'WAIT_PROVIDER_EXECUTION',
-    authority:{start_existing_runner:true,new_registration:false,token:false,source_mutation:false,provider_effect:false},
-    next:providerGood?'REOBSERVE_DEPENDENT_ROTFL_RUNTIME':'REOBSERVE_PROVIDER_JOB'
+    provider_effect:false,
   };
+  if(first_red || !execute){
+    return {...base,state:first_red?'BLOCKED':'PLAN_READY',first_red:first_red||'EXECUTE_NOT_REQUESTED',next:first_red?'FIX_FIRST_RED':'RE-RUN_WITH_--execute'};
+  }
+
+  const start=startExisting(choice,{exec,env});
+  punchcards[5]=card('PC06','ATTEMPT',start.ok?'PASS':'BLOCKED',start.mutation,start.ok?null:'RUNNER_START_FAILED');
+  if(!start.ok) return {...base,state:'BLOCKED',first_red:'RUNNER_START_FAILED',start,punchcards,next:'FIX_EXISTING_RUNNER_START'};
+
+  let provider=readTargetJob({repo:targetRepo,runId:targetRunId,jobId:targetJobId,headSha:targetHeadSha,exec});
+  const deadline=Date.now()+Math.max(0,waitSeconds)*1000;
+  while(targetRunId && provider.state==='QUEUED' && Date.now()<deadline){
+    sleep(2500);
+    provider=readTargetJob({repo:targetRepo,runId:targetRunId,jobId:targetJobId,headSha:targetHeadSha,exec});
+  }
+  const listenerAfter=discoverRunnerListener({exec});
+  punchcards[6]=card('PC07','RUNNER_LISTENER',listenerAfter?'PASS':'BLOCKED',listenerAfter?'Runner.Listener':null,listenerAfter?null:'RUNNER_LISTENER_NOT_OBSERVED');
+  const providerPass=['IN_PROGRESS','COMPLETED'].includes(provider.state) && Number(provider.runner_id||0)>0 && Number(provider.steps||0)>0;
+  const providerWait=provider.state==='QUEUED';
+  punchcards[7]=card('PC08','PROVIDER_JOB',providerPass?'PASS':providerWait?'WAIT':'BLOCKED',provider.state,providerPass||providerWait?null:`PROVIDER_${provider.state}`);
+  punchcards[8]=card('PC09','RESULT',listenerAfter&&(providerPass||!targetRunId)?'PASS':providerWait?'WAIT':'BLOCKED',start.mutation);
+  punchcards[9]=card('PC10','RETURN_APPLY_REAP',providerPass?'PASS':providerWait?'WAIT':'WAIT',provider.job_id||null,providerPass?null:'WAIT_PROVIDER_EXECUTION');
+
+  if(!listenerAfter) return {...base,state:'BLOCKED',first_red:'RUNNER_LISTENER_NOT_OBSERVED',start,provider,punchcards,next:'INSPECT_EXISTING_RUNNER_LOG'};
+  if(targetRunId && !providerPass){
+    return {...base,state:providerWait?'WAIT_PROVIDER':'BLOCKED',first_red:providerWait?'PROVIDER_JOB_STILL_QUEUED':`PROVIDER_${provider.state}`,start,provider,punchcards,next:'REOBSERVE_PROVIDER_JOB'};
+  }
+  return {...base,state:'PASS_RUNTIME_RECOVERY',first_red:null,start,provider,punchcards,return_apply_reap:'COMPLETE_FOR_RUNNER_RECOVERY',next:'REOBSERVE_DEPENDENT_ROTFL_RUNTIME'};
 }
