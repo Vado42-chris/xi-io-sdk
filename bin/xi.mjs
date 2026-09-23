@@ -8,6 +8,7 @@ import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } f
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
 import { compilePortableSemanticFile } from '../src/documents/portable-semantic-file.mjs';
 import { compilePortableArtifactCube } from '../src/documents/portable-artifact-cube.mjs';
+import { prepareRegisteredPrimitiveShipment } from '../src/documents/prepare-primitive-shipment.mjs';
 import { artifactProfileCatalog, resolveArtifactProfile, resolveArtifactProfileByMediaType } from '../src/documents/artifact-profile-catalog.mjs';
 import { bindHexFloorCurrentness } from '../src/currentness/hex-floor.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
@@ -127,6 +128,7 @@ Pure compilers:
   xi-io file profiles [--out <profiles.json>]
   xi-io file profile --id <profile_id> [--out <profile.json>]
   xi-io file profile --media <mime/type> [--out <profile.json>]
+  xi-io file prepare --primitive <id> --generation <sha> [--out <shipment.json>]
   xi-io fleet delivery --input <fleet-delivery.json> [--out <fleet-gate.json>]
   xi-io 100s compile --input <four-scale.json> [--out <scorecard.json>]
   xi-io preflight compile --input <graduation.json> [--out <preflight.json>]
@@ -1188,6 +1190,16 @@ try {
     if(flags.id) writeOutput(resolveArtifactProfile(flags.id), flags.out);
     else if(flags.media) writeOutput(resolveArtifactProfileByMediaType(flags.media), flags.out);
     else throw new Error('file profile requires --id or --media');
+  } else if (family === 'file' && action === 'prepare') {
+    if(!flags.primitive || !flags.generation) throw new Error('file prepare requires --primitive and --generation');
+    writeOutput(prepareRegisteredPrimitiveShipment({
+      primitive_id:flags.primitive,
+      source_generation:flags.generation,
+      source_ref:flags.source || undefined,
+      file_id:flags.file || undefined,
+      artifact_role:flags.role || undefined,
+      cube_id:flags.cube || undefined,
+    }), flags.out);
   } else if (family === 'product' && action === 'compile') {
     writeOutput(compileProductCapabilityBaseline(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'fleet' && action === 'delivery') {
