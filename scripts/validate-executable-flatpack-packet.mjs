@@ -5,6 +5,8 @@ import {
   projectFlatpackQualifiers,
   validateFlatpackPacketRoundtrip,
   reduceFlatpackArtifact,
+  expandFlatpackArtifact,
+  validateFlatpackReductionRoundtrip,
 } from '../src/flatpack/executable-packet.mjs';
 
 const packet=compileFlatpackPacket({
@@ -182,6 +184,12 @@ const reduction=reduceFlatpackArtifact({
   generation:'g2',
   one:{subject_ref:'source:1'},
   two:{left_ref:'source:1',right_ref:'target:2',relation:'RECIPROCAL'},
+  blast_radius:{
+    radius:10,
+    coordinate_ref:'cube:0,0,0',
+    affected_refs:['bins','search','hex'],
+    return_targets:['studio:return'],
+  },
   qualifiers:[
     {id:'Q1',state:'PASS',bit:1,return_target:'bins:return'},
     {id:'Q2',state:'TRUE_WAIT',bit:null,return_target:'search:return'},
@@ -194,8 +202,46 @@ assert.equal(reduction.stage2.stage,2);
 assert.equal(reduction.stage1.stage,1);
 assert.deepEqual(reduction.stage2.blast_radius,reduction.stage3.blast_radius);
 assert.deepEqual(reduction.stage1.blast_radius,reduction.stage3.blast_radius);
-assert.deepEqual(reduction.stage1.blast_radius.return_targets,['bins:return','search:return']);
-assert.equal(reduction.artifact_result.packet.packet_id,'flatpack:blast');
+assert.deepEqual(reduction.stage1.blast_radius.return_targets,['bins:return','search:return','studio:return']);
+assert.deepEqual(reduction.stage1.blast_radius.affected_refs,['bins','hex','search']);
+assert.equal(reduction.artifact_result.canonical_packet.packet_id,'flatpack:blast');
+assert.equal(
+  reduction.stage3.blast_radius.semantic_digest,
+  reduction.stage2.blast_radius.semantic_digest
+);
+assert.equal(
+  reduction.stage2.blast_radius.semantic_digest,
+  reduction.stage1.blast_radius.semantic_digest
+);
+
+const expansion=expandFlatpackArtifact(reduction.stage1);
+assert.equal(expansion.expansion,'1->2->3');
+assert.deepEqual(expansion.stage2.blast_radius,reduction.stage2.blast_radius);
+assert.deepEqual(expansion.stage3.blast_radius,reduction.stage3.blast_radius);
+assert.deepEqual(expansion.stage3.parts,reduction.stage3.parts);
+assert.deepEqual(expansion.stage2.qualifier_vector,reduction.stage2.qualifier_vector);
+
+const reductionRoundtrip=validateFlatpackReductionRoundtrip({
+  packet_id:'flatpack:blast',
+  generation:'g2',
+  one:{subject_ref:'source:1'},
+  two:{left_ref:'source:1',right_ref:'target:2',relation:'RECIPROCAL'},
+  blast_radius:{
+    radius:10,
+    coordinate_ref:'cube:0,0,0',
+    affected_refs:['bins','search','hex'],
+    return_targets:['studio:return'],
+  },
+  qualifiers:[
+    {id:'Q1',state:'PASS',bit:1,evidence_ref:'e:q1',generation_ref:'g:q1',return_target:'bins:return'},
+    {id:'Q2',state:'TRUE_WAIT',bit:null,evidence_ref:'e:q2',generation_ref:'g:q2',return_target:'search:return'},
+    {id:'Q3',state:'N_A',bit:null},
+  ],
+});
+assert.equal(reductionRoundtrip.state,'PASS');
+assert.equal(reductionRoundtrip.same_blast_radius,true);
+assert.equal(reductionRoundtrip.same_packet_topology,true);
+assert.equal(reductionRoundtrip.external_state_reads,0);
 
 console.log(JSON.stringify({
   status:'PASS',
@@ -204,6 +250,13 @@ console.log(JSON.stringify({
   binary_resolved:true,
   unresolved_typed:true,
   roundtrip:true,
+  reduction_roundtrip:{
+    state:reductionRoundtrip.state,
+    reduction:reductionRoundtrip.reduction,
+    expansion:reductionRoundtrip.expansion,
+    blast_radius_digest:reductionRoundtrip.blast_radius_digest,
+    external_state_reads:reductionRoundtrip.external_state_reads,
+  },
   lesson_backbeat:{
     seed_canary:seedCanary.semantic_digest,
     massive_detonator:massiveDetonator.semantic_digest,
