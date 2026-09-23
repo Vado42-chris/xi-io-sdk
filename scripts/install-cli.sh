@@ -48,7 +48,7 @@ if [[ "$SOURCE" == "$REPO" ]]; then
 fi
 
 git -C "$ROOT" fetch origin main --prune --quiet || fail FETCH_MAIN_FAILED
-git -C "$ROOT" merge --ff-only origin/main --quiet || fail SDK_NOT_FAST_FORWARDABLE
+git -C "$ROOT" merge --ff-only --quiet origin/main || fail SDK_NOT_FAST_FORWARDABLE
 head="$(git -C "$ROOT" rev-parse HEAD)"
 
 install_receipt="$(mktemp)"
