@@ -187,6 +187,9 @@ for(let i=0;i<100;i++){
   });
 }
 
+if (rejected!==100 || falseGreen!==0) {
+  console.error(JSON.stringify({schema:'xiio.cli.compass-hostile-debug/v1',hostileCount,rejected,falseGreen,failures:receipts.filter((row)=>row.state!=='EXPECTED')},null,2));
+}
 assert.equal(hostileCount,100);
 assert.equal(rejected,100);
 assert.equal(falseGreen,0);
