@@ -60,6 +60,15 @@ assert.equal(cube.closure_100,true);
 assert.equal(cube.counts.pass,10);
 assert.equal(cube.effect_authority,false);
 
+const unknownProfile=compilePortableArtifactCube({
+  ...good,
+  file:{...file,profile_id:'invented.profile.v99'},
+  parser_profile:{profile_id:'invented.profile.v99'},
+  consumer_profile:{profile_id:'invented.profile.v99'},
+});
+assert.equal(unknownProfile.state,'TRUE_WAIT');
+assert.equal(unknownProfile.first_red.id,'F04_PROFILE_BINDING');
+
 const noHex=compilePortableArtifactCube({...good,hex_floor:null});
 assert.equal(noHex.state,'TRUE_WAIT');
 assert.equal(noHex.first_red.id,'F05_HEX_CURRENTNESS');
@@ -102,7 +111,7 @@ console.log(JSON.stringify({
   state:'PASS',
   denominator:10,
   controls:2,
-  hostiles:5,
+  hostiles:6,
   file_types:['json','pdf'],
   false_green:0,
   effect_authority:0,
