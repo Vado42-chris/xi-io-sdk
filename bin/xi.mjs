@@ -471,6 +471,81 @@ function stableStatusProjection(value){
   return value;
 }
 
+
+function remoteDesktopProjectionPath(){
+  return process.env.XIIO_REMOTE_DESKTOP_STATE_PATH
+    || path.join(os.homedir(),'.local','state','xi-io','remote-desktop.current.json');
+}
+
+function remoteDesktopStatus(){
+  const file=remoteDesktopProjectionPath();
+  if(!fs.existsSync(file)){
+    return {
+      schema:'xiio.cli.remote-desktop-status/v1',
+      state:'TRUE_WAIT',
+      projection_path:file,
+      plugin_auth_state:'UNKNOWN',
+      device_registration_state:'UNKNOWN',
+      live_device_session_state:'UNKNOWN',
+      aries_machine_state:'UNKNOWN',
+      first_red:'REMOTE_DESKTOP_STATE_PROJECTION_MISSING',
+      provider_effect:false,
+      authority_granted:false,
+      hard:[
+        'MISSING_PROJECTION != NOT_AUTHENTICATED',
+        'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE'
+      ]
+    };
+  }
+  try{
+    const value=JSON.parse(fs.readFileSync(file,'utf8'));
+    const auth=value?.authentication?.state || 'UNKNOWN';
+    const registration=value?.device_registration?.state || 'UNKNOWN';
+    const session=value?.live_device_session?.state || 'UNKNOWN';
+    const machine=value?.aries_machine_state?.state || 'UNKNOWN';
+    const fail=['FAIL','FAIL_CURRENT','BLOCKED','INVALID'].includes(session);
+    const wait=['WAIT','TRUE_WAIT','UNKNOWN'].includes(session);
+    return {
+      schema:'xiio.cli.remote-desktop-status/v1',
+      state:fail?'FAIL_CURRENT':wait?'PASS_WITH_WAITS':'PASS',
+      projection_path:file,
+      provider:value?.provider || 'UNKNOWN',
+      plugin_auth_state:auth,
+      device_registration_state:registration,
+      live_device_session_state:session,
+      aries_machine_state:machine,
+      device_id:value?.device_registration?.device_id || null,
+      device_name:value?.device_registration?.device_name || null,
+      transport_broadcast_v1:value?.device_registration?.advertised_capabilities?.transport_broadcast_v1 === true,
+      auth_token_state:value?.device_registration?.auth_token_state || null,
+      last_seen:value?.live_device_session?.last_seen || null,
+      first_red:fail?'REMOTE_LIVE_DEVICE_SESSION_FAIL_CURRENT':wait?'REMOTE_LIVE_DEVICE_SESSION_WAIT':null,
+      provider_effect:false,
+      authority_granted:false,
+      hard:[
+        'PLUGIN_AUTH_OK != DEVICE_REGISTERED',
+        'DEVICE_REGISTERED != LIVE_DEVICE_SESSION',
+        'AUTH_OK + SESSION_MISSING => RESTORE_SESSION',
+        'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE'
+      ]
+    };
+  }catch(error){
+    return {
+      schema:'xiio.cli.remote-desktop-status/v1',
+      state:'FAIL_CURRENT',
+      projection_path:file,
+      plugin_auth_state:'UNKNOWN',
+      device_registration_state:'UNKNOWN',
+      live_device_session_state:'UNKNOWN',
+      aries_machine_state:'UNKNOWN',
+      first_red:'REMOTE_DESKTOP_STATE_PROJECTION_INVALID',
+      error:String(error?.message||error),
+      provider_effect:false,
+      authority_granted:false
+    };
+  }
+}
+
 async function statusSnapshot() {
   const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const [rawMap,rawHex,rawStudio,rawInbox]=await Promise.all([
@@ -479,6 +554,7 @@ async function statusSnapshot() {
     productRuntime('studio','status'),
     productRuntime('inbox','status'),
   ]);
+  const remoteDesktop=remoteDesktopStatus();
   const map=stableStatusProjection(rawMap);
   const hex=stableStatusProjection(rawHex);
   const studio=stableStatusProjection(rawStudio);
@@ -510,11 +586,18 @@ async function statusSnapshot() {
       products:{hex:hex.state,studio:studio.state,inbox:inbox.state},
       provider_ingress_state:'OBSERVED_LOCAL_ONLY',
       provider_egress_state:'NOT_EVALUATED',
+      remote_desktop:{
+        plugin_auth_state:remoteDesktop.plugin_auth_state,
+        device_registration_state:remoteDesktop.device_registration_state,
+        live_device_session_state:remoteDesktop.live_device_session_state,
+        aries_machine_state:remoteDesktop.aries_machine_state
+      },
       readback_ref:null
     },
     compass:map,
     machine_topology:topology,
     runner,
+    remote_desktop:remoteDesktop,
     products:{hex,studio,inbox},
     local_effect:true,
     provider_effect:false,
@@ -527,6 +610,8 @@ async function statusSnapshot() {
       'PORT_BOUND != QUALIFIED_RUNTIME',
       'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
       'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
+      'REMOTE_DESKTOP_AUTH_OK != LIVE_DEVICE_SESSION',
+      'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE',
     ],
   };
 }
@@ -542,6 +627,9 @@ async function gatesCheck(){
     {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
     {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
     {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
+    {id:'REMOTE_PLUGIN_AUTH',state:status.remote_desktop?.plugin_auth_state||'UNKNOWN',evidence_ref:'remote_desktop:auth'},
+    {id:'REMOTE_DEVICE_REGISTRATION',state:status.remote_desktop?.device_registration_state||'UNKNOWN',evidence_ref:'remote_desktop:device'},
+    {id:'REMOTE_LIVE_SESSION',state:status.remote_desktop?.live_device_session_state||'UNKNOWN',evidence_ref:'remote_desktop:session'},
   ];
   const hardFail=cells.some(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(c.state));
   const waits=cells.filter(c=>['WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED','OBSERVED_LOCAL_ONLY'].includes(c.state));
