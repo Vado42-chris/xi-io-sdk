@@ -109,6 +109,18 @@ Runtime recovery:
   xi-io recover inbox-runtime             Plan exact-current :8791 recovery
   xi-io recover inbox-runtime --execute   Preserve dirty donor, use clean current Inbox, restart, require 8/8
 
+Product runtime:
+  xi-io hex status                        Probe Hex loopback :8798
+  xi-io hex start                         Start existing installed Hex RC
+  xi-io hex install                       Install/rejoin Hex RC from current framework
+  xi-io hex open                          Open Hex in Studio suite
+  xi-io inbox status                      Probe Inbox :8791 health
+  xi-io inbox recover                     Recover exact-current Inbox runtime
+  xi-io inbox open                        Recover if needed, then open Inbox inside Studio
+  xi-io studio status                     Probe Studio :3099
+  xi-io studio open                       Open local Studio
+  xi-io studio inbox                      Recover Inbox and open Studio Inbox wrapper
+
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
 
@@ -457,6 +469,83 @@ async function doctor() {
   }, null, 2) + '\n');
 }
 
+
+async function simpleProbe(url,timeout=2500){
+  try{
+    const response=await fetch(url,{headers:{accept:'application/json,text/plain,*/*'},signal:AbortSignal.timeout(timeout)});
+    const text=await response.text();
+    let json=null; try{json=JSON.parse(text);}catch{}
+    return {state:response.ok?'PASS':'FAIL',status:response.status,url,json,body_preview:text.slice(0,500)};
+  }catch(error){
+    return {state:'TRUE_WAIT',status:null,url,reason:'UNREACHABLE',error:String(error?.message||error)};
+  }
+}
+function installedHexBin(name){
+  return path.join(os.homedir(),'.local','share','xi-io','hex-rc','current','bin',name);
+}
+function runDetached(command,args=[]){
+  const result=spawnSync('bash',['-lc','nohup "$1" >/tmp/xiio-launch.log 2>&1 &', 'xiio-launch', command],{encoding:'utf8'});
+  return {state:result.status===0?'PASS':'FAIL',status:result.status,stderr:String(result.stderr||'').trim()};
+}
+function openUrl(url){
+  const opener=process.platform==='linux'?'xdg-open':process.platform==='darwin'?'open':null;
+  if(!opener)return {state:'TRUE_WAIT',reason:'NO_SUPPORTED_URL_OPENER',url};
+  const result=spawnSync(opener,[url],{encoding:'utf8',timeout:5000});
+  return {state:result.status===0?'PASS':'FAIL',status:result.status,url,stderr:String(result.stderr||'').trim()};
+}
+async function frameworkRootFromCompass(){
+  const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const map=await compileLocalCompass({sdkRoot});
+  return {map,root:map?.roots?.framework?.selected?.path||null};
+}
+async function productRuntime(family,action){
+  if(family==='hex'){
+    if(action==='status'||!action) return {schema:'xiio.cli.hex/v1',...(await simpleProbe('http://127.0.0.1:8798/health')),effect_authority:0};
+    if(action==='start'){
+      const script=installedHexBin('ibal-control-start.sh');
+      if(!fs.existsSync(script)) return {schema:'xiio.cli.hex/v1',state:'TRUE_WAIT',first_red:'HEX_RC_NOT_INSTALLED',next:'xi-io hex install',effect_authority:0};
+      const run=runDetached(script);
+      const health=await new Promise(async resolve=>{for(let i=0;i<30;i+=1){const p=await simpleProbe('http://127.0.0.1:8798/health',1000);if(p.state==='PASS')return resolve(p);await new Promise(r=>setTimeout(r,200));}resolve(await simpleProbe('http://127.0.0.1:8798/health',1000));});
+      return {schema:'xiio.cli.hex/v1',state:health.state==='PASS'?'PASS':'FAIL_CURRENT',launch:run,health,effect_authority:0};
+    }
+    if(action==='install'){
+      const {map,root}=await frameworkRootFromCompass();
+      if(!root) return {schema:'xiio.cli.hex/v1',state:'TRUE_WAIT',first_red:'FRAMEWORK_ROOT_UNRESOLVED',compass:map,next:'xi-io compass',effect_authority:0};
+      const script=path.join(root,'scripts','install-hex-rc.mjs');
+      if(!fs.existsSync(script)) return {schema:'xiio.cli.hex/v1',state:'BLOCKED',first_red:'HEX_INSTALLER_MISSING',framework_root:root,effect_authority:0};
+      const run=spawnSync(process.execPath,[script],{cwd:root,encoding:'utf8',timeout:120000,maxBuffer:4*1024*1024});
+      const health=await simpleProbe('http://127.0.0.1:8798/health',2000);
+      return {schema:'xiio.cli.hex/v1',state:run.status===0&&health.state==='PASS'?'PASS':'FAIL_CURRENT',framework_root:root,installer_status:run.status,stdout:String(run.stdout||'').slice(-4000),stderr:String(run.stderr||'').slice(-4000),health,effect_authority:0};
+    }
+    if(action==='open'){
+      const suite=installedHexBin('hex-suite-open.sh');
+      if(fs.existsSync(suite)) return {schema:'xiio.cli.hex/v1',...runDetached(suite),target:'STUDIO_HEX_WRAPPER',effect_authority:0};
+      return {schema:'xiio.cli.hex/v1',...openUrl('http://127.0.0.1:8798/'),target:'HEX_LOOPBACK',effect_authority:0};
+    }
+  }
+  if(family==='inbox'){
+    if(action==='status'||!action) return {schema:'xiio.cli.inbox/v1',...(await simpleProbe('http://127.0.0.1:8791/api/health')),effect_authority:0};
+    if(action==='recover'){
+      const result=recoverInboxRuntime({execute:true});
+      return {schema:'xiio.cli.inbox/v1',...result};
+    }
+    if(action==='open'){
+      let health=await simpleProbe('http://127.0.0.1:8791/api/health');
+      let recovery=null;
+      if(health.state!=='PASS'){recovery=recoverInboxRuntime({execute:true});health=await simpleProbe('http://127.0.0.1:8791/api/health',3000);}
+      const target='http://127.0.0.1:3099/child-wrapper.html?product=inbox';
+      const opened=openUrl(target);
+      return {schema:'xiio.cli.inbox/v1',state:health.state==='PASS'&&opened.state==='PASS'?'PASS':'FAIL_CURRENT',health,recovery,studio_wrapper:opened,effect_authority:0};
+    }
+  }
+  if(family==='studio'){
+    if(action==='status'||!action) return {schema:'xiio.cli.studio/v1',...(await simpleProbe('http://127.0.0.1:3099/')),effect_authority:0};
+    if(action==='open') return {schema:'xiio.cli.studio/v1',...openUrl('http://127.0.0.1:3099/'),effect_authority:0};
+    if(action==='inbox') return productRuntime('inbox','open');
+  }
+  return {schema:'xiio.cli.product-runtime/v1',state:'FAIL',first_red:'UNKNOWN_PRODUCT_RUNTIME_COMMAND',family,action,effect_authority:0};
+}
+
 async function selfTest() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const rows=[];
@@ -574,6 +663,11 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'hex' || top === 'inbox' || top === 'studio') {
+  const action=process.argv[3] || 'status';
+  const result=await productRuntime(top,action);
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : 0;
 } else if (top === 'runner') {
   const action=process.argv[3] || 'status';
   if (action === 'status') {
