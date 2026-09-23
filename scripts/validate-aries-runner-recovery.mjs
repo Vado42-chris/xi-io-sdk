@@ -47,6 +47,7 @@ function fakeExecFactory({service='inactive',listener=false,job='queued'}={}){
   assert.equal(result.start.mutation,'START_EXISTING_SYSTEM_SERVICE');
   assert.ok(f.calls.some(x=>x.join(' ')==='systemctl start actions.runner.test.service'));
   assert.ok(!f.calls.some(x=>x.join(' ').includes('config.sh')));
+  assert.ok(!f.calls.some(x=>x[0]==='find'),'service discovery must suppress filesystem crawl');
 }
 
 {
