@@ -88,6 +88,63 @@ assert.throws(()=>compileFlatpackPacket({
 }),/QUALIFIER_ID_DUPLICATE/);
 
 
+// FINAL LESSON BACKBEAT:
+// 1) preserve the tiny seed canary,
+// 2) follow it with a massive detonator,
+// 3) final triage proves neither half nor the blast radius was forgotten.
+const seedCanary=compileFlatpackPacket({
+  packet_id:'flatpack:seed-canary',
+  generation:'g-seed',
+  one:{subject_ref:'seed:small'},
+  two:{left_ref:'seed:small',right_ref:'kernel:packet',relation:'CANARY'},
+  qualifiers:[
+    {id:'Q_SEED_IDENTITY',state:'PASS',bit:1,evidence_ref:'seed:identity'},
+    {id:'Q_SEED_RELATION',state:'PASS',bit:1,evidence_ref:'seed:relation'},
+  ],
+});
+assert.equal(seedCanary.closure_100,true);
+
+const massiveDetonator=compileFlatpackPacket({
+  packet_id:'flatpack:massive-detonator',
+  generation:'g-detonator',
+  one:{subject_ref:'detonator:100',blast_radius:100},
+  two:{left_ref:'detonator:100',right_ref:'affected:*',relation:'BLAST_RADIUS'},
+  qualifiers:Array.from({length:100},(_,i)=>({
+    id:'D'+String(i+1).padStart(3,'0'),
+    state:'PASS',
+    bit:1,
+    evidence_ref:'detonation:'+String(i+1).padStart(3,'0'),
+  })),
+});
+assert.equal(massiveDetonator.qualifier_denominator,100);
+assert.equal(massiveDetonator.qualifier_counts.pass,100);
+assert.equal(massiveDetonator.closure_100,true);
+
+const finalTriage=compileFlatpackPacket({
+  packet_id:'flatpack:final-triage',
+  generation:'g-triage',
+  one:{
+    seed_digest:seedCanary.semantic_digest,
+    detonator_digest:massiveDetonator.semantic_digest,
+    detonator_denominator:massiveDetonator.qualifier_denominator,
+  },
+  two:{
+    left_ref:seedCanary.packet_id,
+    right_ref:massiveDetonator.packet_id,
+    relation:'SEED_PLUS_DETONATOR_BACKBEAT',
+  },
+  qualifiers:[
+    {id:'T01_SEED_PRESERVED',state:'PASS',bit:1,evidence_ref:seedCanary.semantic_digest},
+    {id:'T02_DETONATOR_PRESERVED',state:'PASS',bit:1,evidence_ref:massiveDetonator.semantic_digest},
+    {id:'T03_BLAST_RADIUS_PRESERVED',state:'PASS',bit:1,evidence_ref:'denominator:100'},
+  ],
+});
+assert.equal(finalTriage.state,'PASS');
+assert.equal(finalTriage.closure_100,true);
+assert.equal(finalTriage.one.detonator_denominator,100);
+assert.equal(validateFlatpackPacketRoundtrip(finalTriage).pass,true);
+
+
 
 const levelWalk=compileFlatpackPacket({
   packet_id:'flatpack:level-walk',
@@ -126,5 +183,11 @@ console.log(JSON.stringify({
   binary_resolved:true,
   unresolved_typed:true,
   roundtrip:true,
+  lesson_backbeat:{
+    seed_canary:seedCanary.semantic_digest,
+    massive_detonator:massiveDetonator.semantic_digest,
+    final_triage:finalTriage.semantic_digest,
+    detonator_denominator:massiveDetonator.qualifier_denominator,
+  },
   effects:0,
 }));
