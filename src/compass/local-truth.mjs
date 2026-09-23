@@ -232,7 +232,7 @@ export async function compileLocalCompass({
 }
 
 export function writeCompassReceipt(compass,{env=process.env}={}){
-  const home=os.homedir();
+  const home=env.HOME||os.homedir();
   const stateRoot=path.join(env.XDG_STATE_HOME||path.join(home,'.local','state'),'xi-io','compass');
   fs.mkdirSync(stateRoot,{recursive:true,mode:0o700});
   const current=path.join(stateRoot,'current.json');
