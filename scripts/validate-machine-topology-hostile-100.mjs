@@ -66,8 +66,8 @@ opus = "=0.4.0"
     ['gstreamer','gstreamer-1.0'],
     ['gstreamer-app','gstreamer-app-1.0'],
     ['gstreamer-audio','gstreamer-audio-1.0'],
+    ['glib','glib-2.0'],
     ['alsa','alsa'],
-    ['source-mount','__source_mount__'],
     ['target-mount','__target_mount__'],
   ];
   let rejected=0,falseGreen=0;
@@ -75,14 +75,8 @@ opus = "=0.4.0"
     for(const [root,token] of roots){
       let exec=fakeExecFactory(
         ['cargo','pkg-config','cmake','cc'].includes(root)?{missingTool:token}:
-        ['gstreamer','gstreamer-app','gstreamer-audio','alsa'].includes(root)?{pkgMissing:token}:{}
+        ['gstreamer','gstreamer-app','gstreamer-audio','glib','alsa'].includes(root)?{pkgMissing:token}:{}
       );
-      if(root==='source-mount'){
-        exec=(command,args=[])=>{
-          if(command==='findmnt' && args.at(-1)===tmp) return {ok:false,status:1,stdout:'',stderr:'missing',error:null};
-          return fakeExecFactory()(command,args);
-        };
-      }
       if(root==='target-mount'){
         exec=(command,args=[])=>{
           if(command==='findmnt' && args.at(-1)!==tmp) return {ok:true,status:0,stdout:'/home rw,noexec',stderr:'',error:null};
