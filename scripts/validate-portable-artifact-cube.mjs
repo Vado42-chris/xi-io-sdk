@@ -58,6 +58,9 @@ assert.equal(cube.denominator,10);
 assert.equal(cube.state,'PASS');
 assert.equal(cube.closure_100,true);
 assert.equal(cube.counts.pass,10,JSON.stringify({state:cube.state,counts:cube.counts,first_red:cube.first_red,cells:cube.cells},null,2));
+assert.equal(cube.counts.unexpected_state,0);
+assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').state,'PASS');
+assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').hex_currentness_state,'HEX_QUALIFIED_CURRENT');
 assert.equal(cube.effect_authority,false);
 
 const unknownProfile=compilePortableArtifactCube({
@@ -72,6 +75,8 @@ assert.equal(unknownProfile.first_red.id,'F04_PROFILE_BINDING');
 const noHex=compilePortableArtifactCube({...good,hex_floor:null});
 assert.equal(noHex.state,'TRUE_WAIT');
 assert.equal(noHex.first_red.id,'F05_HEX_CURRENTNESS');
+assert.equal(noHex.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').state,'TRUE_WAIT');
+assert.equal(noHex.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').hex_currentness_state,'UNVERIFIED');
 
 const noBins=compilePortableArtifactCube({...good,bins_custody:{}});
 assert.equal(noBins.state,'TRUE_WAIT');
@@ -111,7 +116,7 @@ console.log(JSON.stringify({
   state:'PASS',
   denominator:10,
   controls:2,
-  hostiles:6,
+  hostiles:7,
   file_types:['json','pdf'],
   false_green:0,
   effect_authority:0,
