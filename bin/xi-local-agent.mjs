@@ -59,6 +59,7 @@ export function validateWorkspaceCommand(command, args = []) {
   }
 
   if (command === 'bash') {
+    if (args[0] === '-c' || args[0] === '-lc') throw new Error('SHELL_STRING_DENIED');
     if (args.length !== 2 || args[0] !== '-n') throw new Error('BASH_COMMAND_DENIED');
     target(args[1]);
     return { command, args };
