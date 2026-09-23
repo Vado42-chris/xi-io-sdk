@@ -29,6 +29,7 @@ assert.equal(help.status,0);
 assert.match(help.stdout,/xi-io local operator/);
 assert.match(help.stdout,/xi-io registry tools/);
 assert.match(help.stdout,/xi-io --execute/);
+assert.match(help.stdout,/xi-io self-test/);
 assert.match(help.stdout,/xi-io models/);
 assert.match(help.stdout,/xi-io recover aries-runner/);
 
@@ -137,6 +138,19 @@ assert.ok(fs.existsSync(aliasBin));
 assert.ok((fs.statSync(installedBin).mode & 0o111)!==0);
 assert.ok(fs.existsSync(path.join(tempHome,'.local','share','xi-io','cli','env.sh')));
 assert.ok(fs.readFileSync(path.join(tempHome,'.bashrc'),'utf8').includes('xi-io-cli-managed-path'));
+
+const installedSelfTest=spawnSync(installedBin,['self-test'],{
+  cwd:os.tmpdir(),
+  encoding:'utf8',
+  timeout:10_000,
+  env:{...process.env,HOME:tempHome},
+});
+assert.equal(installedSelfTest.error,undefined);
+assert.equal(installedSelfTest.status,0,installedSelfTest.stderr);
+const installedSelfTestJson=JSON.parse(installedSelfTest.stdout);
+assert.equal(installedSelfTestJson.schema,'xiio.cli.self-test/v1');
+assert.equal(installedSelfTestJson.fail,0);
+assert.equal(installedSelfTestJson.provider_effect,false);
 
 const fromAnywhere=spawnSync(installedBin,['registry','tools'],{
   cwd:os.tmpdir(),
