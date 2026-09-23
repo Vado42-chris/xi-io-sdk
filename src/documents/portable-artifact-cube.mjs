@@ -18,9 +18,13 @@ export const FILE_CUBE_CELLS=Object.freeze([
 
 const SHA=/^[a-f0-9]{64}$/;
 const text=(v)=>typeof v==='string'&&v.trim()?v.trim():null;
-const pass=(id,evidence_ref,detail={})=>({id,state:'PASS',evidence_ref,...detail});
-const wait=(id,first_red,detail={})=>({id,state:'TRUE_WAIT',first_red,...detail});
-const fail=(id,first_red,detail={})=>({id,state:'FAIL',first_red,...detail});
+const RESERVED_CELL_FIELDS=new Set(['id','state','evidence_ref','first_red']);
+function safeDetail(detail={}){
+  return Object.fromEntries(Object.entries(detail).filter(([key])=>!RESERVED_CELL_FIELDS.has(key)));
+}
+const pass=(id,evidence_ref,detail={})=>({id,state:'PASS',evidence_ref,...safeDetail(detail)});
+const wait=(id,first_red,detail={})=>({id,state:'TRUE_WAIT',first_red,...safeDetail(detail)});
+const fail=(id,first_red,detail={})=>({id,state:'FAIL',first_red,...safeDetail(detail)});
 
 function sha(v){const x=text(v)?.toLowerCase();return x&&SHA.test(x)?x:null;}
 function bytes(v){return Number.isInteger(v)&&v>=0?v:null;}
@@ -63,9 +67,9 @@ export function compilePortableArtifactCube(input={}){
     subject_generation:input.hex_subject_generation||file.semantic_generation,
   }):{state:'UNVERIFIED',projection_ref:null,blocker:'FILE_INVALID',missing_punchcards:[]};
   if(hex.state==='HEX_QUALIFIED_CURRENT'){
-    cells.push(pass('F05_HEX_CURRENTNESS',hex.projection_ref,{state:hex.state,missing_punchcards:[]}));
+    cells.push(pass('F05_HEX_CURRENTNESS',hex.projection_ref,{hex_currentness_state:hex.state,missing_punchcards:[]}));
   }else{
-    cells.push(wait('F05_HEX_CURRENTNESS',hex.blocker||hex.state,{state:hex.state,projection_ref:hex.projection_ref,missing_punchcards:hex.missing_punchcards}));
+    cells.push(wait('F05_HEX_CURRENTNESS',hex.blocker||hex.state,{hex_currentness_state:hex.state,projection_ref:hex.projection_ref,missing_punchcards:hex.missing_punchcards}));
   }
 
   const custody=input.bins_custody||{};
@@ -119,17 +123,19 @@ export function compilePortableArtifactCube(input={}){
 
   const failures=cells.filter(x=>x.state==='FAIL');
   const waits=cells.filter(x=>x.state==='TRUE_WAIT');
-  const state=failures.length?'FAIL':waits.length?'TRUE_WAIT':'PASS';
+  const passes=cells.filter(x=>x.state==='PASS');
+  const unexpectedStates=cells.filter(x=>!['PASS','FAIL','TRUE_WAIT'].includes(x.state));
+  const state=failures.length?'FAIL':unexpectedStates.length?'FAIL':waits.length?'TRUE_WAIT':passes.length===FILE_CUBE_CELLS.length?'PASS':'FAIL';
   return Object.freeze({
     schema:PORTABLE_ARTIFACT_CUBE_SCHEMA,
     cube_id:text(input.cube_id)||`file-cube:${file?.file_id||'invalid'}`,
     file,
     denominator:FILE_CUBE_CELLS.length,
     cells:Object.freeze(cells),
-    counts:Object.freeze({pass:cells.filter(x=>x.state==='PASS').length,fail:failures.length,true_wait:waits.length}),
+    counts:Object.freeze({pass:passes.length,fail:failures.length,true_wait:waits.length,unexpected_state:unexpectedStates.length}),
     state,
-    closure_100:state==='PASS'&&cells.length===FILE_CUBE_CELLS.length,
-    first_red:failures[0]||waits[0]||null,
+    closure_100:state==='PASS'&&cells.length===FILE_CUBE_CELLS.length&&passes.length===FILE_CUBE_CELLS.length,
+    first_red:failures[0]||unexpectedStates[0]||waits[0]||null,
     hex_projection_ref:hex.projection_ref,
     missing_punchcards:Object.freeze(hex.missing_punchcards||[]),
     effect_authority:false,
@@ -143,6 +149,8 @@ export function compilePortableArtifactCube(input={}){
       'HEX_CURRENT != AUTHORITY',
       'TRANSFER_REQUEST != TRANSFER_COMPLETE',
       'FILE_CUBE_PASS != PUBLICATION_OR_LEGAL_EFFECT',
+      'CELL_STATE_IS_RESERVED_CANNOT_BE_OVERWRITTEN_BY_DETAIL',
+      'CUBE_PASS_REQUIRES_PASS_COUNT_EQUALS_DENOMINATOR',
     ]),
   });
 }
