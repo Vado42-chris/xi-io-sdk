@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "xi": "./bin/xi.mjs",
-    "xi-io": "./bin/xi.mjs"
+    "xi-io": "./bin/xi.mjs",
+    "xiio": "./bin/xi.mjs"
   },
   "exports": {
     "./components": "./src/components/core.mjs",

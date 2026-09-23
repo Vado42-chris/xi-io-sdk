@@ -104,6 +104,12 @@ for(let i=0;i<10;i++) hostile(`INSTALL_${i}`,()=>{
 });
 
 // 10 stale/corrupt root pointer variants must fail in wrapper, not leak Node stacks.
+const xiioAlias=path.join(golden.home,'.local','bin','xiio');
+assert.ok(fs.existsSync(xiioAlias));
+const xiioVersion=spawnSync(xiioAlias,['--version'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,HOME:golden.home}});
+assert.equal(xiioVersion.status,0,xiioVersion.stderr);
+assert.match(xiioVersion.stdout,/^0\.1\.0-candidate\.1\s*$/);
+
 const rootFile=path.join(golden.home,'.local','share','xi-io','cli','sdk.path');
 const goodRoot=fs.readFileSync(rootFile,'utf8');
 const badRoots=['','/','/tmp','/does/not/exist','relative/path','../escape','\0bad',' /tmp ','/var/empty','missing'];
@@ -268,6 +274,8 @@ const latencyRows=[
   timedRun('registry_ack',['registry','ack']),
   timedRun('registry_tools',['registry','tools']),
   timedRun('self_test',['self-test']),
+  timedRun('runner_status',['runner','status']),
+  timedRun('runner_discover',['runner','discover']),
   timedRun('runner_recovery_plan',['recover','aries-runner']),
 ];
 assert.ok(latencyRows.every((row)=>row.ms<5000));
