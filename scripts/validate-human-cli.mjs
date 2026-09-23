@@ -10,6 +10,8 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const bin=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
 const binSource=fs.readFileSync(bin,'utf8');
 const agentSource=fs.readFileSync(new URL('../bin/xi-local-agent.mjs',import.meta.url),'utf8');
+const bootstrap=fileURLToPath(new URL('./install-cli.sh',import.meta.url));
+const bootstrapSource=fs.readFileSync(bootstrap,'utf8');
 
 function run(args,{cwd=root,input='',env={}}={}){
   const result=spawnSync(process.execPath,[bin,...args],{
@@ -124,6 +126,33 @@ assert.match(agentSource,/\/tools/);
 assert.match(agentSource,/\/commands/);
 assert.match(agentSource,/\/ack/);
 assert.match(agentSource,/\/models/);
+assert.match(bootstrapSource,/resolve_node/);
+assert.match(bootstrapSource,/XIIO_CLI_BOOTSTRAP_PROBE_NODE/);
+assert.match(bootstrapSource,/NODE_22_PLUS_NOT_FOUND/);
+
+const bootstrapHome=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-bootstrap-node-home-'));
+const fakeNvmNode=path.join(bootstrapHome,'.nvm','versions','node','v22.99.0','bin','node');
+fs.mkdirSync(path.dirname(fakeNvmNode),{recursive:true});
+fs.symlinkSync(process.execPath,fakeNvmNode);
+const emptyPath=path.join(bootstrapHome,'empty-bin');
+fs.mkdirSync(emptyPath,{recursive:true});
+const nodeProbe=spawnSync('/bin/bash',[bootstrap],{
+  cwd:root,
+  encoding:'utf8',
+  timeout:10_000,
+  env:{
+    ...process.env,
+    HOME:bootstrapHome,
+    PATH:emptyPath,
+    XIIO_CLI_BOOTSTRAP_PROBE_NODE:'1',
+    XIIO_NODE:'',
+  },
+});
+assert.equal(nodeProbe.error,undefined);
+assert.equal(nodeProbe.status,0,nodeProbe.stderr);
+assert.match(nodeProbe.stdout,/XIIO_CLI_NODE_PROBE=PASS/);
+assert.ok(nodeProbe.stdout.includes(fakeNvmNode),nodeProbe.stdout);
+
 
 const tempHome=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-human-cli-home-'));
 const install=run(['install'],{env:{HOME:tempHome}});
@@ -168,6 +197,7 @@ assert.match(help.stdout,/xi ack distribute/);
 
 fs.rmSync(workspace,{recursive:true,force:true});
 fs.rmSync(tempHome,{recursive:true,force:true});
+fs.rmSync(bootstrapHome,{recursive:true,force:true});
 
 console.log(JSON.stringify({
   schema:'xiio.cli.human-facing-proof/v1',
@@ -182,6 +212,7 @@ console.log(JSON.stringify({
   registry_primitives:true,
   ollama_local_only:true,
   native_tool_surface:10,
+  bootstrap_nvm_node_resolution:true,
   provider_effects:0,
   authority_granted:false,
   hostiles:{

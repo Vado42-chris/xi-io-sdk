@@ -11,10 +11,50 @@ fail() {
 }
 need() { command -v "$1" >/dev/null 2>&1 || fail "MISSING_COMMAND_$1"; }
 
-need git
-need node
-node_major="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+resolve_node() {
+  local candidate major
+
+  if [[ -n "${XIIO_NODE:-}" && -x "${XIIO_NODE}" ]]; then
+    major="$("${XIIO_NODE}" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || true)"
+    if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 22 ]]; then
+      printf '%s\n' "${XIIO_NODE}"
+      return 0
+    fi
+  fi
+
+  candidate="$(command -v node 2>/dev/null || true)"
+  if [[ -n "$candidate" && -x "$candidate" ]]; then
+    major="$("$candidate" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || true)"
+    if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 22 ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  fi
+
+  for candidate in     "$HOME"/.nvm/versions/node/*/bin/node     "$HOME"/.local/bin/node     /usr/local/bin/node     /usr/bin/node
+  do
+    [[ -x "$candidate" ]] || continue
+    major="$("$candidate" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || true)"
+    if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 22 ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+NODE="$(resolve_node || true)"
+[[ -n "$NODE" ]] || fail NODE_22_PLUS_NOT_FOUND
+node_major="$("$NODE" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
 [[ "$node_major" =~ ^[0-9]+$ && "$node_major" -ge 22 ]] || fail NODE_22_PLUS_REQUIRED
+
+if [[ "${XIIO_CLI_BOOTSTRAP_PROBE_NODE:-0}" == "1" ]]; then
+  printf 'XIIO_CLI_NODE_PROBE=PASS\nNODE=%s\nNODE_MAJOR=%s\n' "$NODE" "$node_major"
+  exit 0
+fi
+
+need git
 
 mkdir -p "$(dirname "$ROOT")"
 
@@ -53,16 +93,17 @@ head="$(git -C "$ROOT" rev-parse HEAD)"
 
 install_receipt="$(mktemp)"
 trap 'rm -f "$install_receipt"' EXIT
-node "$ROOT/bin/xi.mjs" install >"$install_receipt" || fail CLI_INSTALL_FAILED
+"$NODE" "$ROOT/bin/xi.mjs" install >"$install_receipt" || fail CLI_INSTALL_FAILED
 
 export PATH="$HOME/.local/bin:$PATH"
 hash -r 2>/dev/null || true
 [[ -x "$HOME/.local/bin/xi-io" ]] || fail CLI_WRAPPER_MISSING
 
+export XIIO_NODE="$NODE"
 self_test="$("$HOME/.local/bin/xi-io" self-test)" || {
   printf '%s\n' "$self_test" >&2
   fail CLI_SELF_TEST_FAILED
 }
 
-printf 'XIIO_CLI_BOOTSTRAP=PASS\nSDK_ROOT=%s\nSDK_HEAD=%s\nCLI=%s\n' "$ROOT" "$head" "$HOME/.local/bin/xi-io"
+printf 'XIIO_CLI_BOOTSTRAP=PASS\nSDK_ROOT=%s\nSDK_HEAD=%s\nCLI=%s\nNODE=%s\n' "$ROOT" "$head" "$HOME/.local/bin/xi-io" "$NODE"
 printf '%s\n' "$self_test"
