@@ -22,7 +22,7 @@ import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
-import { inspectMachineTopology } from '../src/compass/machine-topology.mjs';
+import { inspectMachineTopology, prepareCargoExecution } from '../src/compass/machine-topology.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
@@ -67,7 +67,9 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
-  xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
+  xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox/status topology envelope
+  xi-io cargo [--workspace DIR] -- <cargo args...>
+                                Execute Cargo through machine-topology/native-dependency gate
   xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
   xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
   xi-io models                  List installed Ollama models
@@ -597,6 +599,80 @@ async function productRuntime(family,action){
   return {schema:'xiio.cli.product-runtime/v1',state:'FAIL',first_red:'UNKNOWN_PRODUCT_RUNTIME_COMMAND',family,action,effect_authority:0};
 }
 
+function parseCargoTopArgs(argv){
+  let workspace=process.cwd();
+  const cargoArgs=[];
+  for(let i=0;i<argv.length;i+=1){
+    const token=argv[i];
+    if(token==='--workspace'){
+      const next=argv[i+1];
+      if(!next) throw new Error('--workspace requires a directory');
+      workspace=next;
+      i+=1;
+      continue;
+    }
+    if(token==='--'){
+      cargoArgs.push(...argv.slice(i+1));
+      break;
+    }
+    cargoArgs.push(token);
+  }
+  if(cargoArgs.length===0) throw new Error('cargo arguments required; example: xi-io cargo -- build --release');
+  return {workspace,cargoArgs};
+}
+
+function runCargoThroughTopology(argv=[]){
+  const {workspace,cargoArgs}=parseCargoTopArgs(argv);
+  if(!isDirectory(workspace)) throw new Error('cargo workspace directory not found');
+  const root=fs.realpathSync(path.resolve(workspace));
+  const prep=prepareCargoExecution({workspace:root,create:true});
+  if(prep.state!=='PASS'){
+    process.stdout.write(JSON.stringify(prep,null,2)+'\n');
+    process.exitCode=13;
+    return prep;
+  }
+  const which=spawnSync('bash',['-lc','command -v cargo'],{encoding:'utf8'});
+  const cargo=String(which.stdout||'').trim();
+  if(which.status!==0 || !cargo){
+    const blocked={schema:'xiio.cli.cargo/v1',state:'BLOCKED',first_red:'CARGO_MISSING',workspace:root,topology:prep.topology,provider_effect:false,authority_granted:false};
+    process.stdout.write(JSON.stringify(blocked,null,2)+'\n');
+    process.exitCode=13;
+    return blocked;
+  }
+  const startedAt=new Date().toISOString();
+  const run=spawnSync(cargo,cargoArgs,{
+    cwd:root,
+    env:{...process.env,...prep.env},
+    stdio:'inherit',
+  });
+  const receipt={
+    schema:'xiio.cli.cargo/v1',
+    state:run.status===0?'PASS':'FAIL_CURRENT',
+    first_red:run.status===0?null:'CARGO_COMMAND_FAILED',
+    workspace:root,
+    cargo,
+    cargo_args:cargoArgs,
+    cargo_target_dir:prep.cargo_target_dir,
+    tmpdir:prep.tmpdir,
+    started_at:startedAt,
+    finished_at:new Date().toISOString(),
+    exit_code:Number.isInteger(run.status)?run.status:null,
+    signal:run.signal||null,
+    provider_effect:false,
+    authority_granted:false,
+    hard:[
+      'DOCTOR_STATUS_READ_ONLY',
+      'CARGO_EXECUTION_OWNS_CACHE_MATERIALIZATION',
+      'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
+      'NATIVE_DEP_PREFLIGHT_REQUIRED',
+      'BUILD_PASS != PACKAGED_RUNTIME_PASS'
+    ]
+  };
+  process.stdout.write(JSON.stringify(receipt,null,2)+'\n');
+  process.exitCode=run.status===0?0:(Number.isInteger(run.status)?run.status:13);
+  return receipt;
+}
+
 async function selfTest() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const rows=[];
@@ -709,6 +785,8 @@ if (
     process.chdir(fs.realpathSync(path.resolve(targetDir)));
   }
   await doctor();
+} else if (top === 'cargo') {
+  runCargoThroughTopology(process.argv.slice(3));
 } else if (top === 'self-test') {
   await selfTest();
 } else if (top === 'models') {
