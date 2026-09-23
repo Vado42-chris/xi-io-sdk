@@ -13,9 +13,9 @@ for a in xi-io xi xiio; do
   case "$rc" in 0|1|2) ;; *) echo "CLI_VALIDATE_BLOCKED first_red=STATUS_EXIT alias=$a exit=$rc"; exit 13;; esac
   unset rc
 done
-jq 'del(.invoked_as,.timestamp)' /tmp/xi-io.status.json > /tmp/xiio-a.json
-jq 'del(.invoked_as,.timestamp)' /tmp/xi.status.json > /tmp/xiio-b.json
-jq 'del(.invoked_as,.timestamp)' /tmp/xiio.status.json > /tmp/xiio-c.json
+jq 'del(.invoked_as)' /tmp/xi-io.status.json > /tmp/xiio-a.json
+jq 'del(.invoked_as)' /tmp/xi.status.json > /tmp/xiio-b.json
+jq 'del(.invoked_as)' /tmp/xiio.status.json > /tmp/xiio-c.json
 diff -u /tmp/xiio-a.json /tmp/xiio-b.json
 diff -u /tmp/xiio-a.json /tmp/xiio-c.json
 printf 'CLI_INSTALLED_ALIAS_PARITY=PASS\n'
