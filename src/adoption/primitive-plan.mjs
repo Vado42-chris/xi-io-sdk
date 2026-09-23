@@ -1,3 +1,5 @@
+import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
+
 function ids(list, label) {
   if (!Array.isArray(list)) throw new TypeError(`${label} must be an array`);
   const seen = new Set();
@@ -66,7 +68,7 @@ function publicDescriptor(item) {
   };
 }
 
-export function derivePrimitiveAdoptionPlan({ catalog, requiredPrimitiveIds, observedPrimitiveIds, recipeBaseline, observedRecipe }) {
+export function derivePrimitiveAdoptionPlan({ catalog, requiredPrimitiveIds, observedPrimitiveIds, recipeBaseline, observedRecipe, hexFloor=null, subjectRef=null, subjectGeneration=null }) {
   const byId = indexCatalog(catalog);
   const required = ids(requiredPrimitiveIds, 'requiredPrimitiveIds');
   const observed = new Set(ids(observedPrimitiveIds, 'observedPrimitiveIds'));
@@ -74,6 +76,10 @@ export function derivePrimitiveAdoptionPlan({ catalog, requiredPrimitiveIds, obs
   const missing = required.filter((id) => byId.has(id) && !observed.has(id));
   const present = required.filter((id) => byId.has(id) && observed.has(id));
   const lineage = deriveRecipeLineage(recipeBaseline, observedRecipe);
+  const hexCurrentness = bindHexFloorCurrentness(hexFloor,{subject_ref:subjectRef,subject_generation:subjectGeneration});
+  lineage.source_currentness = hexCurrentness.state;
+  lineage.hex_projection_ref = hexCurrentness.projection_ref;
+  lineage.missing_punchcards = hexCurrentness.missing_punchcards;
   // This reducer compares supplied declarations. It cannot authenticate source,
   // accepted-main adoption, or a consumer's running bindings.
   const state = unknown.length || !required.length ? 'UNKNOWN_REQUIRED'
@@ -98,7 +104,7 @@ export function derivePrimitiveAdoptionPlan({ catalog, requiredPrimitiveIds, obs
   };
 }
 
-export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedConsumerIds, consumerRosterRef, consumerRosterGeneration, recipeBaseline }) {
+export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedConsumerIds, consumerRosterRef, consumerRosterGeneration, recipeBaseline, hexFloor=null }) {
   if (!Array.isArray(consumers)) throw new TypeError('consumers must be an array');
   const expected = expectedConsumerIds === undefined ? null : ids(expectedConsumerIds, 'expectedConsumerIds');
   const expectedSet = new Set(expected || []);
@@ -121,6 +127,9 @@ export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedC
         source_head: consumer.recipe_source_head,
         recipe_generation: consumer.recipe_generation,
       },
+      hexFloor,
+      subjectRef: consumer.consumer_ref ?? null,
+      subjectGeneration: consumer.recipe_generation ?? null,
     });
     const declared = expectedSet.has(id);
     const state = (expected && !declared) ? 'UNKNOWN'
@@ -150,7 +159,8 @@ export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedC
     denominator_state: denominatorBound ? 'SUPPLIED_EXPECTATION' : 'UNBOUND',
     consumer_roster_ref: rosterRef,
     consumer_roster_generation: rosterGeneration,
-    roster_currentness: 'UNVERIFIED',
+    roster_currentness: bindHexFloorCurrentness(hexFloor).state,
+    hex_projection_ref: bindHexFloorCurrentness(hexFloor).projection_ref,
     missing_consumers: missing,
     undeclared_consumers: unexpected,
     supplied_denominator_coverage_complete: denominatorBound && !missing.length && !unexpected.length,
