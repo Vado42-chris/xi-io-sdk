@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
+import { bindHexFloorCurrentness } from '../src/currentness/hex-floor.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
 import { compileFourScaleScorecard } from '../src/scorecards/four-scale.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
@@ -152,6 +153,7 @@ Runtime recovery:
 
 Product runtime:
   xi-io hex status                        Probe Hex loopback :8798
+  xi-io hex floor --file PATH --json      Read exact HEX floor; do not recompute semantics
   xi-io hex start                         Start existing installed Hex RC
   xi-io hex install                       Install/rejoin Hex RC from current framework
   xi-io hex open                          Open Hex in Studio suite
@@ -1097,6 +1099,11 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'hex' && process.argv[3] === 'floor') {
+  const { flags }=args(process.argv.slice(4));
+  const floor=readJson(flags.file,'--file');
+  const binding=bindHexFloorCurrentness(floor);
+  emitCliResult('hex.floor',{schema:'xiio.cli.hex-floor-read/v1',state:binding.state==='UNVERIFIED'||binding.state==='STALE'?'BLOCKED':'PASS',hex_floor:floor,binding,first_red:binding.blocker||null,provider_effect:false,authority_granted:false},{stable:true});
 } else if (top === 'hex' || top === 'inbox' || top === 'studio') {
   const action=process.argv[3] || 'status';
   const result=await productRuntime(top,action);
