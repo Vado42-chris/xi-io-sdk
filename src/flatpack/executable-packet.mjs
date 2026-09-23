@@ -142,3 +142,61 @@ export function validateFlatpackPacketRoundtrip(packet){
     effect_authority:false,
   });
 }
+
+
+export function reduceFlatpackArtifact(input={}){
+  const packet=compileFlatpackPacket(input);
+  const stage3=Object.freeze({
+    schema:'xiio.sdk.flatpack-reduction-stage/v0',
+    stage:3,
+    artifact_ref:packet.packet_id,
+    parts:Object.freeze({
+      one:packet.one,
+      two:packet.two,
+      qualifiers:packet.qualifiers,
+    }),
+    blast_radius:Object.freeze({
+      generation:packet.generation,
+      qualifier_denominator:packet.qualifier_denominator,
+      return_targets:Object.freeze(packet.qualifiers.map(q=>q.return_target).filter(Boolean)),
+    }),
+  });
+  const stage2=Object.freeze({
+    schema:'xiio.sdk.flatpack-reduction-stage/v0',
+    stage:2,
+    artifact_ref:packet.packet_id,
+    pair:Object.freeze({
+      one:packet.one,
+      two:packet.two,
+    }),
+    qualifier_vector:Object.freeze(packet.qualifiers.map(({id,state,bit})=>({id,state,bit}))),
+    blast_radius:stage3.blast_radius,
+  });
+  const stage1=Object.freeze({
+    schema:'xiio.sdk.flatpack-reduction/v0',
+    stage:1,
+    artifact_ref:packet.packet_id,
+    generation:packet.generation,
+    semantic_digest:packet.semantic_digest,
+    state:packet.state,
+    closure_100:packet.closure_100,
+    first_red:packet.first_red,
+    blast_radius:stage3.blast_radius,
+    packet,
+  });
+  return Object.freeze({
+    schema:'xiio.sdk.flatpack-reduction-trace/v0',
+    reduction:'3->2->1',
+    stage3,
+    stage2,
+    stage1,
+    artifact_result:stage1,
+    hard:Object.freeze([
+      'ONE_ARTIFACT_RESULT = REDUCE(THREE -> TWO -> ONE)',
+      'STAGE_2_MUST_PRESERVE_BLAST_RADIUS',
+      'REDUCTION != INFORMATION_LOSS',
+      'QUALIFIERS_COMPRESS_STATE_NOT_PROVENANCE',
+      'RETURN_TARGETS_SURVIVE_REDUCTION',
+    ]),
+  });
+}
