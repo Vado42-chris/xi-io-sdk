@@ -24,6 +24,10 @@ function run(alias){
   assert.equal(body.invoked_as,alias);
   assert.equal(body.provider_effect,false);
   assert.equal(body.authority_granted,false);
+  assert.ok(body.xi);
+  assert.ok(body.io);
+  assert.notDeepEqual(body.xi,body.io);
+  assert.equal(body.io.provider_egress_state,'NOT_EVALUATED');
   assert.ok(body.compass);
   assert.ok(body.machine_topology);
   assert.ok(body.runner);
@@ -34,7 +38,7 @@ function run(alias){
 }
 const io=run('xi-io');
 const xi=run('xi');
-for(const key of ['sdk_version','sdk_root','state']) assert.deepEqual(io[key],xi[key],key);
+for(const key of ['sdk_version','sdk_root','state','xi','io']) assert.deepEqual(io[key],xi[key],key);
 assert.deepEqual(io.products,xi.products);
 assert.deepEqual(io.machine_topology,xi.machine_topology);
 assert.deepEqual(io.runner,xi.runner);
