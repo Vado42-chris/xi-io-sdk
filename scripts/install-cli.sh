@@ -65,6 +65,9 @@ need git
 
 mkdir -p "$(dirname "$ROOT")"
 
+ROOT_PREEXISTED=0
+[[ -d "$ROOT/.git" ]] && ROOT_PREEXISTED=1
+
 if [[ -e "$ROOT" && ! -d "$ROOT/.git" ]]; then
   fail TARGET_EXISTS_NOT_GIT_REPO
 fi
@@ -89,8 +92,10 @@ fi
 
 inside="$(git -C "$ROOT" rev-parse --is-inside-work-tree 2>/dev/null || true)"
 [[ "$inside" == "true" ]] || fail SDK_CHECKOUT_INVALID
-dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
-[[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY
+if [[ "$ROOT_PREEXISTED" == "1" || "$REF_KIND" == "named" ]]; then
+  dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
+  [[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY
+fi
 
 origin="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
 if [[ "$SOURCE" == "$REPO" ]]; then
@@ -110,6 +115,8 @@ if [[ "$REF_KIND" == "commit" ]]; then
   [[ "$head" == "$REF" ]] || fail "SDK_HEAD_MISMATCH_${head}_EXPECTED_$REF"
   branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
   [[ -z "$branch" ]] || fail "EXACT_COMMIT_EXPECTED_DETACHED_HEAD_GOT_$branch"
+  dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
+  [[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY_AFTER_EXACT_CHECKOUT
 else
   branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
   [[ "$branch" == "$REF" ]] || fail "SDK_BRANCH_NOT_REQUESTED_${branch:-DETACHED}_EXPECTED_$REF"
