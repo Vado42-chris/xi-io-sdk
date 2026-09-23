@@ -4,6 +4,7 @@ import {
   compileFlatpackPacket,
   projectFlatpackQualifiers,
   validateFlatpackPacketRoundtrip,
+  reduceFlatpackArtifact,
 } from '../src/flatpack/executable-packet.mjs';
 
 const packet=compileFlatpackPacket({
@@ -175,6 +176,26 @@ assert.equal(levelWalk.state,'UNKNOWN');
 assert.equal(levelWalk.first_red.id,'Q_LOCAL_BLAST_RADIUS_CURRENT');
 assert.equal(levelWalk.qualifier_denominator,4);
 assert.equal(levelWalk.one.current_coordinate.step_depth,2);
+
+const reduction=reduceFlatpackArtifact({
+  packet_id:'flatpack:blast',
+  generation:'g2',
+  one:{subject_ref:'source:1'},
+  two:{left_ref:'source:1',right_ref:'target:2',relation:'RECIPROCAL'},
+  qualifiers:[
+    {id:'Q1',state:'PASS',bit:1,return_target:'bins:return'},
+    {id:'Q2',state:'TRUE_WAIT',bit:null,return_target:'search:return'},
+    {id:'Q3',state:'N_A',bit:null},
+  ],
+});
+assert.equal(reduction.reduction,'3->2->1');
+assert.equal(reduction.stage3.stage,3);
+assert.equal(reduction.stage2.stage,2);
+assert.equal(reduction.stage1.stage,1);
+assert.deepEqual(reduction.stage2.blast_radius,reduction.stage3.blast_radius);
+assert.deepEqual(reduction.stage1.blast_radius,reduction.stage3.blast_radius);
+assert.deepEqual(reduction.stage1.blast_radius.return_targets,['bins:return','search:return']);
+assert.equal(reduction.artifact_result.packet.packet_id,'flatpack:blast');
 
 console.log(JSON.stringify({
   status:'PASS',
