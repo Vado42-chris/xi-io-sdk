@@ -23,7 +23,7 @@
   ],
   "dispatch": {
     "expected": 40,
-    "materialized_primitives": 37,
+    "materialized_primitives": 38,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
@@ -517,6 +517,17 @@
       "export": "compileTopographyCoordinate",
       "source": "src/projections/topography-coordinate.mjs",
       "specifier": "@xi-io/sdk/projections/topography-coordinate",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "transition-proof-reducer",
+      "callable_uuid": "11111111-1111-5111-8111-111111111112",
+      "family": "evaluation",
+      "kind": "compiler",
+      "export": "reduceMultiplicativeFactors|compileTransitionProofMatrix",
+      "source": "src/evaluation/transition-proof-reducer.mjs",
+      "specifier": "@xi-io/sdk/evaluation/transition-proof-reducer",
       "styles": [],
       "maturity": "CANDIDATE"
     }
