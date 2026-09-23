@@ -66,7 +66,8 @@
     "./acks/two-sided-provider-meter": "./src/acks/two-sided-provider-meter.mjs",
     "./evaluation/hostile-harness": "./src/evaluation/hostile-harness.mjs",
     "./projections/topography-coordinate": "./src/projections/topography-coordinate.mjs",
-    "./ibal/ack-rotfl-compiler": "./src/ibal/ack-rotfl-compiler.mjs"
+    "./ibal/ack-rotfl-compiler": "./src/ibal/ack-rotfl-compiler.mjs",
+    "./artifacts/test": "./src/artifacts/test-artifacts.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
@@ -95,6 +96,7 @@
     "check:hostile-harness": "node scripts/validate-hostile-harness.mjs",
     "check:topography-coordinate": "node scripts/validate-topography-coordinate.mjs",
     "check:ibal-ack-rotfl-compiler": "node scripts/validate-ibal-ack-rotfl-compiler.mjs",
-    "check:cli-sandbox-wargame": "node scripts/validate-cli-sandbox-wargame.mjs"
+    "check:cli-sandbox-wargame": "node scripts/validate-cli-sandbox-wargame.mjs",
+    "check:test-artifacts": "node scripts/validate-test-artifacts.mjs"
   }
 }
