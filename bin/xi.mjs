@@ -37,7 +37,7 @@ function cliExitForState(state){
     ['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(state)?CLI_EXIT.REJECT:
     CLI_EXIT.INTERNAL;
 }
-function emitCliResult(command,result,{error=null}={}){
+function emitCliResult(command,result,{error=null,stable=false}={}){
   const state=String(result?.state||'INTERNAL');
   const exit_code=cliExitForState(state);
   const body={
@@ -45,7 +45,7 @@ function emitCliResult(command,result,{error=null}={}){
     ...(error?{error}:{}),
     ok:exit_code===0,
     command,
-    timestamp:new Date().toISOString(),
+    ...(stable?{}:{timestamp:new Date().toISOString()}),
     exit_code,
     provider_effect:false,
     authority_granted:false,
@@ -854,7 +854,7 @@ if (
   process.stdout.write(JSON.stringify(await compass({persist:true}),null,2)+'\n');
 } else if (top === 'status') {
   const result=await statusSnapshot();
-  emitCliResult('status',result);
+  emitCliResult('status',result,{stable:true});
 } else if (top === 'gates') {
   const action=process.argv[3] || null;
   if(action!=='--check' && action!=='check') usage(1);
