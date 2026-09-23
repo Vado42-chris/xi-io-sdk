@@ -30,6 +30,27 @@ import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json
 
 const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
 
+const CLI_EXIT=Object.freeze({PASS:0,WAIT:1,REJECT:2,INTERNAL:3});
+function commandEnvelope(command,{state='PASS',data=null,error=null,exit_code=null}={}){
+  const resolved=Number.isInteger(exit_code)?exit_code:
+    state==='PASS'?CLI_EXIT.PASS:
+    ['PASS_WITH_WAITS','WAIT','TRUE_WAIT','PARTIAL'].includes(state)?CLI_EXIT.WAIT:
+    ['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(state)?CLI_EXIT.REJECT:
+    CLI_EXIT.INTERNAL;
+  return {schema:'xiio.cli.command-envelope/v1',ok:resolved===0,command,timestamp:new Date().toISOString(),state,exit_code:resolved,...(error?{error}:{data}),provider_effect:false,authority_granted:false};
+}
+function emitCommandEnvelope(command,payload){
+  const envelope=commandEnvelope(command,payload);
+  process.stdout.write(JSON.stringify(envelope,null,2)+'\n');
+  process.exitCode=envelope.exit_code;
+  return envelope;
+}
+async function readStdinText(){
+  const chunks=[];
+  for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 function fatalCliError(error) {
   const firstRed=String(error?.message || error || 'UNKNOWN_CLI_FAILURE').replace(/\s+/g,' ').slice(0,512);
   if (process.env.XIIO_CLI_DEBUG === '1' && error?.stack) {
@@ -67,7 +88,11 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
-  xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox/status topology envelope
+  xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
+  xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
+  xi-io verify --stdin --json   Verify one JSON artifact from stdin
+  xi-io verify --file PATH --json
+                                Verify one JSON artifact from a file
   xi-io cargo [--workspace DIR] -- <cargo args...>
                                 Execute Cargo through machine-topology/native-dependency gate
   xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
@@ -458,6 +483,34 @@ async function statusSnapshot() {
   };
 }
 
+async function gatesCheck(){
+  const status=await statusSnapshot();
+  const cells=[
+    {id:'CLI_STATUS',state:status.state,evidence_ref:'status'},
+    {id:'XI_SOURCE_BOUND',state:status.xi?.source_currentness==='CURRENT'?'PASS':'WAIT',evidence_ref:status.xi?.evidence_ref||null},
+    {id:'IO_MACHINE_TOPOLOGY',state:status.machine_topology?.state||'UNKNOWN',evidence_ref:'machine_topology'},
+    {id:'HEX_RUNTIME',state:status.products?.hex?.state||'UNKNOWN',evidence_ref:'product:hex'},
+    {id:'STUDIO_RUNTIME',state:status.products?.studio?.state||'UNKNOWN',evidence_ref:'product:studio'},
+    {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
+    {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
+    {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
+  ];
+  const hardFail=cells.some(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(c.state));
+  const waits=cells.filter(c=>['WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED','OBSERVED_LOCAL_ONLY'].includes(c.state));
+  return {schema:'xiio.cli.gates-check/v1',state:hardFail?'FAIL_CURRENT':waits.length?'PASS_WITH_WAITS':'PASS',cells,first_red:cells.find(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID','WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED'].includes(c.state))?.id||null,silent_remainder:0,hard:['XI_SOURCE_STATUS != IO_PROVIDER_STATUS','PORT_BOUND != QUALIFIED_RUNTIME','UNKNOWN != PASS','PROVIDER_INGRESS != PROVIDER_EGRESS','STATUS != EFFECT_AUTHORITY']};
+}
+
+function verifyArtifact(value,{source_ref='stdin'}={}){
+  if(value===null || typeof value!=='object' || Array.isArray(value)) return {schema:'xiio.cli.verify/v1',state:'INVALID',source_ref,first_red:'TOP_LEVEL_OBJECT_REQUIRED',checks:[]};
+  const checks=[{id:'JSON_OBJECT',state:'PASS'},{id:'SCHEMA_DECLARED',state:typeof value.schema==='string'&&value.schema.trim()?'PASS':'WAIT'}];
+  if('silent_remainder' in value) checks.push({id:'SILENT_REMAINDER',state:Number(value.silent_remainder)===0?'PASS':'FAIL'});
+  if('false_green' in value) checks.push({id:'FALSE_GREEN',state:Number(value.false_green)===0?'PASS':'FAIL'});
+  if('denominator' in value) checks.push({id:'DENOMINATOR_POSITIVE',state:Number(value.denominator)>0?'PASS':'FAIL'});
+  const fail=checks.find(c=>c.state==='FAIL');
+  const wait=checks.find(c=>c.state==='WAIT');
+  return {schema:'xiio.cli.verify/v1',state:fail?'FAIL':wait?'PASS_WITH_WAITS':'PASS',source_ref,checks,first_red:fail?.id||wait?.id||null,silent_remainder:0,provider_effect:false,authority_granted:false};
+}
+
 async function doctor() {
   const { localRuntimeStatus, localToolCatalog } = await import('./xi-local-agent.mjs');
   const runtime = await localRuntimeStatus();
@@ -792,7 +845,30 @@ if (
   process.stdout.write(JSON.stringify(await compass({persist:true}),null,2)+'\n');
 } else if (top === 'status') {
   const result=await statusSnapshot();
-  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  emitCommandEnvelope('status',{state:result.state,data:result});
+} else if (top === 'gates') {
+  const action=process.argv[3] || null;
+  if(action!=='--check' && action!=='check') usage(1);
+  const result=await gatesCheck();
+  emitCommandEnvelope('gates.check',{state:result.state,data:result});
+} else if (top === 'verify') {
+  const argv=process.argv.slice(3);
+  let sourceRef='stdin';
+  let raw='';
+  if(argv.includes('--stdin')) raw=await readStdinText();
+  else {
+    const fileIndex=argv.indexOf('--file');
+    if(fileIndex<0 || !argv[fileIndex+1]) usage(1);
+    sourceRef=path.resolve(argv[fileIndex+1]);
+    raw=fs.readFileSync(sourceRef,'utf8');
+  }
+  try{
+    const value=JSON.parse(raw);
+    const result=verifyArtifact(value,{source_ref:sourceRef});
+    emitCommandEnvelope('verify',{state:result.state,data:result});
+  }catch(error){
+    emitCommandEnvelope('verify',{state:'INVALID',error:{code:'INVALID_JSON',message:String(error.message||error)}});
+  }
 } else if (top === 'doctor' || top === 'workspace') {
   const targetDir=process.argv[3] || null;
   if(targetDir){
