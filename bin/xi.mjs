@@ -437,14 +437,31 @@ async function compass({persist=true}={}) {
   };
 }
 
+function stableStatusProjection(value){
+  if(Array.isArray(value)) return value.map(stableStatusProjection);
+  if(value && typeof value==='object'){
+    const out={};
+    for(const [key,val] of Object.entries(value)){
+      if(['observed_at','timestamp','generated_at','updated_at','checked_at','started_at','finished_at'].includes(key)) continue;
+      out[key]=stableStatusProjection(val);
+    }
+    return out;
+  }
+  return value;
+}
+
 async function statusSnapshot() {
   const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-  const [map,hex,studio,inbox]=await Promise.all([
+  const [rawMap,rawHex,rawStudio,rawInbox]=await Promise.all([
     compileLocalCompass({sdkRoot}),
     productRuntime('hex','status'),
     productRuntime('studio','status'),
     productRuntime('inbox','status'),
   ]);
+  const map=stableStatusProjection(rawMap);
+  const hex=stableStatusProjection(rawHex);
+  const studio=stableStatusProjection(rawStudio);
+  const inbox=stableStatusProjection(rawInbox);
   const runner=runnerStatus();
   const topology=inspectMachineTopology({workspace:process.cwd()});
   const invokedAs=String(process.env.XIIO_INVOKED_AS || 'direct-bin');
