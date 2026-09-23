@@ -126,6 +126,95 @@ async function probeJson(url,timeout=1500){
     return {state:'WAIT_UNREACHABLE',status:null,url,error:String(error?.message||error)};
   }
 }
+
+function processLink(pid,name,{procRoot='/proc'}={}){
+  try{return fs.realpathSync(path.join(procRoot,String(pid),name));}catch{return null;}
+}
+function processCmdline(pid,{procRoot='/proc'}={}){
+  try{return fs.readFileSync(path.join(procRoot,String(pid),'cmdline'),'utf8').split('\0').filter(Boolean).join(' ').trim();}catch{return null;}
+}
+function parseListenerPid(text){
+  const match=String(text||'').match(/pid=(\d+)/);
+  return match?Number(match[1]):null;
+}
+function repoOriginMatches(origin,expectedRepo){
+  const value=String(origin||'').replace(/\.git$/,'');
+  return value===`https://github.com/${expectedRepo}`
+    || value===`git@github.com:${expectedRepo}`
+    || value.endsWith(`github.com/${expectedRepo}`);
+}
+export function inspectLocalHttpRuntime({
+  port=8791,
+  expectedRepo='Vado42-chris/xi-io-Inbox',
+  exec=run,
+  env=process.env,
+  procRoot='/proc',
+  providerRead=true,
+}={}){
+  const ss=exec('ss',['-ltnpH',`sport = :${port}`],{env,timeout:3000});
+  const pid=parseListenerPid(ss.stdout);
+  if(!pid){
+    return {
+      schema:'xiio.cli.runtime-observation/v1',state:'ABSENT_LISTENER',port,pid:null,
+      executable:null,cwd:null,command:null,repo_state:'UNKNOWN',
+      local_head:null,provider_main:null,generation_state:'UNKNOWN',effect_authority:0,
+    };
+  }
+  const executable=processLink(pid,'exe',{procRoot});
+  const cwd=processLink(pid,'cwd',{procRoot});
+  const command=processCmdline(pid,{procRoot});
+  if(!cwd || !dir(cwd)){
+    return {
+      schema:'xiio.cli.runtime-observation/v1',state:'LISTENER_PATH_UNREADABLE',
+      port,pid,executable,cwd,command,repo_state:'UNKNOWN',
+      local_head:null,provider_main:null,generation_state:'UNKNOWN',effect_authority:0,
+    };
+  }
+  const inside=exec('git',['rev-parse','--is-inside-work-tree'],{cwd,env});
+  if(inside.stdout!=='true'){
+    return {
+      schema:'xiio.cli.runtime-observation/v1',state:'LISTENER_NOT_GIT_CHECKOUT',
+      port,pid,executable,cwd:real(cwd),command,repo_state:'NOT_GIT',
+      local_head:null,provider_main:null,generation_state:'UNKNOWN',effect_authority:0,
+    };
+  }
+  const top=exec('git',['rev-parse','--show-toplevel'],{cwd,env});
+  const head=exec('git',['rev-parse','HEAD'],{cwd,env});
+  const origin=exec('git',['remote','get-url','origin'],{cwd,env});
+  const dirty=exec('git',['status','--porcelain=v1'],{cwd,env});
+  const canonicalOrigin=repoOriginMatches(origin.stdout,expectedRepo);
+  let provider_main=null;
+  let provider_state='NOT_REQUESTED';
+  if(providerRead && canonicalOrigin){
+    const remote=exec('git',['ls-remote','origin','refs/heads/main'],{cwd,env,timeout:8000});
+    const match=remote.stdout.match(/^([0-9a-f]{40})\s+/);
+    if(remote.ok && match){provider_main=match[1];provider_state='PASS';}
+    else provider_state='WAIT_UNREADABLE';
+  }
+  const local_head=/^[0-9a-f]{40}$/.test(head.stdout)?head.stdout:null;
+  const generation_state=provider_main&&local_head
+    ? (provider_main===local_head?'EXACT_PROVIDER_MAIN':'DIFFERENT_FROM_PROVIDER_MAIN')
+    : 'UNKNOWN';
+  const repo_state=canonicalOrigin?'PASS':'WRONG_ORIGIN';
+  const state=repo_state!=='PASS'?'WRONG_REPO'
+    :generation_state==='EXACT_PROVIDER_MAIN'?'PASS_CURRENT'
+    :generation_state==='DIFFERENT_FROM_PROVIDER_MAIN'?'RED_STALE_OR_NONPROVIDER'
+    :'UNKNOWN_CURRENTNESS';
+  return {
+    schema:'xiio.cli.runtime-observation/v1',state,port,pid,executable,cwd:real(cwd),
+    git_root:top.ok?real(top.stdout):null,command,repo_state,origin:origin.stdout||null,
+    expected_repo:expectedRepo,local_head,provider_main,provider_state,generation_state,
+    dirty_state:dirty.ok?(dirty.stdout?'DIRTY':'CLEAN'):'UNKNOWN',
+    process_identity_state:'BOUND',effect_authority:0,
+    hard:[
+      'LISTENER_HEALTH != GENERATION_CURRENT',
+      'PROCESS_CWD != PROVIDER_CURRENT',
+      'LOCAL_HEAD != PROVIDER_MAIN_UNLESS_EXACT',
+      'BOUND_RUNTIME != CURRENT_RUNTIME',
+    ],
+  };
+}
+
 function chooseFramework({cwd,env,volume,exec,providerRead}){
   const gitTop=exec('git',['rev-parse','--show-toplevel'],{cwd,env});
   const candidates=[
@@ -175,6 +264,11 @@ export async function compileLocalCompass({
   };
   const ollama=await probe(env.OLLAMA_HOST?String(env.OLLAMA_HOST).replace(/\/$/,'')+'/api/tags':'http://127.0.0.1:11434/api/tags');
   const glass=await probe(env.XIIO_API_GLASS_BOX_READ_URL||'http://127.0.0.1:4390/api/v1/studio/local-truth/read');
+  const inboxRuntime=inspectLocalHttpRuntime({
+    port:Number(env.XIIO_INBOX_RUNTIME_PORT||8791),
+    expectedRepo:env.XIIO_INBOX_RUNTIME_REPO||'Vado42-chris/xi-io-Inbox',
+    exec,env,providerRead,
+  });
 
   const frameworkRow=framework.selected;
   const cells=[
@@ -189,6 +283,7 @@ export async function compileLocalCompass({
     {id:'RUNNER',state:runner.state==='PASS'?'PASS':runner.state==='PARTIAL'?'RED':'UNKNOWN',value:runner.state},
     {id:'OLLAMA',state:ollama.state==='PASS'?'PASS':'RED',value:ollama.state},
     {id:'API_GLASS_BOX',state:glass.state==='PASS'?'PASS':'RED',value:glass.state},
+    {id:'INBOX_RUNTIME',state:inboxRuntime.state==='PASS_CURRENT'?'PASS':inboxRuntime.state==='ABSENT_LISTENER'?'UNKNOWN':'RED',value:inboxRuntime.state},
   ];
   const firstRed=cells.find(row=>row.state==='FAIL'||row.state==='RED')||cells.find(row=>row.state==='UNKNOWN')||null;
   const pass=cells.filter(row=>row.state==='PASS').length;
@@ -210,7 +305,7 @@ export async function compileLocalCompass({
       framework:{state:frameworkRow?'PASS':'FAIL',selected:frameworkRow,observations:framework.observations},
       sdk:{state:sdkRoot&&dir(sdkRoot)?'PASS':'FAIL',path:sdkRoot?real(sdkRoot):null},
     },
-    runtime:{runner,ollama,api_glass_box:glass},
+    runtime:{runner,ollama,api_glass_box:glass,inbox:inboxRuntime},
     provider_effect:false,
     authority_granted:false,
     local_state_effect:'RECEIPT_ONLY',
@@ -228,6 +323,7 @@ export async function compileLocalCompass({
       :firstRed?.id==='RUNNER'?'xi-io runner discover'
       :firstRed?.id==='API_GLASS_BOX'?'RECOVER_DEV_API_GLASS_BOX'
       :firstRed?.id==='OLLAMA'?'RECOVER_LOCAL_OLLAMA'
+      :firstRed?.id==='INBOX_RUNTIME'?'REJOIN_INBOX_RUNTIME_TO_PROVIDER_CURRENT'
       :firstRed?'RESOLVE_FIRST_RED':'READY',
   };
 }
