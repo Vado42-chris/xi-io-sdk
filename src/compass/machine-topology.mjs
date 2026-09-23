@@ -39,6 +39,14 @@ function cargoTargetFor(root,{env=process.env}={}){
   const key=fingerprint(real(root));
   return path.join(base,key,'target');
 }
+function nearestExistingParent(value){
+  let cursor=path.resolve(value);
+  while(cursor!==path.dirname(cursor)){
+    if(dir(cursor)) return cursor;
+    cursor=path.dirname(cursor);
+  }
+  return dir(cursor)?cursor:null;
+}
 function commandState(name,{exec=run,env=process.env}={}){
   const r=exec('bash',['-lc',`command -v ${name}`],{env});
   return {state:r.ok?'PASS':'WAIT_MISSING',path:r.ok?r.stdout:null};
@@ -91,9 +99,8 @@ export function inspectMachineTopology({
   const root=real(workspace);
   const sourceMount=mountFor(root,{exec,env});
   const cargoTarget=cargoTargetFor(root,{env});
-  let cargoTargetParent=path.dirname(cargoTarget);
-  try{fs.mkdirSync(cargoTargetParent,{recursive:true});}catch{}
-  const targetMount=dir(cargoTargetParent)?mountFor(cargoTargetParent,{exec,env}):{state:'UNKNOWN',target:null,options:[],noexec:null,raw:null};
+  const cargoTargetProbeRoot=nearestExistingParent(path.dirname(cargoTarget));
+  const targetMount=cargoTargetProbeRoot?mountFor(cargoTargetProbeRoot,{exec,env}):{state:'UNKNOWN',target:null,options:[],noexec:null,raw:null};
   const req=inferRustRequirements(root);
 
   const tools={
@@ -134,6 +141,7 @@ export function inspectMachineTopology({
     cargo_target:{
       path:cargoTarget,
       strategy:sourceMount.noexec===true?'REROUTE_REQUIRED':'PORTABLE_CACHE_PREFERRED',
+      probe_root:cargoTargetProbeRoot,
       mount:targetMount,
       env_key:'CARGO_TARGET_DIR',
     },
@@ -152,5 +160,54 @@ export function inspectMachineTopology({
       'APT_PACKAGE_PRESENT != MIN_VERSION_SATISFIED',
       'SOURCE_BUILD_PASS != PACKAGED_RUNTIME_PASS',
     ],
+  };
+}
+
+
+export function prepareCargoExecution({
+  workspace=process.cwd(),
+  env=process.env,
+  exec=run,
+  create=true,
+}={}){
+  const topology=inspectMachineTopology({workspace,env,exec});
+  if(topology.state==='FAIL_CURRENT' || topology.first_red){
+    return {
+      schema:'xiio.cargo-execution-prep/v1',
+      state:'BLOCKED',
+      first_red:topology.first_red||'MACHINE_TOPOLOGY_NOT_READY',
+      topology,
+      provider_effect:false,
+      authority_granted:false,
+    };
+  }
+  const target=topology.cargo_target.path;
+  const tmp=path.join(path.dirname(target),'tmp');
+  if(create){
+    fs.mkdirSync(target,{recursive:true});
+    fs.mkdirSync(tmp,{recursive:true});
+  }
+  const targetMount=mountFor(nearestExistingParent(target)||target,{exec,env});
+  if(targetMount.noexec===true){
+    return {
+      schema:'xiio.cargo-execution-prep/v1',
+      state:'BLOCKED',
+      first_red:'CARGO_TARGET_NOEXEC',
+      topology,
+      target_mount:targetMount,
+      provider_effect:false,
+      authority_granted:false,
+    };
+  }
+  return {
+    schema:'xiio.cargo-execution-prep/v1',
+    state:'PASS',
+    workspace:real(workspace),
+    cargo_target_dir:target,
+    tmpdir:tmp,
+    env:{CARGO_TARGET_DIR:target,TMPDIR:tmp},
+    topology,
+    provider_effect:false,
+    authority_granted:false,
   };
 }
