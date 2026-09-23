@@ -19,11 +19,13 @@ import { compileGraduationPreflight, profileCatalog } from '../src/preflight/gra
 import { compileProgressGateGraduation, progressGatedRoleCatalog } from '../src/preflight/progress-gated-roles.mjs';
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
-import { recoverAriesRunner } from '../src/recovery/aries-runner.mjs';
+import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
+
+const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
 
 function fatalCliError(error) {
   const firstRed=String(error?.message || error || 'UNKNOWN_CLI_FAILURE').replace(/\s+/g,' ').slice(0,512);
@@ -47,6 +49,7 @@ function usage(code = 0) {
   const text = `xi-io local operator + SDK CLI
 
 Start here:
+  xi-io --version               Show canonical SDK CLI version
   xi-io                         Open local Ollama operator in the current directory
   xi-io <directory>             Open local Ollama operator in that directory
   xi-io --execute               Open with bounded edit/run tools enabled
@@ -93,9 +96,13 @@ Pure compilers:
   xi-io lesson promote --input <lesson.json> [--out <promotion.json>]
 
 Runtime recovery:
-  xi-io recover aries-runner            Plan/check only, no mutation
+  xi-io runner status                    Fast service/listener observation
+  xi-io runner discover                  Existing-runner discovery, no mutation
+  xi-io runner diagnose                  Alias of runner discover
+  xi-io runner recover [--repo owner/repo --run <id> --job <id> --head <sha>]
+                                        Recover existing Aries runner + exact provider readback
+  xi-io recover aries-runner             Compatibility plan/check form
   xi-io recover aries-runner --execute [--repo owner/repo --run <id> --job <id> --head <sha>]
-                                      Start existing Aries runner only, then read back exact provider job
 
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
@@ -347,10 +354,28 @@ function installLocalCli() {
   process.stdout.write(JSON.stringify(receipt,null,2)+'\n');
 }
 
+function runnerStatus() {
+  const services=discoverRunnerServices();
+  const listener=discoverRunnerListener();
+  const listenerCount=listener?.lines || 0;
+  const state=listenerCount>0?'PASS':services.length>0?'PARTIAL':'TRUE_WAIT';
+  return {
+    schema:'xiio.cli.runner-status/v1',
+    state,
+    listener_count:listenerCount,
+    services:services.map(({scope,unit,state:service_state})=>({scope,unit,state:service_state})),
+    first_red:listenerCount>0?null:services.length>0?'RUNNER_SERVICE_PRESENT_LISTENER_ABSENT':'NO_LISTENER_OR_RUNNER_SERVICE_OBSERVED',
+    next:listenerCount>0?'OBSERVE_PROVIDER_JOB':'xiio runner discover',
+    provider_effect:false,
+    authority_granted:false,
+  };
+}
+
 async function doctor() {
   const { localRuntimeStatus, localToolCatalog } = await import('./xi-local-agent.mjs');
   const runtime = await localRuntimeStatus();
   const local = localToolCatalog();
+  const runner = runnerStatus();
   process.stdout.write(JSON.stringify({
     schema:'xiio.cli.human-doctor/v1',
     status:runtime.ollama_state.startsWith('READY_') ? 'PARTIAL_LOCAL_DEPENDENCY_RUNNING' : 'WAIT_LOCAL_DEPENDENCY',
@@ -403,6 +428,7 @@ async function doctor() {
     ollama_endpoint:runtime.ollama_endpoint,
     ollama_state:runtime.ollama_state,
     execution:runtime.execution,
+    runner,
     local_tools:local.tools,
     ack_commands:commandCatalog().commands
       .filter((row)=>row.id.startsWith('ack.'))
@@ -414,6 +440,7 @@ async function doctor() {
     automatic_cloud_fallback:false,
     installed_bins:[
       path.join(os.homedir(),'.local','bin','xi-io'),
+      path.join(os.homedir(),'.local','bin','xiio'),
       path.join(os.homedir(),'.local','bin','xi'),
     ].map((bin)=>({bin,exists:fs.existsSync(bin)})),
     sdk_root:path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),
@@ -503,6 +530,7 @@ async function selfTest() {
 
 
 if (process.argv.length === 3 && ['--help', '-h'].includes(process.argv[2])) usage(0);
+if (process.argv.length === 3 && process.argv[2] === '--version') { process.stdout.write(SDK_VERSION+'\n'); process.exit(0); }
 
 const top = process.argv[2] || null;
 const topArgs = process.argv.slice(2);
@@ -535,6 +563,28 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'runner') {
+  const action=process.argv[3] || 'status';
+  if (action === 'status') {
+    process.stdout.write(JSON.stringify(runnerStatus(),null,2)+'\n');
+  } else if (action === 'discover' || action === 'diagnose') {
+    const result=recoverAriesRunner({execute:false});
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
+  } else if (action === 'recover') {
+    const raw=process.argv.slice(4);
+    const { flags }=args(raw);
+    const result=recoverAriesRunner({
+      execute:true,
+      targetRepo:flags.repo || undefined,
+      targetRunId:flags.run || undefined,
+      targetJobId:flags.job || undefined,
+      targetHeadSha:flags.head || undefined,
+      waitSeconds:flags.wait?Number(flags.wait):undefined,
+    });
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
+  } else usage(1);
 } else if (top === 'recover') {
   const target = process.argv[3] || null;
   const executeRecovery = process.argv.includes('--execute');
