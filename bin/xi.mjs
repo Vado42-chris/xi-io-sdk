@@ -102,8 +102,8 @@ Human registries:
   xi-io verify --stdin --json   Verify one JSON artifact from stdin
   xi-io verify --file PATH --json
                                 Verify one JSON artifact from a file
-  xi-io cargo [--workspace DIR] -- <cargo args...>
-                                Execute Cargo through machine-topology/native-dependency gate
+  xi-io cargo --execute [--workspace DIR] -- <cargo args...>
+                                Execute Cargo only after explicit local-effect admission inside selected workspace
   xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
   xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
   xi-io models                  List installed Ollama models
@@ -495,6 +495,7 @@ async function statusSnapshot() {
     machine_topology:topology,
     runner,
     products:{hex,studio,inbox},
+    local_effect:true,
     provider_effect:false,
     authority_granted:false,
     hard:[
@@ -695,9 +696,14 @@ async function productRuntime(family,action){
 
 function parseCargoTopArgs(argv){
   let workspace=process.cwd();
+  let execute=false;
   const cargoArgs=[];
   for(let i=0;i<argv.length;i+=1){
     const token=argv[i];
+    if(token==='--execute'){
+      execute=true;
+      continue;
+    }
     if(token==='--workspace'){
       const next=argv[i+1];
       if(!next) throw new Error('--workspace requires a directory');
@@ -712,13 +718,31 @@ function parseCargoTopArgs(argv){
     cargoArgs.push(token);
   }
   if(cargoArgs.length===0) throw new Error('cargo arguments required; example: xi-io cargo -- build --release');
-  return {workspace,cargoArgs};
+  return {workspace,cargoArgs,execute};
+}
+
+function withinRoot(root,target){
+  const rel=path.relative(root,target);
+  return rel==='' || (!rel.startsWith('..'+path.sep) && rel!=='..' && !path.isAbsolute(rel));
 }
 
 function runCargoThroughTopology(argv=[]){
-  const {workspace,cargoArgs}=parseCargoTopArgs(argv);
+  const {workspace,cargoArgs,execute}=parseCargoTopArgs(argv);
   if(!isDirectory(workspace)) throw new Error('cargo workspace directory not found');
+  const selectedRoot=fs.realpathSync(process.cwd());
   const root=fs.realpathSync(path.resolve(workspace));
+  if(!withinRoot(selectedRoot,root)){
+    const blocked={schema:'xiio.cli.cargo/v2',state:'BLOCKED',first_red:'WORKSPACE_OUTSIDE_SELECTED_ROOT',selected_workspace:selectedRoot,workspace:root,local_effect:false,provider_effect:false,authority_granted:false};
+    process.stdout.write(JSON.stringify(blocked,null,2)+'\n');
+    process.exitCode=13;
+    return blocked;
+  }
+  if(!execute){
+    const blocked={schema:'xiio.cli.cargo/v2',state:'BLOCKED',first_red:'EXECUTION_NOT_ADMITTED',selected_workspace:selectedRoot,workspace:root,cargo_args:cargoArgs,local_effect:false,provider_effect:false,authority_granted:false};
+    process.stdout.write(JSON.stringify(blocked,null,2)+'\n');
+    process.exitCode=13;
+    return blocked;
+  }
   const prep=prepareCargoExecution({workspace:root,create:true});
   if(prep.state!=='PASS'){
     process.stdout.write(JSON.stringify(prep,null,2)+'\n');
@@ -740,7 +764,7 @@ function runCargoThroughTopology(argv=[]){
     stdio:'inherit',
   });
   const receipt={
-    schema:'xiio.cli.cargo/v1',
+    schema:'xiio.cli.cargo/v2',
     state:run.status===0?'PASS':'FAIL_CURRENT',
     first_red:run.status===0?null:'CARGO_COMMAND_FAILED',
     workspace:root,
@@ -756,6 +780,8 @@ function runCargoThroughTopology(argv=[]){
     authority_granted:false,
     hard:[
       'DOCTOR_STATUS_READ_ONLY',
+      'CARGO_REQUIRES_EXPLICIT_EXECUTE',
+      'CARGO_WORKSPACE_MUST_BE_WITHIN_SELECTED_ROOT',
       'CARGO_EXECUTION_OWNS_CACHE_MATERIALIZATION',
       'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
       'NATIVE_DEP_PREFLIGHT_REQUIRED',
