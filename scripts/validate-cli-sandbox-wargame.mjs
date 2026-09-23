@@ -255,6 +255,22 @@ const wrongTarget=spawnSync('bash',[bootstrapScript],{
 assert.notEqual(wrongTarget.status,0);
 assert.match(wrongTarget.stderr,/TARGET_EXISTS_NOT_GIT_REPO/);
 
+// Minimal TIME=$ latency gates (non-counted; fail only on gross usability regressions).
+function timedRun(label,args,{cwd=outside,env={}}={}){
+  const start=process.hrtime.bigint();
+  const result=run(args,{cwd,env});
+  const ms=Number(process.hrtime.bigint()-start)/1e6;
+  assert.ok(ms<5000,`${label} exceeded 5000ms: ${ms.toFixed(1)}ms`);
+  return {label,ms,result};
+}
+const latencyRows=[
+  timedRun('doctor',['doctor']),
+  timedRun('registry_ack',['registry','ack']),
+  timedRun('registry_tools',['registry','tools']),
+  timedRun('self_test',['self-test']),
+  timedRun('runner_recovery_plan',['recover','aries-runner']),
+];
+assert.ok(latencyRows.every((row)=>row.ms<5000));
 // Additional non-counted invariants.
 // Interactive @ibal may inspect runner recovery in preview mode, but mutation remains execution-gated.
 assert.deepEqual(
