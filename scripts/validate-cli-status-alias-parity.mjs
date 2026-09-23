@@ -25,6 +25,7 @@ function run(alias){
   assert.equal(body.provider_effect,false);
   assert.equal(body.authority_granted,false);
   assert.ok(body.compass);
+  assert.ok(body.machine_topology);
   assert.ok(body.runner);
   assert.ok(body.products?.hex);
   assert.ok(body.products?.studio);
@@ -35,5 +36,6 @@ const io=run('xi-io');
 const xi=run('xi');
 for(const key of ['sdk_version','sdk_root','state']) assert.deepEqual(io[key],xi[key],key);
 assert.deepEqual(io.products,xi.products);
+assert.deepEqual(io.machine_topology,xi.machine_topology);
 assert.deepEqual(io.runner,xi.runner);
 console.log('CLI_STATUS_ALIAS_PARITY=PASS aliases=xi-io,xi schema=xiio.cli.status/v1');
