@@ -162,13 +162,20 @@ assert.equal(install.status,0);
 const installReceipt=JSON.parse(install.stdout);
 assert.equal(installReceipt.installed,true);
 assert.equal(installReceipt.default_entry,'xi-io');
+assert.deepEqual(installReceipt.human_aliases,['xiio','xi']);
 const installedBin=path.join(tempHome,'.local','bin','xi-io');
+const xiioAliasBin=path.join(tempHome,'.local','bin','xiio');
 const aliasBin=path.join(tempHome,'.local','bin','xi');
 assert.ok(fs.existsSync(installedBin));
+assert.ok(fs.existsSync(xiioAliasBin));
 assert.ok(fs.existsSync(aliasBin));
 assert.ok((fs.statSync(installedBin).mode & 0o111)!==0);
 assert.ok(fs.existsSync(path.join(tempHome,'.local','share','xi-io','cli','env.sh')));
 assert.ok(fs.readFileSync(path.join(tempHome,'.bashrc'),'utf8').includes('xi-io-cli-managed-path'));
+
+const xiioAliasHelp=spawnSync(xiioAliasBin,['--help'],{cwd:os.tmpdir(),encoding:'utf8',timeout:10_000,env:{...process.env,HOME:tempHome}});
+assert.equal(xiioAliasHelp.status,0,xiioAliasHelp.stderr);
+assert.match(xiioAliasHelp.stdout,/xi-io local operator/);
 
 const installedSelfTest=spawnSync(installedBin,['self-test'],{
   cwd:os.tmpdir(),
