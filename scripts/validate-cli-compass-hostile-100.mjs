@@ -136,8 +136,28 @@ for(let i=0;i<100;i++){
     };
     const exec=fakeExecFactory({framework,workspace,origin,localHead,providerHead,listener});
     const probe=probeFactory({ollama,glass});
+    const runtimeInspect=()=>({
+      schema:'xiio.cli.runtime-observation/v1',
+      state:'PASS_CURRENT',
+      port:8791,
+      pid:1534869,
+      executable:'/home/tester/.nvm/versions/node/v24.11.1/bin/node',
+      cwd:path.join(home,'.cache','xi-io-inbox-main-tip'),
+      git_root:path.join(home,'.cache','xi-io-inbox-main-tip'),
+      command:'node server/local-web-runtime.mjs',
+      repo_state:'PASS',
+      origin:'https://github.com/Vado42-chris/xi-io-Inbox.git',
+      expected_repo:'Vado42-chris/xi-io-Inbox',
+      local_head:'9'.repeat(40),
+      provider_main:'9'.repeat(40),
+      provider_state:'PASS',
+      generation_state:'EXACT_PROVIDER_MAIN',
+      dirty_state:'CLEAN',
+      process_identity_state:'BOUND',
+      effect_authority:0,
+    });
     const compass=await compileLocalCompass({
-      cwd:workspace,env,sdkRoot,hostname:'aries',exec,probe,providerRead
+      cwd:workspace,env,sdkRoot,hostname:'aries',exec,probe,providerRead,runtimeInspect
     });
     return {caseRoot,home,volume,common,studio,framework,workspace,compass,env,group,variant};
   },async({home,common,studio,framework,compass,env,group})=>{
@@ -145,7 +165,7 @@ for(let i=0;i<100;i++){
     assert.equal(compass.node_ref,'node.aries');
     assert.equal(compass.provider_effect,false);
     assert.equal(compass.authority_granted,false);
-    assert.equal(compass.denominator,11);
+    assert.equal(compass.denominator,12);
     assert.equal(compass.machine.home,fs.realpathSync(home));
     assert.ok(compass.hard.includes('DECLARED_PATH != PHYSICAL_PATH'));
     assert.ok(compass.hard.includes('PHYSICAL_PATH != CURRENT_GENERATION'));
@@ -156,6 +176,7 @@ for(let i=0;i<100;i++){
       assert.equal(compass.roots.framework.selected.generation_state,'EXACT_PROVIDER_MAIN');
       assert.equal(compass.roots.common.path,fs.realpathSync(common));
       assert.equal(compass.roots.studio.path,fs.realpathSync(studio));
+      assert.equal(compass.runtime.inbox.state,'PASS_CURRENT');
     } else if(group===1){
       assert.equal(compass.state,'MAP_WITH_REDS');
       assert.equal(compass.first_red,'FRAMEWORK');

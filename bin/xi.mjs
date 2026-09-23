@@ -20,6 +20,7 @@ import { compileProgressGateGraduation, progressGatedRoleCatalog } from '../src/
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
+import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
@@ -105,6 +106,8 @@ Runtime recovery:
                                         Recover existing Aries runner + exact provider readback
   xi-io recover aries-runner             Compatibility plan/check form
   xi-io recover aries-runner --execute [--repo owner/repo --run <id> --job <id> --head <sha>]
+  xi-io recover inbox-runtime             Plan exact-current :8791 recovery
+  xi-io recover inbox-runtime --execute   Preserve dirty donor, use clean current Inbox, restart, require 8/8
 
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
@@ -596,19 +599,27 @@ if (
 } else if (top === 'recover') {
   const target = process.argv[3] || null;
   const executeRecovery = process.argv.includes('--execute');
-  if (target !== 'aries-runner') usage(1);
   const raw = process.argv.slice(4).filter((value)=>value!=='--execute');
   const { flags } = args(raw);
-  const result = recoverAriesRunner({
-    execute:executeRecovery,
-    targetRepo:flags.repo || undefined,
-    targetRunId:flags.run || undefined,
-    targetJobId:flags.job || undefined,
-    targetHeadSha:flags.head || undefined,
-    waitSeconds:flags.wait?Number(flags.wait):undefined,
-  });
-  process.stdout.write(JSON.stringify(result,null,2)+'\n');
-  process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
+  if (target === 'aries-runner') {
+    const result = recoverAriesRunner({
+      execute:executeRecovery,
+      targetRepo:flags.repo || undefined,
+      targetRunId:flags.run || undefined,
+      targetJobId:flags.job || undefined,
+      targetHeadSha:flags.head || undefined,
+      waitSeconds:flags.wait?Number(flags.wait):undefined,
+    });
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
+  } else if (target === 'inbox-runtime') {
+    const result = recoverInboxRuntime({
+      execute:executeRecovery,
+      waitSeconds:flags.wait?Number(flags.wait):undefined,
+    });
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode = result.state === 'BLOCKED' ? 2 : 0;
+  } else usage(1);
 } else if (top === 'sdk') {
   const argv = process.argv.slice(3);
   const call = argv.length === 1 && argv[0] === 'commands' ? ['--commands']
