@@ -22,14 +22,14 @@ const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(),
 const workspaceId = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
 const sessionFile = path.join(stateDir, `session-${workspaceId}.json`);
 const blocked = new Set(['.git', '.ssh', 'node_modules']);
-const commands = new Set(['git', 'node', 'npm', 'python', 'python3', 'bash']);
+const commands = new Set(['git', 'node', 'python', 'python3', 'bash']);
 const xiCli = fileURLToPath(new URL('./xi.mjs', import.meta.url));
 const xiioFamilies = new Set([
   'baseline','product','fleet','100s','preflight','cadence','studio','stack',
   'work','ack','burnmap','lesson','lexicon','sdk','recover',
 ]);
 const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--returns']);
-const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
+const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch']);
 const MAX_ONCE_INPUT_BYTES = 65_536;
 
 function argValue(name) {
@@ -49,12 +49,39 @@ function target(raw) {
   return resolved;
 }
 
-async function run(command, args = []) {
-  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+export function validateWorkspaceCommand(command, args = []) {
   if (!commands.has(command) || !Array.isArray(args) || args.length > 32) throw new Error('COMMAND_DENIED');
   if (args.some(a => typeof a !== 'string' || a.includes('\0') || path.isAbsolute(a) || a.split(/[\\/]+/).includes('..'))) throw new Error('COMMAND_DENIED');
-  if (command === 'git' && !gitCommands.has(args[0])) throw new Error('GIT_COMMAND_DENIED');
-  if (command === 'bash' && (args[0] === '-c' || args[0] === '-lc')) throw new Error('SHELL_STRING_DENIED');
+
+  if (command === 'git') {
+    if (!gitCommands.has(args[0])) throw new Error('GIT_COMMAND_DENIED');
+    return { command, args };
+  }
+
+  if (command === 'bash') {
+    if (args.length !== 2 || args[0] !== '-n') throw new Error('BASH_COMMAND_DENIED');
+    target(args[1]);
+    return { command, args };
+  }
+
+  if (command === 'node') {
+    if (args.length !== 2 || !['--check','-c'].includes(args[0])) throw new Error('NODE_COMMAND_DENIED');
+    target(args[1]);
+    return { command, args };
+  }
+
+  if (command === 'python' || command === 'python3') {
+    if (args.length !== 3 || args[0] !== '-m' || args[1] !== 'py_compile') throw new Error('PYTHON_COMMAND_DENIED');
+    target(args[2]);
+    return { command, args };
+  }
+
+  throw new Error('COMMAND_DENIED');
+}
+
+async function run(command, args = []) {
+  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+  validateWorkspaceCommand(command, args);
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env: process.env, stdio:['ignore','pipe','pipe'] });
     let output=''; let timer=setTimeout(()=>child.kill('SIGTERM'),120000);
@@ -75,7 +102,7 @@ const tools=[
  {type:'function',function:{name:'resolve_xiio_command',description:'Resolve a xi-io alias, hashtag, slash command, or command name through the canonical command lexicon. Read-only.',parameters:{type:'object',required:['token'],properties:{token:{type:'string'}}}}},
  {type:'function',function:{name:'run_xiio_cli_command',description:'Run one bounded xi-io SDK/projection command in the current workspace. No provider effects. Local --out writes require --execute.',parameters:{type:'object',required:['args'],properties:{args:{type:'array',items:{type:'string'}},stdin_text:{type:'string'}}}}},
  {type:'function',function:{name:'edit_workspace_text_file',description:'Create or exactly replace bounded text inside the current workspace. Requires --execute.',parameters:{type:'object',required:['path','operation','new_text'],properties:{path:{type:'string'},operation:{type:'string',enum:['create','replace_exact']},old_text:{type:'string'},new_text:{type:'string'}}}}},
- {type:'function',function:{name:'run_workspace_command',description:'Run one allowlisted executable with structured arguments in the current workspace. Requires --execute.',parameters:{type:'object',required:['command'],properties:{command:{type:'string'},args:{type:'array',items:{type:'string'}}}}}}
+ {type:'function',function:{name:'run_workspace_command',description:'Run one bounded validation command in the current workspace. Interpreters are syntax-check only; arbitrary scripts are denied. Requires --execute.',parameters:{type:'object',required:['command'],properties:{command:{type:'string'},args:{type:'array',items:{type:'string'}}}}}}
 ];
 const toolNames=tools.map((entry)=>entry.function.name);
 
