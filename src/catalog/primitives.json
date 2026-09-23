@@ -23,10 +23,10 @@
   ],
   "dispatch": {
     "expected": 40,
-    "materialized_primitives": 38,
+    "materialized_primitives": 40,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
-    "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
+    "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN__NEW_FILE_PRIMITIVES_CANDIDATE",
     "live_claim": false
   },
   "primitives": [
@@ -528,6 +528,28 @@
       "export": "reduceMultiplicativeFactors|compileTransitionProofMatrix",
       "source": "src/evaluation/transition-proof-reducer.mjs",
       "specifier": "@xi-io/sdk/evaluation/transition-proof-reducer",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "portable-semantic-file",
+      "callable_uuid": "99174ce8-1652-5c32-9a65-364ef58f3c8e",
+      "family": "documents",
+      "kind": "compiler",
+      "export": "PortableSemanticFile|compilePortableSemanticFile|validatePortableSemanticFileRoundtrip",
+      "source": "src/documents/portable-semantic-file.mjs",
+      "specifier": "@xi-io/sdk/documents/portable-semantic-file",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "portable-artifact-cube",
+      "callable_uuid": "ec0c5b6a-7128-577b-bacb-3f556101d906",
+      "family": "documents",
+      "kind": "compiler",
+      "export": "compilePortableArtifactCube",
+      "source": "src/documents/portable-artifact-cube.mjs",
+      "specifier": "@xi-io/sdk/documents/portable-artifact-cube",
       "styles": [],
       "maturity": "CANDIDATE"
     }
