@@ -24,6 +24,24 @@ import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
+function fatalCliError(error) {
+  const firstRed=String(error?.message || error || 'UNKNOWN_CLI_FAILURE').replace(/\s+/g,' ').slice(0,512);
+  if (process.env.XIIO_CLI_DEBUG === '1' && error?.stack) {
+    process.stderr.write(String(error.stack) + '\n');
+  } else {
+    process.stderr.write(JSON.stringify({
+      schema:'xiio.cli.error/v1',
+      status:'BLOCKED',
+      first_red:firstRed,
+      provider_effect:false,
+      authority_granted:false,
+    },null,2)+'\n');
+  }
+  process.exit(2);
+}
+process.on('uncaughtException', fatalCliError);
+process.on('unhandledRejection', fatalCliError);
+
 function usage(code = 0) {
   const text = `xi-io local operator + SDK CLI
 
@@ -251,10 +269,15 @@ function installLocalCli() {
     '#!/usr/bin/env bash',
     'set -euo pipefail',
     'ROOT_FILE="$HOME/.local/share/xi-io/cli/sdk.path"',
-    '[[ -r "$ROOT_FILE" ]] || { echo "xi-io: missing $ROOT_FILE" >&2; exit 1; }',
-    'ROOT="$(tr -d "\\r\\n" < "$ROOT_FILE")"',
+    'wrapper_fail(){ printf \'%s\\n\' \'{"schema":"xiio.cli.wrapper-error/v1","status":"BLOCKED","provider_effect":false,"authority_granted":false}\' >&2; exit 2; }',
+    '[[ -r "$ROOT_FILE" ]] || wrapper_fail',
+    'ROOT=""',
+    'IFS= read -r ROOT < "$ROOT_FILE" || true',
+    'ROOT="${ROOT%$\'\\r\'}"',
+    '[[ -n "$ROOT" && -r "$ROOT/bin/xi.mjs" ]] || wrapper_fail',
     'NODE="${XIIO_NODE:-$HOME/.nvm/versions/node/v24.11.1/bin/node}"',
-    '[[ -x "$NODE" ]] || NODE="$(command -v node)"',
+    'if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi',
+    '[[ -n "$NODE" && -x "$NODE" ]] || wrapper_fail',
     'exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
     '',
   ].join('\n');
