@@ -10,7 +10,7 @@ function fakeExecFactory({service='inactive',listener=false,job='queued'}={}){
     if(joined.includes('systemctl list-unit-files actions.runner.*.service')) return {ok:true,status:0,stdout:'actions.runner.test.service enabled\n',stderr:''};
     if(joined.includes('systemctl --user list-unit-files')) return {ok:true,status:0,stdout:'',stderr:''};
     if(joined.includes('systemctl is-active actions.runner.test.service')) return {ok:service==='active',status:service==='active'?0:3,stdout:service+'\n',stderr:''};
-    if(joined.includes('systemctl start actions.runner.test.service')) { service='active'; return {ok:true,status:0,stdout:'',stderr:''}; }
+    if(joined.includes('systemctl start actions.runner.test.service')) { service='active'; listener=true; return {ok:true,status:0,stdout:'',stderr:''}; }
     if(joined.startsWith('pgrep -af Runner.Listener')) return listener
       ? {ok:true,status:0,stdout:'123 /opt/actions-runner/bin/Runner.Listener run\n',stderr:''}
       : {ok:false,status:1,stdout:'',stderr:''};
@@ -36,7 +36,7 @@ function fakeExecFactory({service='inactive',listener=false,job='queued'}={}){
 }
 
 {
-  const f=fakeExecFactory({service:'inactive',listener:true,job:'running'});
+  const f=fakeExecFactory({service:'inactive',listener:false,job:'running'});
   const result=recoverAriesRunner({
     execute:true,host:'aries',exec:f.exec,env:{...process.env,XIIO_RUNNER_SEARCH_ROOTS:'/tmp'},
     targetRepo:'Vado42-chris/xi-io.net',targetRunId:'42',targetJobId:'99',targetHeadSha:'a'.repeat(40),waitSeconds:0,
