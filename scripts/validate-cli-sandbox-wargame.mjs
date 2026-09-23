@@ -292,7 +292,7 @@ assert.throws(
 
 // Interpreter boundary: relative script path is not enough to make arbitrary code execution bounded.
 assert.throws(()=>validateWorkspaceCommand('bash',['scripts/install-cli.sh']),/BASH_COMMAND_DENIED/);
-assert.throws(()=>validateWorkspaceCommand('bash',['-c','cat /etc/passwd']),/BASH_COMMAND_DENIED|COMMAND_DENIED/);
+assert.throws(()=>validateWorkspaceCommand('bash',['-c','cat /etc/passwd']),/SHELL_STRING_DENIED/);
 assert.throws(()=>validateWorkspaceCommand('node',['bin/xi.mjs']),/NODE_COMMAND_DENIED/);
 assert.throws(()=>validateWorkspaceCommand('python3',['scripts/host-abi-observer.py']),/PYTHON_COMMAND_DENIED/);
 assert.throws(()=>validateWorkspaceCommand('npm',['test']),/COMMAND_DENIED/);
