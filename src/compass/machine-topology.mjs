@@ -86,6 +86,7 @@ function inferRustRequirements(root){
     pkg_config:/pkg-config/.test(text)||/gstreamer|cpal/.test(text),
     gstreamer:/gstreamer(?:-app|-audio)?\s*=/.test(text),
     gstreamer_min:gstMin,
+    glib:/gstreamer(?:-app|-audio)?\s*=/.test(text),
     alsa:/cpal\s*=/.test(text),
     cmake:/^opus\s*=/m.test(text),
     c_compiler:/^opus\s*=/m.test(text),
@@ -118,6 +119,7 @@ export function inspectMachineTopology({
     native.gstreamer_app=pkgConfigProbe(req.gstreamer_min?`gstreamer-app-1.0 >= ${req.gstreamer_min}`:'gstreamer-app-1.0',{exec,env});
     native.gstreamer_audio=pkgConfigProbe(req.gstreamer_min?`gstreamer-audio-1.0 >= ${req.gstreamer_min}`:'gstreamer-audio-1.0',{exec,env});
   }
+  if(req.glib) native.glib=pkgConfigProbe('glib-2.0',{exec,env});
   if(req.alsa) native.alsa=pkgConfigProbe('alsa',{exec,env});
 
   const cells=[
@@ -126,6 +128,7 @@ export function inspectMachineTopology({
     {id:'CARGO_AVAILABLE',state:req.cargo?tools.cargo.state:'N_A_WITH_EVIDENCE',value:req.cargo?tools.cargo:{reason:'NO_CARGO_MANIFEST'}},
     {id:'PKG_CONFIG',state:req.pkg_config?tools.pkg_config.state:'N_A_WITH_EVIDENCE',value:req.pkg_config?tools.pkg_config:{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
     {id:'GSTREAMER_METADATA',state:req.gstreamer?(native.gstreamer?.state==='PASS'&&native.gstreamer_app?.state==='PASS'&&native.gstreamer_audio?.state==='PASS'?'PASS':'FAIL'):'N_A_WITH_EVIDENCE',value:req.gstreamer?native:{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
+    {id:'GLIB_METADATA',state:req.glib?(native.glib?.state==='PASS'?'PASS':'FAIL'):'N_A_WITH_EVIDENCE',value:req.glib?(native.glib||null):{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
     {id:'ALSA_METADATA',state:req.alsa?(native.alsa?.state==='PASS'?'PASS':'FAIL'):'N_A_WITH_EVIDENCE',value:req.alsa?(native.alsa||null):{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
     {id:'CMAKE',state:req.cmake?tools.cmake.state:'N_A_WITH_EVIDENCE',value:req.cmake?tools.cmake:{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
     {id:'C_COMPILER',state:req.c_compiler?([tools.cc,tools.gcc,tools.clang].some(x=>x.state==='PASS')?'PASS':'FAIL'):'N_A_WITH_EVIDENCE',value:req.c_compiler?{cc:tools.cc,gcc:tools.gcc,clang:tools.clang}:{reason:'NOT_REQUIRED_BY_DETECTED_MANIFEST'}},
