@@ -7,7 +7,14 @@
     "callable_uuid_role": "DISCOVERY_AND_CALL_ANCHOR_ONLY",
     "internal_management_surface": "OPAQUE_WARD_PROTECTED",
     "internal_provenance_disclosed": false,
-    "internal_topology_disclosed": false
+    "internal_topology_disclosed": false,
+    "portable_shipping": {
+      "prepare_command": "xi-io file prepare --primitive <id> --generation <sha>",
+      "semantic_file": "@xi-io/sdk/documents/portable-semantic-file",
+      "shipping_cube": "@xi-io/sdk/documents/portable-artifact-cube",
+      "profiles": "@xi-io/sdk/documents/artifact-profiles",
+      "required_for_registered_primitives": true
+    }
   },
   "hard": [
     "CALLABLE_UUID != CANONICAL_IDENTITY",
@@ -19,7 +26,10 @@
     "DISPATCH_COUNTER != BINS_CURRENT",
     "CATALOG_COUNT != LIVE_ADOPTION",
     "TOPOGRAPHY_PROJECTION_LABEL!=CANONICAL_OPERATION",
-    "PATH!=ILLUMINATION"
+    "PATH!=ILLUMINATION",
+    "REGISTERED_PRIMITIVE_MUST_BE_PORTABLE_FILE_CUBE_PREPARABLE",
+    "PRIMITIVE_REGISTRATION_WITHOUT_SHIPPING_PATH = FAIL",
+    "FILE_CUBE_PREPARABLE != SHIPPED"
   ],
   "dispatch": {
     "expected": 40,
