@@ -1,0 +1,98 @@
+{
+  "schema": "xiio.sdk.artifact-profile-catalog/v1",
+  "hard": [
+    "PROFILE_DESCRIBES_VALIDATION_NOT_AUTHORITY",
+    "FILE_TYPE_CHANGES_PROFILE_NOT_CELL_TOPOLOGY",
+    "BYTE_TRANSPORT_REQUIRED_FOR_ALL_TYPES",
+    "TEXT_DECODING_IS_PARSER_BEHAVIOR_NOT_TRANSFER_BEHAVIOR"
+  ],
+  "profiles": [
+    {
+      "profile_id": "json.semantic.v1",
+      "media_types": [
+        "application/json"
+      ],
+      "transport": "BYTES",
+      "parser_class": "JSON_PARSE",
+      "consumer_class": "STRUCTURED_JSON"
+    },
+    {
+      "profile_id": "text.utf8.v1",
+      "media_types": [
+        "text/plain"
+      ],
+      "transport": "BYTES",
+      "parser_class": "UTF8_TEXT",
+      "consumer_class": "TEXT"
+    },
+    {
+      "profile_id": "markdown.utf8.v1",
+      "media_types": [
+        "text/markdown",
+        "text/x-markdown"
+      ],
+      "transport": "BYTES",
+      "parser_class": "UTF8_MARKDOWN",
+      "consumer_class": "MARKDOWN"
+    },
+    {
+      "profile_id": "pdf.bytes.v1",
+      "media_types": [
+        "application/pdf"
+      ],
+      "transport": "BYTES",
+      "parser_class": "PDF_CONTAINER",
+      "consumer_class": "PDF_READER"
+    },
+    {
+      "profile_id": "docx.opc.v1",
+      "media_types": [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      "transport": "BYTES",
+      "parser_class": "OPC_ZIP_XML",
+      "consumer_class": "DOCX_READER"
+    },
+    {
+      "profile_id": "xlsx.opc.v1",
+      "media_types": [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "transport": "BYTES",
+      "parser_class": "OPC_ZIP_XML",
+      "consumer_class": "XLSX_READER"
+    },
+    {
+      "profile_id": "image.bytes.v1",
+      "media_types": [
+        "image/png",
+        "image/jpeg",
+        "image/webp"
+      ],
+      "transport": "BYTES",
+      "parser_class": "IMAGE_DECODE",
+      "consumer_class": "IMAGE_VIEWER"
+    },
+    {
+      "profile_id": "code.utf8.v1",
+      "media_types": [
+        "text/javascript",
+        "text/typescript",
+        "text/x-python",
+        "text/x-shellscript"
+      ],
+      "transport": "BYTES",
+      "parser_class": "UTF8_CODE_SYNTAX",
+      "consumer_class": "CODE_RUNTIME_OR_REVIEW"
+    },
+    {
+      "profile_id": "binary.generic.v1",
+      "media_types": [
+        "application/octet-stream"
+      ],
+      "transport": "BYTES",
+      "parser_class": "BINARY_SIGNATURE_OR_DECLARED_PARSER",
+      "consumer_class": "DECLARED_CONSUMER"
+    }
+  ]
+}
