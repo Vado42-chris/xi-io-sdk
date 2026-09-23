@@ -68,7 +68,8 @@
     "./evaluation/hostile-harness": "./src/evaluation/hostile-harness.mjs",
     "./projections/topography-coordinate": "./src/projections/topography-coordinate.mjs",
     "./ibal/ack-rotfl-compiler": "./src/ibal/ack-rotfl-compiler.mjs",
-    "./evaluation/transition-proof-reducer": "./src/evaluation/transition-proof-reducer.mjs"
+    "./evaluation/transition-proof-reducer": "./src/evaluation/transition-proof-reducer.mjs",
+    "./currentness/hex-floor": "./src/currentness/hex-floor.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
