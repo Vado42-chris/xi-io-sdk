@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
@@ -26,6 +26,7 @@ import { inspectMachineTopology, prepareCargoExecution } from '../src/compass/ma
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
+import { reduceMultiplicativeFactors, compileTransitionProofMatrix } from '../src/evaluation/transition-proof-reducer.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
@@ -103,6 +104,8 @@ Human registries:
   xi-io verify --file PATH --json
                                 Verify one JSON artifact from a file
   xi-io cargo --execute [--workspace DIR] -- <cargo args...>
+  xi-io zed ibal status --json  Read binding + live 3-factor Zed/Ibal state
+  xi-io zed ibal recover --json Repair binding, launch Zed, run one ACP attempt, reduce first zero
                                 Execute Cargo only after explicit local-effect admission inside selected workspace
   xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
   xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
@@ -646,6 +649,139 @@ async function frameworkRootFromCompass(){
   const map=await compileLocalCompass({sdkRoot});
   return {map,root:map?.roots?.framework?.selected?.path||null};
 }
+function processCount(pattern){
+  const r=spawnSync('pgrep',['-fc',pattern],{encoding:'utf8'});
+  const n=Number(String(r.stdout||'0').trim()||0);
+  return Number.isFinite(n)?n:0;
+}
+function ndjsonLineCount(file){
+  try{
+    const raw=fs.readFileSync(file,'utf8');
+    if(!raw.trim()) return 0;
+    return raw.split(/\r?\n/).filter(Boolean).length;
+  }catch{return 0;}
+}
+function readJsonMaybe(file){
+  try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}
+}
+async function zedIbalRuntime(action='status'){
+  const home=os.homedir();
+  const ledger=path.join(home,'.local','state','xi-io','ibal-acp-001a','events','operations.ndjson');
+  const baseline={
+    zed_process_count:processCount('zed-editor|/zed(\\s|$)|zed\\.app/bin/zed'),
+    acp_agent_count:processCount('acp-agent/agent\\.mjs'),
+    event_count:ndjsonLineCount(ledger),
+  };
+  const {map,root}=await frameworkRootFromCompass();
+  if(!root) return {
+    schema:'xiio.cli.zed-ibal/v1',state:'TRUE_WAIT',first_red:'FRAMEWORK_ROOT_UNRESOLVED',
+    baseline,compass:map,provider_effect:false,authority_granted:false,
+  };
+  const configurePath=path.join(root,'tools','hex-operator','rc','bin','zed-ibal-configure.mjs');
+  const recoverPath=path.join(root,'scripts','punchcard-plan-bridge-zed-ibal-controls.mjs');
+  if(!fs.existsSync(configurePath)||!fs.existsSync(recoverPath)) return {
+    schema:'xiio.cli.zed-ibal/v1',state:'BLOCKED',first_red:'ZED_IBAL_FRAMEWORK_PRIMITIVE_MISSING',
+    root,baseline,provider_effect:false,authority_granted:false,
+  };
+  const mod=await import(pathToFileURL(configurePath).href+`?xiio=${Date.now()}`);
+  let source=mod.zedIbalStatus();
+  let configure=null;
+  const sourceReady=()=>Boolean(
+    source?.zed?.agent_servers_ok && source?.acp?.wrapper_ok && source?.acp?.agent_ok
+    && source?.acp?.node_ok && source?.ollama?.ok
+  );
+  if(action==='recover' && !sourceReady()){
+    configure=mod.configureZedIbal();
+    source=mod.zedIbalStatus();
+  }
+  const bindingApplied=sourceReady();
+  const matrix=compileTransitionProofMatrix({
+    transitions:['T1_LOAD','T2_SPAWN','T3_SESSION'],
+    proof_planes:['SOURCE','PROCESS','READBACK'],
+    proven_cell_ids:bindingApplied
+      ? ['T1_LOAD::SOURCE','T2_SPAWN::SOURCE','T3_SESSION::SOURCE']
+      : [],
+    cells:[
+      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
+      {id:'T1_LOAD::READBACK',state:'WAIT'},
+      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
+      {id:'T2_SPAWN::READBACK',state:'WAIT'},
+      {id:'T3_SESSION::PROCESS',state:'WAIT'},
+      {id:'T3_SESSION::READBACK',state:'WAIT'},
+    ],
+  });
+  if(action!=='recover') return {
+    schema:'xiio.cli.zed-ibal/v1',
+    state:bindingApplied?'PASS_WITH_WAITS':'FAIL_CURRENT',
+    first_red:bindingApplied?(baseline.zed_process_count>0?'ACP_SPAWNED':'ZED_RUNNING'):'BINDING_APPLIED',
+    root,source,binding_applied:bindingApplied,baseline,matrix,
+    active_factors:['ZED_RUNNING','ACP_SPAWNED','ACP_SESSION_DELTA'],
+    provider_effect:false,authority_granted:false,
+  };
+  if(!bindingApplied) return {
+    schema:'xiio.cli.zed-ibal/v1',state:'BLOCKED',first_red:'BINDING_APPLY_FAILED',
+    root,source,configure,baseline,matrix,provider_effect:false,authority_granted:false,
+  };
+
+  if(baseline.zed_process_count===0 && source?.zed?.binary){
+    try{
+      const child=spawn(source.zed.binary,[root],{
+        detached:true,stdio:'ignore',env:{...process.env,HOME:home}
+      });
+      child.unref();
+    }catch{}
+  }
+
+  const run=spawnSync(process.execPath,[recoverPath,'--recover'],{
+    cwd:root,
+    encoding:'utf8',
+    timeout:360000,
+    maxBuffer:8*1024*1024,
+    env:{
+      ...process.env,
+      HOME:home,
+      IBAL_ACP_NODE:source?.acp?.node || process.execPath,
+      PATH:`${path.dirname(source?.acp?.node||process.execPath)}:/usr/bin:/bin:${process.env.PATH||''}`,
+    },
+  });
+  const receiptPath=path.join(root,'engines','punchcard-plan-bridge','out','zed-ibal-controls-receipt.preview.json');
+  const recoverReceipt=readJsonMaybe(receiptPath);
+  const after={
+    zed_process_count:processCount('zed-editor|/zed(\\s|$)|zed\\.app/bin/zed'),
+    acp_agent_count:processCount('acp-agent/agent\\.mjs'),
+    event_count:ndjsonLineCount(ledger),
+  };
+  const sessionId=recoverReceipt?.result?.sessionId || null;
+  const spawned=Boolean(Number(recoverReceipt?.result?.pid)>0 || after.acp_agent_count>baseline.acp_agent_count);
+  const sessionDelta=Boolean(sessionId && after.event_count>baseline.event_count);
+  const reduced=reduceMultiplicativeFactors([
+    {id:'ZED_RUNNING',value:after.zed_process_count>0,evidence_ref:'pgrep:zed'},
+    {id:'ACP_SPAWNED',value:spawned,evidence_ref:recoverReceipt?'zed-ibal-controls-receipt':null},
+    {id:'ACP_SESSION_DELTA',value:sessionDelta,evidence_ref:sessionId?`session:${sessionId}`:null},
+  ]);
+  return {
+    schema:'xiio.cli.zed-ibal/v1',
+    state:reduced.state==='PASS'?'PASS':'FAIL_CURRENT',
+    first_red:reduced.first_zero,
+    root,source,configure,baseline,after,
+    binding_applied:true,
+    original_matrix:{original_denominator:9,proven_source_cells:3,active_denominator:6},
+    active_factors:['ZED_RUNNING','ACP_SPAWNED','ACP_SESSION_DELTA'],
+    reduced,
+    recover:{
+      exit_code:run.status,
+      signal:run.signal,
+      stdout_tail:String(run.stdout||'').split(/\r?\n/).slice(-40),
+      stderr_tail:String(run.stderr||'').split(/\r?\n/).slice(-40),
+      receipt_path:receiptPath,
+      session_id:sessionId,
+    },
+    event_delta:after.event_count-baseline.event_count,
+    provider_effect:false,
+    authority_granted:false,
+  };
+}
+
 async function productRuntime(family,action){
   if(family==='hex'){
     if(action==='status'||!action) return {schema:'xiio.cli.hex/v1',...(await simpleProbe('http://127.0.0.1:8798/health')),effect_authority:0};
@@ -921,6 +1057,12 @@ if (
   }catch(error){
     emitCliResult('verify',{schema:'xiio.cli.verify/v1',state:'INVALID',source_ref:sourceRef,checks:[],first_red:'INVALID_JSON',silent_remainder:0},{error:{code:'INVALID_JSON',message:String(error.message||error)}});
   }
+} else if (top === 'zed') {
+  const family=process.argv[3] || null;
+  const action=process.argv[4] || 'status';
+  if(family!=='ibal' || !['status','recover'].includes(action)) usage(1);
+  const result=await zedIbalRuntime(action);
+  emitCliResult(`zed.ibal.${action}`,result);
 } else if (top === 'doctor' || top === 'workspace') {
   const targetDir=process.argv[3] || null;
   if(targetDir){
