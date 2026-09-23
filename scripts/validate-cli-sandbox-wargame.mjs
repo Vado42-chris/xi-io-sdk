@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { validateXiioCliArgs } from '../bin/xi-local-agent.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const cli=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
@@ -255,6 +256,23 @@ assert.notEqual(wrongTarget.status,0);
 assert.match(wrongTarget.stderr,/TARGET_EXISTS_NOT_GIT_REPO/);
 
 // Additional non-counted invariants.
+// Interactive @ibal may inspect runner recovery in preview mode, but mutation remains execution-gated.
+assert.deepEqual(
+  validateXiioCliArgs(['recover','aries-runner']),
+  ['recover','aries-runner']
+);
+assert.throws(
+  ()=>validateXiioCliArgs(['recover','aries-runner','--execute']),
+  /XIIO_RECOVERY_REQUIRES_EXECUTE/
+);
+assert.deepEqual(
+  validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true}),
+  ['recover','aries-runner','--execute']
+);
+assert.throws(
+  ()=>validateXiioCliArgs(['recover','other-runner'],{executionEnabled:true}),
+  /XIIO_RECOVERY_TARGET_DENIED/
+);
 const wrapperSource=fs.readFileSync(golden.bin,'utf8');
 assert.doesNotMatch(wrapperSource,/\beval\b|curl|wget|npm install|git clone/);
 assert.match(wrapperSource,/xiio\.cli\.wrapper-error\/v1/);
