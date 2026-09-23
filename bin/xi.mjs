@@ -22,6 +22,7 @@ import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
+import { inspectMachineTopology } from '../src/compass/machine-topology.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
@@ -409,11 +410,14 @@ async function statusSnapshot() {
     productRuntime('inbox','status'),
   ]);
   const runner=runnerStatus();
+  const topology=inspectMachineTopology({workspace:process.cwd()});
   const invokedAs=String(process.env.XIIO_INVOKED_AS || 'direct-bin');
   const productStates={hex:hex.state,studio:studio.state,inbox:inbox.state};
-  const hardFail=Object.values(productStates).some((v)=>v==='FAIL'||v==='BLOCKED');
+  const hardFail=Object.values(productStates).some((v)=>v==='FAIL'||v==='BLOCKED')
+    || topology.state==='FAIL_CURRENT';
   const waits=Object.values(productStates).filter((v)=>v==='TRUE_WAIT'||v==='FAIL_CURRENT').length
-    + (runner.state==='TRUE_WAIT'||runner.state==='PARTIAL'?1:0);
+    + (runner.state==='TRUE_WAIT'||runner.state==='PARTIAL'?1:0)
+    + (topology.state==='PASS_WITH_WAITS'?1:0);
   return {
     schema:'xiio.cli.status/v1',
     state:hardFail?'FAIL_CURRENT':waits?'PASS_WITH_WAITS':'PASS',
@@ -421,6 +425,7 @@ async function statusSnapshot() {
     sdk_version:SDK_VERSION,
     sdk_root:sdkRoot,
     compass:map,
+    machine_topology:topology,
     runner,
     products:{hex,studio,inbox},
     provider_effect:false,
@@ -430,6 +435,8 @@ async function statusSnapshot() {
       'STATUS != EFFECT_AUTHORITY',
       'SOURCE != RUNNING != LIVE != USABLE',
       'PORT_BOUND != QUALIFIED_RUNTIME',
+      'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
+      'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
     ],
   };
 }
@@ -440,6 +447,7 @@ async function doctor() {
   const local = localToolCatalog();
   const runner = runnerStatus();
   const compassState = await compass({persist:true});
+  const topology = inspectMachineTopology({workspace:process.cwd()});
   process.stdout.write(JSON.stringify({
     schema:'xiio.cli.human-doctor/v2',
     status:runtime.ollama_state.startsWith('READY_') ? 'PARTIAL_LOCAL_DEPENDENCY_RUNNING' : 'WAIT_LOCAL_DEPENDENCY',
@@ -478,9 +486,16 @@ async function doctor() {
       'PREVIEW != EXECUTION',
       'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE',
       'DECLARED_PATH != PHYSICAL_PATH',
-      'PHYSICAL_PATH != CURRENT_GENERATION'
+      'PHYSICAL_PATH != CURRENT_GENERATION',
+      'SOURCE_MOUNT_NOEXEC != CARGO_TARGET_NOEXEC',
+      'CHMOD != EXEC_PERMISSION',
+      'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
+      'SOURCE_BUILD_PASS != PACKAGED_RUNTIME_PASS'
     ],
     workspace:runtime.cwd,
+    machine_topology:topology,
+    cargo_target_dir:topology.cargo_target?.path||null,
+    cargo_target_strategy:topology.cargo_target?.strategy||null,
     model:runtime.model,
     ollama_endpoint:runtime.ollama_endpoint,
     ollama_state:runtime.ollama_state,
