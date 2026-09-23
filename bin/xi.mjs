@@ -153,7 +153,7 @@ Runtime recovery:
 
 Product runtime:
   xi-io hex status                        Probe Hex loopback :8798
-  xi-io hex floor --file PATH --json      Read exact HEX floor; do not recompute semantics
+  xi-io hex floor [--file PATH] --json    Read exact HEX floor; default ~/.local/state/xi-io/hex/floor.current.json
   xi-io hex start                         Start existing installed Hex RC
   xi-io hex install                       Install/rejoin Hex RC from current framework
   xi-io hex open                          Open Hex in Studio suite
@@ -1100,8 +1100,10 @@ if (
 } else if (top === 'install') {
   installLocalCli();
 } else if (top === 'hex' && process.argv[3] === 'floor') {
-  const { flags }=args(process.argv.slice(4));
-  const floor=readJson(flags.file,'--file');
+  const raw=process.argv.slice(4).filter((value)=>value!=='--json');
+  const { flags }=args(raw);
+  const floorPath=flags.file || process.env.XIIO_HEX_FLOOR_PATH || path.join(os.homedir(),'.local','state','xi-io','hex','floor.current.json');
+  const floor=readJson(floorPath,'HEX floor');
   const binding=bindHexFloorCurrentness(floor);
   emitCliResult('hex.floor',{schema:'xiio.cli.hex-floor-read/v1',state:binding.state==='UNVERIFIED'||binding.state==='STALE'?'BLOCKED':'PASS',hex_floor:floor,binding,first_red:binding.blocker||null,provider_effect:false,authority_granted:false},{stable:true});
 } else if (top === 'hex' || top === 'inbox' || top === 'studio') {
