@@ -26,8 +26,9 @@
     "materialized_primitives": 40,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
-    "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN__NEW_FILE_PRIMITIVES_CANDIDATE",
-    "live_claim": false
+    "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
+    "live_claim": false,
+    "candidate_delta": "PORTABLE_SEMANTIC_FILE_AND_ARTIFACT_CUBE_REGISTERED_PENDING_BINS_CURRENTNESS"
   },
   "primitives": [
     {
