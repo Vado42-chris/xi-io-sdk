@@ -1,5 +1,6 @@
 import { PortableSemanticFile } from './portable-semantic-file.mjs';
 import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
+import { resolveArtifactProfile } from './artifact-profile-catalog.mjs';
 
 export const PORTABLE_ARTIFACT_CUBE_SCHEMA='xiio.sdk.portable-artifact-cube/v1';
 export const FILE_CUBE_CELLS=Object.freeze([
@@ -50,10 +51,11 @@ export function compilePortableArtifactCube(input={}){
     cells.push(wait('F03_DEPENDENCY_BINDING','DEPENDENCY_BINDING_OR_NONE_REQUIRED_POLICY'));
   }
 
-  if(file?.profile_id && input.parser_profile?.profile_id===file.profile_id && input.consumer_profile?.profile_id===file.profile_id){
-    cells.push(pass('F04_PROFILE_BINDING',`profile:${file.profile_id}`,{profile_id:file.profile_id}));
+  const profile=file?.profile_id?resolveArtifactProfile(file.profile_id):{state:'UNKNOWN'};
+  if(profile.state==='PASS' && input.parser_profile?.profile_id===file.profile_id && input.consumer_profile?.profile_id===file.profile_id){
+    cells.push(pass('F04_PROFILE_BINDING',`profile:${file.profile_id}`,{profile_id:file.profile_id,profile:profile.profile}));
   }else{
-    cells.push(wait('F04_PROFILE_BINDING','PARSER_AND_CONSUMER_PROFILE_MUST_MATCH_FILE_PROFILE'));
+    cells.push(wait('F04_PROFILE_BINDING',profile.state!=='PASS'?'PROFILE_NOT_REGISTERED':'PARSER_AND_CONSUMER_PROFILE_MUST_MATCH_FILE_PROFILE'));
   }
 
   const hex=file?bindHexFloorCurrentness(input.hex_floor,{
