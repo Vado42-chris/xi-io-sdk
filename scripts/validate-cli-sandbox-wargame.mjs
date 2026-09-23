@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { validateXiioCliArgs } from '../bin/xi-local-agent.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const cli=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
@@ -254,7 +255,40 @@ const wrongTarget=spawnSync('bash',[bootstrapScript],{
 assert.notEqual(wrongTarget.status,0);
 assert.match(wrongTarget.stderr,/TARGET_EXISTS_NOT_GIT_REPO/);
 
+// Minimal TIME=$ latency gates (non-counted; fail only on gross usability regressions).
+function timedRun(label,args,{cwd=outside,env={}}={}){
+  const start=process.hrtime.bigint();
+  const result=run(args,{cwd,env});
+  const ms=Number(process.hrtime.bigint()-start)/1e6;
+  assert.ok(ms<5000,`${label} exceeded 5000ms: ${ms.toFixed(1)}ms`);
+  return {label,ms,result};
+}
+const latencyRows=[
+  timedRun('doctor',['doctor']),
+  timedRun('registry_ack',['registry','ack']),
+  timedRun('registry_tools',['registry','tools']),
+  timedRun('self_test',['self-test']),
+  timedRun('runner_recovery_plan',['recover','aries-runner']),
+];
+assert.ok(latencyRows.every((row)=>row.ms<5000));
 // Additional non-counted invariants.
+// Interactive @ibal may inspect runner recovery in preview mode, but mutation remains execution-gated.
+assert.deepEqual(
+  validateXiioCliArgs(['recover','aries-runner']),
+  ['recover','aries-runner']
+);
+assert.throws(
+  ()=>validateXiioCliArgs(['recover','aries-runner','--execute']),
+  /XIIO_RECOVERY_REQUIRES_EXECUTE/
+);
+assert.deepEqual(
+  validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true}),
+  ['recover','aries-runner','--execute']
+);
+assert.throws(
+  ()=>validateXiioCliArgs(['recover','other-runner'],{executionEnabled:true}),
+  /XIIO_RECOVERY_TARGET_DENIED/
+);
 const wrapperSource=fs.readFileSync(golden.bin,'utf8');
 assert.doesNotMatch(wrapperSource,/\beval\b|curl|wget|npm install|git clone/);
 assert.match(wrapperSource,/xiio\.cli\.wrapper-error\/v1/);

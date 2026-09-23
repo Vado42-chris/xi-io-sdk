@@ -26,7 +26,7 @@ const commands = new Set(['git', 'node', 'npm', 'python', 'python3', 'bash']);
 const xiCli = fileURLToPath(new URL('./xi.mjs', import.meta.url));
 const xiioFamilies = new Set([
   'baseline','product','fleet','100s','preflight','cadence','studio','stack',
-  'work','ack','burnmap','lesson','lexicon','sdk',
+  'work','ack','burnmap','lesson','lexicon','sdk','recover',
 ]);
 const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--returns']);
 const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
@@ -307,10 +307,14 @@ function readXiioRegistry(kind) {
   throw new Error('REGISTRY_KIND_DENIED');
 }
 
-function validateXiioCliArgs(argv) {
+export function validateXiioCliArgs(argv,{executionEnabled=execute}={}) {
   if(!Array.isArray(argv) || argv.length<1 || argv.length>64) throw new Error('XIIO_ARGS_INVALID');
   if(argv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
   if(!xiioFamilies.has(argv[0])) throw new Error('XIIO_COMMAND_FAMILY_DENIED');
+  if(argv[0]==='recover'){
+    if(argv[1]!=='aries-runner') throw new Error('XIIO_RECOVERY_TARGET_DENIED');
+    if(argv.includes('--execute') && !executionEnabled) throw new Error('XIIO_RECOVERY_REQUIRES_EXECUTE');
+  }
   for(let i=0;i<argv.length;i+=1){
     const flag=argv[i];
     if(!xiioPathFlags.has(flag)) continue;
