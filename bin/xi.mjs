@@ -105,6 +105,9 @@ Human registries:
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
   xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
+  xi-io search status            Read local Search runtime status
+  xi-io search --target files --query <text> [--limit N]
+                                Execute Search through Inbox local API; files bind BINS custody
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
   xi-io verify --stdin --json   Verify one JSON artifact from stdin
   xi-io verify --file PATH --json
@@ -636,6 +639,53 @@ async function doctor() {
 }
 
 
+async function searchRuntime(argv=[]){
+  const { flags }=args(argv);
+  const action=argv[0]&&!argv[0].startsWith('--')?argv[0]:'query';
+  const origin=String(process.env.XIIO_INBOX_ORIGIN||'http://127.0.0.1:8791').replace(/\/$/,'');
+  if(action==='status'){
+    return {schema:'xiio.cli.search/v1',...(await simpleProbe(origin+'/api/search/status',3000)),effect_authority:0};
+  }
+  const target=String(flags.target||'repos');
+  const query=String(flags.query||'').trim();
+  const limit=String(flags.limit||'25');
+  if(!query) return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'SEARCH_QUERY_REQUIRED',effect_authority:0};
+  const url=new URL(origin+'/api/search/query');
+  url.searchParams.set('target',target);
+  url.searchParams.set('q',query);
+  url.searchParams.set('limit',limit);
+  const token=String(process.env.XIIO_SEARCH_API_TOKEN||'');
+  try{
+    const response=await fetch(url,{
+      headers:{
+        accept:'application/json',
+        ...(token?{authorization:'Bearer '+token}:{})
+      },
+      signal:AbortSignal.timeout(15000)
+    });
+    const body=await response.json().catch(()=>null);
+    if(response.status===401){
+      return {
+        schema:'xiio.cli.search/v1',
+        state:'TRUE_WAIT',
+        first_red:'SEARCH_SESSION_OR_TOKEN_REQUIRED',
+        target,
+        query,
+        status:response.status,
+        provider_effect:false,
+        effect_authority:0,
+        next:'Bind an existing local Search session or XIIO_SEARCH_API_TOKEN; do not invent credentials.'
+      };
+    }
+    if(!response.ok){
+      return {schema:'xiio.cli.search/v1',state:'FAIL_CURRENT',first_red:body?.code||'SEARCH_API_FAILED',target,query,status:response.status,body,effect_authority:0};
+    }
+    return {...body,schema:body?.schema||'xiio.cli.search/v1',transport:'CLI_TO_INBOX_SEARCH_API',target_id:body?.target_id||target,effect_authority:0};
+  }catch(error){
+    return {schema:'xiio.cli.search/v1',state:'TRUE_WAIT',first_red:'INBOX_SEARCH_API_UNREACHABLE',target,query,error:String(error?.message||error),effect_authority:0};
+  }
+}
+
 async function simpleProbe(url,timeout=2500){
   try{
     const response=await fetch(url,{headers:{accept:'application/json,text/plain,*/*'},signal:AbortSignal.timeout(timeout)});
@@ -1118,6 +1168,10 @@ if (
   const floor=readJson(floorPath,'HEX floor');
   const binding=bindHexFloorCurrentness(floor);
   emitCliResult('hex.floor',{schema:'xiio.cli.hex-floor-read/v1',state:binding.state==='UNVERIFIED'||binding.state==='STALE'?'BLOCKED':'PASS',hex_floor:floor,binding,first_red:binding.blocker||null,provider_effect:false,authority_granted:false},{stable:true});
+} else if (top === 'search') {
+  const result=await searchRuntime(process.argv.slice(3));
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
 } else if (top === 'hex' || top === 'inbox' || top === 'studio') {
   const action=process.argv[3] || 'status';
   const result=await productRuntime(top,action);
