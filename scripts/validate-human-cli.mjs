@@ -126,6 +126,8 @@ assert.match(agentSource,/\/tools/);
 assert.match(agentSource,/\/commands/);
 assert.match(agentSource,/\/ack/);
 assert.match(agentSource,/\/models/);
+assert.match(agentSource,/XIIO_RECOVERY_REQUIRES_EXECUTE/);
+assert.match(agentSource,/XIIO_RECOVERY_TARGET_DENIED/);
 assert.match(bootstrapSource,/resolve_node/);
 assert.match(bootstrapSource,/XIIO_CLI_BOOTSTRAP_PROBE_NODE/);
 assert.match(bootstrapSource,/NODE_22_PLUS_NOT_FOUND/);
