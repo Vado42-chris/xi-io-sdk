@@ -3,7 +3,7 @@ import {prepareRegisteredPrimitiveShipment} from '../src/documents/prepare-primi
 import {FILE_CUBE_CELLS} from '../src/documents/portable-artifact-cube.mjs';
 
 const gen='cd0958240f2e98e6bce87979cf5e9f15e4543147';
-for(const id of ['page-shell','flatplane-cube','portable-semantic-file']){
+for(const id of ['page-shell','flatplane-cube','portable-semantic-file','cube-channel']){
   const out=prepareRegisteredPrimitiveShipment({primitive_id:id,source_generation:gen});
   assert.equal(out.schema,'xiio.sdk.registered-primitive-shipment-preparation/v1');
   assert.equal(out.primitive_id,id);
@@ -24,7 +24,7 @@ assert.throws(
 console.log(JSON.stringify({
   schema:'xiio.sdk.prepare-primitive-shipment-check/v1',
   state:'PASS',
-  primitive_families:3,
+  primitive_families:4,
   denominator:10,
   auto_filled_pass_cells:4,
   first_machine_gap:'F05_HEX_CURRENTNESS',
