@@ -20,6 +20,7 @@ import { compileProgressGateGraduation, progressGatedRoleCatalog } from '../src/
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
+import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
@@ -63,7 +64,8 @@ Human registries:
   xi-io registry tools          Show local Ollama workspace tools
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
-  xi-io doctor                  Show workspace/Ollama/tool readiness
+  xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
+  xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
   xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
   xi-io models                  List installed Ollama models
   xi-io install                 Install xi-io + xi wrappers into ~/.local/bin
@@ -345,7 +347,7 @@ function installLocalCli() {
     human_aliases:['xiio','xi'],
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
-    commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io doctor'],
+    commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io compass','xi-io doctor'],
     activate_current_shell:'export PATH="$HOME/.local/bin:$PATH"',
     authority_granted:false,
     provider_effect:false,
@@ -371,13 +373,24 @@ function runnerStatus() {
   };
 }
 
+async function compass({persist=true}={}) {
+  const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const value=await compileLocalCompass({sdkRoot});
+  const receipt=persist?writeCompassReceipt(value):null;
+  return {
+    ...value,
+    receipt:receipt?receipt.current:null,
+  };
+}
+
 async function doctor() {
   const { localRuntimeStatus, localToolCatalog } = await import('./xi-local-agent.mjs');
   const runtime = await localRuntimeStatus();
   const local = localToolCatalog();
   const runner = runnerStatus();
+  const compassState = await compass({persist:true});
   process.stdout.write(JSON.stringify({
-    schema:'xiio.cli.human-doctor/v1',
+    schema:'xiio.cli.human-doctor/v2',
     status:runtime.ollama_state.startsWith('READY_') ? 'PARTIAL_LOCAL_DEPENDENCY_RUNNING' : 'WAIT_LOCAL_DEPENDENCY',
     state_ladder:{
       installed:{
@@ -399,18 +412,9 @@ async function doctor() {
         proof:runtime.execution,
         note:'Execution mode availability is not proof that a target workflow/runtime path executed.'
       },
-      deployed:{
-        state:'NOT_OBSERVED',
-        proof:null
-      },
-      live:{
-        state:'NOT_OBSERVED',
-        proof:null
-      },
-      usable:{
-        state:'NOT_PROVEN',
-        proof:null
-      }
+      deployed:{state:'NOT_OBSERVED',proof:null},
+      live:{state:'NOT_OBSERVED',proof:null},
+      usable:{state:'NOT_PROVEN',proof:null}
     },
     hard_state_separation:[
       'INSTALLED != RUNNING',
@@ -421,7 +425,9 @@ async function doctor() {
       'LIVE != USABLE',
       'OLLAMA_READY != XIIO_RUNTIME_READY',
       'PREVIEW != EXECUTION',
-      'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE'
+      'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE',
+      'DECLARED_PATH != PHYSICAL_PATH',
+      'PHYSICAL_PATH != CURRENT_GENERATION'
     ],
     workspace:runtime.cwd,
     model:runtime.model,
@@ -429,6 +435,7 @@ async function doctor() {
     ollama_state:runtime.ollama_state,
     execution:runtime.execution,
     runner,
+    compass:compassState,
     local_tools:local.tools,
     ack_commands:commandCatalog().commands
       .filter((row)=>row.id.startsWith('ack.'))
@@ -446,7 +453,6 @@ async function doctor() {
     sdk_root:path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),
   }, null, 2) + '\n');
 }
-
 
 async function selfTest() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -548,6 +554,8 @@ if (
   const kind = process.argv[3] || 'all';
   if (!['all','commands','ack','tools','sdk','primitives'].includes(kind)) usage(1);
   await registry(kind);
+} else if (top === 'compass') {
+  process.stdout.write(JSON.stringify(await compass({persist:true}),null,2)+'\n');
 } else if (top === 'doctor' || top === 'workspace') {
   const targetDir=process.argv[3] || null;
   if(targetDir){

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO="${XIIO_CLI_BOOTSTRAP_REPO:-Vado42-chris/xi-io-sdk}"
+REF="${XIIO_CLI_BOOTSTRAP_REF:-main}"
 ROOT="${XIIO_CLI_SDK_ROOT:-$HOME/.local/share/xi-io/sdk}"
 SOURCE="${XIIO_CLI_BOOTSTRAP_SOURCE:-$REPO}"
 
@@ -66,16 +67,16 @@ if [[ ! -d "$ROOT/.git" ]]; then
   if [[ "$SOURCE" == "$REPO" ]]; then
     need gh
     gh auth status >/dev/null 2>&1 || fail GH_AUTH_REQUIRED
-    gh repo clone "$REPO" "$ROOT" -- --branch main --single-branch --quiet || fail CLONE_FAILED
+    gh repo clone "$REPO" "$ROOT" -- --branch "$REF" --single-branch --quiet || fail CLONE_FAILED
   else
-    git clone --branch main --single-branch --quiet "$SOURCE" "$ROOT" || fail CLONE_FAILED
+    git clone --branch "$REF" --single-branch --quiet "$SOURCE" "$ROOT" || fail CLONE_FAILED
   fi
 fi
 
 inside="$(git -C "$ROOT" rev-parse --is-inside-work-tree 2>/dev/null || true)"
 [[ "$inside" == "true" ]] || fail SDK_CHECKOUT_INVALID
 branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
-[[ "$branch" == "main" ]] || fail "SDK_BRANCH_NOT_MAIN_${branch:-DETACHED}"
+[[ "$branch" == "$REF" ]] || fail "SDK_BRANCH_NOT_REQUESTED_${branch:-DETACHED}_EXPECTED_$REF"
 dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
 [[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY
 
@@ -87,8 +88,8 @@ if [[ "$SOURCE" == "$REPO" ]]; then
   esac
 fi
 
-git -C "$ROOT" fetch origin main --prune --quiet || fail FETCH_MAIN_FAILED
-git -C "$ROOT" merge --ff-only --quiet origin/main || fail SDK_NOT_FAST_FORWARDABLE
+git -C "$ROOT" fetch origin "$REF" --prune --quiet || fail FETCH_REF_FAILED
+git -C "$ROOT" merge --ff-only --quiet "origin/$REF" || fail SDK_NOT_FAST_FORWARDABLE
 head="$(git -C "$ROOT" rev-parse HEAD)"
 
 install_receipt="$(mktemp)"
@@ -105,5 +106,5 @@ self_test="$("$HOME/.local/bin/xi-io" self-test)" || {
   fail CLI_SELF_TEST_FAILED
 }
 
-printf 'XIIO_CLI_BOOTSTRAP=PASS\nSDK_ROOT=%s\nSDK_HEAD=%s\nCLI=%s\nNODE=%s\n' "$ROOT" "$head" "$HOME/.local/bin/xi-io" "$NODE"
+printf 'XIIO_CLI_BOOTSTRAP=PASS\nSDK_ROOT=%s\nSDK_REF=%s\nSDK_HEAD=%s\nCLI=%s\nNODE=%s\n' "$ROOT" "$REF" "$head" "$HOME/.local/bin/xi-io" "$NODE"
 printf '%s\n' "$self_test"
