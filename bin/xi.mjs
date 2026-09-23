@@ -22,12 +22,43 @@ import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
+import { inspectMachineTopology, prepareCargoExecution } from '../src/compass/machine-topology.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
+
+const CLI_EXIT=Object.freeze({PASS:0,WAIT:1,REJECT:2,INTERNAL:3});
+function cliExitForState(state){
+  return state==='PASS'?CLI_EXIT.PASS:
+    ['PASS_WITH_WAITS','WAIT','TRUE_WAIT','PARTIAL'].includes(state)?CLI_EXIT.WAIT:
+    ['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(state)?CLI_EXIT.REJECT:
+    CLI_EXIT.INTERNAL;
+}
+function emitCliResult(command,result,{error=null,stable=false}={}){
+  const state=String(result?.state||'INTERNAL');
+  const exit_code=cliExitForState(state);
+  const body={
+    ...(result||{}),
+    ...(error?{error}:{}),
+    ok:exit_code===0,
+    command,
+    ...(stable?{}:{timestamp:new Date().toISOString()}),
+    exit_code,
+    provider_effect:false,
+    authority_granted:false,
+  };
+  process.stdout.write(JSON.stringify(body,null,2)+'\n');
+  process.exitCode=exit_code;
+  return body;
+}
+async function readStdinText(){
+  const chunks=[];
+  for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 function fatalCliError(error) {
   const firstRed=String(error?.message || error || 'UNKNOWN_CLI_FAILURE').replace(/\s+/g,' ').slice(0,512);
@@ -66,6 +97,13 @@ Human registries:
   xi-io registry sdk            Show exact public SDK callables
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
+  xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
+  xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
+  xi-io verify --stdin --json   Verify one JSON artifact from stdin
+  xi-io verify --file PATH --json
+                                Verify one JSON artifact from a file
+  xi-io cargo --execute [--workspace DIR] -- <cargo args...>
+                                Execute Cargo only after explicit local-effect admission inside selected workspace
   xi-io compass                 Resolve HOME/common/Studio/framework/currentness/runtime truth
   xi-io self-test               Test installed CLI, workspace guard, registries, and local runtime
   xi-io models                  List installed Ollama models
@@ -305,6 +343,7 @@ function installLocalCli() {
     'NODE="${XIIO_NODE:-$HOME/.nvm/versions/node/v24.11.1/bin/node}"',
     'if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi',
     '[[ -n "$NODE" && -x "$NODE" ]] || wrapper_fail',
+    'export XIIO_INVOKED_AS="$(basename "$0")"',
     'exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
     '',
   ].join('\n');
@@ -398,12 +437,114 @@ async function compass({persist=true}={}) {
   };
 }
 
+function stableStatusProjection(value){
+  if(Array.isArray(value)) return value.map(stableStatusProjection);
+  if(value && typeof value==='object'){
+    const out={};
+    for(const [key,val] of Object.entries(value)){
+      if(['observed_at','timestamp','generated_at','updated_at','checked_at','started_at','finished_at'].includes(key)) continue;
+      out[key]=stableStatusProjection(val);
+    }
+    return out;
+  }
+  return value;
+}
+
+async function statusSnapshot() {
+  const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const [rawMap,rawHex,rawStudio,rawInbox]=await Promise.all([
+    compileLocalCompass({sdkRoot}),
+    productRuntime('hex','status'),
+    productRuntime('studio','status'),
+    productRuntime('inbox','status'),
+  ]);
+  const map=stableStatusProjection(rawMap);
+  const hex=stableStatusProjection(rawHex);
+  const studio=stableStatusProjection(rawStudio);
+  const inbox=stableStatusProjection(rawInbox);
+  const runner=runnerStatus();
+  const topology=inspectMachineTopology({workspace:process.cwd()});
+  const invokedAs=String(process.env.XIIO_INVOKED_AS || 'direct-bin');
+  const productStates={hex:hex.state,studio:studio.state,inbox:inbox.state};
+  const hardFail=Object.values(productStates).some((v)=>v==='FAIL'||v==='BLOCKED')
+    || topology.state==='FAIL_CURRENT';
+  const waits=Object.values(productStates).filter((v)=>v==='TRUE_WAIT'||v==='FAIL_CURRENT').length
+    + (runner.state==='TRUE_WAIT'||runner.state==='PARTIAL'?1:0)
+    + (topology.state==='PASS_WITH_WAITS'?1:0);
+  return {
+    schema:'xiio.cli.status/v1',
+    state:hardFail?'FAIL_CURRENT':waits?'PASS_WITH_WAITS':'PASS',
+    invoked_as:invokedAs,
+    sdk_version:SDK_VERSION,
+    sdk_root:sdkRoot,
+    xi:{
+      source_generation:map?.roots?.sdk?.selected?.generation || map?.roots?.sdk?.selected?.sha || null,
+      framework_generation:map?.roots?.framework?.selected?.generation || map?.roots?.framework?.selected?.sha || null,
+      source_currentness:map?.roots?.sdk?.selected?.state || map?.roots?.sdk?.state || 'UNKNOWN',
+      evidence_ref:map?.receipt || null
+    },
+    io:{
+      runner_state:runner.state,
+      machine_topology_state:topology.state,
+      products:{hex:hex.state,studio:studio.state,inbox:inbox.state},
+      provider_ingress_state:'OBSERVED_LOCAL_ONLY',
+      provider_egress_state:'NOT_EVALUATED',
+      readback_ref:null
+    },
+    compass:map,
+    machine_topology:topology,
+    runner,
+    products:{hex,studio,inbox},
+    local_effect:true,
+    provider_effect:false,
+    authority_granted:false,
+    hard:[
+      'XI_IO_ALIAS_PARITY_REQUIRED',
+      'XI_SOURCE_STATUS != IO_PROVIDER_STATUS',
+      'STATUS != EFFECT_AUTHORITY',
+      'SOURCE != RUNNING != LIVE != USABLE',
+      'PORT_BOUND != QUALIFIED_RUNTIME',
+      'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
+      'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
+    ],
+  };
+}
+
+async function gatesCheck(){
+  const status=await statusSnapshot();
+  const cells=[
+    {id:'CLI_STATUS',state:status.state,evidence_ref:'status'},
+    {id:'XI_SOURCE_BOUND',state:status.xi?.source_currentness==='CURRENT'?'PASS':'WAIT',evidence_ref:status.xi?.evidence_ref||null},
+    {id:'IO_MACHINE_TOPOLOGY',state:status.machine_topology?.state||'UNKNOWN',evidence_ref:'machine_topology'},
+    {id:'HEX_RUNTIME',state:status.products?.hex?.state||'UNKNOWN',evidence_ref:'product:hex'},
+    {id:'STUDIO_RUNTIME',state:status.products?.studio?.state||'UNKNOWN',evidence_ref:'product:studio'},
+    {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
+    {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
+    {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
+  ];
+  const hardFail=cells.some(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(c.state));
+  const waits=cells.filter(c=>['WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED','OBSERVED_LOCAL_ONLY'].includes(c.state));
+  return {schema:'xiio.cli.gates-check/v1',state:hardFail?'FAIL_CURRENT':waits.length?'PASS_WITH_WAITS':'PASS',cells,first_red:cells.find(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID','WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED'].includes(c.state))?.id||null,silent_remainder:0,hard:['XI_SOURCE_STATUS != IO_PROVIDER_STATUS','PORT_BOUND != QUALIFIED_RUNTIME','UNKNOWN != PASS','PROVIDER_INGRESS != PROVIDER_EGRESS','STATUS != EFFECT_AUTHORITY']};
+}
+
+function verifyArtifact(value,{source_ref='stdin'}={}){
+  if(value===null || typeof value!=='object' || Array.isArray(value)) return {schema:'xiio.cli.verify/v1',state:'INVALID',source_ref,first_red:'TOP_LEVEL_OBJECT_REQUIRED',checks:[]};
+  const checks=[{id:'JSON_OBJECT',state:'PASS'},{id:'SCHEMA_DECLARED',state:typeof value.schema==='string'&&value.schema.trim()?'PASS':'WAIT'}];
+  if('silent_remainder' in value) checks.push({id:'SILENT_REMAINDER',state:Number(value.silent_remainder)===0?'PASS':'FAIL'});
+  if('false_green' in value) checks.push({id:'FALSE_GREEN',state:Number(value.false_green)===0?'PASS':'FAIL'});
+  if('denominator' in value) checks.push({id:'DENOMINATOR_POSITIVE',state:Number(value.denominator)>0?'PASS':'FAIL'});
+  const fail=checks.find(c=>c.state==='FAIL');
+  const wait=checks.find(c=>c.state==='WAIT');
+  return {schema:'xiio.cli.verify/v1',state:fail?'FAIL':wait?'PASS_WITH_WAITS':'PASS',source_ref,checks,first_red:fail?.id||wait?.id||null,silent_remainder:0,provider_effect:false,authority_granted:false};
+}
+
 async function doctor() {
   const { localRuntimeStatus, localToolCatalog } = await import('./xi-local-agent.mjs');
   const runtime = await localRuntimeStatus();
   const local = localToolCatalog();
   const runner = runnerStatus();
   const compassState = await compass({persist:true});
+  const topology = inspectMachineTopology({workspace:process.cwd()});
   process.stdout.write(JSON.stringify({
     schema:'xiio.cli.human-doctor/v2',
     status:runtime.ollama_state.startsWith('READY_') ? 'PARTIAL_LOCAL_DEPENDENCY_RUNNING' : 'WAIT_LOCAL_DEPENDENCY',
@@ -442,9 +583,16 @@ async function doctor() {
       'PREVIEW != EXECUTION',
       'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE',
       'DECLARED_PATH != PHYSICAL_PATH',
-      'PHYSICAL_PATH != CURRENT_GENERATION'
+      'PHYSICAL_PATH != CURRENT_GENERATION',
+      'SOURCE_MOUNT_NOEXEC != CARGO_TARGET_NOEXEC',
+      'CHMOD != EXEC_PERMISSION',
+      'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
+      'SOURCE_BUILD_PASS != PACKAGED_RUNTIME_PASS'
     ],
     workspace:runtime.cwd,
+    machine_topology:topology,
+    cargo_target_dir:topology.cargo_target?.path||null,
+    cargo_target_strategy:topology.cargo_target?.strategy||null,
     model:runtime.model,
     ollama_endpoint:runtime.ollama_endpoint,
     ollama_state:runtime.ollama_state,
@@ -544,6 +692,105 @@ async function productRuntime(family,action){
     if(action==='inbox') return productRuntime('inbox','open');
   }
   return {schema:'xiio.cli.product-runtime/v1',state:'FAIL',first_red:'UNKNOWN_PRODUCT_RUNTIME_COMMAND',family,action,effect_authority:0};
+}
+
+function parseCargoTopArgs(argv){
+  let workspace=process.cwd();
+  let execute=false;
+  const cargoArgs=[];
+  for(let i=0;i<argv.length;i+=1){
+    const token=argv[i];
+    if(token==='--execute'){
+      execute=true;
+      continue;
+    }
+    if(token==='--workspace'){
+      const next=argv[i+1];
+      if(!next) throw new Error('--workspace requires a directory');
+      workspace=next;
+      i+=1;
+      continue;
+    }
+    if(token==='--'){
+      cargoArgs.push(...argv.slice(i+1));
+      break;
+    }
+    cargoArgs.push(token);
+  }
+  if(cargoArgs.length===0) throw new Error('cargo arguments required; example: xi-io cargo -- build --release');
+  return {workspace,cargoArgs,execute};
+}
+
+function withinRoot(root,target){
+  const rel=path.relative(root,target);
+  return rel==='' || (!rel.startsWith('..'+path.sep) && rel!=='..' && !path.isAbsolute(rel));
+}
+
+function runCargoThroughTopology(argv=[]){
+  const {workspace,cargoArgs,execute}=parseCargoTopArgs(argv);
+  if(!isDirectory(workspace)) throw new Error('cargo workspace directory not found');
+  const selectedRoot=fs.realpathSync(process.cwd());
+  const root=fs.realpathSync(path.resolve(workspace));
+  if(!withinRoot(selectedRoot,root)){
+    const blocked={schema:'xiio.cli.cargo/v2',state:'BLOCKED',first_red:'WORKSPACE_OUTSIDE_SELECTED_ROOT',selected_workspace:selectedRoot,workspace:root,local_effect:false,provider_effect:false,authority_granted:false};
+    process.stdout.write(JSON.stringify(blocked,null,2)+'\n');
+    process.exitCode=13;
+    return blocked;
+  }
+  if(!execute){
+    const blocked={schema:'xiio.cli.cargo/v2',state:'BLOCKED',first_red:'EXECUTION_NOT_ADMITTED',selected_workspace:selectedRoot,workspace:root,cargo_args:cargoArgs,local_effect:false,provider_effect:false,authority_granted:false};
+    process.stdout.write(JSON.stringify(blocked,null,2)+'\n');
+    process.exitCode=13;
+    return blocked;
+  }
+  const prep=prepareCargoExecution({workspace:root,create:true});
+  if(prep.state!=='PASS'){
+    process.stdout.write(JSON.stringify(prep,null,2)+'\n');
+    process.exitCode=13;
+    return prep;
+  }
+  const which=spawnSync('bash',['-lc','command -v cargo'],{encoding:'utf8'});
+  const cargo=String(which.stdout||'').trim();
+  if(which.status!==0 || !cargo){
+    const blocked={schema:'xiio.cli.cargo/v1',state:'BLOCKED',first_red:'CARGO_MISSING',workspace:root,topology:prep.topology,provider_effect:false,authority_granted:false};
+    process.stdout.write(JSON.stringify(blocked,null,2)+'\n');
+    process.exitCode=13;
+    return blocked;
+  }
+  const startedAt=new Date().toISOString();
+  const run=spawnSync(cargo,cargoArgs,{
+    cwd:root,
+    env:{...process.env,...prep.env},
+    stdio:'inherit',
+  });
+  const receipt={
+    schema:'xiio.cli.cargo/v2',
+    state:run.status===0?'PASS':'FAIL_CURRENT',
+    first_red:run.status===0?null:'CARGO_COMMAND_FAILED',
+    workspace:root,
+    cargo,
+    cargo_args:cargoArgs,
+    cargo_target_dir:prep.cargo_target_dir,
+    tmpdir:prep.tmpdir,
+    started_at:startedAt,
+    finished_at:new Date().toISOString(),
+    exit_code:Number.isInteger(run.status)?run.status:null,
+    signal:run.signal||null,
+    provider_effect:false,
+    authority_granted:false,
+    hard:[
+      'DOCTOR_STATUS_READ_ONLY',
+      'CARGO_REQUIRES_EXPLICIT_EXECUTE',
+      'CARGO_WORKSPACE_MUST_BE_WITHIN_SELECTED_ROOT',
+      'CARGO_EXECUTION_OWNS_CACHE_MATERIALIZATION',
+      'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
+      'NATIVE_DEP_PREFLIGHT_REQUIRED',
+      'BUILD_PASS != PACKAGED_RUNTIME_PASS'
+    ]
+  };
+  process.stdout.write(JSON.stringify(receipt,null,2)+'\n');
+  process.exitCode=run.status===0?0:(Number.isInteger(run.status)?run.status:13);
+  return receipt;
 }
 
 async function selfTest() {
@@ -648,6 +895,32 @@ if (
   await registry(kind);
 } else if (top === 'compass') {
   process.stdout.write(JSON.stringify(await compass({persist:true}),null,2)+'\n');
+} else if (top === 'status') {
+  const result=await statusSnapshot();
+  emitCliResult('status',result,{stable:true});
+} else if (top === 'gates') {
+  const action=process.argv[3] || null;
+  if(action!=='--check' && action!=='check') usage(1);
+  const result=await gatesCheck();
+  emitCliResult('gates.check',result);
+} else if (top === 'verify') {
+  const argv=process.argv.slice(3);
+  let sourceRef='stdin';
+  let raw='';
+  if(argv.includes('--stdin')) raw=await readStdinText();
+  else {
+    const fileIndex=argv.indexOf('--file');
+    if(fileIndex<0 || !argv[fileIndex+1]) usage(1);
+    sourceRef=path.resolve(argv[fileIndex+1]);
+    raw=fs.readFileSync(sourceRef,'utf8');
+  }
+  try{
+    const value=JSON.parse(raw);
+    const result=verifyArtifact(value,{source_ref:sourceRef});
+    emitCliResult('verify',result);
+  }catch(error){
+    emitCliResult('verify',{schema:'xiio.cli.verify/v1',state:'INVALID',source_ref:sourceRef,checks:[],first_red:'INVALID_JSON',silent_remainder:0},{error:{code:'INVALID_JSON',message:String(error.message||error)}});
+  }
 } else if (top === 'doctor' || top === 'workspace') {
   const targetDir=process.argv[3] || null;
   if(targetDir){
@@ -655,6 +928,8 @@ if (
     process.chdir(fs.realpathSync(path.resolve(targetDir)));
   }
   await doctor();
+} else if (top === 'cargo') {
+  runCargoThroughTopology(process.argv.slice(3));
 } else if (top === 'self-test') {
   await selfTest();
 } else if (top === 'models') {
