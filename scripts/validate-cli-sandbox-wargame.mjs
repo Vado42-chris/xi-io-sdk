@@ -190,6 +190,70 @@ assert.equal(hostileCount,100);
 assert.equal(rejected,100);
 assert.equal(falseGreen,0);
 
+// Bootstrap + self-test lifecycle proof (separate from frozen hostile-100 denominator).
+const installedSelfTest=spawnSync(golden.bin,['self-test'],{
+  cwd:outside,encoding:'utf8',timeout:15_000,env:{...process.env,HOME:golden.home}
+});
+assert.equal(installedSelfTest.status,0,installedSelfTest.stderr);
+const selfTestBody=JSON.parse(installedSelfTest.stdout);
+assert.equal(selfTestBody.schema,'xiio.cli.self-test/v1');
+assert.ok(['PASS','PASS_WITH_WAITS'].includes(selfTestBody.state));
+assert.equal(selfTestBody.fail,0);
+assert.equal(selfTestBody.provider_effect,false);
+assert.equal(selfTestBody.automatic_cloud_fallback,false);
+
+const bootstrapScript=path.join(root,'scripts','install-cli.sh');
+assert.ok(fs.existsSync(bootstrapScript));
+const syntax=spawnSync('bash',['-n',bootstrapScript],{encoding:'utf8',timeout:10_000});
+assert.equal(syntax.status,0,syntax.stderr);
+
+// Build a local bare SDK remote with an explicit main ref so bootstrap can be tested without provider mutation.
+const bare=path.join(sandbox,'bootstrap-source.git');
+let gitRun=spawnSync('git',['clone','--quiet','--bare',root,bare],{encoding:'utf8',timeout:20_000});
+assert.equal(gitRun.status,0,gitRun.stderr);
+gitRun=spawnSync('git',['-C',root,'rev-parse','HEAD'],{encoding:'utf8',timeout:10_000});
+assert.equal(gitRun.status,0,gitRun.stderr);
+const sourceHead=gitRun.stdout.trim();
+gitRun=spawnSync('git',['--git-dir',bare,'update-ref','refs/heads/main',sourceHead],{encoding:'utf8',timeout:10_000});
+assert.equal(gitRun.status,0,gitRun.stderr);
+gitRun=spawnSync('git',['--git-dir',bare,'symbolic-ref','HEAD','refs/heads/main'],{encoding:'utf8',timeout:10_000});
+assert.equal(gitRun.status,0,gitRun.stderr);
+
+const bootstrapHome=path.join(sandbox,'bootstrap home with spaces');
+const bootstrapRoot=path.join(bootstrapHome,'.local','share','xi-io','sdk');
+fs.mkdirSync(bootstrapHome,{recursive:true});
+const bootstrapEnv={
+  ...process.env,
+  HOME:bootstrapHome,
+  SHELL:'/bin/bash',
+  XIIO_CLI_BOOTSTRAP_SOURCE:bare,
+  XIIO_CLI_SDK_ROOT:bootstrapRoot,
+};
+const bootstrap1=spawnSync('bash',[bootstrapScript],{cwd:outside,encoding:'utf8',timeout:30_000,maxBuffer:4*1024*1024,env:bootstrapEnv});
+assert.equal(bootstrap1.status,0,bootstrap1.stderr);
+assert.match(bootstrap1.stdout,/XIIO_CLI_BOOTSTRAP=PASS/);
+assert.match(bootstrap1.stdout,/xiio\.cli\.self-test\/v1/);
+assert.ok(fs.existsSync(path.join(bootstrapHome,'.local','bin','xi-io')));
+
+const bootstrap2=spawnSync('bash',[bootstrapScript],{cwd:outside,encoding:'utf8',timeout:30_000,maxBuffer:4*1024*1024,env:bootstrapEnv});
+assert.equal(bootstrap2.status,0,bootstrap2.stderr);
+assert.match(bootstrap2.stdout,/XIIO_CLI_BOOTSTRAP=PASS/);
+
+fs.writeFileSync(path.join(bootstrapRoot,'dirty-canary.txt'),'dirty\n');
+const dirtyBootstrap=spawnSync('bash',[bootstrapScript],{cwd:outside,encoding:'utf8',timeout:20_000,maxBuffer:4*1024*1024,env:bootstrapEnv});
+assert.notEqual(dirtyBootstrap.status,0);
+assert.match(dirtyBootstrap.stderr,/SDK_CHECKOUT_DIRTY/);
+fs.unlinkSync(path.join(bootstrapRoot,'dirty-canary.txt'));
+
+const wrongRoot=path.join(sandbox,'non-git-target');
+fs.mkdirSync(wrongRoot,{recursive:true});
+const wrongTarget=spawnSync('bash',[bootstrapScript],{
+  cwd:outside,encoding:'utf8',timeout:20_000,
+  env:{...bootstrapEnv,XIIO_CLI_SDK_ROOT:wrongRoot}
+});
+assert.notEqual(wrongTarget.status,0);
+assert.match(wrongTarget.stderr,/TARGET_EXISTS_NOT_GIT_REPO/);
+
 // Additional non-counted invariants.
 const wrapperSource=fs.readFileSync(golden.bin,'utf8');
 assert.doesNotMatch(wrapperSource,/\beval\b|curl|wget|npm install|git clone/);
@@ -215,6 +279,11 @@ console.log(JSON.stringify({
   secret_paths_blocked:true,
   oversized_input_blocked:true,
   typed_terminal_errors:true,
+  self_test:'PASS',
+  bootstrap_first_install:'PASS',
+  bootstrap_repeat:'PASS',
+  bootstrap_dirty_checkout_fail_closed:true,
+  bootstrap_wrong_target_fail_closed:true,
   automatic_cloud_fallback:false,
   provider_effects:0,
   authority_granted:false,

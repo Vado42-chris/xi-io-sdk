@@ -84,11 +84,20 @@ xi-io registry primitives
 
 Inside the interactive shell, use `/help`, `/workspace`, `/tools`, `/commands`, `/ack`, `/model`, `/models`, `/status`, `/clear`, and `/exit`.
 
+To bootstrap the CLI from any authenticated terminal:
+
+```sh
+gh api 'repos/Vado42-chris/xi-io-sdk/contents/scripts/install-cli.sh?ref=main' --jq .content | base64 -d | bash
+```
+
+The bootstrap keeps a managed SDK checkout under `~/.local/share/xi-io/sdk`, requires a clean `main` branch, fast-forwards only, installs the wrappers, and runs `xi-io self-test`. It refuses dirty or mismatched checkouts instead of overwriting them.
+
 To install the command from an SDK checkout:
 
 ```sh
 node bin/xi.mjs install
 hash -r
+xi-io self-test
 xi-io doctor
 ```
 
