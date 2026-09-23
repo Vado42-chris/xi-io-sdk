@@ -159,6 +159,7 @@ Product runtime:
   xi-io inbox recover                     Recover exact-current Inbox runtime
   xi-io inbox open                        Recover if needed, then open Inbox inside Studio
   xi-io studio status                     Probe Studio :3099
+  xi-io studio start                      Start installed Studio shell and require :3099 readback
   xi-io studio open                       Open local Studio
   xi-io studio inbox                      Recover Inbox and open Studio Inbox wrapper
 
@@ -824,6 +825,22 @@ async function productRuntime(family,action){
   }
   if(family==='studio'){
     if(action==='status'||!action) return {schema:'xiio.cli.studio/v1',...(await simpleProbe('http://127.0.0.1:3099/')),effect_authority:0};
+    if(action==='start'){
+      const script=installedHexBin('studio-start.sh');
+      if(!fs.existsSync(script)) return {schema:'xiio.cli.studio/v1',state:'TRUE_WAIT',first_red:'STUDIO_START_PRIMITIVE_NOT_INSTALLED',next:'xi-io hex install',effect_authority:0};
+      const run=spawnSync('bash',[script],{encoding:'utf8',timeout:30000,maxBuffer:1024*1024,env:{...process.env,HOME:os.homedir()}});
+      const health=await simpleProbe('http://127.0.0.1:3099/',2000);
+      const pass=run.status===0 && health.state==='PASS';
+      return {
+        schema:'xiio.cli.studio/v1',
+        state:pass?'PASS':'FAIL_CURRENT',
+        first_red:pass?null:(run.status!==0?'STUDIO_START_SCRIPT_FAILED':'STUDIO_3099_READBACK_FAILED'),
+        start:{status:run.status,stdout:String(run.stdout||'').slice(-4000),stderr:String(run.stderr||'').slice(-4000),script},
+        health,
+        effect_authority:0,
+        hard:['START_SCRIPT_EXIT_0 != STUDIO_READBACK','OPEN != START','LOCAL_3099_PASS != PUBLIC_LIVE'],
+      };
+    }
     if(action==='open') return {schema:'xiio.cli.studio/v1',...openUrl('http://127.0.0.1:3099/'),effect_authority:0};
     if(action==='inbox') return productRuntime('inbox','open');
   }
