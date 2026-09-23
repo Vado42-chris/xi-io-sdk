@@ -285,7 +285,7 @@ function installLocalCli() {
     '',
   ].join('\n');
 
-  const bins=['xi-io','xi'];
+  const bins=['xi-io','xiio','xi'];
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
@@ -335,6 +335,7 @@ function installLocalCli() {
     shell_rc_state:shellRcState,
     bins:bins.map((name)=>path.join(binDir,name)),
     default_entry:'xi-io',
+    human_aliases:['xiio','xi'],
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
     commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io doctor'],
