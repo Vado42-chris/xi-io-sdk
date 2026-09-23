@@ -144,10 +144,11 @@ export async function compileLocalCompass({
   sdkRoot=null,
   hostname=os.hostname().split('.')[0].toLowerCase(),
   exec=run,
+  probe=probeJson,
   providerRead=env.XIIO_COMPASS_PROVIDER_READ!=='0',
 }={}){
   const observed_at=new Date().toISOString();
-  const home=real(os.homedir());
+  const home=real(env.HOME||os.homedir());
   const workspace=real(cwd);
   const volume=volumeRoot(workspace,env);
 
@@ -171,8 +172,8 @@ export async function compileLocalCompass({
     services:services.map(({scope,unit,state})=>({scope,unit,state})),
     next:listener?'OBSERVE_PROVIDER_JOB':services.length?'START_OR_INSPECT_EXISTING_SERVICE':'xi-io runner discover',
   };
-  const ollama=await probeJson(env.OLLAMA_HOST?String(env.OLLAMA_HOST).replace(/\/$/,'')+'/api/tags':'http://127.0.0.1:11434/api/tags');
-  const glass=await probeJson(env.XIIO_API_GLASS_BOX_READ_URL||'http://127.0.0.1:4390/api/v1/studio/local-truth/read');
+  const ollama=await probe(env.OLLAMA_HOST?String(env.OLLAMA_HOST).replace(/\/$/,'')+'/api/tags':'http://127.0.0.1:11434/api/tags');
+  const glass=await probe(env.XIIO_API_GLASS_BOX_READ_URL||'http://127.0.0.1:4390/api/v1/studio/local-truth/read');
 
   const frameworkRow=framework.selected;
   const cells=[
