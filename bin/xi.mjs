@@ -31,19 +31,28 @@ import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json
 const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
 
 const CLI_EXIT=Object.freeze({PASS:0,WAIT:1,REJECT:2,INTERNAL:3});
-function commandEnvelope(command,{state='PASS',data=null,error=null,exit_code=null}={}){
-  const resolved=Number.isInteger(exit_code)?exit_code:
-    state==='PASS'?CLI_EXIT.PASS:
+function cliExitForState(state){
+  return state==='PASS'?CLI_EXIT.PASS:
     ['PASS_WITH_WAITS','WAIT','TRUE_WAIT','PARTIAL'].includes(state)?CLI_EXIT.WAIT:
     ['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(state)?CLI_EXIT.REJECT:
     CLI_EXIT.INTERNAL;
-  return {schema:'xiio.cli.command-envelope/v1',ok:resolved===0,command,timestamp:new Date().toISOString(),state,exit_code:resolved,...(error?{error}:{data}),provider_effect:false,authority_granted:false};
 }
-function emitCommandEnvelope(command,payload){
-  const envelope=commandEnvelope(command,payload);
-  process.stdout.write(JSON.stringify(envelope,null,2)+'\n');
-  process.exitCode=envelope.exit_code;
-  return envelope;
+function emitCliResult(command,result,{error=null}={}){
+  const state=String(result?.state||'INTERNAL');
+  const exit_code=cliExitForState(state);
+  const body={
+    ...(result||{}),
+    ...(error?{error}:{}),
+    ok:exit_code===0,
+    command,
+    timestamp:new Date().toISOString(),
+    exit_code,
+    provider_effect:false,
+    authority_granted:false,
+  };
+  process.stdout.write(JSON.stringify(body,null,2)+'\n');
+  process.exitCode=exit_code;
+  return body;
 }
 async function readStdinText(){
   const chunks=[];
@@ -845,12 +854,12 @@ if (
   process.stdout.write(JSON.stringify(await compass({persist:true}),null,2)+'\n');
 } else if (top === 'status') {
   const result=await statusSnapshot();
-  emitCommandEnvelope('status',{state:result.state,data:result});
+  emitCliResult('status',result);
 } else if (top === 'gates') {
   const action=process.argv[3] || null;
   if(action!=='--check' && action!=='check') usage(1);
   const result=await gatesCheck();
-  emitCommandEnvelope('gates.check',{state:result.state,data:result});
+  emitCliResult('gates.check',result);
 } else if (top === 'verify') {
   const argv=process.argv.slice(3);
   let sourceRef='stdin';
@@ -865,9 +874,9 @@ if (
   try{
     const value=JSON.parse(raw);
     const result=verifyArtifact(value,{source_ref:sourceRef});
-    emitCommandEnvelope('verify',{state:result.state,data:result});
+    emitCliResult('verify',result);
   }catch(error){
-    emitCommandEnvelope('verify',{state:'INVALID',error:{code:'INVALID_JSON',message:String(error.message||error)}});
+    emitCliResult('verify',{schema:'xiio.cli.verify/v1',state:'INVALID',source_ref:sourceRef,checks:[],first_red:'INVALID_JSON',silent_remainder:0},{error:{code:'INVALID_JSON',message:String(error.message||error)}});
   }
 } else if (top === 'doctor' || top === 'workspace') {
   const targetDir=process.argv[3] || null;
