@@ -4,6 +4,12 @@ set -euo pipefail
 REPO="${XIIO_CLI_BOOTSTRAP_REPO:-Vado42-chris/xi-io-sdk}"
 REF="${XIIO_CLI_BOOTSTRAP_REF:-main}"
 ROOT="${XIIO_CLI_SDK_ROOT:-$HOME/.local/share/xi-io/sdk}"
+if [[ "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  REF_KIND="commit"
+  REF="${REF,,}"
+else
+  REF_KIND="named"
+fi
 SOURCE="${XIIO_CLI_BOOTSTRAP_SOURCE:-$REPO}"
 
 fail() {
@@ -59,6 +65,9 @@ need git
 
 mkdir -p "$(dirname "$ROOT")"
 
+ROOT_PREEXISTED=0
+[[ -d "$ROOT/.git" ]] && ROOT_PREEXISTED=1
+
 if [[ -e "$ROOT" && ! -d "$ROOT/.git" ]]; then
   fail TARGET_EXISTS_NOT_GIT_REPO
 fi
@@ -67,18 +76,26 @@ if [[ ! -d "$ROOT/.git" ]]; then
   if [[ "$SOURCE" == "$REPO" ]]; then
     need gh
     gh auth status >/dev/null 2>&1 || fail GH_AUTH_REQUIRED
-    gh repo clone "$REPO" "$ROOT" -- --branch "$REF" --single-branch --quiet || fail CLONE_FAILED
+    if [[ "$REF_KIND" == "commit" ]]; then
+      gh repo clone "$REPO" "$ROOT" -- --no-checkout --quiet || fail CLONE_FAILED
+    else
+      gh repo clone "$REPO" "$ROOT" -- --branch "$REF" --single-branch --quiet || fail CLONE_FAILED
+    fi
   else
-    git clone --branch "$REF" --single-branch --quiet "$SOURCE" "$ROOT" || fail CLONE_FAILED
+    if [[ "$REF_KIND" == "commit" ]]; then
+      git clone --no-checkout --quiet "$SOURCE" "$ROOT" || fail CLONE_FAILED
+    else
+      git clone --branch "$REF" --single-branch --quiet "$SOURCE" "$ROOT" || fail CLONE_FAILED
+    fi
   fi
 fi
 
 inside="$(git -C "$ROOT" rev-parse --is-inside-work-tree 2>/dev/null || true)"
 [[ "$inside" == "true" ]] || fail SDK_CHECKOUT_INVALID
-branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
-[[ "$branch" == "$REF" ]] || fail "SDK_BRANCH_NOT_REQUESTED_${branch:-DETACHED}_EXPECTED_$REF"
-dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
-[[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY
+if [[ "$ROOT_PREEXISTED" == "1" || "$REF_KIND" == "named" ]]; then
+  dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
+  [[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY
+fi
 
 origin="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
 if [[ "$SOURCE" == "$REPO" ]]; then
@@ -88,9 +105,25 @@ if [[ "$SOURCE" == "$REPO" ]]; then
   esac
 fi
 
-git -C "$ROOT" fetch origin "$REF" --prune --quiet || fail FETCH_REF_FAILED
-git -C "$ROOT" merge --ff-only --quiet "origin/$REF" || fail SDK_NOT_FAST_FORWARDABLE
-head="$(git -C "$ROOT" rev-parse HEAD)"
+if [[ "$REF_KIND" == "commit" ]]; then
+  git -C "$ROOT" fetch origin "$REF" --depth=1 --quiet || {
+    git -C "$ROOT" fetch origin main --prune --quiet || fail FETCH_REF_FAILED
+  }
+  git -C "$ROOT" cat-file -e "$REF^{commit}" 2>/dev/null || fail EXACT_COMMIT_NOT_FETCHED
+  git -C "$ROOT" checkout --detach --quiet "$REF" || fail EXACT_COMMIT_CHECKOUT_FAILED
+  head="$(git -C "$ROOT" rev-parse HEAD)"
+  [[ "$head" == "$REF" ]] || fail "SDK_HEAD_MISMATCH_${head}_EXPECTED_$REF"
+  branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
+  [[ -z "$branch" ]] || fail "EXACT_COMMIT_EXPECTED_DETACHED_HEAD_GOT_$branch"
+  dirty="$(git -C "$ROOT" status --porcelain=v1 2>/dev/null || true)"
+  [[ -z "$dirty" ]] || fail SDK_CHECKOUT_DIRTY_AFTER_EXACT_CHECKOUT
+else
+  branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
+  [[ "$branch" == "$REF" ]] || fail "SDK_BRANCH_NOT_REQUESTED_${branch:-DETACHED}_EXPECTED_$REF"
+  git -C "$ROOT" fetch origin "$REF" --prune --quiet || fail FETCH_REF_FAILED
+  git -C "$ROOT" merge --ff-only --quiet "origin/$REF" || fail SDK_NOT_FAST_FORWARDABLE
+  head="$(git -C "$ROOT" rev-parse HEAD)"
+fi
 
 install_receipt="$(mktemp)"
 trap 'rm -f "$install_receipt"' EXIT
@@ -106,5 +139,5 @@ self_test="$("$HOME/.local/bin/xi-io" self-test)" || {
   fail CLI_SELF_TEST_FAILED
 }
 
-printf 'XIIO_CLI_BOOTSTRAP=PASS\nSDK_ROOT=%s\nSDK_REF=%s\nSDK_HEAD=%s\nCLI=%s\nNODE=%s\n' "$ROOT" "$REF" "$head" "$HOME/.local/bin/xi-io" "$NODE"
+printf 'XIIO_CLI_BOOTSTRAP=PASS\nSDK_ROOT=%s\nSDK_REF=%s\nSDK_REF_KIND=%s\nSDK_HEAD=%s\nCLI=%s\nNODE=%s\n' "$ROOT" "$REF" "$REF_KIND" "$head" "$HOME/.local/bin/xi-io" "$NODE"
 printf '%s\n' "$self_test"
