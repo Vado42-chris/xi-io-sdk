@@ -45,6 +45,7 @@ TOOL_CALL_TEXT != FILE_MUTATION\nWRITE_ACK != POST_WRITE_READBACK\nPATH_TRAVERSA
   "execution_surface": "SANDBOX|REMOTE_CONNECTOR|ARIES|LOKI|UNKNOWN",
   "transport_state": "PASS|FAIL|TRUE_WAIT|UNKNOWN",
   "proof_scope": "SYNTHETIC_FIXTURE|CONNECTOR_METADATA|HOME_CURRENT|NATIVE_RUNTIME",
+  "ui_visibility_state": "VISIBLE|OCCLUDED|MINIMIZED|HIDDEN|UNKNOWN",
   "expected_host_ref": "string|null",
   "expected_execution_surface_ref": "string|null",
   "first_red": "string|null",
@@ -52,7 +53,20 @@ TOOL_CALL_TEXT != FILE_MUTATION\nWRITE_ACK != POST_WRITE_READBACK\nPATH_TRAVERSA
   "blocked_promotions": ["string"],
   "authority_granted": false,
   "provider_effect": false,
-  "legal_effect_authority": 0
+  "legal_effect_authority": 0,
+  "native_receipt": {
+    "host_ref": "string",
+    "execution_surface_ref": "string",
+    "environment_survey_ref": "string",
+    "environment_current": true,
+    "generation_ref": "string",
+    "producer_ref": "string",
+    "verifier_ref": "string",
+    "fresh": true,
+    "replayed": false,
+    "independent_readback": true,
+    "authenticated": true
+  }
 }
 ```
 
