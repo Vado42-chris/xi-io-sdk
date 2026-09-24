@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
 import { compilePortableSemanticFile } from '../src/documents/portable-semantic-file.mjs';
+import { compileFlatpackPacket, reduceFlatpackArtifact, expandFlatpackArtifact } from '../src/flatpack/executable-packet.mjs';
 import { compilePortableArtifactCube } from '../src/documents/portable-artifact-cube.mjs';
 import { prepareRegisteredPrimitiveShipment } from '../src/documents/prepare-primitive-shipment.mjs';
 import { prepareExternalArtifactShipment } from '../src/documents/prepare-external-artifact-shipment.mjs';
@@ -105,6 +106,9 @@ Human registries:
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
   xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
+  xi-io search status            Read local Search runtime status
+  xi-io search --target files --query <text> [--limit N]
+                                Execute Search through Inbox local API; files bind BINS custody
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
   xi-io verify --stdin --json   Verify one JSON artifact from stdin
   xi-io verify --file PATH --json
@@ -124,6 +128,9 @@ Interactive slash commands:
 Pure compilers:
   xi-io baseline compile --input <snapshot.json> [--out <baseline.json>]
   xi-io product compile --input <products.json> [--out <product-baseline.json>]
+  xi-io flatpack compile --input <packet.json> [--out <flatpack.json>]
+  xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
+  xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
   xi-io file compile --input <file.json> [--out <portable-file.json>]
   xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
   xi-io file profiles [--out <profiles.json>]
@@ -468,6 +475,81 @@ function stableStatusProjection(value){
   return value;
 }
 
+
+function remoteDesktopProjectionPath(){
+  return process.env.XIIO_REMOTE_DESKTOP_STATE_PATH
+    || path.join(os.homedir(),'.local','state','xi-io','remote-desktop.current.json');
+}
+
+function remoteDesktopStatus(){
+  const file=remoteDesktopProjectionPath();
+  if(!fs.existsSync(file)){
+    return {
+      schema:'xiio.cli.remote-desktop-status/v1',
+      state:'TRUE_WAIT',
+      projection_path:file,
+      plugin_auth_state:'UNKNOWN',
+      device_registration_state:'UNKNOWN',
+      live_device_session_state:'UNKNOWN',
+      aries_machine_state:'UNKNOWN',
+      first_red:'REMOTE_DESKTOP_STATE_PROJECTION_MISSING',
+      provider_effect:false,
+      authority_granted:false,
+      hard:[
+        'MISSING_PROJECTION != NOT_AUTHENTICATED',
+        'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE'
+      ]
+    };
+  }
+  try{
+    const value=JSON.parse(fs.readFileSync(file,'utf8'));
+    const auth=value?.authentication?.state || 'UNKNOWN';
+    const registration=value?.device_registration?.state || 'UNKNOWN';
+    const session=value?.live_device_session?.state || 'UNKNOWN';
+    const machine=value?.aries_machine_state?.state || 'UNKNOWN';
+    const fail=['FAIL','FAIL_CURRENT','BLOCKED','INVALID'].includes(session);
+    const wait=['WAIT','TRUE_WAIT','UNKNOWN'].includes(session);
+    return {
+      schema:'xiio.cli.remote-desktop-status/v1',
+      state:fail?'FAIL_CURRENT':wait?'PASS_WITH_WAITS':'PASS',
+      projection_path:file,
+      provider:value?.provider || 'UNKNOWN',
+      plugin_auth_state:auth,
+      device_registration_state:registration,
+      live_device_session_state:session,
+      aries_machine_state:machine,
+      device_id:value?.device_registration?.device_id || null,
+      device_name:value?.device_registration?.device_name || null,
+      transport_broadcast_v1:value?.device_registration?.advertised_capabilities?.transport_broadcast_v1 === true,
+      auth_token_state:value?.device_registration?.auth_token_state || null,
+      last_seen:value?.live_device_session?.last_seen || null,
+      first_red:fail?'REMOTE_LIVE_DEVICE_SESSION_FAIL_CURRENT':wait?'REMOTE_LIVE_DEVICE_SESSION_WAIT':null,
+      provider_effect:false,
+      authority_granted:false,
+      hard:[
+        'PLUGIN_AUTH_OK != DEVICE_REGISTERED',
+        'DEVICE_REGISTERED != LIVE_DEVICE_SESSION',
+        'AUTH_OK + SESSION_MISSING => RESTORE_SESSION',
+        'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE'
+      ]
+    };
+  }catch(error){
+    return {
+      schema:'xiio.cli.remote-desktop-status/v1',
+      state:'FAIL_CURRENT',
+      projection_path:file,
+      plugin_auth_state:'UNKNOWN',
+      device_registration_state:'UNKNOWN',
+      live_device_session_state:'UNKNOWN',
+      aries_machine_state:'UNKNOWN',
+      first_red:'REMOTE_DESKTOP_STATE_PROJECTION_INVALID',
+      error:String(error?.message||error),
+      provider_effect:false,
+      authority_granted:false
+    };
+  }
+}
+
 async function statusSnapshot() {
   const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const [rawMap,rawHex,rawStudio,rawInbox]=await Promise.all([
@@ -476,6 +558,7 @@ async function statusSnapshot() {
     productRuntime('studio','status'),
     productRuntime('inbox','status'),
   ]);
+  const remoteDesktop=remoteDesktopStatus();
   const map=stableStatusProjection(rawMap);
   const hex=stableStatusProjection(rawHex);
   const studio=stableStatusProjection(rawStudio);
@@ -507,11 +590,18 @@ async function statusSnapshot() {
       products:{hex:hex.state,studio:studio.state,inbox:inbox.state},
       provider_ingress_state:'OBSERVED_LOCAL_ONLY',
       provider_egress_state:'NOT_EVALUATED',
+      remote_desktop:{
+        plugin_auth_state:remoteDesktop.plugin_auth_state,
+        device_registration_state:remoteDesktop.device_registration_state,
+        live_device_session_state:remoteDesktop.live_device_session_state,
+        aries_machine_state:remoteDesktop.aries_machine_state
+      },
       readback_ref:null
     },
     compass:map,
     machine_topology:topology,
     runner,
+    remote_desktop:remoteDesktop,
     products:{hex,studio,inbox},
     local_effect:true,
     provider_effect:false,
@@ -524,6 +614,8 @@ async function statusSnapshot() {
       'PORT_BOUND != QUALIFIED_RUNTIME',
       'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
       'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
+      'REMOTE_DESKTOP_AUTH_OK != LIVE_DEVICE_SESSION',
+      'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE',
     ],
   };
 }
@@ -539,6 +631,9 @@ async function gatesCheck(){
     {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
     {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
     {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
+    {id:'REMOTE_PLUGIN_AUTH',state:status.remote_desktop?.plugin_auth_state||'UNKNOWN',evidence_ref:'remote_desktop:auth'},
+    {id:'REMOTE_DEVICE_REGISTRATION',state:status.remote_desktop?.device_registration_state||'UNKNOWN',evidence_ref:'remote_desktop:device'},
+    {id:'REMOTE_LIVE_SESSION',state:status.remote_desktop?.live_device_session_state||'UNKNOWN',evidence_ref:'remote_desktop:session'},
   ];
   const hardFail=cells.some(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(c.state));
   const waits=cells.filter(c=>['WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED','OBSERVED_LOCAL_ONLY'].includes(c.state));
@@ -635,6 +730,53 @@ async function doctor() {
   }, null, 2) + '\n');
 }
 
+
+async function searchRuntime(argv=[]){
+  const { flags }=args(argv);
+  const action=argv[0]&&!argv[0].startsWith('--')?argv[0]:'query';
+  const origin=String(process.env.XIIO_INBOX_ORIGIN||'http://127.0.0.1:8791').replace(/\/$/,'');
+  if(action==='status'){
+    return {schema:'xiio.cli.search/v1',...(await simpleProbe(origin+'/api/search/status',3000)),effect_authority:0};
+  }
+  const target=String(flags.target||'repos');
+  const query=String(flags.query||'').trim();
+  const limit=String(flags.limit||'25');
+  if(!query) return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'SEARCH_QUERY_REQUIRED',effect_authority:0};
+  const url=new URL(origin+'/api/search/query');
+  url.searchParams.set('target',target);
+  url.searchParams.set('q',query);
+  url.searchParams.set('limit',limit);
+  const token=String(process.env.XIIO_SEARCH_API_TOKEN||'');
+  try{
+    const response=await fetch(url,{
+      headers:{
+        accept:'application/json',
+        ...(token?{authorization:'Bearer '+token}:{})
+      },
+      signal:AbortSignal.timeout(15000)
+    });
+    const body=await response.json().catch(()=>null);
+    if(response.status===401){
+      return {
+        schema:'xiio.cli.search/v1',
+        state:'TRUE_WAIT',
+        first_red:'SEARCH_SESSION_OR_TOKEN_REQUIRED',
+        target,
+        query,
+        status:response.status,
+        provider_effect:false,
+        effect_authority:0,
+        next:'Bind an existing local Search session or XIIO_SEARCH_API_TOKEN; do not invent credentials.'
+      };
+    }
+    if(!response.ok){
+      return {schema:'xiio.cli.search/v1',state:'FAIL_CURRENT',first_red:body?.code||'SEARCH_API_FAILED',target,query,status:response.status,body,effect_authority:0};
+    }
+    return {...body,schema:body?.schema||'xiio.cli.search/v1',transport:'CLI_TO_INBOX_SEARCH_API',target_id:body?.target_id||target,effect_authority:0};
+  }catch(error){
+    return {schema:'xiio.cli.search/v1',state:'TRUE_WAIT',first_red:'INBOX_SEARCH_API_UNREACHABLE',target,query,error:String(error?.message||error),effect_authority:0};
+  }
+}
 
 async function simpleProbe(url,timeout=2500){
   try{
@@ -1118,6 +1260,10 @@ if (
   const floor=readJson(floorPath,'HEX floor');
   const binding=bindHexFloorCurrentness(floor);
   emitCliResult('hex.floor',{schema:'xiio.cli.hex-floor-read/v1',state:binding.state==='UNVERIFIED'||binding.state==='STALE'?'BLOCKED':'PASS',hex_floor:floor,binding,first_red:binding.blocker||null,provider_effect:false,authority_granted:false},{stable:true});
+} else if (top === 'search') {
+  const result=await searchRuntime(process.argv.slice(3));
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
 } else if (top === 'hex' || top === 'inbox' || top === 'studio') {
   const action=process.argv[3] || 'status';
   const result=await productRuntime(top,action);
