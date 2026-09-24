@@ -24,12 +24,20 @@ const packetVector={
   occurrence_count:10,
   affected_refs:['bins','hex','sam_law','studio'],
   return_targets:['return:sam_law','return:studio'],
+  observability:{
+    generation:'obs:g1',
+    digest:'obs:1',
+    metric_refs:['metric:pneuma:test'],
+    log_refs:['log:pneuma:test'],
+    telemetry_refs:['telemetry:pneuma:test'],
+    lexicon_refs:['lexicon:hashtag-runtime-directory','lexicon:bbcode-reference-rules']
+  },
   first_red:null
 };
 const projectionChain=[
-  {projection_ref:'step:1',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,affected_refs:['bins','hex','sam_law','studio']},
-  {projection_ref:'step:2',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,affected_refs:['bins','sam_law','studio']},
-  {projection_ref:'step:3',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,affected_refs:['sam_law','studio']},
+  {projection_ref:'step:1',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,observability_generation:'obs:g1',observability_digest:'obs:1',affected_refs:['bins','hex','sam_law','studio']},
+  {projection_ref:'step:2',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,observability_generation:'obs:g1',observability_digest:'obs:1',affected_refs:['bins','sam_law','studio']},
+  {projection_ref:'step:3',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,observability_generation:'obs:g1',observability_digest:'obs:1',affected_refs:['sam_law','studio']},
 ];
 write(['studio','pneuma.current.json'],{
   schema:'xiio.studio.pneuma-recursion/v1',
@@ -57,6 +65,14 @@ write(['remote-desktop.current.json'],{
 write(['studio','ward-adoption.current.json'],{
   schema:'xiio.ward.native-adoption-readback/v1',state:'TRUE_WAIT'
 });
+write(['studio','pneuma-rules.current.json'],{
+  schema:'xiio.studio.pneuma-rule-currentness/v1',
+  state:'PASS',
+  currentness_ref:'test:provider-current',
+  observed_at:'2026-09-24T20:30:00Z',
+  sdk:{state:'EXACT_PROVIDER_MAIN',local_generation:'sdk:g1',provider_generation:'sdk:g1'},
+  framework:{state:'EXACT_PROVIDER_MAIN',local_generation:'framework:g1',provider_generation:'framework:g1'}
+});
 
 const hostile=await executePneuma({
   root:'local',
@@ -72,6 +88,31 @@ assert.equal(hostile.claims.zero_unverified_stubs,false);
 assert.equal(hostile.claims.rotfl_loop_closed,false);
 assert.equal(hostile.claims.pneuma_pulse_active,false);
 assert(hostile.first_red);
+
+
+write(['studio','pneuma-rules.current.json'],{
+  schema:'xiio.studio.pneuma-rule-currentness/v1',
+  state:'PASS',
+  currentness_ref:'test:stale-sdk',
+  observed_at:'2026-09-24T20:31:00Z',
+  sdk:{state:'DIFFERENT_FROM_PROVIDER_MAIN',local_generation:'sdk:old',provider_generation:'sdk:g1'},
+  framework:{state:'EXACT_PROVIDER_MAIN',local_generation:'framework:g1',provider_generation:'framework:g1'}
+});
+const staleRules=await executePneuma({
+  root:'local',aries:'root',bus:'ws://localhost:4390/aries/bus',exec_rotfl:false,state_root:root
+});
+assert.equal(staleRules.state,'TRUE_WAIT');
+assert.equal(staleRules.checks.find(x=>x.id==='PNEUMA_RULE_CURRENTNESS').first_red,'PNEUMA_SDK_RULE_GENERATION_NOT_CURRENT');
+
+write(['studio','pneuma-rules.current.json'],{
+  schema:'xiio.studio.pneuma-rule-currentness/v1',
+  state:'PASS',
+  currentness_ref:'test:provider-current',
+  observed_at:'2026-09-24T20:30:00Z',
+  sdk:{state:'EXACT_PROVIDER_MAIN',local_generation:'sdk:g1',provider_generation:'sdk:g1'},
+  framework:{state:'EXACT_PROVIDER_MAIN',local_generation:'framework:g1',provider_generation:'framework:g1'}
+});
+
 
 const driftChain=projectionChain.map((row)=>({...row}));
 driftChain[2].blast_radius_digest='blast:reconstructed';
@@ -108,6 +149,23 @@ const occurrenceDrift=await executePneuma({
 });
 assert.equal(occurrenceDrift.state,'FAIL');
 assert.equal(occurrenceDrift.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').first_red,'SOURCE_OCCURRENCE_COUNT_DRIFT');
+
+
+const observabilityDriftChain=projectionChain.map((row)=>({...row}));
+observabilityDriftChain[2].observability_digest='obs:drift';
+write(['studio','pneuma.current.json'],{
+  schema:'xiio.studio.pneuma-recursion/v1',
+  state:'PASS',
+  recursion_ref:'pneuma:r1',
+  packet_vector:packetVector,
+  projection_chain:observabilityDriftChain,
+  rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48}
+});
+const observabilityDrift=await executePneuma({
+  root:'local',aries:'root',bus:'ws://localhost:4390/aries/bus',exec_rotfl:false,state_root:root
+});
+assert.equal(observabilityDrift.state,'FAIL');
+assert.equal(observabilityDrift.checks.find(x=>x.id==='OBSERVABILITY_CONTINUITY').first_red,'OBSERVABILITY_DIGEST_DRIFT');
 
 write(['studio','pneuma.current.json'],{
   schema:'xiio.studio.pneuma-recursion/v1',
@@ -179,6 +237,12 @@ assert.equal(pass.claims.pneuma_pulse_active,false);
 assert.equal(pass.first_red,'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK');
 assert.equal(pass.source_occurrence_count,10);
 assert.equal(pass.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').source_occurrence_count,10);
+assert.equal(pass.checks.find(x=>x.id==='PNEUMA_RULE_CURRENTNESS').state,'PASS');
+assert.equal(pass.checks.find(x=>x.id==='OBSERVABILITY_CONTINUITY').state,'PASS');
+assert.deepEqual(pass.metric_refs,['metric:pneuma:test']);
+assert.deepEqual(pass.log_refs,['log:pneuma:test']);
+assert.deepEqual(pass.telemetry_refs,['telemetry:pneuma:test']);
+assert.deepEqual(pass.lexicon_refs,['lexicon:bbcode-reference-rules','lexicon:hashtag-runtime-directory']);
 assert(fs.existsSync(pulsePath));
 const pulseBytes=fs.readFileSync(pulsePath);
 const pulseSha=await import('node:crypto').then(m=>m.default.createHash('sha256').update(pulseBytes).digest('hex'));
@@ -198,6 +262,9 @@ console.log(JSON.stringify({
   exact_persisted_pulse_hash:true,
   step_three_blast_radius_drift_blocked:true,
   source_occurrence_count_drift_blocked:true,
+  stale_pneuma_rule_generation_blocked:true,
+  observability_digest_drift_blocked:true,
+  metrics_logs_telemetry_lexicon_carried:true,
   duplicate_occurrence_fixture_count:10,
   loopback_exec_pulse:true,
   synthetic_fixture_cannot_claim_physical_loop_closure:true,
