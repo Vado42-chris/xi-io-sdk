@@ -13,7 +13,7 @@ const expandedPath=path.join(tmp,'expanded.json');
 const packet={
   packet_id:'flatpack:cli-physical-frontdoor',
   generation:'g-cli-1',
-  one:{subject_ref:'search:local-file'},
+  one:{subject_ref:'search:local-file',current_coordinate:{target_ref:'search:local-file',step_depth:2}},
   two:{left_ref:'search:local-file',right_ref:'bins:resource-version',relation:'RECIPROCAL'},
   blast_radius:{
     radius:10,
@@ -40,6 +40,18 @@ function run(args,{outFile=null}={}){
   return JSON.parse(result.stdout);
 }
 
+const missingBlastPath=path.join(tmp,'missing-blast.json');
+fs.writeFileSync(missingBlastPath,JSON.stringify({
+  packet_id:'flatpack:cli-missing-blast',
+  generation:'g-cli-1',
+  one:{current_coordinate:{target_ref:'leaf:search-bins',step_depth:2}},
+  two:{left_ref:'leaf:search-bins',right_ref:'parent:flatplane',relation:'RECIPROCAL'},
+  qualifiers:[{id:'Q1',state:'PASS',bit:1}],
+}));
+const missingBlast=spawnSync(process.execPath,['bin/xi.mjs','flatpack','reduce','--input',missingBlastPath],{encoding:'utf8'});
+assert.notEqual(missingBlast.status,0);
+assert.match(missingBlast.stderr,/invalid input or unsupported command/);
+
 const compiled=run(['flatpack','compile','--input',packetPath]);
 assert.equal(compiled.schema,'xiio.sdk.flatpack-packet/v0');
 assert.equal(compiled.packet_id,packet.packet_id);
@@ -49,6 +61,8 @@ assert.equal(compiled.first_red.id,'Q03_RUNTIME');
 const reduced=run(['flatpack','reduce','--input',packetPath,'--out',reducedPath],{outFile:reducedPath});
 assert.equal(reduced.schema,'xiio.sdk.flatpack-reduction-trace/v1');
 assert.equal(reduced.reduction,'3->2->1');
+assert.equal(reduced.stage1.blast_radius.step_depth,2);
+assert.equal(reduced.stage1.blast_radius.x_up_required,true);
 assert.deepEqual(reduced.stage1.blast_radius.affected_refs,['bins','search','studio']);
 assert.deepEqual(reduced.stage1.blast_radius.return_targets,['aries:return','bins:return','search:return','studio:return']);
 assert.equal(fs.existsSync(reducedPath),true);
@@ -70,6 +84,8 @@ console.log(JSON.stringify({
     'xi-io flatpack expand'
   ],
   blast_radius_preserved:true,
+  step2_blast_radius_guard:true,
+  x_up_required:true,
   return_targets_preserved:true,
   disk_outputs:[reducedPath,expandedPath],
   effects:0
