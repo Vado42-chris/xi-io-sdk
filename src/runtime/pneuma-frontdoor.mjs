@@ -91,8 +91,9 @@ export async function executePneuma({
     {projection_ref:hex?.projection_ref||null,fleet_generation:hex?.fleet_generation||null});
 
   const sb=state.search_bins;
+  const searchBinsObserved=String(sb?.state||sb?.status||'').toUpperCase();
   add('SEARCH_BINS_READBACK',
-    sb&&['PASS','CURRENT','ACCEPTED_MAIN'].some(x=>String(sb?.state||sb?.status||'').includes(x))?'PASS':'TRUE_WAIT',
+    sb&&['PASS','CURRENT','ACCEPTED_MAIN'].includes(searchBinsObserved)?'PASS':'TRUE_WAIT',
     files.search_bins,
     sb?'SEARCH_BINS_READBACK_NOT_PASS':'SEARCH_BINS_READBACK_MISSING',
     {resource_ref:sb?.resource_ref||null,version_ref:sb?.version_ref||null,sha256:sb?.sha256||null});
@@ -106,8 +107,9 @@ export async function executePneuma({
   add('REMOTE_LIVE_SESSION',session==='PASS'?'PASS':'TRUE_WAIT',files.remote,session==='PASS'?null:'REMOTE_LIVE_SESSION_NOT_PASS',{observed:session});
 
   const ward=state.ward;
+  const wardObserved=String(ward?.state||ward?.status||'').toUpperCase();
   add('WARD_ADOPTION',
-    ward&&String(ward?.state||ward?.status||'').includes('PASS')?'PASS':'TRUE_WAIT',
+    ward&&['PASS','CURRENT','ACCEPTED_MAIN'].includes(wardObserved)?'PASS':'TRUE_WAIT',
     files.ward,
     ward?'WARD_NATIVE_ADOPTION_NOT_PASS':'WARD_ADOPTION_MISSING');
 
@@ -118,11 +120,23 @@ export async function executePneuma({
   const waits=checks.filter(x=>x.state==='TRUE_WAIT');
   const preState=fail.length?'FAIL':waits.length?'TRUE_WAIT':'PASS';
 
+  const custodyRows=Array.isArray(sb?.artifacts)?sb.artifacts:[];
+  const custodyById=new Map(custodyRows.map(row=>[String(row?.id||''),row]));
   const custodyClaims={
-    ct16_verified:Boolean(sb?.ct16_verified===true),
-    ct17_verified:Boolean(sb?.ct17_verified===true),
+    ct16_verified:
+      sb?.ct16_verified===true
+      || ['PASS','CUSTODIED','VERIFIED'].includes(String(custodyById.get('CT16')?.state||'').toUpperCase()),
+    ct17_verified:
+      sb?.ct17_verified===true
+      || ['PASS','CUSTODIED','VERIFIED'].includes(String(custodyById.get('CT17')?.state||'').toUpperCase()),
   };
-  const zeroStubClaim=Boolean(p?.zero_unverified_stubs===true);
+  const missingPunchcards=Array.isArray(hex?.missing_punchcards)?hex.missing_punchcards:[];
+  const openCells=Array.isArray(hex?.open_cells_without_punchcards)?hex.open_cells_without_punchcards:[];
+  const hexCurrentness=String(hex?.source_currentness||hex?.state||'').toUpperCase();
+  const zeroStubClaim=
+    ['HEX_QUALIFIED_CURRENT','PASS','CURRENT','ACCEPTED_MAIN'].includes(hexCurrentness)
+    && missingPunchcards.length===0
+    && openCells.length===0;
   const loopClosed=preState==='PASS'&&custodyClaims.ct16_verified&&custodyClaims.ct17_verified&&zeroStubClaim;
 
   const pulse={
@@ -176,10 +190,16 @@ export async function executePneuma({
     const body=JSON.stringify(stable(pulse),null,2)+'\n';
     const tmp=out+'.tmp-'+process.pid+'-'+crypto.randomBytes(4).toString('hex');
     fs.writeFileSync(tmp,body,{encoding:'utf8',mode:0o600});
+    const tmpBytes=fs.readFileSync(tmp);
+    const bodySha256=crypto.createHash('sha256').update(tmpBytes).digest('hex');
     fs.renameSync(tmp,out);
     try{fs.chmodSync(out,0o600);}catch{}
+    const finalBytes=fs.readFileSync(out);
+    const finalSha256=crypto.createHash('sha256').update(finalBytes).digest('hex');
+    if(finalSha256!==bodySha256) throw new Error('PNEUMA_PULSE_FINAL_HASH_MISMATCH');
     pulse.pulse_path=out;
-    pulse.pulse_sha256=sha(pulse);
+    pulse.pulse_sha256=finalSha256;
+    pulse.pulse_bytes=finalBytes.length;
   }
 
   return Object.freeze(pulse);
