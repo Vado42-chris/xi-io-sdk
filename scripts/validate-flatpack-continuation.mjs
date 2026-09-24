@@ -52,6 +52,46 @@ assert.equal(loop3.packet_generation,'g1');
 assert.equal(loop3.qualifier_state.state,'TRUE_WAIT');
 assert.equal(loop3.cadence_disposition,'CONTINUE_WORK');
 assert(loop3.next_actions.includes('CONTINUE_NEXT_GOLDEN_WORK'));
+assert.deepEqual([loop1.steps_since_hotpatch,loop2.steps_since_hotpatch,loop3.steps_since_hotpatch],[1,2,3]);
+assert.equal(loop3.hotpatch_required_next,true);
+
+assert.throws(()=>compileFlatpackContinuationPlan({
+  stage1,
+  cadence,
+  previous_plan:loop3,
+}),/THREE_STEP_HOTPATCH_REQUIRED/);
+
+const patchAfter3={
+  state:'APPLIED',
+  applied_after_loop:3,
+  packet_generation:'g1',
+  blast_radius_digest:loop3.blast_radius_digest,
+};
+const loop4=compileFlatpackContinuationPlan({stage1,cadence,previous_plan:loop3,hotpatch_receipt:patchAfter3});
+const loop5=compileFlatpackContinuationPlan({stage1,cadence,previous_plan:loop4});
+const loop6=compileFlatpackContinuationPlan({stage1,cadence,previous_plan:loop5});
+assert.deepEqual([loop4.steps_since_hotpatch,loop5.steps_since_hotpatch,loop6.steps_since_hotpatch],[1,2,3]);
+assert.equal(loop4.hotpatch_applied,true);
+assert.equal(loop6.hotpatch_required_next,true);
+assert.throws(()=>compileFlatpackContinuationPlan({
+  stage1,
+  cadence,
+  previous_plan:loop6,
+}),/THREE_STEP_HOTPATCH_REQUIRED/);
+
+assert.throws(()=>compileFlatpackContinuationPlan({
+  stage1,
+  cadence,
+  previous_plan:loop3,
+  hotpatch_receipt:{...patchAfter3,state:'PENDING'},
+}),/HOTPATCH_RECEIPT_NOT_APPLIED/);
+
+assert.throws(()=>compileFlatpackContinuationPlan({
+  stage1,
+  cadence,
+  previous_plan:loop3,
+  hotpatch_receipt:{...patchAfter3,blast_radius_digest:'drift'},
+}),/HOTPATCH_RECEIPT_BLAST_RADIUS_DRIFT/);
 
 assert.throws(()=>compileFlatpackContinuationPlan({
   stage1,
@@ -109,5 +149,9 @@ console.log(JSON.stringify({
   return_targets_preserved:true,
   qualifier_state_preserved:true,
   generation_preserved:true,
+  three_step_hotpatch_guard:true,
+  step_four_without_hotpatch_blocked:true,
+  repeated_three_step_window_blocked:true,
+  hotpatch_generation_and_blast_bound:true,
   effects:0,
 }));
