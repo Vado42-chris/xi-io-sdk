@@ -41,6 +41,44 @@ function stable(v){
   return v;
 }
 const sha=v=>crypto.createHash('sha256').update(JSON.stringify(stable(v))).digest('hex');
+const refs=(value)=>[...new Set((Array.isArray(value)?value:[]).filter(Boolean).map(String))].sort();
+const subset=(child,parent)=>child.every((ref)=>parent.includes(ref));
+
+function blastContinuity(p){
+  const packet=p?.packet_vector||{};
+  const rootDigest=typeof packet.blast_radius_digest==='string'&&packet.blast_radius_digest.trim()?packet.blast_radius_digest.trim():null;
+  const rootGeneration=typeof packet.generation==='string'&&packet.generation.trim()?packet.generation.trim():null;
+  const rootAffected=refs(packet.affected_refs);
+  const chain=Array.isArray(p?.projection_chain)?p.projection_chain:[];
+
+  if(!rootDigest) return {state:'TRUE_WAIT',first_red:'BLAST_RADIUS_DIGEST_MISSING',verified_depth:0,requested_depth:chain.length};
+  if(!rootGeneration) return {state:'TRUE_WAIT',first_red:'PACKET_GENERATION_MISSING',verified_depth:0,requested_depth:chain.length};
+  if(!rootAffected.length) return {state:'TRUE_WAIT',first_red:'ROOT_AFFECTED_REFS_MISSING',verified_depth:0,requested_depth:chain.length};
+  if(!chain.length) return {state:'TRUE_WAIT',first_red:'PROJECTION_CHAIN_MISSING',verified_depth:0,requested_depth:0};
+
+  let parentAffected=rootAffected;
+  let verifiedDepth=0;
+  for(let i=0;i<chain.length;i++){
+    const row=chain[i]||{};
+    const affected=refs(row.affected_refs);
+    if(row.blast_radius_digest!==rootDigest) return {state:'FAIL',first_red:'BLAST_RADIUS_DIGEST_DRIFT',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
+    if(row.packet_generation!==rootGeneration) return {state:'FAIL',first_red:'BLAST_RADIUS_GENERATION_DRIFT',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
+    if(!affected.length||!subset(affected,parentAffected)) return {state:'FAIL',first_red:'AFFECTED_SET_DRIFT_OR_EXPANSION',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
+    parentAffected=affected;
+    verifiedDepth=i+1;
+  }
+
+  return {
+    state:'PASS',
+    first_red:null,
+    verified_depth:verifiedDepth,
+    requested_depth:chain.length,
+    blast_radius_digest:rootDigest,
+    packet_generation:rootGeneration,
+    root_affected_refs:rootAffected,
+    final_affected_refs:parentAffected,
+  };
+}
 
 export async function executePneuma({
   root='local',
@@ -75,6 +113,20 @@ export async function executePneuma({
     files.pneuma,
     p?'PNEUMA_RECURSION_NOT_PASS':'PNEUMA_STATE_MISSING',
     {recursion_ref:p?.recursion_ref||null,packet_id:p?.packet_vector?.packet_id||null,blast_radius_digest:p?.packet_vector?.blast_radius_digest||null});
+
+  const blast=blastContinuity(p);
+  add('BLAST_RADIUS_CONTINUITY',
+    blast.state,
+    files.pneuma,
+    blast.first_red,
+    {
+      verified_depth:blast.verified_depth||0,
+      requested_depth:blast.requested_depth||0,
+      blast_radius_digest:blast.blast_radius_digest||p?.packet_vector?.blast_radius_digest||null,
+      packet_generation:blast.packet_generation||p?.packet_vector?.generation||null,
+      root_affected_refs:blast.root_affected_refs||refs(p?.packet_vector?.affected_refs),
+      final_affected_refs:blast.final_affected_refs||[],
+    });
 
   const lifecycle=state.lifecycle;
   add('LIFECYCLE_CURRENT',
@@ -165,6 +217,9 @@ export async function executePneuma({
       'REMOTE_AUTH_PASS != LIVE_SESSION_PASS',
       'BUS_URL_CONFIGURED != BUS_REACHABLE',
       'PNEUMA_RECURSION_PASS != ROTFL_LOOP_CLOSED',
+      'BLAST_RADIUS_MUST_SURVIVE_EVERY_PROJECTION_DEPTH',
+      'AFFECTED_SET_MAY_NARROW_BUT_MUST_NOT_SILENTLY_EXPAND',
+      'STEP_N_MUST_NOT_RECONSTRUCT_BLAST_RADIUS_FROM_PROSE',
       'ZERO_UNVERIFIED_STUBS_REQUIRES_EXPLICIT_EVIDENCE',
       'OWNER_FACTUAL_ADOPTION_REMAINS_HUMAN_ONLY',
     ],
