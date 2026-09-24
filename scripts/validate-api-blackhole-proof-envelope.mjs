@@ -30,6 +30,21 @@ const cases=[
     state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'
   },
   {
+    id:'VISIBLE_SCREENSHOT_STAYS_CONTAINED',
+    input:{...base,claim_kind:'SCREENSHOT',proof_scope:'HOME_CURRENT',ui_visibility_state:'VISIBLE'},
+    state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'
+  },
+  {
+    id:'OCCLUDED_SCREENSHOT_STAYS_CONTAINED',
+    input:{...base,claim_kind:'SCREENSHOT',proof_scope:'HOME_CURRENT',ui_visibility_state:'OCCLUDED'},
+    state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'
+  },
+  {
+    id:'MINIMIZED_SCREENSHOT_STAYS_CONTAINED',
+    input:{...base,claim_kind:'SCREENSHOT',proof_scope:'HOME_CURRENT',ui_visibility_state:'MINIMIZED'},
+    state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'
+  },
+  {
     id:'LOCALHOST_TEXT_STAYS_CONTAINED',
     input:{...base,claim_kind:'LOCALHOST_TEXT',proof_scope:'SYNTHETIC_FIXTURE'},
     state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'
@@ -124,6 +139,9 @@ console.log(JSON.stringify({
     'NO_EXPECTED_HOST != NATIVE_PROMOTION',
     'NO_ENVIRONMENT_SURVEY != NATIVE_PROMOTION',
     'DESKTOP_VISIBLE != EXECUTION_CONTEXT_SURVEYED',
+    'VISIBLE != FOREGROUND',
+    'OCCLUDED != ABSENT',
+    'FULLSCREEN_COVERAGE != UNDERLAY_STOPPED',
     'MINIMIZED_OR_HIDDEN != PROCESS_STOPPED',
     'HOST_IDENTITY != EXECUTION_SURFACE_IDENTITY',
     'NATIVE_RUNTIME + RECEIPT != SUFFICIENT_WITHOUT_FRESH_INDEPENDENT_READBACK',
