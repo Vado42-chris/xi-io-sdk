@@ -66,6 +66,22 @@ const groupedTruth=new Set(grouped.map(x=>x.state+'|'+x.first_red+'|'+x.proof_sc
 assert.equal(groupedTruth.size,1);
 const groupDenominators=[grouped.slice(0,10).length,grouped.slice(10,20).length];
 assert.deepEqual(groupDenominators,[10,10]);
+const loopUnitStart=results.length;
+for(let i=1;i<=10;i+=1){
+  await candidate('PNEUMA_LOOP_1_LEFT_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+}
+const loopBoundaryIndex=results.length;
+for(let i=1;i<=10;i+=1){
+  await candidate('PNEUMA_LOOP_1_RIGHT_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+}
+const loopUnit=results.slice(loopUnitStart);
+assert.equal(loopUnit.length,20);
+assert.equal(loopBoundaryIndex-loopUnitStart,10);
+assert.equal(results.length-loopBoundaryIndex,10);
+assert.equal(loopUnit.filter(x=>x.state==='TRUE_WAIT').length,20);
+assert.equal(loopUnit.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length,20);
+const loopUnitTruth=new Set(loopUnit.map(x=>x.state+'|'+x.first_red+'|'+x.proof_scope));
+assert.equal(loopUnitTruth.size,1);
 const falseGreens=results.filter(x=>x.false_green).length;
 assert.equal(falseGreens,0);
-console.log(JSON.stringify({schema:'xiio.sdk.pneuma-three-point-truth-bench/v1',state:'PASS',candidate_count:results.length,false_green_count:falseGreens,repeated_offline_occurrences:offlineAfter,burst_occurrence_count:burst.length,burst_unique_truth_count:uniqueBurstTruth.size,delimited_group_denominators:groupDenominators,delimited_unique_truth_count:groupedTruth.size,candidates:results,hard:['SYNTHETIC_FIXTURE != PHYSICAL_READBACK','CONTROL + CHAOS + CURRENT_SOURCE_REQUIRED','FALSE_GREEN_COUNT_MUST_EQUAL_0','REPEATED_IDENTICAL_WAIT != NEW_TRUTH','REPEATED_WAIT_PRESERVES_OCCURRENCE_MULTIPLICITY','BURST_PRESSURE != STATE_CHANGE','MANY_OCCURRENCES + ONE_TRUTH = PRESERVE_COUNT_AND_QUANTIZE_TRUTH','BOUNDARY_DELIMITER != STATE_CHANGE','GROUP_DENOMINATORS_SURVIVE_QUANTIZATION']},null,2));
+console.log(JSON.stringify({schema:'xiio.sdk.pneuma-three-point-truth-bench/v1',state:'PASS',candidate_count:results.length,false_green_count:falseGreens,repeated_offline_occurrences:offlineAfter,burst_occurrence_count:burst.length,burst_unique_truth_count:uniqueBurstTruth.size,delimited_group_denominators:groupDenominators,delimited_unique_truth_count:groupedTruth.size,pneuma_loop_count:1,pneuma_loop_denominator:loopUnit.length,pneuma_loop_halves:[loopBoundaryIndex-loopUnitStart,results.length-loopBoundaryIndex],pneuma_loop_unique_truth_count:loopUnitTruth.size,candidates:results,hard:['SYNTHETIC_FIXTURE != PHYSICAL_READBACK','CONTROL + CHAOS + CURRENT_SOURCE_REQUIRED','FALSE_GREEN_COUNT_MUST_EQUAL_0','REPEATED_IDENTICAL_WAIT != NEW_TRUTH','REPEATED_WAIT_PRESERVES_OCCURRENCE_MULTIPLICITY','BURST_PRESSURE != STATE_CHANGE','MANY_OCCURRENCES + ONE_TRUTH = PRESERVE_COUNT_AND_QUANTIZE_TRUTH','BOUNDARY_DELIMITER != STATE_CHANGE','GROUP_DENOMINATORS_SURVIVE_QUANTIZATION','ONE_PNEUMA_LOOP = LEFT_10 + BOUNDARY + RIGHT_10','LOOP_COUNT != OCCURRENCE_COUNT','LOOP_BOUNDARY_PRESERVES_BOTH_HALVES']},null,2));
