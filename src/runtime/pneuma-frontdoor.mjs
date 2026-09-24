@@ -49,6 +49,7 @@ function blastContinuity(p){
   const rootDigest=typeof packet.blast_radius_digest==='string'&&packet.blast_radius_digest.trim()?packet.blast_radius_digest.trim():null;
   const rootGeneration=typeof packet.generation==='string'&&packet.generation.trim()?packet.generation.trim():null;
   const rootAffected=refs(packet.affected_refs);
+  const rootOccurrenceCount=Number.isInteger(packet.occurrence_count)&&packet.occurrence_count>0?packet.occurrence_count:null;
   const chain=Array.isArray(p?.projection_chain)?p.projection_chain:[];
 
   if(!rootDigest) return {state:'TRUE_WAIT',first_red:'BLAST_RADIUS_DIGEST_MISSING',verified_depth:0,requested_depth:chain.length};
@@ -63,6 +64,7 @@ function blastContinuity(p){
     const affected=refs(row.affected_refs);
     if(row.blast_radius_digest!==rootDigest) return {state:'FAIL',first_red:'BLAST_RADIUS_DIGEST_DRIFT',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
     if(row.packet_generation!==rootGeneration) return {state:'FAIL',first_red:'BLAST_RADIUS_GENERATION_DRIFT',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
+    if(rootOccurrenceCount!==null && row.source_occurrence_count!==rootOccurrenceCount) return {state:'FAIL',first_red:'SOURCE_OCCURRENCE_COUNT_DRIFT',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
     if(!affected.length||!subset(affected,parentAffected)) return {state:'FAIL',first_red:'AFFECTED_SET_DRIFT_OR_EXPANSION',verified_depth:verifiedDepth,requested_depth:chain.length,failed_depth:i+1};
     parentAffected=affected;
     verifiedDepth=i+1;
@@ -75,6 +77,7 @@ function blastContinuity(p){
     requested_depth:chain.length,
     blast_radius_digest:rootDigest,
     packet_generation:rootGeneration,
+    source_occurrence_count:rootOccurrenceCount,
     root_affected_refs:rootAffected,
     final_affected_refs:parentAffected,
   };
@@ -124,6 +127,7 @@ export async function executePneuma({
       requested_depth:blast.requested_depth||0,
       blast_radius_digest:blast.blast_radius_digest||p?.packet_vector?.blast_radius_digest||null,
       packet_generation:blast.packet_generation||p?.packet_vector?.generation||null,
+      source_occurrence_count:blast.source_occurrence_count??p?.packet_vector?.occurrence_count??null,
       root_affected_refs:blast.root_affected_refs||refs(p?.packet_vector?.affected_refs),
       final_affected_refs:blast.final_affected_refs||[],
     });
@@ -189,6 +193,7 @@ export async function executePneuma({
     blast_radius_digest:p?.packet_vector?.blast_radius_digest||null,
     affected_refs:p?.packet_vector?.affected_refs||[],
     return_targets:p?.packet_vector?.return_targets||[],
+    source_occurrence_count:Number.isInteger(p?.packet_vector?.occurrence_count)?p.packet_vector.occurrence_count:null,
     recursion_ref:p?.recursion_ref||null,
     face_denominator:p?.rotation_engine?.face_denominator||null,
     projection_denominator:p?.rotation_engine?.projection_denominator||null,
@@ -219,6 +224,7 @@ export async function executePneuma({
       'PNEUMA_RECURSION_PASS != ROTFL_LOOP_CLOSED',
       'BLAST_RADIUS_MUST_SURVIVE_EVERY_PROJECTION_DEPTH',
       'AFFECTED_SET_MAY_NARROW_BUT_MUST_NOT_SILENTLY_EXPAND',
+      'QUANTIZE_DOES_NOT_DROP_SOURCE_OCCURRENCE_COUNT',
       'STEP_N_MUST_NOT_RECONSTRUCT_BLAST_RADIUS_FROM_PROSE',
       'ZERO_UNVERIFIED_STUBS_REQUIRES_EXPLICIT_EVIDENCE',
       'OWNER_FACTUAL_ADOPTION_REMAINS_HUMAN_ONLY',
