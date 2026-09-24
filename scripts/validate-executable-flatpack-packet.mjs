@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {
   compileFlatpackPacket,
   projectFlatpackQualifiers,
@@ -242,6 +246,35 @@ assert.equal(reductionRoundtrip.state,'PASS');
 assert.equal(reductionRoundtrip.same_blast_radius,true);
 assert.equal(reductionRoundtrip.same_packet_topology,true);
 assert.equal(reductionRoundtrip.external_state_reads,0);
+
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-flatpack-roundtrip-'));
+const cliInput=path.join(tmp,'packet.json');
+fs.writeFileSync(cliInput,JSON.stringify({
+  packet_id:'flatpack:cli-roundtrip',
+  generation:'g-cli',
+  one:{subject_ref:'source:cli'},
+  two:{left_ref:'source:cli',right_ref:'target:cli',relation:'RECIPROCAL'},
+  blast_radius:{
+    radius:10,
+    coordinate_ref:'cube:cli',
+    affected_refs:['studio','hex','search','bins'],
+    return_targets:['studio:return']
+  },
+  qualifiers:[
+    {id:'Q1',state:'PASS',bit:1,evidence_ref:'e:q1',generation_ref:'g:q1',return_target:'bins:return'},
+    {id:'Q2',state:'TRUE_WAIT',bit:null,evidence_ref:'e:q2',generation_ref:'g:q2',return_target:'search:return'}
+  ]
+},null,2));
+const cliRun=spawnSync(process.execPath,['bin/xi.mjs','flatpack','roundtrip','--input',cliInput],{encoding:'utf8'});
+assert.equal(cliRun.status,0,cliRun.stderr);
+const cliBody=JSON.parse(cliRun.stdout);
+assert.equal(cliBody.state,'PASS');
+assert.equal(cliBody.reduction,'3->2->1');
+assert.equal(cliBody.expansion,'1->2->3');
+assert.equal(cliBody.same_blast_radius,true);
+assert.equal(cliBody.same_packet_topology,true);
+assert.equal(cliBody.external_state_reads,0);
+fs.rmSync(tmp,{recursive:true,force:true});
 
 console.log(JSON.stringify({
   status:'PASS',
