@@ -4,11 +4,16 @@ import {evaluateApiBlackholeClaim} from '../src/evaluation/api-blackhole-proof-e
 
 const base={
   source_generation:'g-current',
+  expected_host_ref:'aries',
+  expected_execution_surface_ref:'aries:user-session',
   allowed_target_prefixes:['/home/chrishallberg/.local/share/xi-io'],
 };
 
 const validReceipt={
   host_ref:'aries',
+  execution_surface_ref:'aries:user-session',
+  environment_survey_ref:'survey:aries:g-current',
+  environment_current:true,
   generation_ref:'g-current',
   producer_ref:'runtime:aries',
   verifier_ref:'readback:independent',
@@ -48,6 +53,21 @@ const cases=[
     id:'TOOL_SHAPE_CANNOT_SELF_PROMOTE_WITH_RECEIPT',
     input:{...base,claim_kind:'TOOL_CALL_TEXT',proof_scope:'NATIVE_RUNTIME',target_path:'/home/chrishallberg/.local/share/xi-io/agents/ibal/agent.mjs',native_receipt:validReceipt},
     state:'TRUE_WAIT',first_red:'CLAIM_KIND_NOT_NATIVE_RECEIPT'
+  },
+  {
+    id:'WRONG_HOST_NATIVE_RECEIPT',
+    input:{...base,claim_kind:'NATIVE_RECEIPT',proof_scope:'NATIVE_RUNTIME',native_receipt:{...validReceipt,host_ref:'loki'}},
+    state:'FAIL',first_red:'EXECUTION_HOST_MISMATCH'
+  },
+  {
+    id:'WRONG_EXECUTION_SURFACE_NATIVE_RECEIPT',
+    input:{...base,claim_kind:'NATIVE_RECEIPT',proof_scope:'NATIVE_RUNTIME',native_receipt:{...validReceipt,execution_surface_ref:'aries:container:other'}},
+    state:'FAIL',first_red:'EXECUTION_SURFACE_MISMATCH'
+  },
+  {
+    id:'STALE_ENVIRONMENT_SURVEY',
+    input:{...base,claim_kind:'NATIVE_RECEIPT',proof_scope:'NATIVE_RUNTIME',native_receipt:{...validReceipt,environment_current:false}},
+    state:'TRUE_WAIT',first_red:'ENVIRONMENT_SURVEY_STALE'
   },
   {
     id:'WRONG_GENERATION_NATIVE_RECEIPT',
@@ -91,6 +111,9 @@ console.log(JSON.stringify({
     'TOOL_CALL_TEXT + NATIVE_RECEIPT != NATIVE_RECEIPT_CLAIM',
     'TARGET_PATH_OUTSIDE_SCOPE = FAIL',
     'PATH_TRAVERSAL_OUTSIDE_SCOPE = FAIL',
+    'DESKTOP_VISIBLE != EXECUTION_CONTEXT_SURVEYED',
+    'MINIMIZED_OR_HIDDEN != PROCESS_STOPPED',
+    'HOST_IDENTITY != EXECUTION_SURFACE_IDENTITY',
     'NATIVE_RUNTIME + RECEIPT != SUFFICIENT_WITHOUT_FRESH_INDEPENDENT_READBACK',
     'ONE_VALID_NATIVE_CASE != ALL_EXTERNAL_CLAIMS_GREEN'
   ]
