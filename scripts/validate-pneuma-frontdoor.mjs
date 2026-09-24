@@ -36,10 +36,15 @@ write(['studio','lifecycle.current.json'],{
   schema:'xiio.studio.rotfl-lifecycle/v1',generation:'life:g1',state:'HOT_RUNNABLE'
 });
 write(['hex','floor.current.json'],{
-  schema:'xiio.hex.global-floor-projection/v1',fleet_generation:'hex:g1',projection_ref:'hex:p1'
+  schema:'xiio.hex.global-floor-projection/v1',
+  fleet_generation:'hex:g1',
+  projection_ref:'hex:p1',
+  source_currentness:'HEX_QUALIFIED_CURRENT',
+  missing_punchcards:[{cell_id:'X1'}],
+  open_cells_without_punchcards:[]
 });
 write(['studio','search-bins.current.json'],{
-  schema:'xiio.studio.search-bins-readback/v1',state:'TRUE_WAIT'
+  schema:'xiio.studio.search-bins-readback/v1',state:'NOT_PASS'
 });
 write(['remote-desktop.current.json'],{
   schema:'xiio.studio.remote-desktop-current/v1',
@@ -48,7 +53,7 @@ write(['remote-desktop.current.json'],{
   live_device_session:{state:'FAIL_CURRENT'}
 });
 write(['studio','ward-adoption.current.json'],{
-  schema:'xiio.ward.native-adoption-readback/v1',state:'TRUE_WAIT'
+  schema:'xiio.ward.native-adoption-readback/v1',state:'NOT_PASS'
 });
 
 const hostile=await executePneuma({
@@ -80,8 +85,15 @@ write(['studio','pneuma.current.json'],{
   state:'PASS',
   recursion_ref:'pneuma:r1',
   packet_vector:packetVector,
-  rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48},
-  zero_unverified_stubs:true
+  rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48}
+});
+write(['hex','floor.current.json'],{
+  schema:'xiio.hex.global-floor-projection/v1',
+  fleet_generation:'hex:g1',
+  projection_ref:'hex:p1',
+  source_currentness:'HEX_QUALIFIED_CURRENT',
+  missing_punchcards:[],
+  open_cells_without_punchcards:[]
 });
 write(['remote-desktop.current.json'],{
   schema:'xiio.studio.remote-desktop-current/v1',
@@ -114,6 +126,10 @@ assert.equal(pass.claims.zero_unverified_stubs,true);
 assert.equal(pass.claims.rotfl_loop_closed,true);
 assert.equal(pass.claims.pneuma_pulse_active,true);
 assert(fs.existsSync(pulsePath));
+const pulseBytes=fs.readFileSync(pulsePath);
+const pulseSha=await import('node:crypto').then(m=>m.default.createHash('sha256').update(pulseBytes).digest('hex'));
+assert.equal(pass.pulse_sha256,pulseSha);
+assert.equal(pass.pulse_bytes,pulseBytes.length);
 
 await new Promise(resolve=>server.close(resolve));
 
@@ -125,6 +141,9 @@ console.log(JSON.stringify({
   schema:'xiio.sdk.pneuma-frontdoor-check/v1',
   state:'PASS',
   hostile_false_claims_blocked:true,
+  substring_false_green_blocked:true,
+  hex_open_cells_block_loop_closure:true,
+  exact_persisted_pulse_hash:true,
   loopback_exec_pulse:true,
   exact_command_shape_supported:true,
   effect_authority:0
