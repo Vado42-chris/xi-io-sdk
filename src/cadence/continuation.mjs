@@ -109,6 +109,32 @@ function classifyOccurrences(occurrences) {
   return { unconsumed, consumed };
 }
 
+function classifyExternalEdges(edgeRows) {
+  const out = { pass: [], wait: [], fail: [], unknown: [], n_a: [], applicable_count: 0, complete: false };
+  for (const item of rows(edgeRows)) {
+    const id = clean(item.id) ?? clean(item.edge_ref) ?? 'UNKNOWN_EDGE';
+    const kind = state(item.kind);
+    const applicable = item.applicable !== false;
+    const s = state(item.state);
+    const entry = { id, kind, state: s, applicable };
+    if (!applicable || s === 'N_A' || s === 'N_A_WITH_EVIDENCE') {
+      out.n_a.push(entry);
+      continue;
+    }
+    out.applicable_count += 1;
+    if (PASS_STATES.has(s)) out.pass.push(entry);
+    else if (s === 'WAIT' || s === 'TRUE_WAIT') out.wait.push(entry);
+    else if (s === 'FAIL' || s === 'FAIL_CURRENT' || s === 'BLOCKED' || s === 'INVALID') out.fail.push(entry);
+    else out.unknown.push(entry);
+  }
+  out.complete = out.applicable_count > 0
+    && out.pass.length === out.applicable_count
+    && out.wait.length === 0
+    && out.fail.length === 0
+    && out.unknown.length === 0;
+  return out;
+}
+
 export function compileContinuationCycle(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('INVALID_INPUT');
   const rootRef = clean(input.root_ref);
@@ -124,6 +150,7 @@ export function compileContinuationCycle(input) {
   const returns = classifyReturns(input.returns);
   const residue = classifyResidue(input.residue);
   const occurrences = classifyOccurrences(input.occurrences);
+  const externalEdges = classifyExternalEdges(input.external_edges);
   const inbox = input.worker_inbox && typeof input.worker_inbox === 'object' ? input.worker_inbox : {};
   const workerInboxRef = clean(inbox.ref);
   const workerInboxCurrent = inbox.current === true;
@@ -136,12 +163,14 @@ export function compileContinuationCycle(input) {
   const backlogRefreshRequired = true;
   const inboxGap = asyncContinuationRequired && (!workerInboxRef || !workerInboxCurrent);
   const requiredUnknown = backlog.unknown.length > 0 || returns.unknown.length > 0 || residue.unknown.length > 0;
+  const externalEdgeGap = externalEdges.applicable_count === 0 || !externalEdges.complete;
   const scaleCurrent = allScalesCurrent(input.four_scale);
 
   const nextActions = [];
   if (rebaseRequired) nextActions.push('REBASE');
   if (reapRequired) nextActions.push('REAP');
   if (eatRequired) nextActions.push('EAT');
+  if (externalEdgeGap) nextActions.push('CHECK_EXTERNAL_EDGES');
   nextActions.push('BACKLOG_REFRESH');
 
   let disposition;
@@ -165,6 +194,12 @@ export function compileContinuationCycle(input) {
   } else if (inboxGap) {
     disposition = 'WAIT_WORKER_INBOX_BINDING';
     reason = 'ASYNC_CONTINUATION_ENDPOINT_NOT_CURRENT';
+  } else if (externalEdgeGap) {
+    disposition = 'WAIT_EXTERNAL_EDGE_CHECKS';
+    reason = externalEdges.fail.length ? 'EXTERNAL_EDGE_FAIL'
+      : externalEdges.unknown.length ? 'EXTERNAL_EDGE_UNKNOWN'
+      : externalEdges.wait.length ? 'EXTERNAL_EDGE_WAIT'
+      : 'EXTERNAL_EDGE_DENOMINATOR_MISSING';
   } else if (backlog.wait.length > 0 || backlog.blocked.length > 0) {
     disposition = 'WAIT_TRUE_GATE';
     reason = backlog.wait.length ? 'ONLY_TRUE_WAITS_REMAIN' : 'ONLY_BLOCKED_WORK_REMAINS';
@@ -207,6 +242,13 @@ export function compileContinuationCycle(input) {
     returns,
     residue,
     occurrences,
+    external_edges: externalEdges,
+    external_edge_check_required: true,
+    root_topology: {
+      invariant: 'LOCAL=ARIES=L=LIVE=ROOT',
+      cloud_role: 'PROJECTION_NOT_ROOT',
+      provider_edge_rule: 'CHECK_APPLICABLE_INGRESS_EGRESS_AND_PROJECTIONS_EVERY_LOOP',
+    },
     four_scale_current: scaleCurrent,
     next_actions: nextActions,
     eat_pipeline: [
@@ -229,6 +271,11 @@ export function compileContinuationCycle(input) {
       'WORKER_INBOX_ADDRESS != AUTHORITY',
       'MESSAGE_RECEIVED != WORK_SELECTED',
       'SAME_INPUT_AND_NO_DELTA != NEW_PROGRESS',
+      'LOCAL=ARIES=L=LIVE=ROOT',
+      'REMOTE_OBSERVER_OFFLINE != LOCAL_ROOT_NOT_LIVE',
+      'CLOUD_OR_GOOGLE_PROJECTION != USER_ROOT',
+      'EMAIL = INGRESS_EGRESS_BOUNDARY',
+      'ROTFL_LOOP_WITHOUT_APPLICABLE_EXTERNAL_EDGE_CHECK = INCOMPLETE',
     ],
   };
 }

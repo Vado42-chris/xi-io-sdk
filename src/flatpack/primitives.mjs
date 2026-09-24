@@ -99,7 +99,12 @@ export function FlatplaneCube(input={}){
     true_wait:detonation.true_waits,
     pass_condition:optional(input.pass_condition,2048),
     hard:[
-      'SOURCE!=BUILD','BUILD!=RUNTIME','RUNTIME!=LIVE','LIVE!=OUTSIDE_ORIGIN','OUTSIDE_ORIGIN!=HUMAN_USABLE',
+      'SOURCE!=BUILD','BUILD!=LOCAL_RUNTIME',
+      'LOCAL_RUNTIME=USER_LIVE_ROOT',
+      'HOSTED_RUNTIME!=USER_LIVE_ROOT',
+      'CLOUD_PROJECTION!=ROOT_TRUTH',
+      'REMOTE_OBSERVER_OFFLINE!=LOCAL_ROOT_NOT_LIVE',
+      'OUTSIDE_ORIGIN!=HUMAN_USABLE',
       'REPORT!=RETURN','RETURN!=APPLY_RETURN','APPLY_RETURN!=READBACK','READBACK!=BINS','BINS!=REAP'
     ]
   });

@@ -16,6 +16,12 @@ const base = () => ({
   occurrences: [],
   seams: [],
   seam_receipts: [],
+  external_edges: [
+    { id: 'email:ingress', kind: 'INGRESS', state: 'PASS', applicable: true },
+    { id: 'email:egress', kind: 'EGRESS', state: 'PASS', applicable: true },
+    { id: 'google:drive', kind: 'PROJECTION', state: 'PASS', applicable: true },
+    { id: 'loki:cloud', kind: 'PROJECTION', state: 'PASS', applicable: true },
+  ],
   worker_inbox: { ref: 'inbox:worker/host', current: true, actionable_count: 0 },
   async_continuation_required: true,
   owner_heartbeat_count: 0,

@@ -79,6 +79,12 @@ const continuationInput = {
   four_scale: { MICRO: '100', MESO: '100', MACRO: '100', META: '100' },
   backlog: [{ id: 'next:work', state: 'RUNNABLE', priority: 1 }],
   returns: [], residue: [], occurrences: [],
+  external_edges: [
+    { id: 'email:ingress', kind: 'INGRESS', state: 'PASS', applicable: true },
+    { id: 'email:egress', kind: 'EGRESS', state: 'PASS', applicable: true },
+    { id: 'google:drive', kind: 'PROJECTION', state: 'PASS', applicable: true },
+    { id: 'loki:cloud', kind: 'PROJECTION', state: 'PASS', applicable: true },
+  ],
   worker_inbox: { ref: 'inbox:worker/cli-canary', current: true, actionable_count: 0 },
 };
 const continuation = invoke(['compileContinuationCycle'], { args: [continuationInput] });

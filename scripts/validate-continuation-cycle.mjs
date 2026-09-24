@@ -19,6 +19,12 @@ const base = () => ({
   returns: [],
   residue: [],
   occurrences: [],
+  external_edges: [
+    { id: 'email:ingress', kind: 'INGRESS', state: 'PASS', applicable: true },
+    { id: 'email:egress', kind: 'EGRESS', state: 'PASS', applicable: true },
+    { id: 'google:drive', kind: 'PROJECTION', state: 'PASS', applicable: true },
+    { id: 'loki:cloud', kind: 'PROJECTION', state: 'PASS', applicable: true }
+  ],
   worker_inbox: { ref: 'inbox:worker/chatgpt', current: true, actionable_count: 0 },
   async_continuation_required: true,
 });
@@ -157,6 +163,25 @@ test('TRUE_WAIT_ONLY_IS_TYPED_WAIT_NOT_TERMINAL', () => {
   assert.equal(result.terminal, false);
 });
 
+test('MISSING_EXTERNAL_EDGE_DENOMINATOR_BLOCKS_TERMINAL', () => {
+  const input = base();
+  input.external_edges = [];
+  const result = compileContinuationCycle(input);
+  assert.equal(result.disposition, 'WAIT_EXTERNAL_EDGE_CHECKS');
+  assert.equal(result.external_edge_check_required, true);
+  assert.equal(result.external_edges.applicable_count, 0);
+  assert(result.next_actions.includes('CHECK_EXTERNAL_EDGES'));
+});
+
+test('EXTERNAL_EDGE_WAIT_DOES_NOT_STOP_RUNNABLE_SIBLING', () => {
+  const input = base();
+  input.external_edges[0].state = 'TRUE_WAIT';
+  input.backlog = [{ id: 'work:runnable', state: 'RUNNABLE', priority: 1 }];
+  const result = compileContinuationCycle(input);
+  assert.equal(result.disposition, 'CONTINUE_WORK');
+  assert(result.next_actions.includes('CHECK_EXTERNAL_EDGES'));
+});
+
 test('INVALID_PHASE_EVENT_REJECTS', () => {
   const input = base();
   input.phase_event = 'WHATEVER';
@@ -185,7 +210,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 18,
+  cases: 20,
   self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,

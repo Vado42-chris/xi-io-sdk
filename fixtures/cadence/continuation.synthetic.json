@@ -12,8 +12,16 @@
     "META": "100"
   },
   "backlog": [
-    { "id": "work:next-golden", "state": "RUNNABLE", "priority": 1 },
-    { "id": "work:true-wait", "state": "TRUE_WAIT", "priority": 2 }
+    {
+      "id": "work:next-golden",
+      "state": "RUNNABLE",
+      "priority": 1
+    },
+    {
+      "id": "work:true-wait",
+      "state": "TRUE_WAIT",
+      "priority": 2
+    }
   ],
   "returns": [],
   "residue": [],
@@ -23,5 +31,31 @@
     "current": true,
     "actionable_count": 0
   },
-  "async_continuation_required": true
+  "async_continuation_required": true,
+  "external_edges": [
+    {
+      "id": "email:ingress",
+      "kind": "INGRESS",
+      "state": "PASS",
+      "applicable": true
+    },
+    {
+      "id": "email:egress",
+      "kind": "EGRESS",
+      "state": "PASS",
+      "applicable": true
+    },
+    {
+      "id": "google:drive",
+      "kind": "PROJECTION",
+      "state": "PASS",
+      "applicable": true
+    },
+    {
+      "id": "loki:cloud",
+      "kind": "PROJECTION",
+      "state": "PASS",
+      "applicable": true
+    }
+  ]
 }
