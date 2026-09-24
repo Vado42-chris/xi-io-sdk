@@ -168,12 +168,15 @@ const pass=await executePneuma({
   output_path:pulsePath,
   probe_timeout_ms:1000
 });
-assert.equal(pass.state,'PASS');
+assert.equal(pass.state,'TRUE_WAIT');
+assert.equal(pass.proof_scope,'SYNTHETIC_FIXTURE');
+assert.equal(pass.source_checks_pass,true);
 assert.equal(pass.claims.ct16_byte_custody_verified,true);
 assert.equal(pass.claims.ct17_byte_custody_verified,true);
 assert.equal(pass.claims.zero_unverified_stubs,true);
-assert.equal(pass.claims.rotfl_loop_closed,true);
-assert.equal(pass.claims.pneuma_pulse_active,true);
+assert.equal(pass.claims.rotfl_loop_closed,false);
+assert.equal(pass.claims.pneuma_pulse_active,false);
+assert.equal(pass.first_red,'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK');
 assert.equal(pass.source_occurrence_count,10);
 assert.equal(pass.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').source_occurrence_count,10);
 assert(fs.existsSync(pulsePath));
@@ -197,6 +200,8 @@ console.log(JSON.stringify({
   source_occurrence_count_drift_blocked:true,
   duplicate_occurrence_fixture_count:10,
   loopback_exec_pulse:true,
+  synthetic_fixture_cannot_claim_physical_loop_closure:true,
+  source_checks_can_pass_without_runtime_elevation:true,
   exact_command_shape_supported:true,
   effect_authority:0
 },null,2));

@@ -84,6 +84,8 @@ export async function executePneuma({
   if(root!=='local') throw new TypeError('PNEUMA_ROOT_MUST_BE_LOCAL');
   if(aries!=='root') throw new TypeError('PNEUMA_ARIES_MUST_BE_ROOT');
   const busInfo=loopbackBus(bus);
+  const injectedStateRoot=Boolean(state_root);
+  const proofScope=injectedStateRoot?'SYNTHETIC_FIXTURE':'HOME_CURRENT';
   const base=path.resolve(state_root || process.env.XIIO_STATE_ROOT || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(),'.local','state'),'xi-io'));
 
   const files={
@@ -178,11 +180,14 @@ export async function executePneuma({
     ['HEX_QUALIFIED_CURRENT','PASS','CURRENT','ACCEPTED_MAIN'].includes(hexCurrentness)
     && missingPunchcards.length===0
     && openCells.length===0;
-  const loopClosed=preState==='PASS'&&custodyClaims.ct16_verified&&custodyClaims.ct17_verified&&zeroStubClaim;
+  const sourceChecksPass=preState==='PASS'&&custodyClaims.ct16_verified&&custodyClaims.ct17_verified&&zeroStubClaim;
+  const loopClosed=sourceChecksPass&&!injectedStateRoot;
 
   const pulse={
     schema:'xiio.cli.pneuma-pulse/v1',
-    state:loopClosed?'PASS':preState,
+    state:injectedStateRoot&&preState==='PASS'?'TRUE_WAIT':loopClosed?'PASS':preState,
+    proof_scope:proofScope,
+    source_checks_pass:sourceChecksPass,
     root,
     aries,
     bus:busInfo.raw,
@@ -206,7 +211,8 @@ export async function executePneuma({
       pneuma_pulse_active:loopClosed,
     },
     first_red:
-      checks.find(x=>x.state==='FAIL')?.first_red
+      (injectedStateRoot&&preState==='PASS'?'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK':null)
+      || checks.find(x=>x.state==='FAIL')?.first_red
       || checks.find(x=>x.state==='TRUE_WAIT')?.first_red
       || (!custodyClaims.ct16_verified?'CT16_CUSTODY_NOT_PROVEN'
       : !custodyClaims.ct17_verified?'CT17_CUSTODY_NOT_PROVEN'
@@ -217,6 +223,7 @@ export async function executePneuma({
     legal_effect_authority:0,
     hard:[
       'PNEUMA_OUTPUT_CLAIM_REQUIRES_BOUND_READBACK',
+      'INJECTED_STATE_ROOT != PHYSICAL_READBACK',
       'CT16_CT17_CUSTODY_CANNOT_BE_INFERRED',
       'REMOTE_AUTH_PASS != LIVE_SESSION_PASS',
       'BUS_URL_CONFIGURED != BUS_REACHABLE',
