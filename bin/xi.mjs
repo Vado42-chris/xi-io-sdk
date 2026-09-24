@@ -813,10 +813,30 @@ async function searchRuntime(argv=[]){
   const query=String(flags.query||'').trim();
   const limit=String(flags.limit||'25');
   if(!query) return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'SEARCH_QUERY_REQUIRED',effect_authority:0};
+  let fractalVector=null;
+  if(flags.vector){
+    fractalVector=readJson(flags.vector,'--vector');
+    const required=['packet_id','generation','semantic_digest','blast_radius_digest','affected_refs','return_targets','first_red'];
+    if(!fractalVector||typeof fractalVector!=='object'||Array.isArray(fractalVector)){
+      return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'FRACTAL_VECTOR_OBJECT_REQUIRED',effect_authority:0};
+    }
+    for(const key of required){
+      if(!(key in fractalVector)){
+        return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'FRACTAL_VECTOR_FIELD_REQUIRED:'+key,effect_authority:0};
+      }
+    }
+  }
   const url=new URL(origin+'/api/search/query');
   url.searchParams.set('target',target);
   url.searchParams.set('q',query);
   url.searchParams.set('limit',limit);
+  if(fractalVector){
+    const encoded=JSON.stringify(fractalVector);
+    if(Buffer.byteLength(encoded,'utf8')>8192){
+      return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'FRACTAL_VECTOR_TOO_LARGE',effect_authority:0};
+    }
+    url.searchParams.set('fractal_vector',encoded);
+  }
   const token=String(process.env.XIIO_SEARCH_API_TOKEN||'');
   try{
     const response=await fetch(url,{
@@ -843,7 +863,14 @@ async function searchRuntime(argv=[]){
     if(!response.ok){
       return {schema:'xiio.cli.search/v1',state:'FAIL_CURRENT',first_red:body?.code||'SEARCH_API_FAILED',target,query,status:response.status,body,effect_authority:0};
     }
-    return {...body,schema:body?.schema||'xiio.cli.search/v1',transport:'CLI_TO_INBOX_SEARCH_API',target_id:body?.target_id||target,effect_authority:0};
+    return {
+      ...body,
+      schema:body?.schema||'xiio.cli.search/v1',
+      transport:'CLI_TO_INBOX_SEARCH_API',
+      target_id:body?.target_id||target,
+      requested_fractal_vector:fractalVector,
+      effect_authority:0
+    };
   }catch(error){
     return {schema:'xiio.cli.search/v1',state:'TRUE_WAIT',first_red:'INBOX_SEARCH_API_UNREACHABLE',target,query,error:String(error?.message||error),effect_authority:0};
   }
