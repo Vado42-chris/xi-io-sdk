@@ -36,6 +36,12 @@ async function candidate(id,opts,expect){
 await candidate('CONTROL_SYNTHETIC_ALL_GREEN',{}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
 await candidate('CHAOS_STEP3_BLAST_DRIFT',{blast:'blast:drift'}, {state:'FAIL',first_red:'BLAST_RADIUS_DIGEST_DRIFT'});
 await candidate('CHAOS_REMOTE_OFFLINE',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+const offlineBefore=results.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length;
+await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_1',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_2',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_3',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+const offlineAfter=results.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length;
+assert.equal(offlineAfter-offlineBefore,3);
 const falseGreens=results.filter(x=>x.false_green).length;
 assert.equal(falseGreens,0);
-console.log(JSON.stringify({schema:'xiio.sdk.pneuma-three-point-truth-bench/v1',state:'PASS',candidate_count:results.length,false_green_count:falseGreens,candidates:results,hard:['SYNTHETIC_FIXTURE != PHYSICAL_READBACK','CONTROL + CHAOS + CURRENT_SOURCE_REQUIRED','FALSE_GREEN_COUNT_MUST_EQUAL_0']},null,2));
+console.log(JSON.stringify({schema:'xiio.sdk.pneuma-three-point-truth-bench/v1',state:'PASS',candidate_count:results.length,false_green_count:falseGreens,repeated_offline_occurrences:offlineAfter,candidates:results,hard:['SYNTHETIC_FIXTURE != PHYSICAL_READBACK','CONTROL + CHAOS + CURRENT_SOURCE_REQUIRED','FALSE_GREEN_COUNT_MUST_EQUAL_0','REPEATED_IDENTICAL_WAIT != NEW_TRUTH','REPEATED_WAIT_PRESERVES_OCCURRENCE_MULTIPLICITY']},null,2));
