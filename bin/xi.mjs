@@ -1544,6 +1544,12 @@ try {
 
   if (family === 'baseline' && action === 'compile') {
     writeOutput(compilePortfolioBaseline(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'flatpack' && action === 'compile') {
+    writeOutput(compileFlatpackPacket(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'flatpack' && action === 'reduce') {
+    writeOutput(reduceFlatpackArtifact(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'flatpack' && action === 'expand') {
+    writeOutput(expandFlatpackArtifact(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'file' && action === 'compile') {
     writeOutput(compilePortableSemanticFile(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'file' && action === 'cube') {
