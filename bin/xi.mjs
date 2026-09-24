@@ -580,8 +580,10 @@ function remoteDesktopStatus(){
     const machine=value?.aries_machine_state?.state || 'UNKNOWN';
     const fail=['FAIL','FAIL_CURRENT','BLOCKED','INVALID'].includes(session);
     const wait=['WAIT','TRUE_WAIT','UNKNOWN'].includes(session);
+    const bridge=value?.bridge || {};
+    const cordFree=bridge?.cord_free?.state || (auth==='PASS'&&registration==='PASS'&&session==='PASS'?'PASS':'WAIT');
     return {
-      schema:'xiio.cli.remote-desktop-status/v1',
+      schema:'xiio.cli.home-cloud-bridge-status/v1',
       state:fail?'FAIL_CURRENT':wait?'PASS_WITH_WAITS':'PASS',
       projection_path:file,
       provider:value?.provider || 'UNKNOWN',
@@ -594,13 +596,29 @@ function remoteDesktopStatus(){
       transport_broadcast_v1:value?.device_registration?.advertised_capabilities?.transport_broadcast_v1 === true,
       auth_token_state:value?.device_registration?.auth_token_state || null,
       last_seen:value?.live_device_session?.last_seen || null,
+      home_node_role:bridge?.home_node?.role || 'UNKNOWN',
+      relay_role:bridge?.relay?.role || 'UNKNOWN',
+      relay_authority:bridge?.relay?.authority || 'UNKNOWN',
+      client_access_model:bridge?.client_projection?.access_model || 'UNKNOWN',
+      client_source_of_truth:bridge?.client_projection?.source_of_truth || 'UNKNOWN',
+      local_ui_required:bridge?.client_projection?.local_ui_required ?? null,
+      home_keyboard_presence_required:bridge?.client_projection?.home_keyboard_presence_required ?? null,
+      reconnect_policy:bridge?.live_session?.reconnect_policy || 'UNKNOWN',
+      owner_relay_required:bridge?.live_session?.owner_relay_required ?? null,
+      cord_free_target:bridge?.cord_free?.target === true,
+      cord_free_state:cordFree,
+      cord_free_first_red:bridge?.cord_free?.first_red || null,
       first_red:fail?'REMOTE_LIVE_DEVICE_SESSION_FAIL_CURRENT':wait?'REMOTE_LIVE_DEVICE_SESSION_WAIT':null,
       provider_effect:false,
       authority_granted:false,
       hard:[
-        'PLUGIN_AUTH_OK != DEVICE_REGISTERED',
-        'DEVICE_REGISTERED != LIVE_DEVICE_SESSION',
-        'AUTH_OK + SESSION_MISSING => RESTORE_SESSION',
+        'HOME_NODE != CLOUD_RELAY',
+        'CLOUD_RELAY != HOME_STATE_OWNER',
+        'LIVE_SESSION != AUTHENTICATION',
+        'CLIENT_DISCONNECT != HOME_AGENT_STOP',
+        'CHAT_DEATH != HOME_BRIDGE_DEATH',
+        'REMOTE_CLIENT != LOCAL_KEYBOARD',
+        'OWNER_RELAY_REQUIRED = BRIDGE_FAILURE',
         'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE'
       ]
     };
@@ -665,7 +683,10 @@ async function statusSnapshot() {
         plugin_auth_state:remoteDesktop.plugin_auth_state,
         device_registration_state:remoteDesktop.device_registration_state,
         live_device_session_state:remoteDesktop.live_device_session_state,
-        aries_machine_state:remoteDesktop.aries_machine_state
+        aries_machine_state:remoteDesktop.aries_machine_state,
+        cord_free_state:remoteDesktop.cord_free_state,
+        home_node_role:remoteDesktop.home_node_role,
+        client_access_model:remoteDesktop.client_access_model
       },
       readback_ref:null
     },
