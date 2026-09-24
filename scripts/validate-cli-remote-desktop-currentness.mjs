@@ -28,7 +28,7 @@ fs.writeFileSync(statePath,JSON.stringify({
 
 const env={...process.env,XIIO_REMOTE_DESKTOP_STATE_PATH:statePath,XIIO_INVOKED_AS:'xi-io'};
 const run=spawnSync(process.execPath,['bin/xi.mjs','status','--json'],{encoding:'utf8',env});
-assert.equal(run.status,0,run.stderr);
+assert([1,2].includes(run.status),`typed remote-session red should produce WAIT/REJECT exit, got ${run.status}: ${run.stderr}`);
 const body=JSON.parse(run.stdout);
 assert.equal(body.remote_desktop.plugin_auth_state,'PASS');
 assert.equal(body.remote_desktop.device_registration_state,'PASS');
@@ -50,6 +50,7 @@ const missing=spawnSync(process.execPath,['bin/xi.mjs','status','--json'],{
   encoding:'utf8',
   env:{...process.env,XIIO_REMOTE_DESKTOP_STATE_PATH:path.join(tmp,'missing.json'),XIIO_INVOKED_AS:'xi-io'}
 });
+assert([0,1,2].includes(missing.status),`missing projection must remain typed, got ${missing.status}: ${missing.stderr}`);
 const mb=JSON.parse(missing.stdout);
 assert.equal(mb.remote_desktop.state,'TRUE_WAIT');
 assert.equal(mb.remote_desktop.plugin_auth_state,'UNKNOWN');
