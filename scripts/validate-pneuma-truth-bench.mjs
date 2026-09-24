@@ -52,6 +52,20 @@ assert.equal(burst.filter(x=>x.state==='TRUE_WAIT').length,20);
 assert.equal(burst.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length,20);
 const uniqueBurstTruth=new Set(burst.map(x=>x.state+'|'+x.first_red+'|'+x.proof_scope));
 assert.equal(uniqueBurstTruth.size,1);
+const groupStart=results.length;
+for(let group=1;group<=2;group+=1){
+  for(let i=1;i<=10;i+=1){
+    await candidate('CHAOS_REMOTE_OFFLINE_GROUP_'+group+'_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+  }
+}
+const grouped=results.slice(groupStart);
+assert.equal(grouped.length,20);
+assert.equal(grouped.filter(x=>x.state==='TRUE_WAIT').length,20);
+assert.equal(grouped.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length,20);
+const groupedTruth=new Set(grouped.map(x=>x.state+'|'+x.first_red+'|'+x.proof_scope));
+assert.equal(groupedTruth.size,1);
+const groupDenominators=[grouped.slice(0,10).length,grouped.slice(10,20).length];
+assert.deepEqual(groupDenominators,[10,10]);
 const falseGreens=results.filter(x=>x.false_green).length;
 assert.equal(falseGreens,0);
-console.log(JSON.stringify({schema:'xiio.sdk.pneuma-three-point-truth-bench/v1',state:'PASS',candidate_count:results.length,false_green_count:falseGreens,repeated_offline_occurrences:offlineAfter,burst_occurrence_count:burst.length,burst_unique_truth_count:uniqueBurstTruth.size,candidates:results,hard:['SYNTHETIC_FIXTURE != PHYSICAL_READBACK','CONTROL + CHAOS + CURRENT_SOURCE_REQUIRED','FALSE_GREEN_COUNT_MUST_EQUAL_0','REPEATED_IDENTICAL_WAIT != NEW_TRUTH','REPEATED_WAIT_PRESERVES_OCCURRENCE_MULTIPLICITY','BURST_PRESSURE != STATE_CHANGE','MANY_OCCURRENCES + ONE_TRUTH = PRESERVE_COUNT_AND_QUANTIZE_TRUTH']},null,2));
+console.log(JSON.stringify({schema:'xiio.sdk.pneuma-three-point-truth-bench/v1',state:'PASS',candidate_count:results.length,false_green_count:falseGreens,repeated_offline_occurrences:offlineAfter,burst_occurrence_count:burst.length,burst_unique_truth_count:uniqueBurstTruth.size,delimited_group_denominators:groupDenominators,delimited_unique_truth_count:groupedTruth.size,candidates:results,hard:['SYNTHETIC_FIXTURE != PHYSICAL_READBACK','CONTROL + CHAOS + CURRENT_SOURCE_REQUIRED','FALSE_GREEN_COUNT_MUST_EQUAL_0','REPEATED_IDENTICAL_WAIT != NEW_TRUTH','REPEATED_WAIT_PRESERVES_OCCURRENCE_MULTIPLICITY','BURST_PRESSURE != STATE_CHANGE','MANY_OCCURRENCES + ONE_TRUTH = PRESERVE_COUNT_AND_QUANTIZE_TRUTH','BOUNDARY_DELIMITER != STATE_CHANGE','GROUP_DENOMINATORS_SURVIVE_QUANTIZATION']},null,2));
