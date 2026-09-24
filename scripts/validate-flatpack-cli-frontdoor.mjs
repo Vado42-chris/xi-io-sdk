@@ -29,9 +29,14 @@ const packet={
 };
 fs.writeFileSync(packetPath,JSON.stringify(packet,null,2));
 
-function run(args){
+function run(args,{outFile=null}={}){
   const result=spawnSync(process.execPath,['bin/xi.mjs',...args],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout);
+  if(outFile){
+    assert.equal(fs.existsSync(outFile),true,'expected CLI output file');
+    return JSON.parse(fs.readFileSync(outFile,'utf8'));
+  }
+  assert.ok(result.stdout.trim(),'expected CLI stdout');
   return JSON.parse(result.stdout);
 }
 
@@ -41,7 +46,7 @@ assert.equal(compiled.packet_id,packet.packet_id);
 assert.equal(compiled.state,'TRUE_WAIT');
 assert.equal(compiled.first_red.id,'Q03_RUNTIME');
 
-const reduced=run(['flatpack','reduce','--input',packetPath,'--out',reducedPath]);
+const reduced=run(['flatpack','reduce','--input',packetPath,'--out',reducedPath],{outFile:reducedPath});
 assert.equal(reduced.schema,'xiio.sdk.flatpack-reduction-trace/v1');
 assert.equal(reduced.reduction,'3->2->1');
 assert.deepEqual(reduced.stage1.blast_radius.affected_refs,['bins','search','studio']);
@@ -50,7 +55,7 @@ assert.equal(fs.existsSync(reducedPath),true);
 
 const stage1Path=path.join(tmp,'stage1.json');
 fs.writeFileSync(stage1Path,JSON.stringify(reduced.stage1,null,2));
-const expanded=run(['flatpack','expand','--input',stage1Path,'--out',expandedPath]);
+const expanded=run(['flatpack','expand','--input',stage1Path,'--out',expandedPath],{outFile:expandedPath});
 assert.equal(expanded.schema,'xiio.sdk.flatpack-expansion-trace/v1');
 assert.equal(expanded.expansion,'1->2->3');
 assert.deepEqual(expanded.stage3.blast_radius,reduced.stage3.blast_radius);
