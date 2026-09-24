@@ -111,8 +111,8 @@ Human registries:
   xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
   xi-io lifecycle next            Project current lifecycle selection/returns
   xi-io lifecycle explain         Explain current projection/evidence without recompute
-  xi-io search --target files --query <text> [--limit N] [--custody]
-                                Discover through Inbox local API; --custody explicitly admits local BINS writes
+  xi-io search --target files --query <text> [--limit N] [--custody 1]
+                                Discover through Inbox local API; --custody 1 explicitly requests local BINS writes
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
   xi-io verify --stdin --json   Verify one JSON artifact from stdin
   xi-io verify --file PATH --json
