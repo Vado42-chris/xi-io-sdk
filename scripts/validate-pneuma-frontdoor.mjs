@@ -25,11 +25,17 @@ const packetVector={
   return_targets:['return:sam_law','return:studio'],
   first_red:null
 };
+const projectionChain=[
+  {projection_ref:'step:1',packet_generation:'g1',blast_radius_digest:'blast:1',affected_refs:['bins','hex','sam_law','studio']},
+  {projection_ref:'step:2',packet_generation:'g1',blast_radius_digest:'blast:1',affected_refs:['bins','sam_law','studio']},
+  {projection_ref:'step:3',packet_generation:'g1',blast_radius_digest:'blast:1',affected_refs:['sam_law','studio']},
+];
 write(['studio','pneuma.current.json'],{
   schema:'xiio.studio.pneuma-recursion/v1',
   state:'PASS',
   recursion_ref:'pneuma:r1',
   packet_vector:packetVector,
+  projection_chain:projectionChain,
   rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48}
 });
 write(['studio','lifecycle.current.json'],{
@@ -66,6 +72,35 @@ assert.equal(hostile.claims.rotfl_loop_closed,false);
 assert.equal(hostile.claims.pneuma_pulse_active,false);
 assert(hostile.first_red);
 
+const driftChain=projectionChain.map((row)=>({...row}));
+driftChain[2].blast_radius_digest='blast:reconstructed';
+write(['studio','pneuma.current.json'],{
+  schema:'xiio.studio.pneuma-recursion/v1',
+  state:'PASS',
+  recursion_ref:'pneuma:r1',
+  packet_vector:packetVector,
+  projection_chain:driftChain,
+  rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48}
+});
+const stepThreeDrift=await executePneuma({
+  root:'local',
+  aries:'root',
+  bus:'ws://localhost:4390/aries/bus',
+  exec_rotfl:false,
+  state_root:root
+});
+assert.equal(stepThreeDrift.state,'FAIL');
+assert.equal(stepThreeDrift.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').first_red,'BLAST_RADIUS_DIGEST_DRIFT');
+
+write(['studio','pneuma.current.json'],{
+  schema:'xiio.studio.pneuma-recursion/v1',
+  state:'PASS',
+  recursion_ref:'pneuma:r1',
+  packet_vector:packetVector,
+  projection_chain:projectionChain,
+  rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48}
+});
+
 write(['studio','search-bins.current.json'],{
   schema:'xiio.studio.search-bins-readback/v1',
   state:'PASS',
@@ -80,6 +115,7 @@ write(['studio','pneuma.current.json'],{
   state:'PASS',
   recursion_ref:'pneuma:r1',
   packet_vector:packetVector,
+  projection_chain:projectionChain,
   rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48},
   zero_unverified_stubs:true
 });
@@ -125,6 +161,7 @@ console.log(JSON.stringify({
   schema:'xiio.sdk.pneuma-frontdoor-check/v1',
   state:'PASS',
   hostile_false_claims_blocked:true,
+  step_three_blast_radius_drift_blocked:true,
   loopback_exec_pulse:true,
   exact_command_shape_supported:true,
   effect_authority:0
