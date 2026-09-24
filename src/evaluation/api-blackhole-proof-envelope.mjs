@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 const CLAIM_KINDS=Object.freeze([
   'PROSE','SCREENSHOT','SYNTHETIC_LOG','LOCALHOST_TEXT','TOOL_CALL_TEXT',
   'CONNECTOR_READBACK','NATIVE_RECEIPT'
@@ -11,10 +13,12 @@ const list=(v)=>Array.isArray(v)?v.filter(x=>typeof x==='string'&&x.trim()).map(
 
 function pathAllowed(targetPath,allowedPrefixes){
   if(targetPath==null)return true;
-  const p=text(targetPath,'TARGET_PATH');
-  const prefixes=list(allowedPrefixes);
+  const raw=text(targetPath,'TARGET_PATH');
+  if(!path.isAbsolute(raw))return false;
+  const normalized=path.resolve(raw);
+  const prefixes=list(allowedPrefixes).filter(path.isAbsolute).map(prefix=>path.resolve(prefix));
   if(!prefixes.length)return false;
-  return prefixes.some(prefix=>p===prefix||p.startsWith(prefix.endsWith('/')?prefix:prefix+'/'));
+  return prefixes.some(prefix=>normalized===prefix||normalized.startsWith(prefix+path.sep));
 }
 
 export function evaluateApiBlackholeClaim(input={}){
@@ -47,6 +51,10 @@ export function evaluateApiBlackholeClaim(input={}){
 
   if(proof_scope!=='NATIVE_RUNTIME'){
     return Object.freeze({...out,state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'});
+  }
+
+  if(claim_kind!=='NATIVE_RECEIPT'){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'CLAIM_KIND_NOT_NATIVE_RECEIPT'});
   }
 
   const receipt=input.native_receipt;
@@ -88,11 +96,13 @@ export function evaluateApiBlackholeClaim(input={}){
 export const API_BLACKHOLE_HARD=Object.freeze([
   'PROSE_CLAIM != PHYSICAL_EXECUTION',
   'TOOL_CALL_TEXT != FILE_MUTATION',
+  'TOOL_CALL_TEXT + NATIVE_RECEIPT != NATIVE_RECEIPT_CLAIM',
   'WRITE_ACK != POST_WRITE_READBACK',
   'LOCAL_LOOPBACK_SOCKET_REACHABLE != PHYSICAL_HOST_EXECUTION',
   'NATIVE_RECEIPT != CURRENT_RECEIPT',
   'CURRENT_RECEIPT != INDEPENDENT_READBACK',
   'SELF_VERIFICATION != INDEPENDENT_READBACK',
   'TARGET_PATH_OUTSIDE_SCOPE = FAIL',
+  'PATH_TRAVERSAL_OUTSIDE_SCOPE = FAIL',
   'API_BLACKHOLE != PASS',
 ]);
