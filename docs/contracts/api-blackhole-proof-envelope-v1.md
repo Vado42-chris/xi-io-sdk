@@ -45,6 +45,8 @@ TOOL_CALL_TEXT != FILE_MUTATION\nWRITE_ACK != POST_WRITE_READBACK\nPATH_TRAVERSA
   "execution_surface": "SANDBOX|REMOTE_CONNECTOR|ARIES|LOKI|UNKNOWN",
   "transport_state": "PASS|FAIL|TRUE_WAIT|UNKNOWN",
   "proof_scope": "SYNTHETIC_FIXTURE|CONNECTOR_METADATA|HOME_CURRENT|NATIVE_RUNTIME",
+  "expected_host_ref": "string|null",
+  "expected_execution_surface_ref": "string|null",
   "first_red": "string|null",
   "required_receipts": ["string"],
   "blocked_promotions": ["string"],
@@ -56,7 +58,7 @@ TOOL_CALL_TEXT != FILE_MUTATION\nWRITE_ACK != POST_WRITE_READBACK\nPATH_TRAVERSA
 
 ## Promotion rule
 
-Promotion requires `claim_kind=NATIVE_RECEIPT`, `proof_scope=NATIVE_RUNTIME`, exact source-generation parity, authenticated and fresh receipt state, replay=false, independent readback, and distinct producer/verifier identities. Tool-call-shaped text never promotes itself, even when a later native receipt exists; the native receipt is the promotable claim. Target paths, when present, must normalize inside the admitted target scope. Everything else remains PASS/FAIL/TRUE_WAIT for analysis only. A `TRUE_WAIT` may be useful and counted as an occurrence, but it may not become runtime credit.
+Promotion requires `claim_kind=NATIVE_RECEIPT`, `proof_scope=NATIVE_RUNTIME`, exact source-generation parity, exact expected host and execution-surface identity when supplied, a current environment survey, authenticated and fresh receipt state, replay=false, independent readback, and distinct producer/verifier identities. Tool-call-shaped text never promotes itself, even when a later native receipt exists; the native receipt is the promotable claim. Target paths, when present, must normalize inside the admitted target scope. Everything else remains PASS/FAIL/TRUE_WAIT for analysis only. A `TRUE_WAIT` may be useful and counted as an occurrence, but it may not become runtime credit.
 
 ## Gemini/Zed hostile added 2026-09-24
 
@@ -74,3 +76,17 @@ This is the PNEUMA proof-integrity containment seam for API Glass Box work until
 ## Live-fire Zed drift hostile, 2026-09-24
 
 A full conductor response was relayed to Zed and produced tool-call-shaped text targeting an unrelated path (`/a/b/backend/src/main.rs`). That occurrence is classified as out-of-scope target drift, not execution. The executable evaluator and hostile bench require the normalized target path to remain within admitted prefixes and keep `TOOL_CALL_TEXT` contained until an independently verified native receipt exists.
+
+
+## Environment/container survey gate, 2026-09-24
+
+Owner desktop dogfood showed why a visible desktop or pane cannot stand in for execution context. Before native promotion, the receipt must bind the exact host plus execution surface and a current environment survey reference. A minimized or hidden application is not assumed stopped, and a visible desktop is not a process/runtime census.
+
+```text
+DESKTOP_VISIBLE != EXECUTION_CONTEXT_SURVEYED
+MINIMIZED_OR_HIDDEN != PROCESS_STOPPED
+HOST_IDENTITY != EXECUTION_SURFACE_IDENTITY
+NO_CURRENT_ENVIRONMENT_SURVEY = TRUE_WAIT
+```
+
+The survey is evidence input, not a new truth store. Framework #294/#309 remain environment/resource owners, while Studio/launcher/render owners consume the projection.
