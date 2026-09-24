@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
 import { compilePortableSemanticFile } from '../src/documents/portable-semantic-file.mjs';
+import { compileFlatpackPacket, reduceFlatpackArtifact, expandFlatpackArtifact } from '../src/flatpack/executable-packet.mjs';
 import { compilePortableArtifactCube } from '../src/documents/portable-artifact-cube.mjs';
 import { prepareRegisteredPrimitiveShipment } from '../src/documents/prepare-primitive-shipment.mjs';
 import { prepareExternalArtifactShipment } from '../src/documents/prepare-external-artifact-shipment.mjs';
@@ -127,6 +128,9 @@ Interactive slash commands:
 Pure compilers:
   xi-io baseline compile --input <snapshot.json> [--out <baseline.json>]
   xi-io product compile --input <products.json> [--out <product-baseline.json>]
+  xi-io flatpack compile --input <packet.json> [--out <flatpack.json>]
+  xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
+  xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
   xi-io file compile --input <file.json> [--out <portable-file.json>]
   xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
   xi-io file profiles [--out <profiles.json>]
