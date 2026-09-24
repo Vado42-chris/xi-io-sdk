@@ -29,7 +29,7 @@ SANDBOX_FIXTURE_PASS != API_GLASS_BOX_RECEIPT
 SYNTHETIC_TRANSCRIPT != NATIVE_RECEIPT
 SLACK_THREAD != LOCAL_TRUTH
 GITHUB_COMMIT != LOCAL_TRUTH
-API_BLACKHOLE != PASS
+TOOL_CALL_TEXT != FILE_MUTATION\nWRITE_ACK != POST_WRITE_READBACK\nPATH_TRAVERSAL_OUTSIDE_SCOPE = FAIL\nAPI_BLACKHOLE != PASS
 ```
 
 ## Required envelope fields
@@ -40,7 +40,7 @@ API_BLACKHOLE != PASS
   "packet_id": "string",
   "source_generation": "string",
   "claim_text_digest": "sha256:string",
-  "claim_kind": "PROSE|SCREENSHOT|SYNTHETIC_LOG|LOCALHOST_TEXT|CONNECTOR_READBACK|NATIVE_RECEIPT",
+  "claim_kind": "PROSE|SCREENSHOT|SYNTHETIC_LOG|LOCALHOST_TEXT|TOOL_CALL_TEXT|CONNECTOR_READBACK|NATIVE_RECEIPT",
   "producer_surface": "CHATGPT|GEMINI|ZED|SLACK|GITHUB|ARIES|LOKI|OTHER",
   "execution_surface": "SANDBOX|REMOTE_CONNECTOR|ARIES|LOKI|UNKNOWN",
   "transport_state": "PASS|FAIL|TRUE_WAIT|UNKNOWN",
@@ -56,7 +56,7 @@ API_BLACKHOLE != PASS
 
 ## Promotion rule
 
-Only `proof_scope=NATIVE_RUNTIME` with a bound native receipt may leave the blackhole. Everything else remains PASS/FAIL/TRUE_WAIT for analysis only. A `TRUE_WAIT` may be useful and counted as an occurrence, but it may not become runtime credit.
+Promotion requires `claim_kind=NATIVE_RECEIPT`, `proof_scope=NATIVE_RUNTIME`, exact source-generation parity, authenticated and fresh receipt state, replay=false, independent readback, and distinct producer/verifier identities. Tool-call-shaped text never promotes itself, even when a later native receipt exists; the native receipt is the promotable claim. Target paths, when present, must normalize inside the admitted target scope. Everything else remains PASS/FAIL/TRUE_WAIT for analysis only. A `TRUE_WAIT` may be useful and counted as an occurrence, but it may not become runtime credit.
 
 ## Gemini/Zed hostile added 2026-09-24
 
@@ -69,3 +69,8 @@ false_green=false
 ```
 
 This is the PNEUMA proof-integrity containment seam for API Glass Box work until Aries or Loki returns an authenticated native receipt.
+
+
+## Live-fire Zed drift hostile, 2026-09-24
+
+A full conductor response was relayed to Zed and produced tool-call-shaped text targeting an unrelated path (`/a/b/backend/src/main.rs`). That occurrence is classified as out-of-scope target drift, not execution. The executable evaluator and hostile bench require the normalized target path to remain within admitted prefixes and keep `TOOL_CALL_TEXT` contained until an independently verified native receipt exists.
