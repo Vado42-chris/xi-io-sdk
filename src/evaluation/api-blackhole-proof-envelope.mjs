@@ -5,6 +5,7 @@ const CLAIM_KINDS=Object.freeze([
   'CONNECTOR_READBACK','NATIVE_RECEIPT'
 ]);
 const PROOF_SCOPES=Object.freeze(['SYNTHETIC_FIXTURE','CONNECTOR_METADATA','HOME_CURRENT','NATIVE_RUNTIME']);
+const UI_VISIBILITY_STATES=Object.freeze(['VISIBLE','OCCLUDED','MINIMIZED','HIDDEN','UNKNOWN']);
 
 const text=(v,k)=>{if(typeof v!=='string'||!v.trim())throw new TypeError(k+'_REQUIRED');return v.trim();};
 const one=(v,set,k)=>{const x=text(v,k);if(!set.includes(x))throw new TypeError(k+'_INVALID');return x;};
@@ -28,6 +29,7 @@ export function evaluateApiBlackholeClaim(input={}){
   const expected_host_ref=input.expected_host_ref==null?null:text(input.expected_host_ref,'EXPECTED_HOST_REF');
   const expected_execution_surface_ref=input.expected_execution_surface_ref==null?null:text(input.expected_execution_surface_ref,'EXPECTED_EXECUTION_SURFACE_REF');
   const target_path=input.target_path??null;
+  const ui_visibility_state=input.ui_visibility_state==null?'UNKNOWN':one(input.ui_visibility_state,UI_VISIBILITY_STATES,'UI_VISIBILITY_STATE');
   const allowed_target_prefixes=list(input.allowed_target_prefixes);
 
   const out={
@@ -36,6 +38,7 @@ export function evaluateApiBlackholeClaim(input={}){
     proof_scope,
     source_generation,
     target_path,
+    ui_visibility_state,
     state:'TRUE_WAIT',
     first_red:null,
     promotion_allowed:false,
@@ -132,6 +135,9 @@ export const API_BLACKHOLE_HARD=Object.freeze([
   'WRITE_ACK != POST_WRITE_READBACK',
   'LOCAL_LOOPBACK_SOCKET_REACHABLE != PHYSICAL_HOST_EXECUTION',
   'DESKTOP_VISIBLE != EXECUTION_CONTEXT_SURVEYED',
+  'VISIBLE != FOREGROUND',
+  'OCCLUDED != ABSENT',
+  'FULLSCREEN_COVERAGE != UNDERLAY_STOPPED',
   'MINIMIZED_OR_HIDDEN != PROCESS_STOPPED',
   'HOST_IDENTITY != EXECUTION_SURFACE_IDENTITY',
   'NATIVE_RECEIPT != CURRENT_RECEIPT',
