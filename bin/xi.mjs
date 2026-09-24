@@ -107,6 +107,9 @@ Human registries:
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
   xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
   xi-io search status            Read local Search runtime status
+  xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
+  xi-io lifecycle next            Project current lifecycle selection/returns
+  xi-io lifecycle explain         Explain current projection/evidence without recompute
   xi-io search --target files --query <text> [--limit N]
                                 Execute Search through Inbox local API; files bind BINS custody
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
@@ -475,6 +478,71 @@ function stableStatusProjection(value){
   return value;
 }
 
+
+
+function lifecycleProjectionPath(){
+  return process.env.XIIO_LIFECYCLE_PATH
+    || path.join(os.homedir(),'.local','state','xi-io','studio','lifecycle.current.json');
+}
+
+function lifecycleProjection(){
+  const file=lifecycleProjectionPath();
+  if(!fs.existsSync(file)){
+    return {
+      schema:'xiio.cli.lifecycle/v1',
+      state:'TRUE_WAIT',
+      projection_path:file,
+      lifecycle:null,
+      first_red:'LIFECYCLE_PROJECTION_MISSING',
+      provider_effect:false,
+      authority_granted:false,
+      hard:[
+        'MISSING_LIFECYCLE_PROJECTION != OWNER_QUESTION',
+        'CLI != LIFECYCLE_OWNER',
+      ]
+    };
+  }
+  try{
+    const value=JSON.parse(fs.readFileSync(file,'utf8'));
+    if(value?.schema!=='xiio.studio.rotfl-lifecycle/v1'){
+      return {
+        schema:'xiio.cli.lifecycle/v1',
+        state:'FAIL_CURRENT',
+        projection_path:file,
+        lifecycle:null,
+        first_red:'LIFECYCLE_SCHEMA_INVALID',
+        observed_schema:value?.schema||null,
+        provider_effect:false,
+        authority_granted:false,
+      };
+    }
+    return {
+      schema:'xiio.cli.lifecycle/v1',
+      state:'PASS',
+      projection_path:file,
+      lifecycle:value,
+      first_red:value.first_red||null,
+      provider_effect:false,
+      authority_granted:false,
+      hard:[
+        'CLI_PROJECTS_LIFECYCLE_DOES_NOT_RECOMPUTE',
+        'COLD_GHOST_NONSELECTABLE',
+        'DETONATION_READY != EFFECT_AUTHORITY',
+      ]
+    };
+  }catch(error){
+    return {
+      schema:'xiio.cli.lifecycle/v1',
+      state:'FAIL_CURRENT',
+      projection_path:file,
+      lifecycle:null,
+      first_red:'LIFECYCLE_PROJECTION_INVALID_JSON',
+      error:String(error?.message||error),
+      provider_effect:false,
+      authority_granted:false,
+    };
+  }
+}
 
 function remoteDesktopProjectionPath(){
   return process.env.XIIO_REMOTE_DESKTOP_STATE_PATH
@@ -1260,6 +1328,55 @@ if (
   const floor=readJson(floorPath,'HEX floor');
   const binding=bindHexFloorCurrentness(floor);
   emitCliResult('hex.floor',{schema:'xiio.cli.hex-floor-read/v1',state:binding.state==='UNVERIFIED'||binding.state==='STALE'?'BLOCKED':'PASS',hex_floor:floor,binding,first_red:binding.blocker||null,provider_effect:false,authority_granted:false},{stable:true});
+ } else if (top === 'lifecycle') {
+  const action=process.argv[3] || 'status';
+  const projection=lifecycleProjection();
+  if(action==='status'){
+    emitCliResult('lifecycle.status',projection,{stable:true});
+  }else if(action==='next'){
+    if(projection.state!=='PASS'){
+      emitCliResult('lifecycle.next',projection,{stable:true});
+    }else{
+      const x=projection.lifecycle;
+      emitCliResult('lifecycle.next',{
+        schema:'xiio.cli.lifecycle-next/v1',
+        state:'PASS',
+        subject_ref:x.subject_ref,
+        generation:x.generation,
+        lifecycle_state:x.state,
+        selectable:x.selectable,
+        first_red:x.first_red,
+        affected_refs:x.affected_refs||[],
+        return_targets:x.return_targets||[],
+        provider_effect:false,
+        authority_granted:false,
+      },{stable:true});
+    }
+  }else if(action==='explain'){
+    if(projection.state!=='PASS'){
+      emitCliResult('lifecycle.explain',projection,{stable:true});
+    }else{
+      const x=projection.lifecycle;
+      emitCliResult('lifecycle.explain',{
+        schema:'xiio.cli.lifecycle-explain/v1',
+        state:'PASS',
+        subject_ref:x.subject_ref,
+        generation:x.generation,
+        lifecycle_state:x.state,
+        selectable:x.selectable,
+        first_red:x.first_red,
+        currentness:x.currentness,
+        continuation:x.continuation,
+        evidence:x.evidence,
+        source_generations:x.source_generations,
+        affected_refs:x.affected_refs||[],
+        return_targets:x.return_targets||[],
+        hard:x.hard||[],
+        provider_effect:false,
+        authority_granted:false,
+      },{stable:true});
+    }
+  }else usage(1);
 } else if (top === 'search') {
   const result=await searchRuntime(process.argv.slice(3));
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
