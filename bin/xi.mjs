@@ -29,6 +29,7 @@ import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
+import { executePneuma } from '../src/runtime/pneuma-frontdoor.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
 import { inspectMachineTopology, prepareCargoExecution } from '../src/compass/machine-topology.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
@@ -111,6 +112,8 @@ Human registries:
   xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
   xi-io lifecycle next            Project current lifecycle selection/returns
   xi-io lifecycle explain         Explain current projection/evidence without recompute
+  xi-io pneuma --root=local --aries=root --bus=ws://localhost:4390/aries/bus [--exec-rotfl]
+                                Execute/read the local PNEUMA pulse; fail closed on missing physical/custody proof
   xi-io search --target files --query <text> --root <workspace> [--limit N] [--custody 1]
                                 Discover through Inbox local API; --custody 1 explicitly requests local BINS writes
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
@@ -241,11 +244,20 @@ function args(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const value = argv[i];
     if (value.startsWith('--')) {
-      const key = value.slice(2);
-      const next = argv[i + 1];
-      if (!next || next.startsWith('--')) throw new Error(`--${key} requires a value`);
-      flags[key] = next;
-      i += 1;
+      const raw=value.slice(2);
+      const eq=raw.indexOf('=');
+      if(eq>=0){
+        const key=raw.slice(0,eq);
+        const val=raw.slice(eq+1);
+        if(!key||!val) throw new Error('invalid --key=value argument');
+        flags[key]=val;
+      }else{
+        const key=raw;
+        const next=argv[i+1];
+        if(!next || next.startsWith('--')) throw new Error(`--${key} requires a value`);
+        flags[key]=next;
+        i+=1;
+      }
     } else positionals.push(value);
   }
   return { flags, positionals };
@@ -1336,6 +1348,21 @@ if (
   || isDirectory(top)
 ) {
   await launchLocalOperator(topArgs);
+} else if (top === 'pneuma') {
+  const raw=process.argv.slice(3);
+  const execRotfl=raw.includes('--exec-rotfl');
+  const filtered=raw.filter(v=>v!=='--exec-rotfl');
+  const {flags}=args(filtered);
+  const result=await executePneuma({
+    root:flags.root || 'local',
+    aries:flags.aries || 'root',
+    bus:flags.bus || 'ws://localhost:4390/aries/bus',
+    exec_rotfl:execRotfl,
+    state_root:flags['state-root'] || undefined,
+    output_path:flags.out || undefined,
+    probe_timeout_ms:flags.timeout?Number(flags.timeout):undefined,
+  });
+  emitCliResult('pneuma',result,{stable:!execRotfl});
 } else if (top === 'registry') {
   const kind = process.argv[3] || 'all';
   if (!['all','commands','ack','tools','sdk','primitives'].includes(kind)) usage(1);
