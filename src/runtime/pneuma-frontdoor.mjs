@@ -44,6 +44,53 @@ const sha=v=>crypto.createHash('sha256').update(JSON.stringify(stable(v))).diges
 const refs=(value)=>[...new Set((Array.isArray(value)?value:[]).filter(Boolean).map(String))].sort();
 const subset=(child,parent)=>child.every((ref)=>parent.includes(ref));
 
+
+function currentRuleProjection(rules){
+  const sdkState=String(rules?.sdk?.state||'').toUpperCase();
+  const frameworkState=String(rules?.framework?.state||'').toUpperCase();
+  const sdkLocal=String(rules?.sdk?.local_generation||'').trim();
+  const sdkProvider=String(rules?.sdk?.provider_generation||'').trim();
+  const frameworkLocal=String(rules?.framework?.local_generation||'').trim();
+  const frameworkProvider=String(rules?.framework?.provider_generation||'').trim();
+  if(rules?.schema!=='xiio.studio.pneuma-rule-currentness/v1') return {state:'TRUE_WAIT',first_red:'PNEUMA_RULE_CURRENTNESS_SCHEMA_MISSING_OR_INVALID'};
+  if(sdkState!=='EXACT_PROVIDER_MAIN'||!sdkLocal||sdkLocal!==sdkProvider) return {state:'TRUE_WAIT',first_red:'PNEUMA_SDK_RULE_GENERATION_NOT_CURRENT',sdk_local:sdkLocal||null,sdk_provider:sdkProvider||null};
+  if(frameworkState!=='EXACT_PROVIDER_MAIN'||!frameworkLocal||frameworkLocal!==frameworkProvider) return {state:'TRUE_WAIT',first_red:'PNEUMA_FRAMEWORK_LEXICON_GENERATION_NOT_CURRENT',framework_local:frameworkLocal||null,framework_provider:frameworkProvider||null};
+  return {state:'PASS',first_red:null,sdk_generation:sdkLocal,framework_generation:frameworkLocal,currentness_ref:rules.currentness_ref||null,observed_at:rules.observed_at||null};
+}
+
+function observabilityContinuity(p){
+  const packet=p?.packet_vector||{};
+  const obs=packet.observability||{};
+  const generation=typeof obs.generation==='string'&&obs.generation.trim()?obs.generation.trim():null;
+  const digest=typeof obs.digest==='string'&&obs.digest.trim()?obs.digest.trim():null;
+  const metricRefs=refs(obs.metric_refs);
+  const logRefs=refs(obs.log_refs);
+  const telemetryRefs=refs(obs.telemetry_refs);
+  const lexiconRefs=refs(obs.lexicon_refs);
+  const metricNa=typeof obs.metric_na_ref==='string'&&obs.metric_na_ref.trim()?obs.metric_na_ref.trim():null;
+  const logNa=typeof obs.log_na_ref==='string'&&obs.log_na_ref.trim()?obs.log_na_ref.trim():null;
+  const telemetryNa=typeof obs.telemetry_na_ref==='string'&&obs.telemetry_na_ref.trim()?obs.telemetry_na_ref.trim():null;
+  const lexiconNa=typeof obs.lexicon_na_ref==='string'&&obs.lexicon_na_ref.trim()?obs.lexicon_na_ref.trim():null;
+  const chain=Array.isArray(p?.projection_chain)?p.projection_chain:[];
+  if(!generation) return {state:'TRUE_WAIT',first_red:'OBSERVABILITY_GENERATION_MISSING'};
+  if(!digest) return {state:'TRUE_WAIT',first_red:'OBSERVABILITY_DIGEST_MISSING'};
+  if(!metricRefs.length&&!metricNa) return {state:'TRUE_WAIT',first_red:'METRIC_REFS_OR_NA_MISSING'};
+  if(!logRefs.length&&!logNa) return {state:'TRUE_WAIT',first_red:'LOG_REFS_OR_NA_MISSING'};
+  if(!telemetryRefs.length&&!telemetryNa) return {state:'TRUE_WAIT',first_red:'TELEMETRY_REFS_OR_NA_MISSING'};
+  if(!lexiconRefs.length&&!lexiconNa) return {state:'TRUE_WAIT',first_red:'LEXICON_REFS_OR_NA_MISSING'};
+  for(let i=0;i<chain.length;i++){
+    const row=chain[i]||{};
+    if(row.observability_generation!==generation) return {state:'FAIL',first_red:'OBSERVABILITY_GENERATION_DRIFT',failed_depth:i+1};
+    if(row.observability_digest!==digest) return {state:'FAIL',first_red:'OBSERVABILITY_DIGEST_DRIFT',failed_depth:i+1};
+  }
+  return {
+    state:'PASS',first_red:null,generation,digest,
+    metric_refs:metricRefs,log_refs:logRefs,telemetry_refs:telemetryRefs,lexicon_refs:lexiconRefs,
+    metric_na_ref:metricNa,log_na_ref:logNa,telemetry_na_ref:telemetryNa,lexicon_na_ref:lexiconNa,
+    verified_depth:chain.length,
+  };
+}
+
 function blastContinuity(p){
   const packet=p?.packet_vector||{};
   const rootDigest=typeof packet.blast_radius_digest==='string'&&packet.blast_radius_digest.trim()?packet.blast_radius_digest.trim():null;
@@ -95,11 +142,20 @@ export async function executePneuma({
     search_bins:path.join(base,'studio','search-bins.current.json'),
     remote:path.join(base,'remote-desktop.current.json'),
     ward:path.join(base,'studio','ward-adoption.current.json'),
+    rules:path.join(base,'studio','pneuma-rules.current.json'),
   };
   const state=Object.fromEntries(Object.entries(files).map(([k,v])=>[k,readJson(v)]));
 
   const checks=[];
   const add=(id,stateValue,evidence_ref,first_red=null,detail={})=>checks.push({id,state:stateValue,evidence_ref,first_red,...detail});
+
+  const rules=currentRuleProjection(state.rules);
+  add('PNEUMA_RULE_CURRENTNESS',rules.state,files.rules,rules.first_red,{
+    sdk_generation:rules.sdk_generation||null,
+    framework_generation:rules.framework_generation||null,
+    currentness_ref:rules.currentness_ref||null,
+    observed_at:rules.observed_at||null,
+  });
 
   const p=state.pneuma;
   add('PNEUMA_RECURSION',
@@ -117,6 +173,17 @@ export async function executePneuma({
     source_occurrence_count:blast.source_occurrence_count??p?.packet_vector?.occurrence_count??null,
     root_affected_refs:blast.root_affected_refs||refs(p?.packet_vector?.affected_refs),
     final_affected_refs:blast.final_affected_refs||[],
+  });
+
+  const observability=observabilityContinuity(p);
+  add('OBSERVABILITY_CONTINUITY',observability.state,files.pneuma,observability.first_red,{
+    generation:observability.generation||null,
+    digest:observability.digest||null,
+    verified_depth:observability.verified_depth||0,
+    metric_refs:observability.metric_refs||[],
+    log_refs:observability.log_refs||[],
+    telemetry_refs:observability.telemetry_refs||[],
+    lexicon_refs:observability.lexicon_refs||[],
   });
 
   const lifecycle=state.lifecycle;
@@ -199,6 +266,15 @@ export async function executePneuma({
     return_targets:p?.packet_vector?.return_targets||[],
     source_occurrence_count:Number.isInteger(p?.packet_vector?.occurrence_count)?p.packet_vector.occurrence_count:null,
     recursion_ref:p?.recursion_ref||null,
+    rule_currentness_ref:rules.currentness_ref||files.rules,
+    rule_sdk_generation:rules.sdk_generation||null,
+    rule_framework_generation:rules.framework_generation||null,
+    observability_generation:observability.generation||null,
+    observability_digest:observability.digest||null,
+    metric_refs:observability.metric_refs||[],
+    log_refs:observability.log_refs||[],
+    telemetry_refs:observability.telemetry_refs||[],
+    lexicon_refs:observability.lexicon_refs||[],
     face_denominator:p?.rotation_engine?.face_denominator||null,
     projection_denominator:p?.rotation_engine?.projection_denominator||null,
     reciprocal_projection_denominator:p?.rotation_engine?.reciprocal_projection_denominator||null,
@@ -223,6 +299,12 @@ export async function executePneuma({
     legal_effect_authority:0,
     hard:[
       'PNEUMA_OUTPUT_CLAIM_REQUIRES_BOUND_READBACK',
+      'PNEUMA_RULES_MUST_BE_PROVIDER_CURRENT_BEFORE_LOOP_CREDIT',
+      'PNEUMA_SDK_RULE_GENERATION_MUST_EQUAL_PROVIDER_MAIN',
+      'PNEUMA_FRAMEWORK_LEXICON_GENERATION_MUST_EQUAL_PROVIDER_MAIN',
+      'METRICS_LOGS_TELEMETRY_LEXICON_MUST_SURVIVE_PROJECTION_DEPTH',
+      'OBSERVABILITY_DIGEST_DRIFT=FAIL',
+      'OBSERVABILITY_GENERATION_DRIFT=FAIL',
       'INJECTED_STATE_ROOT != PHYSICAL_READBACK',
       'CT16_CT17_CUSTODY_CANNOT_BE_INFERRED',
       'REMOTE_AUTH_PASS != LIVE_SESSION_PASS',
