@@ -185,6 +185,7 @@ Product runtime:
   xi-io inbox recover                     Recover exact-current Inbox runtime
   xi-io inbox open                        Recover if needed, then open Inbox inside Studio
   xi-io studio status                     Probe Studio :3099
+  xi-io studio vector --json              Read exact Studio canonical conserved vector
   xi-io studio fractal --json             Read exact Studio fractal receipt ledger
   xi-io studio start                      Start installed Studio shell and require :3099 readback
   xi-io studio open                       Open local Studio
@@ -1351,6 +1352,68 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'studio' && process.argv[3] === 'vector') {
+  const vectorPath=process.env.XIIO_FRACTAL_VECTOR_PATH || path.join(
+    os.homedir(),'.local','state','xi-io','studio','fractal-vector.current.json'
+  );
+  try{
+    const vector=readJson(vectorPath,'Studio canonical fractal vector');
+    const required=['packet_id','generation','semantic_digest','blast_radius_digest','affected_refs','return_targets','first_red'];
+    if(!vector||typeof vector!=='object'||Array.isArray(vector)){
+      emitCliResult('studio.vector',{
+        schema:'xiio.cli.studio-fractal-vector/v1',
+        state:'BLOCKED',
+        path:vectorPath,
+        first_red:'FRACTAL_VECTOR_OBJECT_REQUIRED',
+        provider_effect:false,
+        authority_granted:false,
+      },{stable:true});
+    }else{
+      const missing=required.filter((key)=>!(key in vector));
+      if(missing.length){
+        emitCliResult('studio.vector',{
+          schema:'xiio.cli.studio-fractal-vector/v1',
+          state:'BLOCKED',
+          path:vectorPath,
+          first_red:'FRACTAL_VECTOR_FIELD_REQUIRED:'+missing[0],
+          missing_fields:missing,
+          provider_effect:false,
+          authority_granted:false,
+        },{stable:true});
+      }else{
+        emitCliResult('studio.vector',{
+          schema:'xiio.cli.studio-fractal-vector/v1',
+          state:'PASS',
+          path:vectorPath,
+          vector,
+          packet_id:vector.packet_id,
+          generation:vector.generation,
+          semantic_digest:vector.semantic_digest,
+          blast_radius_digest:vector.blast_radius_digest,
+          affected_refs:vector.affected_refs,
+          return_targets:vector.return_targets,
+          first_red:vector.first_red,
+          provider_effect:false,
+          authority_granted:false,
+          hard:[
+            'CLI_PROJECTS_CANONICAL_VECTOR_DOES_NOT_RECOMPUTE',
+            'VECTOR_FILE!=RECEIPT_LEDGER',
+            'VECTOR_READ!=AUTHORITY'
+          ]
+        },{stable:true});
+      }
+    }
+  }catch(error){
+    emitCliResult('studio.vector',{
+      schema:'xiio.cli.studio-fractal-vector/v1',
+      state:'TRUE_WAIT',
+      path:vectorPath,
+      first_red:'FRACTAL_VECTOR_UNREADABLE',
+      error:String(error?.message||error),
+      provider_effect:false,
+      authority_granted:false,
+    },{stable:true});
+  }
 } else if (top === 'studio' && process.argv[3] === 'fractal') {
   const ledgerPath=process.env.XIIO_FRACTAL_RECEIPT_LEDGER_PATH || path.join(
     os.homedir(),'.local','state','xi-io','studio','fractal-receipts.current.json'
