@@ -185,6 +185,7 @@ Product runtime:
   xi-io inbox recover                     Recover exact-current Inbox runtime
   xi-io inbox open                        Recover if needed, then open Inbox inside Studio
   xi-io studio status                     Probe Studio :3099
+  xi-io studio fractal --json             Read exact Studio fractal receipt ledger
   xi-io studio start                      Start installed Studio shell and require :3099 readback
   xi-io studio open                       Open local Studio
   xi-io studio inbox                      Recover Inbox and open Studio Inbox wrapper
@@ -1323,6 +1324,56 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'studio' && process.argv[3] === 'fractal') {
+  const ledgerPath=process.env.XIIO_FRACTAL_RECEIPT_LEDGER_PATH || path.join(
+    os.homedir(),'.local','state','xi-io','studio','fractal-receipts.current.json'
+  );
+  try{
+    const ledger=readJson(ledgerPath,'Studio fractal receipt ledger');
+    if(ledger?.schema!=='xiio.studio.fractal-consumer-receipt-ledger/v1'){
+      emitCliResult('studio.fractal',{
+        schema:'xiio.cli.studio-fractal-ledger/v1',
+        state:'BLOCKED',
+        first_red:'FRACTAL_RECEIPT_LEDGER_SCHEMA_INVALID',
+        path:ledgerPath,
+        observed_schema:ledger?.schema||null,
+        provider_effect:false,
+        authority_granted:false,
+      },{stable:true});
+    }else{
+      emitCliResult('studio.fractal',{
+        schema:'xiio.cli.studio-fractal-ledger/v1',
+        state:'PASS',
+        path:ledgerPath,
+        ledger,
+        generation:ledger.generation,
+        closure_100:ledger.closure_100===true,
+        expected_receipt_denominator:ledger.expected_receipt_denominator,
+        verified_count:ledger.verified_count,
+        wait_count:ledger.wait_count,
+        fail_count:ledger.fail_count,
+        first_red:ledger.first_red||null,
+        canonical_vector:ledger.canonical_vector,
+        provider_effect:false,
+        authority_granted:false,
+        hard:[
+          'CLI_PROJECTS_RECEIPT_LEDGER_DOES_NOT_RECOMPUTE',
+          'MISSING_LEDGER!=PASS',
+          'LEDGER_CLOSURE!=AUTHORITY'
+        ]
+      },{stable:true});
+    }
+  }catch(error){
+    emitCliResult('studio.fractal',{
+      schema:'xiio.cli.studio-fractal-ledger/v1',
+      state:'TRUE_WAIT',
+      path:ledgerPath,
+      first_red:'FRACTAL_RECEIPT_LEDGER_UNREADABLE',
+      error:String(error?.message||error),
+      provider_effect:false,
+      authority_granted:false,
+    },{stable:true});
+  }
 } else if (top === 'hex' && process.argv[3] === 'floor') {
   const raw=process.argv.slice(4).filter((value)=>value!=='--json');
   const { flags }=args(raw);
