@@ -136,6 +136,14 @@ write(['studio','pneuma.current.json'],{
   rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48},
   zero_unverified_stubs:true
 });
+write(['hex','floor.current.json'],{
+  schema:'xiio.hex.global-floor-projection/v1',
+  fleet_generation:'hex:g1',
+  projection_ref:'hex:p1',
+  source_currentness:'HEX_QUALIFIED_CURRENT',
+  missing_punchcards:[],
+  open_cells_without_punchcards:[]
+});
 write(['remote-desktop.current.json'],{
   schema:'xiio.studio.remote-desktop-current/v1',
   authentication:{state:'PASS'},
