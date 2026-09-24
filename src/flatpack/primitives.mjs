@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 export const FLATPACK_STATE_SCHEMA='xiio.sdk.flatpack-state/v1';
 export const FLATPLANE_CUBE_SCHEMA='xiio.sdk.flatplane-cube/v1';
 export const FLATPACK_PATCH_SCHEMA='xiio.sdk.flatpack-patch/v1';
@@ -9,6 +10,8 @@ export const OWNER_COG_LEDGER_SCHEMA='xiio.sdk.owner-cog-ledger/v1';
 export const PROJECTION_REBASE_GATE_SCHEMA='xiio.sdk.projection-rebase-gate/v1';
 export const CUBE_COORDINATE_SCHEMA='xiio.sdk.cube-coordinate/v1';
 export const SPIN_SET_SCHEMA='xiio.sdk.spin-set/v1';
+export const FLATPACK_PACKET_SCHEMA='xiio.sdk.flatpack-packet/v0';
+export const FLATPACK_QUALIFIER_STATES=Object.freeze(['PASS','FAIL','TRUE_WAIT','UNKNOWN','N_A']);
 
 export const WORK_STATES=Object.freeze(['SOURCE','BUILD','LOCAL_RUNTIME','HOSTED_RUNTIME','DOMAIN','OUTSIDE_ORIGIN','HUMAN_USABLE']);
 export const SCALE_STATES=Object.freeze(['10S','100S','00S','MICRO','MESO','MACRO','MEGA','META']);
@@ -43,6 +46,125 @@ export function SpinSet(input={}){
   return freeze({schema:SPIN_SET_SCHEMA,spins,denominator:spins.length,complete:spins.length===SPINS.length});
 }
 export const compileSpinSet=SpinSet;
+
+function stablePacket(value){
+  if(Array.isArray(value))return value.map(stablePacket);
+  if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map((key)=>[key,stablePacket(value[key])]));
+  return value;
+}
+function flatpackDigest(value){
+  return crypto.createHash('sha256').update(JSON.stringify(stablePacket(value))).digest('hex');
+}
+function flatpackObject(value,key){
+  if(!value||typeof value!=='object'||Array.isArray(value))throw new TypeError(key+'_OBJECT_REQUIRED');
+  return value;
+}
+function flatpackQualifier(row,index){
+  flatpackObject(row,'qualifier_'+index);
+  const qid=text(row.id,'qualifier_id',256);
+  const state=text(row.state,'qualifier_state',32).toUpperCase();
+  if(!FLATPACK_QUALIFIER_STATES.includes(state))throw new TypeError('QUALIFIER_STATE_INVALID');
+  const bit=row.bit===0||row.bit===1?row.bit:null;
+  if(state==='PASS'&&bit!==1)throw new TypeError('PASS_REQUIRES_BIT_1');
+  if(state==='FAIL'&&bit!==0)throw new TypeError('FAIL_REQUIRES_BIT_0');
+  if(['TRUE_WAIT','UNKNOWN','N_A'].includes(state)&&bit!==null)throw new TypeError('UNRESOLVED_QUALIFIER_BIT_MUST_BE_NULL');
+  return freeze({
+    id:qid,
+    state,
+    bit,
+    evidence_ref:optional(row.evidence_ref,1024),
+    generation_ref:optional(row.generation_ref,512),
+    return_target:optional(row.return_target,1024),
+  });
+}
+
+export function FlatpackPacket(input={}){
+  const one=stablePacket(flatpackObject(input.one,'one'));
+  const two=stablePacket(flatpackObject(input.two,'two'));
+  const rows=arr(input.qualifiers??[],'qualifiers').map(flatpackQualifier).sort((a,b)=>a.id.localeCompare(b.id));
+  const ids=new Set();
+  for(const row of rows){
+    if(ids.has(row.id))throw new TypeError('QUALIFIER_ID_DUPLICATE');
+    ids.add(row.id);
+  }
+  const applicable=rows.filter((row)=>row.state!=='N_A');
+  const pass=applicable.filter((row)=>row.bit===1);
+  const fail=applicable.filter((row)=>row.bit===0);
+  const waits=applicable.filter((row)=>row.state==='TRUE_WAIT');
+  const unknowns=applicable.filter((row)=>row.state==='UNKNOWN');
+  const state=fail.length?'FAIL':unknowns.length?'UNKNOWN':waits.length?'TRUE_WAIT':'PASS';
+  const first_red=fail[0]||unknowns[0]||waits[0]||null;
+  const semantic_digest=flatpackDigest({
+    one,
+    two,
+    qualifiers:rows.map(({id,state,bit,generation_ref})=>({id,state,bit,generation_ref})),
+  });
+  return freeze({
+    schema:FLATPACK_PACKET_SCHEMA,
+    packet_id:text(input.packet_id,'packet_id',256),
+    generation:text(input.generation,'generation',256),
+    one:freeze(one),
+    two:freeze(two),
+    qualifiers:freeze(rows),
+    qualifier_denominator:applicable.length,
+    qualifier_counts:freeze({
+      pass:pass.length,
+      fail:fail.length,
+      true_wait:waits.length,
+      unknown:unknowns.length,
+      n_a:rows.length-applicable.length,
+    }),
+    state,
+    closure_100:state==='PASS'&&pass.length===applicable.length,
+    first_red,
+    semantic_digest,
+    effect_authority:false,
+    hard:freeze([
+      'FLATPACK_PACKET = ONE + TWO + QUALIFIERS',
+      'RESOLVED_QUALIFIER_IS_BINARY',
+      'PASS_REQUIRES_BIT_1',
+      'FAIL_REQUIRES_BIT_0',
+      'UNRESOLVED_QUALIFIER_HAS_NO_BIT',
+      'PACKET != PROJECTION',
+      'ONE_EXECUTABLE_PACKET -> MANY_DERIVED_PROJECTIONS',
+      'NEW_USE_CASE != NEW_FILE_TYPE',
+      'PROFILE_CHANGES_INTERPRETATION_NOT_CARRIER',
+      'REPORT != RETURN != APPLY_RETURN',
+    ]),
+  });
+}
+export const compileFlatpackPacket=FlatpackPacket;
+
+export function FlatpackQualifierProjection(input={}){
+  const packet=FlatpackPacket(input);
+  return freeze({
+    schema:'xiio.sdk.flatpack-qualifier-projection/v0',
+    packet_id:packet.packet_id,
+    generation:packet.generation,
+    semantic_digest:packet.semantic_digest,
+    denominator:packet.qualifier_denominator,
+    counts:packet.qualifier_counts,
+    state:packet.state,
+    closure_100:packet.closure_100,
+    first_red:packet.first_red,
+    qualifiers:packet.qualifiers,
+    effect_authority:false,
+  });
+}
+export const projectFlatpackQualifiers=FlatpackQualifierProjection;
+
+export function validateFlatpackPacketRoundtrip(input={}){
+  const packet=FlatpackPacket(input);
+  const replay=FlatpackPacket(JSON.parse(JSON.stringify(packet)));
+  return freeze({
+    schema:'xiio.sdk.flatpack-packet-roundtrip/v0',
+    packet_id:packet.packet_id,
+    generation:packet.generation,
+    semantic_digest:packet.semantic_digest,
+    pass:replay.packet_id===packet.packet_id&&replay.generation===packet.generation&&replay.semantic_digest===packet.semantic_digest&&replay.state===packet.state&&replay.closure_100===packet.closure_100,
+    effect_authority:false,
+  });
+}
 
 export function LogicGateDetonation(input={}){
   const gates=arr(input.gates??[],'gates').map((g,i)=>{
