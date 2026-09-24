@@ -27,7 +27,13 @@ function digest(value){
 function stringList(value){
   return Object.freeze([...new Set((Array.isArray(value)?value:[]).filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()))].sort());
 }
+function localStepDepth(input={}){
+  const raw=input?.one?.current_coordinate?.step_depth ?? input?.one?.step_depth ?? 0;
+  const value=Number(raw);
+  return Number.isFinite(value)&&value>=0?value:0;
+}
 function blastEnvelope(input,packet){
+  const step_depth=localStepDepth(input);
   const supplied=input?.blast_radius;
   const base=supplied&&typeof supplied==='object'&&!Array.isArray(supplied)?stable(supplied):{};
   const return_targets=stringList([
@@ -35,10 +41,19 @@ function blastEnvelope(input,packet){
     ...packet.qualifiers.map(q=>q.return_target).filter(Boolean),
   ]);
   const affected_refs=stringList(base.affected_refs);
+  const x_up_required=step_depth>=2;
+  if(x_up_required){
+    const coordinate_ref=typeof base.coordinate_ref==='string'&&base.coordinate_ref.trim()?base.coordinate_ref.trim():null;
+    if(!coordinate_ref||affected_refs.length===0||return_targets.length===0){
+      throw new TypeError('STEP_2_BLAST_RADIUS_REQUIRED');
+    }
+  }
   const envelope=stable({
     ...base,
     generation:packet.generation,
     qualifier_denominator:packet.qualifier_denominator,
+    step_depth,
+    x_up_required,
     return_targets,
     affected_refs,
   });
@@ -227,6 +242,8 @@ export function reduceFlatpackArtifact(input={}){
       'QUALIFIER_EVIDENCE_SURVIVES_REDUCTION',
       'RETURN_TARGETS_SURVIVE_REDUCTION',
       'AFFECTED_REFS_SURVIVE_REDUCTION',
+      'STEP_DEPTH_GTE_2_REQUIRES_BLAST_RADIUS',
+      'X_UP_REQUIRED_AT_STEP_2',
       'STAGE_1_CONTAINS_CANONICAL_PACKET_FOR_DETERMINISTIC_EXPANSION',
     ]),
   });
