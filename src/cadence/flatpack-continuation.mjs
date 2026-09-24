@@ -44,6 +44,19 @@ export function compileFlatpackContinuationPlan(input={}){
   const loop_index=previous?Number(previous.loop_index)+1:1;
   if(!Number.isInteger(loop_index)||loop_index<1) throw new TypeError('LOOP_INDEX_INVALID');
 
+  const previousSteps=previous?Number(previous.steps_since_hotpatch ?? previous.loop_index):0;
+  if(!Number.isInteger(previousSteps)||previousSteps<0) throw new TypeError('PREVIOUS_STEPS_SINCE_HOTPATCH_INVALID');
+  const hotpatchRequired=previousSteps>=3;
+  const hotpatch=input.hotpatch_receipt==null?null:object(input.hotpatch_receipt,'hotpatch_receipt');
+  if(hotpatchRequired){
+    if(!hotpatch) throw new TypeError('THREE_STEP_HOTPATCH_REQUIRED');
+    if(hotpatch.state!=='APPLIED') throw new TypeError('HOTPATCH_RECEIPT_NOT_APPLIED');
+    if(hotpatch.applied_after_loop!==previous.loop_index) throw new TypeError('HOTPATCH_RECEIPT_LOOP_MISMATCH');
+    if(hotpatch.packet_generation!==packet.generation) throw new TypeError('HOTPATCH_RECEIPT_GENERATION_DRIFT');
+    if(hotpatch.blast_radius_digest!==blast.semantic_digest) throw new TypeError('HOTPATCH_RECEIPT_BLAST_RADIUS_DRIFT');
+  }
+  const steps_since_hotpatch=hotpatchRequired?1:previousSteps+1;
+
   if(previous){
     if(previous.schema!==FLATPACK_CONTINUATION_PLAN_SCHEMA) throw new TypeError('PREVIOUS_PLAN_SCHEMA_INVALID');
     if(previous.packet_id!==packet.packet_id) throw new TypeError('PREVIOUS_PACKET_ID_DRIFT');
@@ -71,6 +84,9 @@ export function compileFlatpackContinuationPlan(input={}){
     return_targets,
     qualifier_state,
     loop_index,
+    steps_since_hotpatch,
+    hotpatch_applied:Boolean(hotpatchRequired&&hotpatch),
+    hotpatch_required_next:steps_since_hotpatch>=3,
     cadence_disposition:cadence.disposition,
     cadence_reason:cadence.reason,
     next_actions:cadence.next_actions,
@@ -92,6 +108,9 @@ export function compileFlatpackContinuationPlan(input={}){
       'EVERY_LOOP_CARRIES_PACKET_GENERATION',
       'EVERY_LOOP_CARRIES_QUALIFIER_STATE',
       'STEP_2 != PERMISSION_TO_FORGET_PARENT_RADIUS',
+      'THREE_STEPS_WITHOUT_HOTPATCH = FAIL_CLOSED',
+      'STEP_4_REQUIRES_APPLIED_HOTPATCH_AFTER_STEP_3',
+      'HOTPATCH_MUST_BIND_PACKET_GENERATION_AND_BLAST_RADIUS',
       'LOOP_COUNT != BLAST_RADIUS',
       'REPORT != LOOP_EXIT',
     ]),
