@@ -117,7 +117,7 @@ assert(fs.existsSync(pulsePath));
 
 await new Promise(resolve=>server.close(resolve));
 
-assert.throws(()=>executePneuma({root:'cloud',aries:'root',state_root:root}),/PNEUMA_ROOT_MUST_BE_LOCAL/);
+await assert.rejects(()=>executePneuma({root:'cloud',aries:'root',state_root:root}),/PNEUMA_ROOT_MUST_BE_LOCAL/);
 await assert.rejects(()=>executePneuma({root:'local',aries:'root',bus:'ws://example.com:4390/aries/bus',state_root:root}),/BUS_MUST_BE_LOOPBACK/);
 
 fs.rmSync(tmp,{recursive:true,force:true});
