@@ -3,7 +3,7 @@ import {artifactProfileCatalog,resolveArtifactProfile,resolveArtifactProfileByMe
 
 const catalog=artifactProfileCatalog();
 assert.equal(catalog.schema,'xiio.sdk.artifact-profile-catalog/v1');
-assert(catalog.profiles.length>=9);
+assert(catalog.profiles.length>=11);
 assert(catalog.profiles.every(p=>p.transport==='BYTES'));
 
 const json=resolveArtifactProfile('json.semantic.v1');
@@ -17,6 +17,14 @@ assert.equal(pdf.profile.profile_id,'pdf.bytes.v1');
 const docx=resolveArtifactProfileByMediaType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 assert.equal(docx.state,'PASS');
 assert.equal(docx.profile.profile_id,'docx.opc.v1');
+
+const audio=resolveArtifactProfileByMediaType('audio/mpeg');
+assert.equal(audio.state,'PASS');
+assert.equal(audio.profile.profile_id,'audio.bytes.v1');
+
+const video=resolveArtifactProfileByMediaType('video/mp4');
+assert.equal(video.state,'PASS');
+assert.equal(video.profile.profile_id,'video.bytes.v1');
 
 const unknown=resolveArtifactProfileByMediaType('application/x-unknown-xiio-test');
 assert.equal(unknown.state,'UNKNOWN');
