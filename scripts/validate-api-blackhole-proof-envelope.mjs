@@ -55,6 +55,16 @@ const cases=[
     state:'TRUE_WAIT',first_red:'CLAIM_KIND_NOT_NATIVE_RECEIPT'
   },
   {
+    id:'EXPECTED_HOST_MISSING',
+    input:{...base,expected_host_ref:null,claim_kind:'NATIVE_RECEIPT',proof_scope:'NATIVE_RUNTIME',native_receipt:validReceipt},
+    state:'TRUE_WAIT',first_red:'EXPECTED_HOST_REQUIRED'
+  },
+  {
+    id:'ENVIRONMENT_SURVEY_MISSING',
+    input:{...base,claim_kind:'NATIVE_RECEIPT',proof_scope:'NATIVE_RUNTIME',native_receipt:{...validReceipt,environment_survey_ref:null}},
+    state:'TRUE_WAIT',first_red:'ENVIRONMENT_SURVEY_REQUIRED'
+  },
+  {
     id:'WRONG_HOST_NATIVE_RECEIPT',
     input:{...base,claim_kind:'NATIVE_RECEIPT',proof_scope:'NATIVE_RUNTIME',native_receipt:{...validReceipt,host_ref:'loki'}},
     state:'FAIL',first_red:'EXECUTION_HOST_MISMATCH'
@@ -111,6 +121,8 @@ console.log(JSON.stringify({
     'TOOL_CALL_TEXT + NATIVE_RECEIPT != NATIVE_RECEIPT_CLAIM',
     'TARGET_PATH_OUTSIDE_SCOPE = FAIL',
     'PATH_TRAVERSAL_OUTSIDE_SCOPE = FAIL',
+    'NO_EXPECTED_HOST != NATIVE_PROMOTION',
+    'NO_ENVIRONMENT_SURVEY != NATIVE_PROMOTION',
     'DESKTOP_VISIBLE != EXECUTION_CONTEXT_SURVEYED',
     'MINIMIZED_OR_HIDDEN != PROCESS_STOPPED',
     'HOST_IDENTITY != EXECUTION_SURFACE_IDENTITY',
