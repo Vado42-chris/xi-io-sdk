@@ -64,6 +64,24 @@ export function evaluateApiBlackholeClaim(input={}){
     return Object.freeze({...out,state:'TRUE_WAIT',first_red:'NATIVE_RECEIPT_REQUIRED'});
   }
 
+  if(expected_host_ref===null){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'EXPECTED_HOST_REQUIRED'});
+  }
+  if(expected_execution_surface_ref===null){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'EXPECTED_EXECUTION_SURFACE_REQUIRED'});
+  }
+  if(typeof receipt.host_ref!=='string'||!receipt.host_ref.trim()){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'RECEIPT_HOST_REQUIRED'});
+  }
+  if(typeof receipt.execution_surface_ref!=='string'||!receipt.execution_surface_ref.trim()){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'EXECUTION_SURFACE_REQUIRED'});
+  }
+  if(typeof receipt.environment_survey_ref!=='string'||!receipt.environment_survey_ref.trim()){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'ENVIRONMENT_SURVEY_REQUIRED'});
+  }
+  if(typeof receipt.environment_current!=='boolean'){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'ENVIRONMENT_SURVEY_CURRENTNESS_REQUIRED'});
+  }
   const host_ref=text(receipt.host_ref,'RECEIPT_HOST_REF');
   const execution_surface_ref=text(receipt.execution_surface_ref,'RECEIPT_EXECUTION_SURFACE_REF');
   const environment_survey_ref=text(receipt.environment_survey_ref,'RECEIPT_ENVIRONMENT_SURVEY_REF');
