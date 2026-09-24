@@ -17,6 +17,7 @@ import { compileFractalConsumerReceiptEnvelope } from '../src/receipts/fractal-c
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
 import { compileFourScaleScorecard } from '../src/scorecards/four-scale.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
+import { compileFlatpackContinuationPlan } from '../src/cadence/flatpack-continuation.mjs';
 import { compileMiniPromptStack, applyMiniPromptReceipt } from '../src/cadence/mini-prompt-stack.mjs';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
@@ -138,6 +139,7 @@ Pure compilers:
   xi-io flatpack compile --input <packet.json> [--out <flatpack.json>]
   xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
   xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
+  xi-io flatpack continue --packet <stage1.json> --input <continuation.json> [--previous <plan.json>] [--out <plan.json>]
   xi-io receipt fractal --consumer <id> --scale <MICRO|MESO|MACRO|META> --input <vector.json> --producer <ref> --observer <ref> --source <ref> [--readback <ref>] [--out <receipt.json>]
   xi-io file compile --input <file.json> [--out <portable-file.json>]
   xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
@@ -1598,6 +1600,13 @@ try {
     writeOutput(reduceFlatpackArtifact(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'flatpack' && action === 'expand') {
     writeOutput(expandFlatpackArtifact(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'flatpack' && action === 'continue') {
+    if(!flags.packet||!flags.input) throw new Error('flatpack continue requires --packet and --input');
+    writeOutput(compileFlatpackContinuationPlan({
+      stage1:readJson(flags.packet,'--packet'),
+      cadence:readJson(flags.input,'--input'),
+      previous_plan:flags.previous?readJson(flags.previous,'--previous'):null,
+    }), flags.out);
   } else if (family === 'file' && action === 'compile') {
     writeOutput(compilePortableSemanticFile(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'file' && action === 'cube') {
