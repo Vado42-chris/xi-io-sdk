@@ -179,6 +179,35 @@ assert.equal(levelWalk.first_red.id,'Q_LOCAL_BLAST_RADIUS_CURRENT');
 assert.equal(levelWalk.qualifier_denominator,4);
 assert.equal(levelWalk.one.current_coordinate.step_depth,2);
 
+assert.throws(()=>reduceFlatpackArtifact({
+  packet_id:'flatpack:step2-missing-blast',
+  generation:'g2',
+  one:{current_coordinate:{target_ref:'leaf:search-bins',step_depth:2}},
+  two:{left_ref:'leaf:search-bins',right_ref:'parent:flatplane',relation:'RECIPROCAL'},
+  qualifiers:[
+    {id:'Q1',state:'PASS',bit:1},
+  ],
+}),/STEP_2_BLAST_RADIUS_REQUIRED/);
+
+const step2WithBlast=reduceFlatpackArtifact({
+  packet_id:'flatpack:step2-with-blast',
+  generation:'g2',
+  one:{current_coordinate:{target_ref:'leaf:search-bins',step_depth:2}},
+  two:{left_ref:'leaf:search-bins',right_ref:'parent:flatplane',relation:'RECIPROCAL'},
+  blast_radius:{
+    coordinate_ref:'cube:parent',
+    affected_refs:['bins','search','hex'],
+    return_targets:['parent:return'],
+  },
+  qualifiers:[
+    {id:'Q1',state:'PASS',bit:1,return_target:'search:return'},
+  ],
+});
+assert.equal(step2WithBlast.stage1.blast_radius.step_depth,2);
+assert.equal(step2WithBlast.stage1.blast_radius.x_up_required,true);
+assert.deepEqual(step2WithBlast.stage1.blast_radius.affected_refs,['bins','hex','search']);
+assert.deepEqual(step2WithBlast.stage1.blast_radius.return_targets,['parent:return','search:return']);
+
 const reduction=reduceFlatpackArtifact({
   packet_id:'flatpack:blast',
   generation:'g2',
