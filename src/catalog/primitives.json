@@ -583,5 +583,25 @@
     "popover-menu",
     "choice-group",
     "inline-status"
+  ],
+  "onboarding_projection_contracts": [
+    {
+      "id": "even-x-onboarding",
+      "framework_ref": "Vado42-chris/xi-io.net:standards/onboarding/even-x-cross-onboarding.v1.json",
+      "projection_ref": "src/projections/even-x-onboarding.mjs",
+      "role": "SDK projects the shared onboarding geometry without recomputing it.",
+      "derived_navigation": [
+        "GREEN",
+        "HOT",
+        "COLD"
+      ],
+      "ghost_lifecycle": "CURRENT_X_GHOST reopens affected cells only; sealed unchanged cells remain nonselectable.",
+      "hard": [
+        "SDK_PROJECTION!=GEOMETRY_OWNER",
+        "DERIVED_NORTH_STAR_COUNT!=INDEPENDENT_WITNESS_COUNT",
+        "GHOST!=DELETE",
+        "NO_X=>NO_CLOSURE"
+      ]
+    }
   ]
 }
