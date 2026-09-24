@@ -32,12 +32,16 @@ function readAriesPhysicalCrmReceipt({hostRef=null}={}){
   }
   const schemaOk=receipt.schema==='xiio.dogfood-crm-egress-receipt/v2';
   const deliveryOk=receipt.delivery_mode==='LOCAL_CONTROL_LOOP';
-  const readbackOk=receipt.readback==='PASS_EXACT_RUN_CONSUMED_RESULT_LOCAL_CRM_DURABLE';
+  const readbackOk=receipt.readback==='PASS_EXACT_FLATPACK_LOCAL_CRM_DURABLE';
   const messageOk=Boolean(text(receipt.crm_message_id));
   const physicalDigestOk=/^sha256:[a-f0-9]{64}$/i.test(text(receipt.physical_receipt_digest));
   const consumptionDigestOk=/^sha256:[a-f0-9]{64}$/i.test(text(receipt.consumption_digest));
   const sourceGenerationOk=Boolean(text(receipt.source_generation));
-  const pass=schemaOk&&deliveryOk&&readbackOk&&messageOk&&physicalDigestOk&&consumptionDigestOk&&sourceGenerationOk;
+  const flatpackPacketOk=Boolean(text(receipt.flatpack_packet_id));
+  const flatpackGenerationOk=Boolean(text(receipt.flatpack_generation));
+  const flatpackSemanticOk=/^[a-f0-9]{64}$/i.test(text(receipt.flatpack_semantic_digest));
+  const flatpackBlastOk=/^[a-f0-9]{64}$/i.test(text(receipt.flatpack_blast_radius_digest));
+  const pass=schemaOk&&deliveryOk&&readbackOk&&messageOk&&physicalDigestOk&&consumptionDigestOk&&sourceGenerationOk&&flatpackPacketOk&&flatpackGenerationOk&&flatpackSemanticOk&&flatpackBlastOk;
   return Object.freeze({
     state:pass?'PASS':'FAIL',
     first_red:pass?null:
@@ -47,7 +51,11 @@ function readAriesPhysicalCrmReceipt({hostRef=null}={}){
       !messageOk?'CRM_MESSAGE_ID_MISSING':
       !physicalDigestOk?'CRM_PHYSICAL_RECEIPT_DIGEST_INVALID':
       !consumptionDigestOk?'CRM_CONSUMPTION_DIGEST_INVALID':
-      'CRM_SOURCE_GENERATION_MISSING',
+      !sourceGenerationOk?'CRM_SOURCE_GENERATION_MISSING':
+      !flatpackPacketOk?'CRM_FLATPACK_PACKET_ID_MISSING':
+      !flatpackGenerationOk?'CRM_FLATPACK_GENERATION_MISSING':
+      !flatpackSemanticOk?'CRM_FLATPACK_SEMANTIC_DIGEST_INVALID':
+      'CRM_FLATPACK_BLAST_RADIUS_DIGEST_INVALID',
     host_ref:host,
     receipt_path:receiptPath,
     receipt:pass?Object.freeze({
@@ -58,6 +66,10 @@ function readAriesPhysicalCrmReceipt({hostRef=null}={}){
       consumption_digest:receipt.consumption_digest,
       report_ref:receipt.report_ref??null,
       payload_ref:receipt.payload_ref??null,
+      flatpack_packet_id:receipt.flatpack_packet_id,
+      flatpack_generation:receipt.flatpack_generation,
+      flatpack_semantic_digest:receipt.flatpack_semantic_digest,
+      flatpack_blast_radius_digest:receipt.flatpack_blast_radius_digest,
       apply_return:receipt.apply_return??null,
       closure_credit:receipt.closure_credit===true,
       observed_at:receipt.observed_at??null,
