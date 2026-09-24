@@ -32,13 +32,13 @@
     "FILE_CUBE_PREPARABLE != SHIPPED"
   ],
   "dispatch": {
-    "expected": 40,
-    "materialized_primitives": 40,
+    "expected": 41,
+    "materialized_primitives": 41,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
     "live_claim": false,
-    "candidate_delta": "PORTABLE_SEMANTIC_FILE_AND_ARTIFACT_CUBE_REGISTERED_PENDING_BINS_CURRENTNESS"
+    "candidate_delta": "FLATPACK_PACKET_REGISTERED_FOR_PORTABLE_SHIPPING_PENDING_HEX_BINS_CONSUMER_READBACK"
   },
   "primitives": [
     {
@@ -561,6 +561,17 @@
       "export": "compilePortableArtifactCube",
       "source": "src/documents/portable-artifact-cube.mjs",
       "specifier": "@xi-io/sdk/documents/portable-artifact-cube",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "flatpack-packet",
+      "callable_uuid": "f8f2273d-4d43-5c32-8e0a-3b4e0f097241",
+      "family": "flatpack",
+      "kind": "compiler",
+      "export": "compileFlatpackPacket|projectFlatpackQualifiers|validateFlatpackPacketRoundtrip|reduceFlatpackArtifact|expandFlatpackArtifact|validateFlatpackReductionRoundtrip",
+      "source": "src/flatpack/executable-packet.mjs",
+      "specifier": "@xi-io/sdk/flatpack/packet",
       "styles": [],
       "maturity": "CANDIDATE"
     }
