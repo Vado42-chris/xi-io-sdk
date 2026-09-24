@@ -111,7 +111,7 @@ Human registries:
   xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
   xi-io lifecycle next            Project current lifecycle selection/returns
   xi-io lifecycle explain         Explain current projection/evidence without recompute
-  xi-io search --target files --query <text> [--limit N] [--custody 1]
+  xi-io search --target files --query <text> --root <workspace> [--limit N] [--custody 1]
                                 Discover through Inbox local API; --custody 1 explicitly requests local BINS writes
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
   xi-io verify --stdin --json   Verify one JSON artifact from stdin
@@ -813,6 +813,18 @@ async function searchRuntime(argv=[]){
   const query=String(flags.query||'').trim();
   const limit=String(flags.limit||'25');
   if(!query) return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'SEARCH_QUERY_REQUIRED',effect_authority:0};
+  let selectedRoot=null;
+  if(target==='files'){
+    const requestedRoot=String(flags.root||'').trim();
+    if(!requestedRoot) return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'SEARCH_SELECTED_ROOT_REQUIRED',local_effect_requested:false,local_effect:false,effect_authority:0};
+    const resolved=path.resolve(requestedRoot);
+    try{
+      selectedRoot=fs.realpathSync(resolved);
+      if(!fs.statSync(selectedRoot).isDirectory()) throw new Error('not_directory');
+    }catch{
+      return {schema:'xiio.cli.search/v1',state:'BLOCKED',first_red:'SEARCH_SELECTED_ROOT_UNREADABLE',local_effect_requested:false,local_effect:false,effect_authority:0};
+    }
+  }
   let fractalVector=null;
   if(flags.vector){
     fractalVector=readJson(flags.vector,'--vector');
@@ -830,6 +842,7 @@ async function searchRuntime(argv=[]){
   url.searchParams.set('target',target);
   url.searchParams.set('q',query);
   url.searchParams.set('limit',limit);
+  if(selectedRoot) url.searchParams.set('root',selectedRoot);
   const custodyRequested=flags.custody===true || String(flags.custody||'').toLowerCase()==='true' || String(flags.custody||'')==='1';
   if(fractalVector){
     const encoded=JSON.stringify(fractalVector);
@@ -871,6 +884,7 @@ async function searchRuntime(argv=[]){
       transport:'CLI_TO_INBOX_SEARCH_API',
       target_id:body?.target_id||target,
       requested_fractal_vector:fractalVector,
+      selected_workspace:selectedRoot,
       local_effect_requested:custodyRequested,
       local_effect:body?.local_effect_performed===true,
       provider_effect:false,

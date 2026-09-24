@@ -20,6 +20,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(url.searchParams.get('target'),'files');
     assert.equal(url.searchParams.get('q'),'NOA');
     assert.equal(url.searchParams.get('limit'),'5');
+    assert.ok(url.searchParams.get('root'),'selected workspace root must be forwarded');
     const vector=JSON.parse(url.searchParams.get('fractal_vector')||'null');
     assert.equal(vector?.packet_id,'packet:cli-search');
     assert.equal(vector?.blast_radius_digest,'blast:cli-search');
@@ -78,7 +79,11 @@ try{
   assert.equal(sj.schema,'xiio.cli.search/v1');
   assert.equal(sj.state,'PASS');
 
-  const query=await run(['search','--target','files','--query','NOA','--limit','5','--vector',vectorPath]);
+  const missingRoot=await run(['search','--target','files','--query','NOA','--limit','5','--vector',vectorPath]);
+  assert.notEqual(missingRoot.code,0);
+  assert.equal(JSON.parse(missingRoot.stdout).first_red,'SEARCH_SELECTED_ROOT_REQUIRED');
+
+  const query=await run(['search','--target','files','--query','NOA','--root',tmp,'--limit','5','--vector',vectorPath]);
   assert.equal(query.code,0,query.stderr);
   const qj=JSON.parse(query.stdout);
   assert.equal(qj.schema,'xiio.search.local-files-runtime-result/v1');
@@ -92,7 +97,7 @@ try{
   assert.deepEqual(qj.fractal_vector,vector);
   assert.deepEqual(qj.requested_fractal_vector,vector);
 
-  const custodyQuery=await run(['search','--target','files','--query','NOA','--limit','5','--vector',vectorPath,'--custody','1']);
+  const custodyQuery=await run(['search','--target','files','--query','NOA','--root',tmp,'--limit','5','--vector',vectorPath,'--custody','1']);
   assert.equal(custodyQuery.code,0,custodyQuery.stderr);
   const cq=JSON.parse(custodyQuery.stdout);
   assert.equal(cq.source_file_custody_count,1);
@@ -102,7 +107,7 @@ try{
 
   const badPath=path.join(tmp,'bad.json');
   fs.writeFileSync(badPath,JSON.stringify({packet_id:'bad'}));
-  const bad=await run(['search','--target','files','--query','NOA','--vector',badPath]);
+  const bad=await run(['search','--target','files','--query','NOA','--root',tmp,'--vector',badPath]);
   assert.notEqual(bad.code,0);
   const badBody=JSON.parse(bad.stdout);
   assert.match(badBody.first_red,/FRACTAL_VECTOR_FIELD_REQUIRED/);
@@ -110,7 +115,9 @@ try{
   console.log(JSON.stringify({
     schema:'xiio.sdk.cli-search-bins-frontdoor-test/v1',
     state:'PASS',
-    assertions:22,
+    assertions:25,
+    selected_workspace_required:true,
+    canonical_root_forwarded:true,
     read_only_default:true,
     explicit_custody_effect:true,
     fractal_vector_transport:true,
