@@ -21,14 +21,15 @@ const packetVector={
   generation:'g1',
   semantic_digest:'semantic:1',
   blast_radius_digest:'blast:1',
+  occurrence_count:10,
   affected_refs:['bins','hex','sam_law','studio'],
   return_targets:['return:sam_law','return:studio'],
   first_red:null
 };
 const projectionChain=[
-  {projection_ref:'step:1',packet_generation:'g1',blast_radius_digest:'blast:1',affected_refs:['bins','hex','sam_law','studio']},
-  {projection_ref:'step:2',packet_generation:'g1',blast_radius_digest:'blast:1',affected_refs:['bins','sam_law','studio']},
-  {projection_ref:'step:3',packet_generation:'g1',blast_radius_digest:'blast:1',affected_refs:['sam_law','studio']},
+  {projection_ref:'step:1',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,affected_refs:['bins','hex','sam_law','studio']},
+  {projection_ref:'step:2',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,affected_refs:['bins','sam_law','studio']},
+  {projection_ref:'step:3',packet_generation:'g1',blast_radius_digest:'blast:1',source_occurrence_count:10,affected_refs:['sam_law','studio']},
 ];
 write(['studio','pneuma.current.json'],{
   schema:'xiio.studio.pneuma-recursion/v1',
@@ -92,6 +93,22 @@ const stepThreeDrift=await executePneuma({
 assert.equal(stepThreeDrift.state,'FAIL');
 assert.equal(stepThreeDrift.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').first_red,'BLAST_RADIUS_DIGEST_DRIFT');
 
+const occurrenceDriftChain=projectionChain.map((row)=>({...row}));
+occurrenceDriftChain[2].source_occurrence_count=1;
+write(['studio','pneuma.current.json'],{
+  schema:'xiio.studio.pneuma-recursion/v1',
+  state:'PASS',
+  recursion_ref:'pneuma:r1',
+  packet_vector:packetVector,
+  projection_chain:occurrenceDriftChain,
+  rotation_engine:{face_denominator:6,projection_denominator:24,reciprocal_projection_denominator:48}
+});
+const occurrenceDrift=await executePneuma({
+  root:'local',aries:'root',bus:'ws://localhost:4390/aries/bus',exec_rotfl:false,state_root:root
+});
+assert.equal(occurrenceDrift.state,'FAIL');
+assert.equal(occurrenceDrift.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').first_red,'SOURCE_OCCURRENCE_COUNT_DRIFT');
+
 write(['studio','pneuma.current.json'],{
   schema:'xiio.studio.pneuma-recursion/v1',
   state:'PASS',
@@ -149,6 +166,8 @@ assert.equal(pass.claims.ct17_byte_custody_verified,true);
 assert.equal(pass.claims.zero_unverified_stubs,true);
 assert.equal(pass.claims.rotfl_loop_closed,true);
 assert.equal(pass.claims.pneuma_pulse_active,true);
+assert.equal(pass.source_occurrence_count,10);
+assert.equal(pass.checks.find(x=>x.id==='BLAST_RADIUS_CONTINUITY').source_occurrence_count,10);
 assert(fs.existsSync(pulsePath));
 
 await new Promise(resolve=>server.close(resolve));
@@ -162,6 +181,8 @@ console.log(JSON.stringify({
   state:'PASS',
   hostile_false_claims_blocked:true,
   step_three_blast_radius_drift_blocked:true,
+  source_occurrence_count_drift_blocked:true,
+  duplicate_occurrence_fixture_count:10,
   loopback_exec_pulse:true,
   exact_command_shape_supported:true,
   effect_authority:0
