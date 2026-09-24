@@ -111,8 +111,8 @@ Human registries:
   xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
   xi-io lifecycle next            Project current lifecycle selection/returns
   xi-io lifecycle explain         Explain current projection/evidence without recompute
-  xi-io search --target files --query <text> [--limit N]
-                                Execute Search through Inbox local API; files bind BINS custody
+  xi-io search --target files --query <text> [--limit N] [--custody 1]
+                                Discover through Inbox local API; --custody 1 explicitly requests local BINS writes
   xi-io gates --check --json    Evaluate fail-closed command-floor gate summary
   xi-io verify --stdin --json   Verify one JSON artifact from stdin
   xi-io verify --file PATH --json
@@ -830,6 +830,7 @@ async function searchRuntime(argv=[]){
   url.searchParams.set('target',target);
   url.searchParams.set('q',query);
   url.searchParams.set('limit',limit);
+  const custodyRequested=flags.custody===true || String(flags.custody||'').toLowerCase()==='true' || String(flags.custody||'')==='1';
   if(fractalVector){
     const encoded=JSON.stringify(fractalVector);
     if(Buffer.byteLength(encoded,'utf8')>8192){
@@ -837,6 +838,7 @@ async function searchRuntime(argv=[]){
     }
     url.searchParams.set('fractal_vector',encoded);
   }
+  if(custodyRequested) url.searchParams.set('custody','1');
   const token=String(process.env.XIIO_SEARCH_API_TOKEN||'');
   try{
     const response=await fetch(url,{
@@ -869,6 +871,9 @@ async function searchRuntime(argv=[]){
       transport:'CLI_TO_INBOX_SEARCH_API',
       target_id:body?.target_id||target,
       requested_fractal_vector:fractalVector,
+      local_effect_requested:custodyRequested,
+      local_effect:body?.local_effect_performed===true,
+      provider_effect:false,
       effect_authority:0
     };
   }catch(error){

@@ -23,17 +23,20 @@ const server=http.createServer((req,res)=>{
     const vector=JSON.parse(url.searchParams.get('fractal_vector')||'null');
     assert.equal(vector?.packet_id,'packet:cli-search');
     assert.equal(vector?.blast_radius_digest,'blast:cli-search');
+    const custody=url.searchParams.get('custody')==='1';
     res.writeHead(200);
     return res.end(JSON.stringify({
       schema:'xiio.search.local-files-runtime-result/v1',
       ok:true,
       target_id:'files',
       result_count:1,
-      source_file_custody_count:1,
+      source_file_custody_count:custody?1:0,
       source_file_wait_count:0,
-      result_set_custody_ok:true,
+      result_set_custody_ok:custody,
+      local_effect_requested:custody,
+      local_effect_performed:custody,
       fractal_vector:vector,
-      result_set:{results:[{id:'file:test',bins_ref:{resource_ref:'bins:r1',version_ref:'bins:r1:v1',sha256:'a'.repeat(64)}}]},
+      result_set:{results:[{id:'file:test',bins_ref:custody?{resource_ref:'bins:r1',version_ref:'bins:r1:v1',sha256:'a'.repeat(64)}:null,custody_state:custody?'BINS_LOCAL_DURABLE':'DISCOVERED_NO_CUSTODY'}]},
       provider_effect:false,
       effect_authority:0
     }));
@@ -81,10 +84,21 @@ try{
   assert.equal(qj.schema,'xiio.search.local-files-runtime-result/v1');
   assert.equal(qj.transport,'CLI_TO_INBOX_SEARCH_API');
   assert.equal(qj.target_id,'files');
-  assert.equal(qj.source_file_custody_count,1);
-  assert.equal(qj.result_set.results[0].bins_ref.version_ref,'bins:r1:v1');
+  assert.equal(qj.source_file_custody_count,0);
+  assert.equal(qj.result_set.results[0].bins_ref,null);
+  assert.equal(qj.result_set.results[0].custody_state,'DISCOVERED_NO_CUSTODY');
+  assert.equal(qj.local_effect_requested,false);
+  assert.equal(qj.local_effect,false);
   assert.deepEqual(qj.fractal_vector,vector);
   assert.deepEqual(qj.requested_fractal_vector,vector);
+
+  const custodyQuery=await run(['search','--target','files','--query','NOA','--limit','5','--vector',vectorPath,'--custody','1']);
+  assert.equal(custodyQuery.code,0,custodyQuery.stderr);
+  const cq=JSON.parse(custodyQuery.stdout);
+  assert.equal(cq.source_file_custody_count,1);
+  assert.equal(cq.result_set.results[0].bins_ref.version_ref,'bins:r1:v1');
+  assert.equal(cq.local_effect_requested,true);
+  assert.equal(cq.local_effect,true);
 
   const badPath=path.join(tmp,'bad.json');
   fs.writeFileSync(badPath,JSON.stringify({packet_id:'bad'}));
@@ -96,7 +110,9 @@ try{
   console.log(JSON.stringify({
     schema:'xiio.sdk.cli-search-bins-frontdoor-test/v1',
     state:'PASS',
-    assertions:14,
+    assertions:22,
+    read_only_default:true,
+    explicit_custody_effect:true,
     fractal_vector_transport:true,
     incomplete_vector_blocked:true
   },null,2));
