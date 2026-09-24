@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { reduceFlatpackArtifact } from '../src/flatpack/executable-packet.mjs';
 import { compileFlatpackContinuationPlan } from '../src/cadence/flatpack-continuation.mjs';
 
@@ -67,10 +71,39 @@ assert.throws(()=>compileFlatpackContinuationPlan({
   previous_plan:{...loop2,return_targets:['search:return']},
 }),/PREVIOUS_RETURN_TARGET_DRIFT/);
 
+// CLI THREE-LOOP PHYSICAL SOURCE PATH: prove the plan survives through the actual front door.
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-flatpack-continuation-'));
+const stagePath=path.join(tmp,'stage1.json');
+const cadencePath=path.join(tmp,'cadence.json');
+const p1Path=path.join(tmp,'plan1.json');
+const p2Path=path.join(tmp,'plan2.json');
+const p3Path=path.join(tmp,'plan3.json');
+fs.writeFileSync(stagePath,JSON.stringify(stage1,null,2));
+fs.writeFileSync(cadencePath,JSON.stringify(cadence,null,2));
+
+function cli(previous,out){
+  const args=['bin/xi.mjs','flatpack','continue','--packet',stagePath,'--input',cadencePath,'--out',out];
+  if(previous) args.push('--previous',previous);
+  const run=spawnSync(process.execPath,args,{encoding:'utf8'});
+  assert.equal(run.status,0,run.stderr||run.stdout);
+  return JSON.parse(fs.readFileSync(out,'utf8'));
+}
+
+const cli1=cli(null,p1Path);
+const cli2=cli(p1Path,p2Path);
+const cli3=cli(p2Path,p3Path);
+assert.deepEqual([cli1.loop_index,cli2.loop_index,cli3.loop_index],[1,2,3]);
+assert.equal(cli1.blast_radius_digest,cli3.blast_radius_digest);
+assert.deepEqual(cli1.affected_refs,cli3.affected_refs);
+assert.deepEqual(cli1.return_targets,cli3.return_targets);
+assert.equal(cli3.packet_generation,'g1');
+assert.equal(cli3.qualifier_state.state,'TRUE_WAIT');
+
 console.log(JSON.stringify({
   status:'PASS',
   schema:'xiio.sdk.flatpack-continuation-plan/v1',
   loops_proven:3,
+  cli_loops_proven:3,
   blast_radius_preserved:true,
   affected_set_preserved:true,
   return_targets_preserved:true,
