@@ -40,15 +40,23 @@ console.log(JSON.stringify({schema:'xiio.crm.knowledge-current-read/v1',ok:true,
       report_ref:'report:12345',
       payload_ref:'payload:12345',
       source_generation:'g1',
+      flatpack_packet_id:'flatpack:test',
+      flatpack_generation:'g1',
+      flatpack_semantic_digest:'c'.repeat(64),
+      flatpack_blast_radius_digest:'d'.repeat(64),
       provider_effect:false,
       delivery_mode:'LOCAL_CONTROL_LOOP',
-      readback:'PASS_EXACT_RUN_CONSUMED_RESULT_LOCAL_CRM_DURABLE',
+      readback:'PASS_EXACT_FLATPACK_LOCAL_CRM_DURABLE',
       closure_credit:false,
       apply_return:'PENDING'
     })+'\n');
 
     const physical=readAriesPhysicalCrmReceipt({hostRef:'aries'});
     assert.equal(physical.state,'PASS');
+    assert.equal(physical.receipt.flatpack_packet_id,'flatpack:test');
+    assert.equal(physical.receipt.flatpack_generation,'g1');
+    assert.equal(physical.receipt.flatpack_semantic_digest,'c'.repeat(64));
+    assert.equal(physical.receipt.flatpack_blast_radius_digest,'d'.repeat(64));
     assert.equal(physical.receipt.apply_return,'PENDING');
     assert.equal(physical.receipt.closure_credit,false);
 
