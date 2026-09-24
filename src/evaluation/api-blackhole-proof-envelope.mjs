@@ -1,0 +1,98 @@
+const CLAIM_KINDS=Object.freeze([
+  'PROSE','SCREENSHOT','SYNTHETIC_LOG','LOCALHOST_TEXT','TOOL_CALL_TEXT',
+  'CONNECTOR_READBACK','NATIVE_RECEIPT'
+]);
+const PROOF_SCOPES=Object.freeze(['SYNTHETIC_FIXTURE','CONNECTOR_METADATA','HOME_CURRENT','NATIVE_RUNTIME']);
+
+const text=(v,k)=>{if(typeof v!=='string'||!v.trim())throw new TypeError(k+'_REQUIRED');return v.trim();};
+const one=(v,set,k)=>{const x=text(v,k);if(!set.includes(x))throw new TypeError(k+'_INVALID');return x;};
+const bool=(v,k)=>{if(typeof v!=='boolean')throw new TypeError(k+'_BOOLEAN_REQUIRED');return v;};
+const list=(v)=>Array.isArray(v)?v.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()):[];
+
+function pathAllowed(targetPath,allowedPrefixes){
+  if(targetPath==null)return true;
+  const p=text(targetPath,'TARGET_PATH');
+  const prefixes=list(allowedPrefixes);
+  if(!prefixes.length)return false;
+  return prefixes.some(prefix=>p===prefix||p.startsWith(prefix.endsWith('/')?prefix:prefix+'/'));
+}
+
+export function evaluateApiBlackholeClaim(input={}){
+  const claim_kind=one(input.claim_kind,CLAIM_KINDS,'CLAIM_KIND');
+  const proof_scope=one(input.proof_scope,PROOF_SCOPES,'PROOF_SCOPE');
+  const source_generation=text(input.source_generation,'SOURCE_GENERATION');
+  const target_path=input.target_path??null;
+  const allowed_target_prefixes=list(input.allowed_target_prefixes);
+
+  const out={
+    schema:'xiio.api-blackhole.evaluation/v1',
+    claim_kind,
+    proof_scope,
+    source_generation,
+    target_path,
+    state:'TRUE_WAIT',
+    first_red:null,
+    promotion_allowed:false,
+    authority_granted:false,
+    provider_effect:false,
+  };
+
+  if(target_path!==null&&!pathAllowed(target_path,allowed_target_prefixes)){
+    return Object.freeze({...out,state:'FAIL',first_red:'OUT_OF_SCOPE_TARGET'});
+  }
+
+  if(claim_kind==='TOOL_CALL_TEXT'&&proof_scope!=='NATIVE_RUNTIME'){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'TOOL_CALL_TEXT_NOT_NATIVE_EFFECT'});
+  }
+
+  if(proof_scope!=='NATIVE_RUNTIME'){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'NATIVE_RUNTIME_RECEIPT_REQUIRED'});
+  }
+
+  const receipt=input.native_receipt;
+  if(!receipt||typeof receipt!=='object'){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'NATIVE_RECEIPT_REQUIRED'});
+  }
+
+  const host_ref=text(receipt.host_ref,'RECEIPT_HOST_REF');
+  const receipt_generation=text(receipt.generation_ref,'RECEIPT_GENERATION_REF');
+  const producer_ref=text(receipt.producer_ref,'RECEIPT_PRODUCER_REF');
+  const verifier_ref=text(receipt.verifier_ref,'RECEIPT_VERIFIER_REF');
+  const fresh=bool(receipt.fresh,'RECEIPT_FRESH');
+  const replayed=bool(receipt.replayed,'RECEIPT_REPLAYED');
+  const independent_readback=bool(receipt.independent_readback,'RECEIPT_INDEPENDENT_READBACK');
+  const authenticated=bool(receipt.authenticated,'RECEIPT_AUTHENTICATED');
+
+  if(receipt_generation!==source_generation){
+    return Object.freeze({...out,state:'FAIL',first_red:'RECEIPT_GENERATION_MISMATCH',host_ref});
+  }
+  if(!fresh){
+    return Object.freeze({...out,state:'FAIL',first_red:'STALE_NATIVE_RECEIPT',host_ref});
+  }
+  if(replayed){
+    return Object.freeze({...out,state:'FAIL',first_red:'REPLAYED_NATIVE_RECEIPT',host_ref});
+  }
+  if(!authenticated){
+    return Object.freeze({...out,state:'FAIL',first_red:'NATIVE_RECEIPT_NOT_AUTHENTICATED',host_ref});
+  }
+  if(!independent_readback){
+    return Object.freeze({...out,state:'FAIL',first_red:'INDEPENDENT_READBACK_REQUIRED',host_ref});
+  }
+  if(producer_ref===verifier_ref){
+    return Object.freeze({...out,state:'FAIL',first_red:'SELF_VERIFIED_NATIVE_RECEIPT',host_ref});
+  }
+
+  return Object.freeze({...out,state:'PASS',first_red:null,promotion_allowed:true,host_ref});
+}
+
+export const API_BLACKHOLE_HARD=Object.freeze([
+  'PROSE_CLAIM != PHYSICAL_EXECUTION',
+  'TOOL_CALL_TEXT != FILE_MUTATION',
+  'WRITE_ACK != POST_WRITE_READBACK',
+  'LOCAL_LOOPBACK_SOCKET_REACHABLE != PHYSICAL_HOST_EXECUTION',
+  'NATIVE_RECEIPT != CURRENT_RECEIPT',
+  'CURRENT_RECEIPT != INDEPENDENT_READBACK',
+  'SELF_VERIFICATION != INDEPENDENT_READBACK',
+  'TARGET_PATH_OUTSIDE_SCOPE = FAIL',
+  'API_BLACKHOLE != PASS',
+]);
