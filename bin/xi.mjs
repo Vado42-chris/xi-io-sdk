@@ -13,6 +13,7 @@ import { prepareRegisteredPrimitiveShipment } from '../src/documents/prepare-pri
 import { prepareExternalArtifactShipment } from '../src/documents/prepare-external-artifact-shipment.mjs';
 import { artifactProfileCatalog, resolveArtifactProfile, resolveArtifactProfileByMediaType } from '../src/documents/artifact-profile-catalog.mjs';
 import { bindHexFloorCurrentness } from '../src/currentness/hex-floor.mjs';
+import { compileFractalConsumerReceiptEnvelope } from '../src/receipts/fractal-consumer.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
 import { compileFourScaleScorecard } from '../src/scorecards/four-scale.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
@@ -134,6 +135,7 @@ Pure compilers:
   xi-io flatpack compile --input <packet.json> [--out <flatpack.json>]
   xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
   xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
+  xi-io receipt fractal --consumer <id> --scale <MICRO|MESO|MACRO|META> --input <vector.json> --producer <ref> --observer <ref> --source <ref> [--readback <ref>] [--out <receipt.json>]
   xi-io file compile --input <file.json> [--out <portable-file.json>]
   xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
   xi-io file profiles [--out <profiles.json>]
@@ -183,6 +185,7 @@ Product runtime:
   xi-io inbox recover                     Recover exact-current Inbox runtime
   xi-io inbox open                        Recover if needed, then open Inbox inside Studio
   xi-io studio status                     Probe Studio :3099
+  xi-io studio fractal --json             Read exact Studio fractal receipt ledger
   xi-io studio start                      Start installed Studio shell and require :3099 readback
   xi-io studio open                       Open local Studio
   xi-io studio inbox                      Recover Inbox and open Studio Inbox wrapper
@@ -1321,6 +1324,56 @@ if (
   process.stdout.write((status.available_models||[]).join('\n')+'\n');
 } else if (top === 'install') {
   installLocalCli();
+} else if (top === 'studio' && process.argv[3] === 'fractal') {
+  const ledgerPath=process.env.XIIO_FRACTAL_RECEIPT_LEDGER_PATH || path.join(
+    os.homedir(),'.local','state','xi-io','studio','fractal-receipts.current.json'
+  );
+  try{
+    const ledger=readJson(ledgerPath,'Studio fractal receipt ledger');
+    if(ledger?.schema!=='xiio.studio.fractal-consumer-receipt-ledger/v1'){
+      emitCliResult('studio.fractal',{
+        schema:'xiio.cli.studio-fractal-ledger/v1',
+        state:'BLOCKED',
+        first_red:'FRACTAL_RECEIPT_LEDGER_SCHEMA_INVALID',
+        path:ledgerPath,
+        observed_schema:ledger?.schema||null,
+        provider_effect:false,
+        authority_granted:false,
+      },{stable:true});
+    }else{
+      emitCliResult('studio.fractal',{
+        schema:'xiio.cli.studio-fractal-ledger/v1',
+        state:'PASS',
+        path:ledgerPath,
+        ledger,
+        generation:ledger.generation,
+        closure_100:ledger.closure_100===true,
+        expected_receipt_denominator:ledger.expected_receipt_denominator,
+        verified_count:ledger.verified_count,
+        wait_count:ledger.wait_count,
+        fail_count:ledger.fail_count,
+        first_red:ledger.first_red||null,
+        canonical_vector:ledger.canonical_vector,
+        provider_effect:false,
+        authority_granted:false,
+        hard:[
+          'CLI_PROJECTS_RECEIPT_LEDGER_DOES_NOT_RECOMPUTE',
+          'MISSING_LEDGER!=PASS',
+          'LEDGER_CLOSURE!=AUTHORITY'
+        ]
+      },{stable:true});
+    }
+  }catch(error){
+    emitCliResult('studio.fractal',{
+      schema:'xiio.cli.studio-fractal-ledger/v1',
+      state:'TRUE_WAIT',
+      path:ledgerPath,
+      first_red:'FRACTAL_RECEIPT_LEDGER_UNREADABLE',
+      error:String(error?.message||error),
+      provider_effect:false,
+      authority_granted:false,
+    },{stable:true});
+  }
 } else if (top === 'hex' && process.argv[3] === 'floor') {
   const raw=process.argv.slice(4).filter((value)=>value!=='--json');
   const { flags }=args(raw);
@@ -1480,6 +1533,20 @@ try {
         cube_id:flags.cube || undefined,
       }), flags.out);
     } else throw new Error('file prepare requires --primitive or --descriptor');
+  } else if (family === 'receipt' && action === 'fractal') {
+    if(!flags.consumer||!flags.scale||!flags.input||!flags.producer||!flags.observer||!flags.source){
+      throw new Error('receipt fractal requires --consumer --scale --input --producer --observer --source');
+    }
+    const vector=readJson(flags.input,'--input');
+    writeOutput(compileFractalConsumerReceiptEnvelope({
+      consumer_id:flags.consumer,
+      scale:flags.scale,
+      producer_ref:flags.producer,
+      observer_ref:flags.observer,
+      source_ref:flags.source,
+      readback_ref:flags.readback||null,
+      conserved:vector,
+    }), flags.out);
   } else if (family === 'product' && action === 'compile') {
     writeOutput(compileProductCapabilityBaseline(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'fleet' && action === 'delivery') {
