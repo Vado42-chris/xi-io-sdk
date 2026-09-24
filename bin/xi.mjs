@@ -13,6 +13,7 @@ import { prepareRegisteredPrimitiveShipment } from '../src/documents/prepare-pri
 import { prepareExternalArtifactShipment } from '../src/documents/prepare-external-artifact-shipment.mjs';
 import { artifactProfileCatalog, resolveArtifactProfile, resolveArtifactProfileByMediaType } from '../src/documents/artifact-profile-catalog.mjs';
 import { bindHexFloorCurrentness } from '../src/currentness/hex-floor.mjs';
+import { compileFractalConsumerReceiptEnvelope } from '../src/receipts/fractal-consumer.mjs';
 import { compileFleetDeliveryGate } from '../src/baseline/fleet-delivery.mjs';
 import { compileFourScaleScorecard } from '../src/scorecards/four-scale.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
@@ -134,6 +135,7 @@ Pure compilers:
   xi-io flatpack compile --input <packet.json> [--out <flatpack.json>]
   xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
   xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
+  xi-io receipt fractal --consumer <id> --scale <MICRO|MESO|MACRO|META> --input <vector.json> --producer <ref> --observer <ref> --source <ref> [--readback <ref>] [--out <receipt.json>]
   xi-io file compile --input <file.json> [--out <portable-file.json>]
   xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
   xi-io file profiles [--out <profiles.json>]
@@ -1480,6 +1482,20 @@ try {
         cube_id:flags.cube || undefined,
       }), flags.out);
     } else throw new Error('file prepare requires --primitive or --descriptor');
+  } else if (family === 'receipt' && action === 'fractal') {
+    if(!flags.consumer||!flags.scale||!flags.input||!flags.producer||!flags.observer||!flags.source){
+      throw new Error('receipt fractal requires --consumer --scale --input --producer --observer --source');
+    }
+    const vector=readJson(flags.input,'--input');
+    writeOutput(compileFractalConsumerReceiptEnvelope({
+      consumer_id:flags.consumer,
+      scale:flags.scale,
+      producer_ref:flags.producer,
+      observer_ref:flags.observer,
+      source_ref:flags.source,
+      readback_ref:flags.readback||null,
+      conserved:vector,
+    }), flags.out);
   } else if (family === 'product' && action === 'compile') {
     writeOutput(compileProductCapabilityBaseline(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'fleet' && action === 'delivery') {
