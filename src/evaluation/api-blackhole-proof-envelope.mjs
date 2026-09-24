@@ -25,6 +25,8 @@ export function evaluateApiBlackholeClaim(input={}){
   const claim_kind=one(input.claim_kind,CLAIM_KINDS,'CLAIM_KIND');
   const proof_scope=one(input.proof_scope,PROOF_SCOPES,'PROOF_SCOPE');
   const source_generation=text(input.source_generation,'SOURCE_GENERATION');
+  const expected_host_ref=input.expected_host_ref==null?null:text(input.expected_host_ref,'EXPECTED_HOST_REF');
+  const expected_execution_surface_ref=input.expected_execution_surface_ref==null?null:text(input.expected_execution_surface_ref,'EXPECTED_EXECUTION_SURFACE_REF');
   const target_path=input.target_path??null;
   const allowed_target_prefixes=list(input.allowed_target_prefixes);
 
@@ -63,6 +65,9 @@ export function evaluateApiBlackholeClaim(input={}){
   }
 
   const host_ref=text(receipt.host_ref,'RECEIPT_HOST_REF');
+  const execution_surface_ref=text(receipt.execution_surface_ref,'RECEIPT_EXECUTION_SURFACE_REF');
+  const environment_survey_ref=text(receipt.environment_survey_ref,'RECEIPT_ENVIRONMENT_SURVEY_REF');
+  const environment_current=bool(receipt.environment_current,'RECEIPT_ENVIRONMENT_CURRENT');
   const receipt_generation=text(receipt.generation_ref,'RECEIPT_GENERATION_REF');
   const producer_ref=text(receipt.producer_ref,'RECEIPT_PRODUCER_REF');
   const verifier_ref=text(receipt.verifier_ref,'RECEIPT_VERIFIER_REF');
@@ -71,6 +76,15 @@ export function evaluateApiBlackholeClaim(input={}){
   const independent_readback=bool(receipt.independent_readback,'RECEIPT_INDEPENDENT_READBACK');
   const authenticated=bool(receipt.authenticated,'RECEIPT_AUTHENTICATED');
 
+  if(expected_host_ref!==null&&host_ref!==expected_host_ref){
+    return Object.freeze({...out,state:'FAIL',first_red:'EXECUTION_HOST_MISMATCH',host_ref,execution_surface_ref,environment_survey_ref});
+  }
+  if(expected_execution_surface_ref!==null&&execution_surface_ref!==expected_execution_surface_ref){
+    return Object.freeze({...out,state:'FAIL',first_red:'EXECUTION_SURFACE_MISMATCH',host_ref,execution_surface_ref,environment_survey_ref});
+  }
+  if(!environment_current){
+    return Object.freeze({...out,state:'TRUE_WAIT',first_red:'ENVIRONMENT_SURVEY_STALE',host_ref,execution_surface_ref,environment_survey_ref});
+  }
   if(receipt_generation!==source_generation){
     return Object.freeze({...out,state:'FAIL',first_red:'RECEIPT_GENERATION_MISMATCH',host_ref});
   }
@@ -90,7 +104,7 @@ export function evaluateApiBlackholeClaim(input={}){
     return Object.freeze({...out,state:'FAIL',first_red:'SELF_VERIFIED_NATIVE_RECEIPT',host_ref});
   }
 
-  return Object.freeze({...out,state:'PASS',first_red:null,promotion_allowed:true,host_ref});
+  return Object.freeze({...out,state:'PASS',first_red:null,promotion_allowed:true,host_ref,execution_surface_ref,environment_survey_ref});
 }
 
 export const API_BLACKHOLE_HARD=Object.freeze([
@@ -99,6 +113,9 @@ export const API_BLACKHOLE_HARD=Object.freeze([
   'TOOL_CALL_TEXT + NATIVE_RECEIPT != NATIVE_RECEIPT_CLAIM',
   'WRITE_ACK != POST_WRITE_READBACK',
   'LOCAL_LOOPBACK_SOCKET_REACHABLE != PHYSICAL_HOST_EXECUTION',
+  'DESKTOP_VISIBLE != EXECUTION_CONTEXT_SURVEYED',
+  'MINIMIZED_OR_HIDDEN != PROCESS_STOPPED',
+  'HOST_IDENTITY != EXECUTION_SURFACE_IDENTITY',
   'NATIVE_RECEIPT != CURRENT_RECEIPT',
   'CURRENT_RECEIPT != INDEPENDENT_READBACK',
   'SELF_VERIFICATION != INDEPENDENT_READBACK',
