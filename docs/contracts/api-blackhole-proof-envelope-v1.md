@@ -90,3 +90,18 @@ NO_CURRENT_ENVIRONMENT_SURVEY = TRUE_WAIT
 ```
 
 The survey is evidence input, not a new truth store. Framework #294/#309 remain environment/resource owners, while Studio/launcher/render owners consume the projection.
+
+
+## Z-stack occlusion hostile, 2026-09-24
+
+Owner desktop dogfood exposed an additional visibility class: an application can be fully occluded behind a fullscreen window while still running and while its state remains relevant. The proof envelope therefore treats UI visibility as an observation only.
+
+```text
+VISIBLE != FOREGROUND
+OCCLUDED != ABSENT
+FULLSCREEN_COVERAGE != UNDERLAY_STOPPED
+MINIMIZED_OR_HIDDEN != PROCESS_STOPPED
+WINDOW_VISIBILITY != RUNTIME_CURRENTNESS
+```
+
+The exact workspace/container survey must account for visible, occluded, minimized, hidden, and unknown UI surfaces without turning any of those labels into process or service truth.
