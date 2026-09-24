@@ -35,9 +35,19 @@ const cases=[
     state:'FAIL',first_red:'OUT_OF_SCOPE_TARGET'
   },
   {
+    id:'PATH_TRAVERSAL_CANNOT_ESCAPE_SCOPE',
+    input:{...base,claim_kind:'TOOL_CALL_TEXT',proof_scope:'HOME_CURRENT',target_path:'/home/chrishallberg/.local/share/xi-io/../../../../etc/passwd'},
+    state:'FAIL',first_red:'OUT_OF_SCOPE_TARGET'
+  },
+  {
     id:'TOOL_SHAPE_IN_SCOPE_WITHOUT_NATIVE_EFFECT',
     input:{...base,claim_kind:'TOOL_CALL_TEXT',proof_scope:'HOME_CURRENT',target_path:'/home/chrishallberg/.local/share/xi-io/agents/ibal/agent.mjs'},
     state:'TRUE_WAIT',first_red:'TOOL_CALL_TEXT_NOT_NATIVE_EFFECT'
+  },
+  {
+    id:'TOOL_SHAPE_CANNOT_SELF_PROMOTE_WITH_RECEIPT',
+    input:{...base,claim_kind:'TOOL_CALL_TEXT',proof_scope:'NATIVE_RUNTIME',target_path:'/home/chrishallberg/.local/share/xi-io/agents/ibal/agent.mjs',native_receipt:validReceipt},
+    state:'TRUE_WAIT',first_red:'CLAIM_KIND_NOT_NATIVE_RECEIPT'
   },
   {
     id:'WRONG_GENERATION_NATIVE_RECEIPT',
@@ -78,7 +88,9 @@ console.log(JSON.stringify({
   cases:cases.map(c=>({id:c.id,expected_state:c.state,expected_first_red:c.first_red})),
   hard:[
     'TOOL_CALL_TEXT != FILE_MUTATION',
+    'TOOL_CALL_TEXT + NATIVE_RECEIPT != NATIVE_RECEIPT_CLAIM',
     'TARGET_PATH_OUTSIDE_SCOPE = FAIL',
+    'PATH_TRAVERSAL_OUTSIDE_SCOPE = FAIL',
     'NATIVE_RUNTIME + RECEIPT != SUFFICIENT_WITHOUT_FRESH_INDEPENDENT_READBACK',
     'ONE_VALID_NATIVE_CASE != ALL_EXTERNAL_CLAIMS_GREEN'
   ]
