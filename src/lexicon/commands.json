@@ -3,6 +3,24 @@
   "namespace": "xi",
   "commands": [
     {
+      "id": "opus.ignite",
+      "cli": "xi-io-opus",
+      "aliases": [
+        "opus",
+        "ignite",
+        "start-opus"
+      ],
+      "hashtags": [
+        "#opus",
+        "#pneuma",
+        "#ibal",
+        "#rotfl",
+        "#currentness"
+      ],
+      "purpose": "Ignite the current xi-io local operator by surveying current roots, mapping core engines/language/metrics, orienting ready work through the projection gyroscope, binding PNEUMA state, and opening the local Ibal operator without granting provider or effect authority.",
+      "effect": "LOCAL_ORCHESTRATION"
+    },
+    {
       "id": "baseline.compile",
       "cli": "xi baseline compile",
       "aliases": [],
