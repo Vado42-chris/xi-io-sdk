@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import { compileProjectionGyroscope, normalizeGyroscopeGear } from '../orchestration/gyroscope.mjs';
 
 export const OPUS_SCHEMA='xiio.opus-ignition/v1';
 
@@ -296,8 +297,12 @@ export function compileOpusIgnition({
   framework_generation_state='UNKNOWN',
   verify=false,
   pneuma_pulse=null,
+  gear=1,
+  axis='DIRECTION',
+  direction='FORWARD',
   node=process.execPath,
 }={}){
+  const selectedGear=normalizeGyroscopeGear(gear);
   const framework=FRAMEWORK_LANES.map(lane=>compileLane(framework_root,lane,{verify,node}));
   const sdk=SDK_LANES.map(lane=>compileLane(sdk_root,lane,{verify,node}));
 
@@ -321,12 +326,52 @@ export function compileOpusIgnition({
   const pass=all.filter(x=>['PASS','SUBFUNCTION','SOURCE_BOUND'].includes(x.state));
   const firstRed=hardFail[0]?.first_red || waits[0]?.first_red || (framework_generation_state!=='EXACT_PROVIDER_MAIN'?'FRAMEWORK_CURRENTNESS_NOT_EXACT_PROVIDER_MAIN':null);
 
+  const gyroscopeWork=all.map((lane,index)=>{
+    const terminal=['PASS','SUBFUNCTION','SOURCE_BOUND'].includes(lane.state);
+    const blocked=lane.source_state==='MISSING'
+      || (lane.id==='PNEUMA_FRONTDOOR' && lane.state==='TRUE_WAIT' && lane.first_red);
+    return {
+      work_ref:`opus:${lane.id}`,
+      projection_ref:`projection:opus:${lane.id}`,
+      state:terminal?'PASS':blocked?'BLOCKED':'READY',
+      priority:lane.validator_state?.state==='FAIL'?100:
+        lane.state==='AVAILABLE_NOT_RUN'?80:
+        lane.state==='SOURCE_ONLY'?60:
+        lane.state==='TRUE_WAIT'?50:
+        10-index,
+      blocked_by:blocked?[lane.first_red||'SOURCE_OR_RUNTIME_WAIT']:[],
+      first_red:lane.first_red||null,
+    };
+  });
+  const gyro=compileProjectionGyroscope({
+    spine:{
+      root_ref:'root:xi-io-opus',
+      generation_ref:framework_generation_state,
+      denominator_ref:`denominator:opus:${all.length}`,
+      return_target_ref:'return:xi-io-opus',
+      effect_ceiling:'NO_EFFECT',
+      privacy_ceiling:'PRIVATE_INHERITED',
+      source_refs:['xi-io.net','xi-io-sdk'],
+    },
+    gear:selectedGear,
+    axis,
+    direction,
+    work_items:gyroscopeWork,
+  });
+  if(!gyro.ok) throw new Error(gyro.code||'GYROSCOPE_COMPILE_FAILED');
+
   return Object.freeze({
     schema:OPUS_SCHEMA,
     ignition_key:'xi-io-opus',
     state:hardFail.length?'FAIL':firstRed?'IGNITED_WITH_WAITS':'PASS',
     verify:Boolean(verify),
     framework_generation_state,
+    transmission:{
+      gear:selectedGear,
+      axis:String(axis).toUpperCase(),
+      direction:String(direction).toUpperCase(),
+      gyroscope:gyro.gyroscope,
+    },
     denominator:all.length,
     pass:pass.length,
     wait:waits.length,
