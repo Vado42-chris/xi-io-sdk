@@ -32,8 +32,6 @@ function project(row) {
   const help_disposition_ref = row.help_disposition_ref == null ? null : text(row.help_disposition_ref,'project.help_disposition_ref');
 
   const blockers = [];
-  if (JSON.stringify(actual_project_refs)!==JSON.stringify(expected_project_refs)) blockers.push('REGISTRY_DENOMINATOR_MISMATCH');
-  if (projects.some((p)=>p.project_generation!==source_generation)) blockers.push('PROJECT_GENERATION_STALE');
   if (state === 'AFFECTED' && !sdk_ack_ref) blockers.push('AFFECTED_WITHOUT_SDK_ACK');
   if (state !== 'UNKNOWN' && evidence_refs.length === 0) blockers.push('DISPOSITION_WITHOUT_EVIDENCE');
   if (help_offered_bit === 1 && !help_disposition_ref) blockers.push('HELP_OFFER_WITHOUT_DISPOSITION');
@@ -89,6 +87,8 @@ export function compileXIntersectionUx(input) {
   const actual_project_refs=[...uniqueProjects].sort();
 
   const blockers = [];
+  if (JSON.stringify(actual_project_refs)!==JSON.stringify(expected_project_refs)) blockers.push('REGISTRY_DENOMINATOR_MISMATCH');
+  if (projects.some((p)=>p.project_generation!==source_generation)) blockers.push('PROJECT_GENERATION_STALE');
   if (!(golden_bound && sub_bound)) blockers.push('GOLDEN_SUB_NOT_BOTH_BOUND');
   if (!(timeline_bound && priority_bound && deadline_coordinate_bound)) blockers.push('TIMELINE_PRIORITY_DEADLINE_NOT_BOUND');
   if (!(floor_bound && mid_bound && top_bound)) blockers.push('FLATPLANE_PLANE_MISSING');
