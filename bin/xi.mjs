@@ -393,7 +393,7 @@ function installLocalCli() {
     'if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi',
     '[[ -n "$NODE" && -x "$NODE" ]] || wrapper_fail',
     'export XIIO_INVOKED_AS="$(basename "$0")"',
-    'exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
+    'XIIO_INVOKED_AS="$(basename "$0")" exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
     '',
   ].join('\n');
 
@@ -583,6 +583,14 @@ async function opusCommand(argv=[]){
     ' direction='+ignition.transmission.direction+
     ' first_red='+(ignition.first_red||'NONE')+'\n'
   );
+
+  if(ignition.state!=='PASS'){
+    process.stderr.write('[xi-io-opus] FAIL-CLOSED: local operator not opened until ignition PASS\n');
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode=ignition.state==='FAIL'?2:1;
+    return result;
+  }
+
   process.env.XIIO_OPUS_ACTIVE='1';
   process.env.XIIO_OPUS_GEAR=String(ignition.transmission.gear);
   process.env.XIIO_OPUS_AXIS=ignition.transmission.axis;
