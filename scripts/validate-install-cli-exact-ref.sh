@@ -21,6 +21,7 @@ grep -q "^SDK_HEAD=$HEAD_SHA$" "$OUT"
 [[ -z "$(git -C "$SDK_ROOT" branch --show-current)" ]]
 [[ -x "$HOME_DIR/.local/bin/xi-io" ]]
 [[ -x "$HOME_DIR/.local/bin/xi" ]]
+[[ -x "$HOME_DIR/.local/bin/xi-io-opus" ]]
 
 set +e
 HOME="$HOME_DIR" XIIO_NODE="$(command -v node)" "$HOME_DIR/.local/bin/xi-io" status --json >"$TMP/io.json"
