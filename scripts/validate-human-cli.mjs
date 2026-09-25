@@ -158,6 +158,8 @@ assert.match(binSource,/top === '--model'/);
 assert.match(binSource,/launchLocalOperator/);
 assert.match(binSource,/recoverAriesRunner/);
 assert.match(binSource,/top === 'recover'/);
+assert.match(binSource,/XIIO_INVOKED_AS/);
+assert.match(binSource,/FAIL-CLOSED: local operator not opened until ignition PASS/);
 assert.match(agentSource,/xi-io @ibal local operator/);
 assert.match(agentSource,/XIIO_OLLAMA_MODEL \|\| 'llama3\.1:8b'/);
 assert.match(agentSource,/\/tools/);
