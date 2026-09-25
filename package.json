@@ -84,8 +84,7 @@
     "./runtime/pneuma": "./src/runtime/pneuma-frontdoor.mjs",
     "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
     "./runtime/opus": "./src/runtime/opus-frontdoor.mjs",
-    "./orchestration/gyroscope": "./src/orchestration/gyroscope.mjs",
-    "./evaluation/self-review-ack": "./src/evaluation/self-review-ack.mjs"
+    "./orchestration/gyroscope": "./src/orchestration/gyroscope.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
@@ -150,7 +149,6 @@
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
     "check:opus-frontdoor": "node --test test/opusFrontdoor.test.mjs",
     "check:gyroscope": "node --test test/gyroscope.test.mjs",
-    "check:self-review-ack": "node --test test/selfReviewAck.test.mjs",
-    "check:opus": "npm run check:opus-frontdoor && npm run check:gyroscope && npm run check:self-review-ack"
+    "check:opus": "npm run check:opus-frontdoor && npm run check:gyroscope"
   }
 }
