@@ -6,6 +6,11 @@ export function compileFullstackContinuityCanary(input){
  if(!input||input.schema!==FULLSTACK_CANARY_INPUT_SCHEMA)throw new TypeError('input schema mismatch');
  const occurrence_ref=text(input.occurrence_ref,'occurrence_ref');
  const classification=text(input.classification,'classification');
+ const expected_project_refs=Array.isArray(input.expected_project_refs)?[...new Set(input.expected_project_refs.map(x=>text(x,'expected_project_ref')))].sort():[];
+ if(expected_project_refs.length===0)throw new TypeError('expected_project_refs required');
+ const nonneg=(v,n)=>{if(!Number.isInteger(v)||v<0)throw new TypeError(n+' must be nonnegative integer');return v;};
+ const owner_restatement_count=nonneg(input.owner_restatement_count,'owner_restatement_count');
+ const silent_remainder_count=nonneg(input.silent_remainder_count,'silent_remainder_count');
  if(!Array.isArray(input.registered_rows)||input.registered_rows.length===0)throw new TypeError('registered_rows required');
  const seen=new Set(); const rows=input.registered_rows.map(r=>{
   const project_ref=text(r.project_ref,'project_ref'); if(seen.has(project_ref))throw new TypeError('duplicate project_ref'); seen.add(project_ref);
@@ -19,11 +24,13 @@ export function compileFullstackContinuityCanary(input){
   if(disposition==='APPLICABLE'&&(!return_ref||!apply_return_ref))blockers.push('AFFECTED_RETURN_OPEN');
   return Object.freeze({project_ref,disposition,evidence_refs,return_ref,apply_return_ref,blockers:Object.freeze(blockers)});
  }).sort((a,b)=>a.project_ref.localeCompare(b.project_ref));
+ const actual_project_refs=rows.map(r=>r.project_ref).sort();
  const blockers=[];
+ if(JSON.stringify(actual_project_refs)!==JSON.stringify(expected_project_refs))blockers.push('REGISTRY_DENOMINATOR_MISMATCH');
  if(input.primitive_patched_bit!==1)blockers.push('PRIMITIVE_NOT_PATCHED');
  if(input.fresh_session_replay_bit!==1)blockers.push('FRESH_SESSION_REPLAY_OPEN');
- if(Number(input.owner_restatement_count)!==0)blockers.push('OWNER_RESTATEMENT_NONZERO');
- if(Number(input.silent_remainder_count)!==0)blockers.push('SILENT_REMAINDER_NONZERO');
+ if(owner_restatement_count!==0)blockers.push('OWNER_RESTATEMENT_NONZERO');
+ if(silent_remainder_count!==0)blockers.push('SILENT_REMAINDER_NONZERO');
  if(rows.some(r=>r.blockers.length))blockers.push('AFFECTED_ADOPTER_RETURN_OPEN');
- return Object.freeze({schema:FULLSTACK_CANARY_SCHEMA,occurrence_ref,classification,registered_denominator:rows.length,rows:Object.freeze(rows),blockers:Object.freeze(blockers),closure:blockers.length===0,authority_granted:false,provider_effect:false,hard:Object.freeze(['EVERY_USER_INGRESS=CANARY_OCCURRENCE','CANARY_WITHOUT_CONSUMPTION=FLATPLANE','COMMENT!=PRIMITIVE_PROMOTION','PRIMITIVE_PATCH_WITHOUT_AFFECTED_ADOPTION=FLATPLANE','OWNER_RESTATEMENT_REQUIRED!=PASS','FRACTAL_ERROR!=RESTART'])});
+ return Object.freeze({schema:FULLSTACK_CANARY_SCHEMA,occurrence_ref,classification,registered_denominator:expected_project_refs.length,expected_project_refs:Object.freeze(expected_project_refs),rows:Object.freeze(rows),blockers:Object.freeze(blockers),closure:blockers.length===0,authority_granted:false,provider_effect:false,hard:Object.freeze(['EVERY_USER_INGRESS=CANARY_OCCURRENCE','CANARY_WITHOUT_CONSUMPTION=FLATPLANE','COMMENT!=PRIMITIVE_PROMOTION','PRIMITIVE_PATCH_WITHOUT_AFFECTED_ADOPTION=FLATPLANE','OWNER_RESTATEMENT_REQUIRED!=PASS','FRACTAL_ERROR!=RESTART'])});
 }
