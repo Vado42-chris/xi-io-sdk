@@ -11,6 +11,12 @@ const refs = (v,n) => {
   if (!Array.isArray(v)) throw new TypeError(`${n} must be an array`);
   return [...new Set(v.map((x)=>text(x,n)))].sort();
 };
+const orderedRefs = (v,n) => {
+  if (!Array.isArray(v)) throw new TypeError(`${n} must be an array`);
+  const out=v.map((x)=>text(x,n));
+  if(new Set(out).size!==out.length) throw new TypeError(`${n} duplicate`);
+  return out;
+};
 
 function project(row) {
   const state = text(row.state,'project.state');
@@ -26,6 +32,8 @@ function project(row) {
   const help_disposition_ref = row.help_disposition_ref == null ? null : text(row.help_disposition_ref,'project.help_disposition_ref');
 
   const blockers = [];
+  if (JSON.stringify(actual_project_refs)!==JSON.stringify(expected_project_refs)) blockers.push('REGISTRY_DENOMINATOR_MISMATCH');
+  if (projects.some((p)=>p.project_generation!==source_generation)) blockers.push('PROJECT_GENERATION_STALE');
   if (state === 'AFFECTED' && !sdk_ack_ref) blockers.push('AFFECTED_WITHOUT_SDK_ACK');
   if (state !== 'UNKNOWN' && evidence_refs.length === 0) blockers.push('DISPOSITION_WITHOUT_EVIDENCE');
   if (help_offered_bit === 1 && !help_disposition_ref) blockers.push('HELP_OFFER_WITHOUT_DISPOSITION');
@@ -46,7 +54,7 @@ export function compileXIntersectionUx(input) {
   const source_generation = text(input.source_generation,'source_generation');
   const intersection_ref = text(input.intersection_ref,'intersection_ref');
   const deadline_ref = text(input.deadline_ref,'deadline_ref');
-  const priority_order = refs(input.priority_order,'priority_order');
+  const priority_order = orderedRefs(input.priority_order,'priority_order');
   if (priority_order.length === 0) throw new TypeError('priority_order required');
 
   const golden = input.golden ?? {};
@@ -70,12 +78,15 @@ export function compileXIntersectionUx(input) {
   const sectors_accounted = rotation.sectors_accounted;
   const duplicate_sectors = rotation.duplicate_sectors;
   if (![sectors_total,sectors_accounted,duplicate_sectors].every(Number.isInteger)) throw new TypeError('rotation sector counts must be integers');
-  if (sectors_total <= 0 || sectors_accounted < 0 || duplicate_sectors < 0) throw new TypeError('rotation sector counts invalid');
+  if (sectors_total !== 360 || sectors_accounted < 0 || duplicate_sectors < 0) throw new TypeError('rotation.sectors_total must be 360');
 
+  const expected_project_refs=refs(input.expected_project_refs ?? [],'expected_project_refs');
+  if(expected_project_refs.length===0) throw new TypeError('expected_project_refs required');
   if (!Array.isArray(input.projects) || input.projects.length === 0) throw new TypeError('projects required');
   const projects = input.projects.map(project).sort((a,b)=>a.project_ref.localeCompare(b.project_ref));
   const uniqueProjects = new Set(projects.map((x)=>x.project_ref));
   if (uniqueProjects.size !== projects.length) throw new TypeError('duplicate project_ref');
+  const actual_project_refs=[...uniqueProjects].sort();
 
   const blockers = [];
   if (!(golden_bound && sub_bound)) blockers.push('GOLDEN_SUB_NOT_BOTH_BOUND');
@@ -93,6 +104,8 @@ export function compileXIntersectionUx(input) {
     golden_bound === 1 && sub_bound === 1 &&
     timeline_bound === 1 && priority_bound === 1 && deadline_coordinate_bound === 1 &&
     flatplane_10s_complete && rotation_100s_accounting &&
+    JSON.stringify(actual_project_refs)===JSON.stringify(expected_project_refs) &&
+    projects.every((p)=>p.project_generation===source_generation) &&
     projects.every((p)=>p.blockers.length === 0 && p.state !== 'UNKNOWN');
 
   return Object.freeze({
@@ -104,7 +117,8 @@ export function compileXIntersectionUx(input) {
     flatplane_10s_complete,
     rotation_100s_accounting,
     sectors_total, sectors_accounted, duplicate_sectors,
-    studio_registry_denominator:projects.length,
+    studio_registry_denominator:expected_project_refs.length,
+    expected_project_refs:Object.freeze(expected_project_refs),
     project_dispositions:Object.freeze(projects),
     blockers:Object.freeze(blockers),
     intersection_complete,
