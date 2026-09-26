@@ -81,7 +81,8 @@
     "./patchprep/adapters": "./src/patchprep/adapters.mjs",
     "./receipts/fractal-consumer": "./src/receipts/fractal-consumer.mjs",
     "./runtime/pneuma": "./src/runtime/pneuma-frontdoor.mjs",
-    "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs"
+    "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
+    "./access/coordinate": "./src/access/coordinate.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
