@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { compileProductCapabilityBaseline, PRODUCT_BASELINE_CELLS } from '../src/baseline/product-capability.mjs';
-import { compileFourScaleScorecard, FOUR_SCALE_LAYERS, FOUR_SCALE_STAGES } from '../src/scorecards/four-scale.mjs';
+import { compileFourScaleScorecard, FOUR_SCALE_LAYERS, FOUR_SCALE_STAGES, PROJECTION_PLANES, SCALAR_SCALE_LADDER, LIFECYCLE_PHASES } from '../src/scorecards/four-scale.mjs';
 
 const proof = (id) => ({ state:'PASS', proof_ref:`receipt:${id}` });
 const allProduct = Object.fromEntries(PRODUCT_BASELINE_CELLS.map(id=>[id,proof(id)]));
@@ -162,4 +162,39 @@ assert.equal(boundScale.scalar_scale,'100s');
 assert.equal(boundScale.lifecycle_phase,'RETURN');
 assert(boundScale.layers.every(layer=>['MICRO','MESO','MACRO','META'].includes(layer.projection_plane)));
 
+assert.deepEqual(PROJECTION_PLANES,['MICRO','MESO','MACRO','MEGA','META']);
+assert.deepEqual(SCALAR_SCALE_LADDER,['1s','10s','100s','1000s','10000s','100000s','1000000s']);
+assert.deepEqual(LIFECYCLE_PHASES,['PLAN','EXECUTE','RESULT','RETURN','APPLY_RETURN','READBACK','REAP','NEXT']);
+
+const countOnly100 = compileFourScaleScorecard({
+  subject_ref:'subject:count-only-100',subject_generation:'g1',observation_count:100,observations:allFour
+});
+assert.equal(countOnly100.observation_count,100);
+assert.equal(countOnly100.scalar_scale,'UNKNOWN');
+assert.equal(countOnly100.scale_coordinate_state,'AMBIGUOUS_ZERO_CREDIT');
+
+const countOnly500 = compileFourScaleScorecard({
+  subject_ref:'subject:count-only-500',subject_generation:'g1',observation_count:500,observations:allFour
+});
+assert.equal(countOnly500.observation_count,500);
+assert.equal(countOnly500.scalar_scale,'UNKNOWN');
+
+const badMagnitude = compileFourScaleScorecard({
+  subject_ref:'subject:bad-magnitude',subject_generation:'g1',scalar_scale:'500s',lifecycle_phase:'RETURN',observations:allFour
+});
+assert.equal(badMagnitude.scalar_scale,'UNKNOWN');
+assert.equal(badMagnitude.scale_coordinate_state,'AMBIGUOUS_ZERO_CREDIT');
+
+const badPhase = compileFourScaleScorecard({
+  subject_ref:'subject:bad-phase',subject_generation:'g1',scalar_scale:'100s',lifecycle_phase:'100s',observations:allFour
+});
+assert.equal(badPhase.lifecycle_phase,'UNKNOWN');
+assert.equal(badPhase.scale_coordinate_state,'AMBIGUOUS_ZERO_CREDIT');
+
+const lowerCasePhase = compileFourScaleScorecard({
+  subject_ref:'subject:phase-normalized',subject_generation:'g1',scalar_scale:'1000000s',lifecycle_phase:'return',observations:allFour
+});
+assert.equal(lowerCasePhase.lifecycle_phase,'RETURN');
+assert.equal(lowerCasePhase.scale_coordinate_state,'BOUND');
+assert.deepEqual(lowerCasePhase.projection_plane_axis,PROJECTION_PLANES);
 console.log(`XIIO_SDK_PRODUCT_FOUR_SCALE PASS source-contract-only products=${products.product_denominator} product_cells=${products.cell_denominator} verified_product_cells=${products.verified_resolved_cells} supplied_product_cells=${products.supplied_resolved_cells} four_scale_cells=${FOUR_SCALE_LAYERS.length*FOUR_SCALE_STAGES.length} supplied_compound100=${full.supplied_compound_100} verified_compound100=${full.compound_100}; fake-proof, all-N_A, caller-flags, unknown-binding, omission and dedup controls passed`);
