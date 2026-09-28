@@ -56,8 +56,76 @@ export function compileScalePhaseProjection(input={}){
   return Object.freeze({ok:true,projection:Object.freeze(clone(projection))});
 }
 
+
+export const ROTFL_COMPOUND_APPROVE_CONTRACT_REF =
+  'Vado42-chris/xi-io.net:standards/punchcards/rotfl-scale-phase-reporting.v1.json#compound_prove_approve_contract';
+
+const WHOLE_NOTE_FIELDS=Object.freeze([
+  'prove_receipt',
+  'return_receipt',
+  'apply_return_receipt',
+  'whole_note_projection',
+  'higher_user_visible_readback',
+  'parent_recompute_receipt',
+]);
+
+function receiptPresent(value){
+  return value===true || (typeof value==='string' && value.trim().length>0);
+}
+
+export function proveWholeNote(input={}){
+  const missing=WHOLE_NOTE_FIELDS.filter((field)=>!receiptPresent(input[field]));
+  const factor=missing.length===0?1:0;
+  return Object.freeze({
+    ref:input.ref??null,
+    scale:input.scale??null,
+    parent_ref:input.parent_ref??null,
+    factor,
+    proved:factor===1,
+    missing:Object.freeze(missing),
+    first_red:factor===1?null:`WHOLE_NOTE_NOT_PROVED — ${input.ref??'unknown'} owes ${missing.join(', ')}`,
+    effect_authority:0,
+  });
+}
+
+export function compileCompoundApprove({ref=null,scale=null,parent_ref=null,principals=[]}={}){
+  const crew=principals.map((principal)=>{
+    if(principal?.approves){
+      const nested=principal.approves;
+      const factor=nested.product===1?1:0;
+      return Object.freeze({
+        ref:principal.ref??nested.ref??null,
+        nested:true,
+        factor,
+        missing:Object.freeze([...(nested.missing??[])]),
+        first_red:factor?null:(nested.first_red??'SUB_CREW_NOT_PROVED'),
+      });
+    }
+    return proveWholeNote(principal);
+  });
+  const product=crew.reduce((acc,row)=>acc*row.factor,crew.length?1:0);
+  const missing=crew.flatMap((row)=>(row.missing??[]).map((m)=>`${row.ref}:${m}`));
+  return Object.freeze({
+    contract_ref:ROTFL_COMPOUND_APPROVE_CONTRACT_REF,
+    ref,
+    scale,
+    parent_ref,
+    principals:crew.length,
+    equation:`${crew.map((row)=>row.factor).join(' × ')} = ${product}`,
+    product,
+    state:product===1?'APPROVED_PROOF':'NOT_APPROVED_PROOF',
+    missing:Object.freeze(missing),
+    crew:Object.freeze(crew),
+    first_red:product===1?null:(crew.find((row)=>row.first_red)?.first_red??'NOTHING_TO_APPROVE'),
+    whole_note_user_visibility_required:true,
+    effect_authority:0,
+    authorization_granted:false,
+  });
+}
+
 export const hard=Object.freeze([
   'SCALE!=COUNT','SCALE!=PHASE','SCALE!=QUALIFICATION','SCALE!=READINESS',
   'REPORT!=PHASE','REPORTING_IS_READ_ONLY_PROJECTION','UNKNOWN!=FALSE',
-  'OBSERVED!=READY','UNAVAILABLE!=FALSE','NO_SKIPPED_SCALE'
+  'OBSERVED!=READY','UNAVAILABLE!=FALSE','NO_SKIPPED_SCALE',
+  'PROVE!=APPROVE','APPROVE!=AUTHORIZE','NO_INVISIBLE_APPROVAL','WHOLE_NOTE_VISIBLE_BEFORE_PARENT_APPROVE'
 ]);
