@@ -142,4 +142,24 @@ for (const result of [full,open,invalidPositive,counterfeitScore,naScore,absent,
 assert.equal(compileProductCapabilityBaseline(makeProduct(forged)).product_baseline_generation,counterfeitProduct.product_baseline_generation);
 assert.equal(compileFourScaleScorecard(makeScore(forged)).scorecard_generation,counterfeitScore.scorecard_generation);
 
+
+
+const ambiguousScale = compileFourScaleScorecard({ subject_ref:'subject:scale-ambiguous', subject_generation:'g1', observations:allFour });
+assert.equal(ambiguousScale.scale_coordinate_state,'AMBIGUOUS_ZERO_CREDIT');
+assert.equal(ambiguousScale.scalar_scale,'UNKNOWN');
+assert.equal(ambiguousScale.lifecycle_phase,'UNKNOWN');
+assert(ambiguousScale.layers.every(layer=>layer.projection_plane===layer.layer));
+
+const boundScale = compileFourScaleScorecard({
+  subject_ref:'subject:scale-bound',
+  subject_generation:'g1',
+  scalar_scale:'100s',
+  lifecycle_phase:'RETURN',
+  observations:allFour
+});
+assert.equal(boundScale.scale_coordinate_state,'BOUND');
+assert.equal(boundScale.scalar_scale,'100s');
+assert.equal(boundScale.lifecycle_phase,'RETURN');
+assert(boundScale.layers.every(layer=>['MICRO','MESO','MACRO','META'].includes(layer.projection_plane)));
+
 console.log(`XIIO_SDK_PRODUCT_FOUR_SCALE PASS source-contract-only products=${products.product_denominator} product_cells=${products.cell_denominator} verified_product_cells=${products.verified_resolved_cells} supplied_product_cells=${products.supplied_resolved_cells} four_scale_cells=${FOUR_SCALE_LAYERS.length*FOUR_SCALE_STAGES.length} supplied_compound100=${full.supplied_compound_100} verified_compound100=${full.compound_100}; fake-proof, all-N_A, caller-flags, unknown-binding, omission and dedup controls passed`);
