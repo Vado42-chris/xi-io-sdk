@@ -1,0 +1,31 @@
+{
+  "schema": "xiio.sdk.loki-hosting-tools/v1",
+  "status": "CANDIDATE_CONTRACT_NOT_RUNTIME_CALLABLE",
+  "owner": "SDK reusable interface; Loki boundary host implements provider effects",
+  "transport": "LOKI_PULL",
+  "scope": ["WEB", "MAIL"],
+  "priority": "MAILBOX_VERIFICATION_FIRST_WITHIN_SHARED_HOSTING_BUILD",
+  "business_mailbox": "hchris@xi-io.net",
+  "tools": [
+    {"id":"hosting.observe","effect":"READ","input":["host_ref","registry_generation"],"output":["host_identity","services","listeners","web_routes","mail_records","public_ip_observation","evidence_refs"]},
+    {"id":"hosting.plan","effect":"PURE","input":["observed_state","desired_hostnames","mailbox","current_registry"],"output":["ordered_diff","collision_set","rollback_plan","admission_cells"]},
+    {"id":"hosting.release.prepare","effect":"LOCAL_STAGE","input":["immutable_release_ref","sha256","site_binding","target_hostname"],"output":["staged_path","hash_readback","smoke_result"]},
+    {"id":"hosting.release.apply","effect":"LOKI_LOCAL_WRITE","input":["staged_ref","current_effect_lease","ward_result","switchboard_admission","rollback_ref"],"output":["applied_generation","origin_readback","rollback_ref"]},
+    {"id":"hosting.mail.stage","effect":"LOKI_LOCAL_WRITE","input":["mail_stack_ref","mailbox_identity","backup_ref","current_effect_lease"],"output":["service_readback","mailbox_readback","tls_readback"]},
+    {"id":"hosting.dns.propose","effect":"PURE","input":["zone_snapshot","staged_web","staged_mail"],"output":["record_diff","ttl_plan","rollback_records"]},
+    {"id":"hosting.dns.apply","effect":"PROVIDER_WRITE","input":["exact_record_diff","zone_id","current_effect_lease","ward_result","switchboard_admission"],"output":["provider_receipt","authoritative_dns_readback"]},
+    {"id":"hosting.verify.external","effect":"READ","input":["expected_generation","hostnames","mailbox"],"output":["web_tls_host_readback","smtp_inbound","submission","imap","spf_dkim_dmarc","provider_receipts"]},
+    {"id":"hosting.rollback","effect":"PROVIDER_OR_LOKI_WRITE","input":["prior_snapshot","failed_generation","current_effect_lease"],"output":["restored_generation","outside_origin_readback"]}
+  ],
+  "hard": [
+    "SDK_CONTRACT != INSTALLED_LOKI_ADAPTER",
+    "STUDIO_PRESENTATION != EFFECT_AUTHORITY",
+    "LOKI_PULL_CONTROL != PUBLIC_WEB_OR_SMTP_INGRESS",
+    "MAILBOX_CREATED != INBOUND_VERIFIED",
+    "DNS_WRITE_ACK != AUTHORITATIVE_READBACK",
+    "LOCAL_HTTP_200 != CORRECT_SITE_IDENTITY",
+    "MAIL_DNS_RECORDS_LIVE_AT_AUTHORITATIVE_DNS_NOT_IN_MAIL_DAEMON",
+    "NO_SECRET_OR_MAILBOX_CONTENT_IN_RECEIPTS"
+  ],
+  "return_chain": ["ATTEMPT","RESULT","RETURN","APPLY_RETURN","READBACK","REAP"]
+}
