@@ -1,0 +1,194 @@
+{
+  "schema": "xiio.universal-primitive-triad-ack/v1",
+  "ack_id": "UPT-STUDIO-TEMPLATE-SEAM-20261001-01",
+  "project": "xi-io Studio universal primitive / template tier / API seam closure",
+  "recorded_at": "2026-10-01",
+  "binary_semantics": {
+    "0": "not closed, not proven, or still owed; never infer absence",
+    "1": "held by this ACK as source/owner binding or directly observed source fact"
+  },
+  "effect_boundary": "SOURCE_ACK_HOTPATCH_ONLY__NO_DEPLOY_NO_MARKETPLACE_NO_EXTERNAL_SEND",
+  "triad": {
+    "sdk": "Tier 1 Underworld: atomic structure, Bins identity/custody, AST/introspection, host/IPC primitives",
+    "articles": "Tier 2 Working Medium: project/article semantics, editable surfaces, WYSIWYG, contextual tools/settings, Looking Glass",
+    "publisher": "Tier 3 Egress: projection, routing, microsites, marketplace/plugin/export candidates"
+  },
+  "owner_lexicon": {
+    "literal": "SPART=5; IDEA=4; PLAN=4x2flatplane; 000s=require 9x9x9 triage; 00s=require 5 4 3 2; 1s=HOME.",
+    "treatment": "OWNER_SUPPLIED_BINDING_NOT_ARITHMETIC_COMPLETION_RECEIPT",
+    "ibal_projection": "enter at 5s, walk on 1s, stop on 11s before collapse to 1 or unsupported movement past 10"
+  },
+  "universal_equivalence": {
+    "project_file_article_plugin_export": "one artifact contract with preserved identity/lineage across projections, not four copied records",
+    "attachment_matrix": [
+      "people",
+      "agents",
+      "services",
+      "products",
+      "plugins",
+      "resources",
+      "tools",
+      "workflows",
+      "outputs"
+    ],
+    "marketplace": "user-created/exported artifacts may be marketplace projections; acquired marketplace artifacts become installed plugin/tool/service projections"
+  },
+  "structural_node": {
+    "kinds": {
+      "visual": [
+        "rectangle",
+        "text",
+        "image",
+        "group",
+        "layer",
+        "constraint",
+        "connection"
+      ],
+      "document": [
+        "paragraph",
+        "heading",
+        "table",
+        "cell",
+        "citation",
+        "media",
+        "section"
+      ],
+      "code": [
+        "module",
+        "class",
+        "function",
+        "component",
+        "property",
+        "route",
+        "schema",
+        "api_operation",
+        "test"
+      ],
+      "studio": [
+        "product",
+        "tool",
+        "setting",
+        "drawer",
+        "offering",
+        "plugin",
+        "service",
+        "person",
+        "agent",
+        "project"
+      ]
+    },
+    "operations": [
+      "CREATE",
+      "SELECT",
+      "INSPECT",
+      "MOVE",
+      "GROUP",
+      "CONNECT",
+      "DUPLICATE",
+      "TRANSFORM",
+      "VERSION",
+      "DIFF",
+      "DELETE",
+      "UNDO",
+      "PUBLISH"
+    ],
+    "human_ai_symmetry": "human and AI must address and mutate the same primitive IDs through the same bounded operations"
+  },
+  "template_rig": [
+    "primitive_graph",
+    "constraints",
+    "slots",
+    "relationships",
+    "defaults",
+    "responsive_rules",
+    "permitted_tools",
+    "contextual_settings",
+    "projection_recipes"
+  ],
+  "coordinate_backbeat": {
+    "x": "stack/project attachment coordinate; inherited through launch chain, never derived",
+    "z": "depth, not attachment identity",
+    "hard": [
+      "Z_PLACEMENT!=X_ATTACHMENT",
+      "BRAND!=COORDINATE",
+      "SAME_NAME!=SAME_STACK",
+      "UNRESOLVED_SURFACES!=SHARED_BUCKET"
+    ],
+    "reported_provider_state": "coordinateSpace.mjs xiio.coordinate-space/v1 reported live in Base44; window-address guard still owed because plain-script @/ alias resolution blocks standalone guard",
+    "source_proof_in_this_ack": 0
+  },
+  "api_seam": {
+    "target": "typed universal primitive API so provider differences terminate at adapters",
+    "verbs": [
+      "IDENTIFY",
+      "READ",
+      "QUERY",
+      "ATTACH",
+      "TRANSFORM",
+      "VALIDATE",
+      "PROJECT",
+      "EXECUTE",
+      "OBSERVE",
+      "RETURN"
+    ],
+    "comments_path": "capture -> identity/digest -> normalize -> classify -> attach -> consume -> receipt/readback",
+    "code_target": "AST identity -> atomic node -> Article representation -> human/AI editable surface -> patch -> compile -> runtime/readback -> Bins lineage"
+  },
+  "binary_cells": {
+    "triad_architecture_ack": 1,
+    "articles_framework_owned_no_separate_repo": 1,
+    "project_file_article_projection_equivalence_ack": 1,
+    "metadata_filtered_attachment_matrix_ack": 1,
+    "atomic_structural_node_contract_ack": 1,
+    "human_ai_same_primitive_contract_ack": 1,
+    "template_rig_contract_ack": 1,
+    "comments_transport_present": 1,
+    "comments_universal_primitive_closed": 0,
+    "code_ast_denominator_present": 1,
+    "code_api_transport_closed": 0,
+    "code_universal_primitive_closed": 0,
+    "bins_identity_join_closed": 0,
+    "articles_semantic_join_closed": 0,
+    "publisher_projection_join_closed": 0,
+    "universal_artifact_api_closed": 0,
+    "universal_microsite_v1_closed": 0,
+    "contextual_z2_tools_settings_closed": 0,
+    "high_fidelity_wysiwyg_atomic_tools_closed": 0,
+    "hex_marketing_dogfoods_same_template_primitive": 0,
+    "feedback_canary_carries_artifact_node_template_version_operation": 0,
+    "bins_full_estate_census_closed": 0,
+    "prelogin_private_surface_exposure_closed": 0,
+    "aries_post_power_runtime_reverified": 0,
+    "x_coordinate_provider_source_reverified_here": 0
+  },
+  "urgent_owner_reds": [
+    "real Photoshop/Office-class atomic primitive tools are not yet closed",
+    "template tier must produce real editable rigs, not screenshots or giant bespoke components",
+    "Hex front door marketing must be generated from the same primitive/template/article/publisher chain",
+    "private/user Studio surfaces remain visible before login and require an actual auth/projection boundary",
+    "full Bins census must account for thousands of ingress resources and bindings, not a first-100 Drive window",
+    "code needs the same closed primitive transport/readback loop already further developed for comments"
+  ],
+  "canary_hvt": "Make one real high-fidelity artifact traverse atomic primitive -> editable Article/template -> Publisher microsite -> Hex offering -> marketplace/export and reverse back to the same editable composition without identity loss.",
+  "forward_reverse_gate": {
+    "forward": "primitive -> Article/template -> Publisher -> microsite/Hex -> marketplace/export",
+    "reverse": "published/exported projection -> lineage/readback -> Article/template -> same primitive IDs",
+    "pass_rule": "no identity loss, no semantic owner transfer, no provider adapter leakage above its boundary"
+  },
+  "power_event_note": "Whole-house outage occurred before this ACK. Local Aries/Loki/runtime state must be freshly read back; prior green does not float across power loss.",
+  "hard": [
+    "SOURCE!=RUNTIME!=LIVE",
+    "VISIBLE!=AUTHORIZED",
+    "COMMENT!=CURRENT_STATE",
+    "SDK_ATOM!=ARTICLES_SEMANTIC!=PUBLISHER_RECIPE",
+    "DOCUMENT_ORDER!=SEMANTIC_Z",
+    "OPERATION_PRESENT!=EFFECT_PROVEN",
+    "EXPORT!=NEW_IDENTITY_BY_DEFAULT",
+    "MARKETPLACE_PROJECTION!=SOURCE_OWNERSHIP_TRANSFER"
+  ],
+  "tier_binding": {
+    "owner": "SDK",
+    "role": "TIER1_ATOMIC_STRUCTURE_AND_EXECUTION",
+    "source_head_before_hotpatch": "11c8bf4773eae65e3c938971eda6d5a24468b7ea"
+  }
+}
