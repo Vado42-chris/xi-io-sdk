@@ -31,6 +31,7 @@ import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 import { executePneuma } from '../src/runtime/pneuma-frontdoor.mjs';
+import { compileOpusIgnition } from '../src/runtime/opus-frontdoor.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
 import { inspectMachineTopology, prepareCargoExecution } from '../src/compass/machine-topology.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
@@ -113,6 +114,9 @@ Human registries:
   xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
   xi-io lifecycle next            Project current lifecycle selection/returns
   xi-io lifecycle explain         Explain current projection/evidence without recompute
+  xi-io-opus [--gear 1|3|9|27] [--axis AXIS] [--direction FORWARD|REVERSE] [--execute] [--json]
+                                Ignite current engines/meters/heuristics, orient work through the gyroscope, then open the local operator
+  xi-io opus [same flags]        Same ignition through the canonical xi-io entry
   xi-io pneuma --root=local --aries=root --bus=ws://localhost:4390/aries/bus [--exec-rotfl]
                                 Execute/read the local PNEUMA pulse; fail closed on missing physical/custody proof
   xi-io search --target files --query <text> --root <workspace> [--limit N] [--custody 1]
@@ -389,11 +393,11 @@ function installLocalCli() {
     'if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi',
     '[[ -n "$NODE" && -x "$NODE" ]] || wrapper_fail',
     'export XIIO_INVOKED_AS="$(basename "$0")"',
-    'exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
+    'XIIO_INVOKED_AS="$(basename "$0")" exec "$NODE" "$ROOT/bin/xi.mjs" "$@"',
     '',
   ].join('\n');
 
-  const bins=['xi-io','xiio','xi'];
+  const bins=['xi-io','xiio','xi','xi-io-opus'];
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
@@ -444,9 +448,10 @@ function installLocalCli() {
     bins:bins.map((name)=>path.join(binDir,name)),
     default_entry:'xi-io',
     human_aliases:['xiio','xi'],
+    ignition_entry:'xi-io-opus',
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
-    commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io compass','xi-io doctor'],
+    commands:['xi-io-opus','xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io compass','xi-io doctor'],
     activate_current_shell:'export PATH="$HOME/.local/bin:$PATH"',
     authority_granted:false,
     provider_effect:false,
@@ -480,6 +485,118 @@ async function compass({persist=true}={}) {
     ...value,
     receipt:receipt?receipt.current:null,
   };
+}
+
+function opusFlag(argv,name,fallback=null){
+  const eq=argv.find(v=>v.startsWith('--'+name+'='));
+  if(eq) return eq.slice(name.length+3);
+  const i=argv.indexOf('--'+name);
+  if(i>=0){
+    const v=argv[i+1];
+    if(!v || v.startsWith('--')) throw new Error('--'+name+' requires a value');
+    return v;
+  }
+  return fallback;
+}
+
+async function opusCommand(argv=[]){
+  const sdkRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const execute=argv.includes('--execute');
+  const jsonOnly=argv.includes('--json') || argv.includes('--once');
+  const verify=!argv.includes('--no-verify');
+  const gear=Number(opusFlag(argv,'gear',process.env.XIIO_OPUS_GEAR||'1'));
+  const axis=opusFlag(argv,'axis',process.env.XIIO_OPUS_AXIS||'DIRECTION');
+  const direction=opusFlag(argv,'direction',process.env.XIIO_OPUS_DIRECTION||'FORWARD');
+
+  const local=await compass({persist:true});
+  const frameworkRoot=local.roots?.framework?.selected?.path || null;
+  const frameworkGenerationState=local.roots?.framework?.selected?.generation_state || 'UNKNOWN';
+
+  let pulse=null;
+  try{
+    pulse=await executePneuma({
+      root:'local',
+      aries:'root',
+      bus:process.env.XIIO_OPUS_BUS||'ws://localhost:4390/aries/bus',
+      exec_rotfl:execute,
+    });
+  }catch(error){
+    pulse={
+      schema:'xiio.cli.pneuma-pulse/v1',
+      state:'TRUE_WAIT',
+      proof_scope:'HOME_CURRENT',
+      source_checks_pass:false,
+      first_red:'PNEUMA_IGNITION_ERROR:'+String(error?.message||error).slice(0,240),
+      claims:{rotfl_loop_closed:false},
+      provider_effect:false,
+      authority_granted:false,
+    };
+  }
+
+  const ignition=compileOpusIgnition({
+    framework_root:frameworkRoot,
+    sdk_root:sdkRoot,
+    framework_generation_state:frameworkGenerationState,
+    verify,
+    pneuma_pulse:pulse,
+    gear,
+    axis,
+    direction,
+  });
+
+  const result={
+    schema:'xiio.cli.opus/v1',
+    command:'xi-io-opus',
+    state:ignition.state,
+    ignition_key:'xi-io-opus',
+    compass:{
+      state:local.state,
+      first_red:local.first_red,
+      framework_root:frameworkRoot,
+      framework_generation_state:frameworkGenerationState,
+      api_glass_box:local.runtime?.api_glass_box?.state||null,
+      ollama:local.runtime?.ollama?.state||null,
+    },
+    ignition,
+    interactive_open:!jsonOnly,
+    execute_enabled:execute,
+    provider_effect:false,
+    authority_granted:false,
+    hard:[
+      'OPUS != EFFECT_AUTHORITY',
+      'GYROSCOPE_SPEED != TRUTH',
+      'SELF_REVIEW != SELF_VERIFY',
+      'LOCAL_OPERATOR_OPEN != NATIVE_ROTFL_PASS'
+    ],
+  };
+
+  if(jsonOnly){
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode=ignition.state==='FAIL'?2:ignition.state==='PASS'?0:1;
+    return result;
+  }
+
+  process.stderr.write(
+    '[xi-io-opus] '+ignition.state+
+    ' gear='+ignition.transmission.gear+
+    ' axis='+ignition.transmission.axis+
+    ' direction='+ignition.transmission.direction+
+    ' first_red='+(ignition.first_red||'NONE')+'\n'
+  );
+
+  if(ignition.state!=='PASS'){
+    process.stderr.write('[xi-io-opus] FAIL-CLOSED: local operator not opened until ignition PASS\n');
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    process.exitCode=ignition.state==='FAIL'?2:1;
+    return result;
+  }
+
+  process.env.XIIO_OPUS_ACTIVE='1';
+  process.env.XIIO_OPUS_GEAR=String(ignition.transmission.gear);
+  process.env.XIIO_OPUS_AXIS=ignition.transmission.axis;
+  process.env.XIIO_OPUS_DIRECTION=ignition.transmission.direction;
+  await launchLocalOperator(execute?['--execute']:[]);
+  return result;
 }
 
 function stableStatusProjection(value){
@@ -831,6 +948,7 @@ async function doctor() {
       path.join(os.homedir(),'.local','bin','xi-io'),
       path.join(os.homedir(),'.local','bin','xiio'),
       path.join(os.homedir(),'.local','bin','xi'),
+      path.join(os.homedir(),'.local','bin','xi-io-opus'),
     ].map((bin)=>({bin,exists:fs.existsSync(bin)})),
     sdk_root:path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),
   }, null, 2) + '\n');
@@ -1340,8 +1458,13 @@ if (process.argv.length === 3 && process.argv[2] === '--version') { process.stdo
 
 const top = process.argv[2] || null;
 const topArgs = process.argv.slice(2);
+const invokedAs = process.env.XIIO_INVOKED_AS || path.basename(process.argv[1]||'xi-io');
 
-if (
+if (invokedAs === 'xi-io-opus') {
+  await opusCommand(process.argv.slice(2));
+} else if (top === 'opus') {
+  await opusCommand(process.argv.slice(3));
+} else if (
   top === null
   || top === 'chat'
   || top === 'shell'
