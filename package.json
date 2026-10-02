@@ -81,7 +81,8 @@
     "./patchprep/adapters": "./src/patchprep/adapters.mjs",
     "./receipts/fractal-consumer": "./src/receipts/fractal-consumer.mjs",
     "./runtime/pneuma": "./src/runtime/pneuma-frontdoor.mjs",
-    "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs"
+    "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
+    "./metrics/scale-phase-reporting": "./src/metrics/scale-phase-reporting.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
@@ -143,6 +144,7 @@
     "check:cli-studio-fractal-ledger": "node scripts/validate-cli-studio-fractal-ledger.mjs",
     "check:pneuma-frontdoor": "node scripts/validate-pneuma-frontdoor.mjs",
     "check:flatpack-continuation": "node scripts/validate-flatpack-continuation.mjs",
-    "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs"
+    "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
+    "check:scale-phase-reporting": "node scripts/validate-scale-phase-reporting.mjs"
   }
 }
