@@ -5,7 +5,7 @@ import {
   extractUniversalTemplateRig,compileUniversalProjection,reverseUniversalProjectionReadback
 } from '../src/flatpack/universal-primitive.mjs';
 
-const ops=['SELECT','INSPECT','MOVE','RESIZE','TRANSFORM'];
+const ops=['SELECT','INSPECT','MOVE','RESIZE','TRANSFORM','DUPLICATE','DELETE'];
 const primitive=(identity,semantic_type)=>({identity,semantic_type,coordinates:{value:identity,axis:['x','y','z'],scale:'5s',plane:'plane:one',direction:'forward',orientation:'screen',projection:'article'},relationships:[],operations:ops,provenance:{source:'fixture'},authority:{visibility:'PUBLIC',effect_ceiling:'READ_ONLY'},state:'CURRENT',version:'1',projection:['article','microsite'],geometry:{x:0,y:0,width:100,height:40},content:{text:identity},style:{}});
 const doc={
  schema:'xiio.flatpack/v1',
@@ -37,17 +37,27 @@ assert.equal(human.receipt.primitive_ref,ai.receipt.primitive_ref);
 assert.equal(human.receipt.bins_digest_state,'PENDING_BINS_CUSTODY');
 assert.equal(human.receipt.before_digest_ref,null);
 assert.equal(ai.receipt.after_digest_ref,null);
-const z2=resolveUniversalContextualTools(ai.artifact,['p:headline']);
+const created=executeUniversalPrimitiveOperation(ai.artifact,{operation_ref:'op:h:create',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:['projection:microsite','projection:hex'],primitive:primitive('p:new','paragraph')}});
+assert.ok(created.artifact.primitives.some(x=>x.identity==='p:new'));
+const duplicated=executeUniversalPrimitiveOperation(created.artifact,{operation_ref:'op:a:duplicate',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new',operation:'DUPLICATE',args:{new_identity:'p:new-copy'}});
+assert.ok(duplicated.artifact.primitives.some(x=>x.identity==='p:new-copy'));
+const ordered=executeUniversalPrimitiveOperation(duplicated.artifact,{operation_ref:'op:h:order',actor:{kind:'human',ref:'person:owner'},primitive_ref:'p:new-copy',operation:'TRANSFORM',args:{path:'metadata.order',value:7}});
+assert.equal(ordered.artifact.primitives.find(x=>x.identity==='p:new-copy').metadata.order,7);
+assert.equal(ordered.artifact.primitives.find(x=>x.identity==='p:new-copy').extrusion_z,undefined);
+const deleted=executeUniversalPrimitiveOperation(ordered.artifact,{operation_ref:'op:a:delete',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new-copy',operation:'DELETE'});
+assert.equal(deleted.artifact.primitives.some(x=>x.identity==='p:new-copy'),false);
+const z2=resolveUniversalContextualTools(deleted.artifact,['p:headline']);
 assert.deepEqual(z2.tools.map(x=>x.tool_ref),['tool:text']);
-const rig=extractUniversalTemplateRig(ai.artifact);
-assert.equal(rig.primitive_graph.length,2);
+const rig=extractUniversalTemplateRig(deleted.artifact);
+assert.equal(rig.primitive_graph.length,3);
 assert.equal(rig.slots.length,2);
 assert.equal(rig.projection_recipes.length,2);
-const projection=compileUniversalProjection(ai.artifact,'projection:microsite');
-assert.equal(reverseUniversalProjectionReadback(ai.artifact,projection).same_source_ids,true);
-const privateArtifact=structuredClone(ai.artifact);privateArtifact.authority.visibility='PRIVATE';
+const projection=compileUniversalProjection(deleted.artifact,'projection:microsite');
+assert.ok(projection.primitive_refs.includes('p:new'));
+assert.equal(reverseUniversalProjectionReadback(deleted.artifact,projection).same_source_ids,true);
+const privateArtifact=structuredClone(deleted.artifact);privateArtifact.authority.visibility='PRIVATE';
 assert.throws(()=>compileUniversalProjection(privateArtifact,'projection:microsite'),/VISIBILITY_NOT_PUBLIC/);
-const privateNode=structuredClone(ai.artifact);privateNode.primitives[0].authority.visibility='PRIVATE';
+const privateNode=structuredClone(deleted.artifact);privateNode.primitives[0].authority.visibility='PRIVATE';
 assert.throws(()=>compileUniversalProjection(privateNode,'projection:microsite'),/PRIMITIVE_VISIBILITY_NOT_PUBLIC/);
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{operation_ref:'op:bad',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:headline',operation:'TRANSFORM',args:{path:'identity',value:'fork'}}),/TRANSFORM_PATH_NOT_ADMITTED/);
-console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,publisher_projection:true,reverse_readback_same_ids:true,visibility_before_render:true,unadmitted_tools_hidden:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
+console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,publisher_projection:true,reverse_readback_same_ids:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));

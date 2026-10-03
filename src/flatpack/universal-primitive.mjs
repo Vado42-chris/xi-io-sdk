@@ -60,17 +60,51 @@ export function executeUniversalPrimitiveOperation(source,command){
   if(!before.ok) throw new Error(`SOURCE_INVALID:${before.first_red}`);
   if(!command?.actor||!['human','ai'].includes(command.actor.kind)||!command.actor.ref) throw new Error('ACTOR_INVALID');
   const doc=clone(source);
-  const p=primitiveById(doc,command.primitive_ref);
-  if(!list(p.operations).includes(command.operation)) throw new Error(`OPERATION_NOT_ADMITTED:${command.operation}`);
-  const primitiveId=p.identity, artifactId=doc.artifact.artifact_ref;
-  if(command.operation==='MOVE') p.geometry={...(p.geometry||{}),x:command.args?.x,y:command.args?.y};
-  else if(command.operation==='RESIZE') p.geometry={...(p.geometry||{}),width:command.args?.width,height:command.args?.height};
-  else if(command.operation==='TRANSFORM') setPath(p,command.args?.path,command.args?.value);
-  else if(!['SELECT','INSPECT'].includes(command.operation)) throw new Error(`EXECUTOR_OPERATION_NOT_IMPLEMENTED:${command.operation}`);
-  if(p.identity!==primitiveId||doc.artifact.artifact_ref!==artifactId) throw new Error('IDENTITY_MUTATION_FORBIDDEN');
+  const artifactId=doc.artifact.artifact_ref;
+  let primitiveId=command.primitive_ref||null;
+
+  if(command.operation==='CREATE'){
+    const p=clone(command.args?.primitive);
+    const patchRef=command.args?.patch_ref;
+    if(!p?.identity||!patchRef) throw new Error('CREATE_REQUIRES_PRIMITIVE_AND_PATCH_REF');
+    if(list(doc.primitives).some(x=>x.identity===p.identity)) throw new Error(`PRIMITIVE_ALREADY_EXISTS:${p.identity}`);
+    const patch=list(doc.local_control_patches).find(x=>x.patch_ref===patchRef);
+    if(!patch) throw new Error(`PATCH_NOT_FOUND:${patchRef}`);
+    doc.primitives.push(p);patch.primitive_refs=[...list(patch.primitive_refs),p.identity];
+    for(const projectionRef of list(command.args?.projection_refs)){
+      const recipe=list(doc.projection_recipes).find(r=>r.projection_ref===projectionRef);
+      if(!recipe) throw new Error(`PROJECTION_NOT_FOUND:${projectionRef}`);
+      recipe.primitive_refs=[...list(recipe.primitive_refs),p.identity];
+    }
+    primitiveId=p.identity;
+  } else {
+    const p=primitiveById(doc,command.primitive_ref);
+    if(!list(p.operations).includes(command.operation)) throw new Error(`OPERATION_NOT_ADMITTED:${command.operation}`);
+    primitiveId=p.identity;
+    if(command.operation==='MOVE') p.geometry={...(p.geometry||{}),x:command.args?.x,y:command.args?.y};
+    else if(command.operation==='RESIZE') p.geometry={...(p.geometry||{}),width:command.args?.width,height:command.args?.height};
+    else if(command.operation==='TRANSFORM') setPath(p,command.args?.path,command.args?.value);
+    else if(command.operation==='DUPLICATE'){
+      const newId=String(command.args?.new_identity||'').trim();
+      if(!newId) throw new Error('DUPLICATE_REQUIRES_NEW_IDENTITY');
+      if(list(doc.primitives).some(x=>x.identity===newId)) throw new Error(`PRIMITIVE_ALREADY_EXISTS:${newId}`);
+      const copy=clone(p);copy.identity=newId;copy.relationships=list(copy.relationships).filter(x=>x!==p.identity);
+      doc.primitives.push(copy);
+      for(const patch of list(doc.local_control_patches)) if(list(patch.primitive_refs).includes(p.identity)) patch.primitive_refs.push(newId);
+      primitiveId=newId;
+    } else if(command.operation==='DELETE'){
+      doc.primitives=doc.primitives.filter(x=>x.identity!==p.identity);
+      for(const patch of list(doc.local_control_patches)) patch.primitive_refs=list(patch.primitive_refs).filter(x=>x!==p.identity);
+      doc.extrusions=list(doc.extrusions).filter(x=>x.primitive_ref!==p.identity);
+      for(const recipe of list(doc.projection_recipes)) recipe.primitive_refs=list(recipe.primitive_refs).filter(x=>x!==p.identity);
+      for(const other of list(doc.primitives)) other.relationships=list(other.relationships).filter(x=>x!==p.identity);
+    } else if(!['SELECT','INSPECT'].includes(command.operation)) throw new Error(`EXECUTOR_OPERATION_NOT_IMPLEMENTED:${command.operation}`);
+  }
+
+  if(doc.artifact.artifact_ref!==artifactId) throw new Error('IDENTITY_MUTATION_FORBIDDEN');
   const after=validateUniversalArtifact(doc);
   if(!after.ok) throw new Error(`RESULT_INVALID:${after.first_red}`);
-  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:p.identity,artifact_ref:artifactId,operation:command.operation,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
+  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:primitiveId,artifact_ref:artifactId,operation:command.operation,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
   doc.receipts=[...list(doc.receipts),receipt];
   return {artifact:doc,receipt};
 }
