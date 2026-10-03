@@ -71,6 +71,11 @@ export function executeUniversalPrimitiveOperation(source,command){
     const patch=list(doc.local_control_patches).find(x=>x.patch_ref===patchRef);
     if(!patch) throw new Error(`PATCH_NOT_FOUND:${patchRef}`);
     doc.primitives.push(p);patch.primitive_refs=[...list(patch.primitive_refs),p.identity];
+    for(const projectionRef of list(command.args?.projection_refs)){
+      const recipe=list(doc.projection_recipes).find(r=>r.projection_ref===projectionRef);
+      if(!recipe) throw new Error(`PROJECTION_NOT_FOUND:${projectionRef}`);
+      recipe.primitive_refs=[...list(recipe.primitive_refs),p.identity];
+    }
     primitiveId=p.identity;
   } else {
     const p=primitiveById(doc,command.primitive_ref);
