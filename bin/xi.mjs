@@ -27,6 +27,13 @@ import { compileLessonPromotion } from '../src/lessons/promotion.mjs';
 import { compileGraduationPreflight, profileCatalog } from '../src/preflight/graduation.mjs';
 import { compileProgressGateGraduation, progressGatedRoleCatalog } from '../src/preflight/progress-gated-roles.mjs';
 import { rotflOrderCatalog } from '../src/preflight/order-of-operations.mjs';
+import {
+  readRotflOrderRuntime,
+  initializeRotflOrderRuntime,
+  advanceRotflOrderRuntime,
+  requireRotflMutationAdmission,
+  rotflMutationCommandClass,
+} from '../src/preflight/order-runtime.mjs';
 import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
@@ -165,7 +172,9 @@ Pure compilers:
   xi-io work egress --input <work-egress.json> [--out <projection.json>]
   xi-io ack distribute --baseline <baseline.json> --rotfl <rotfl-context.json> [--out <acks.json>]
   xi-io ack validate --input <ack.json> [--out <validation.json>]
-  xi-io ack order [--out <order.json>]
+  xi-io ack order [status|catalog] [--state <path>] [--out <order.json>]
+  xi-io ack order init --input <managed-current.json> [--state <path>]
+  xi-io ack order advance --step <O0..O13> --evidence <ref> --preflight <ref> [--state <path>]
   xi-io burnmap compile --baseline <baseline.json> [--returns <returns.json>] [--out <burnmap.json>]
   xi-io lesson promote --input <lesson.json> [--out <promotion.json>]
 
@@ -274,6 +283,32 @@ function writeOutput(value, out) {
   const payload = `${JSON.stringify(value, null, 2)}\n`;
   if (!out || out === '-') process.stdout.write(payload);
   else fs.writeFileSync(path.resolve(out), payload, 'utf8');
+}
+
+function resolveSdkGeneration() {
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+  const git=spawnSync('git',['-C',root,'rev-parse','HEAD'],{encoding:'utf8',timeout:5000});
+  if(git.status===0 && String(git.stdout||'').trim()) return String(git.stdout).trim();
+  return `sdk-package:${SDK_VERSION}`;
+}
+
+function enforceRuntimeOor(argv) {
+  const classification=rotflMutationCommandClass(argv);
+  if(!classification.mutation) return {admitted:true,classification};
+  const admission=requireRotflMutationAdmission({current_source_generation:resolveSdkGeneration()});
+  if(!admission.admitted){
+    process.stdout.write(JSON.stringify({
+      schema:'xiio.cli.rotfl-oor-block/v1',
+      state:'BLOCKED',
+      command:argv.join(' '),
+      classification,
+      admission,
+      provider_effect:false,
+      authority_granted:false,
+    },null,2)+'\n');
+    process.exit(2);
+  }
+  return {admitted:true,classification,admission};
 }
 
 function compileBaselineCommandEnvelope(command, flags, trailingPositionals = []) {
@@ -1341,6 +1376,8 @@ if (process.argv.length === 3 && process.argv[2] === '--version') { process.stdo
 const top = process.argv[2] || null;
 const topArgs = process.argv.slice(2);
 
+enforceRuntimeOor(process.argv.slice(2));
+
 if (
   top === null
   || top === 'chat'
@@ -1701,7 +1738,30 @@ try {
     const envelope = readJson(flags.input, '--input');
     writeOutput({ schema: 'xiio.sdk.distributed-ack-validation/v1', ...validateRotflDistributedAck(envelope) }, flags.out);
   } else if (family === 'ack' && action === 'order') {
-    writeOutput(rotflOrderCatalog(), flags.out);
+    const sub=rest[0] || 'catalog';
+    if(sub==='catalog'){
+      writeOutput(rotflOrderCatalog(), flags.out);
+    } else if(sub==='status'){
+      writeOutput(readRotflOrderRuntime({state_path:flags.state}), flags.out);
+    } else if(sub==='init'){
+      const input=readJson(flags.input,'--input');
+      writeOutput(initializeRotflOrderRuntime({
+        source_generation:input.source_generation || resolveSdkGeneration(),
+        managed_current:input.managed_current,
+        state_path:flags.state,
+      }), flags.out);
+    } else if(sub==='advance'){
+      if(!flags.step || !flags.evidence || !flags.preflight) {
+        throw new Error('ack order advance requires --step --evidence --preflight');
+      }
+      writeOutput(advanceRotflOrderRuntime({
+        step_id:flags.step,
+        evidence_ref:flags.evidence,
+        preflight_ref:flags.preflight,
+        current_source_generation:resolveSdkGeneration(),
+        state_path:flags.state,
+      }), flags.out);
+    } else throw new Error('ack order supports status|catalog|init|advance');
   } else if (family === 'burnmap' && action === 'compile') {
     const baseline = readJson(flags.baseline, '--baseline');
     const returns = flags.returns ? readJson(flags.returns, '--returns') : [];
