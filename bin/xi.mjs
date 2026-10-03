@@ -1738,7 +1738,7 @@ try {
     const envelope = readJson(flags.input, '--input');
     writeOutput({ schema: 'xiio.sdk.distributed-ack-validation/v1', ...validateRotflDistributedAck(envelope) }, flags.out);
   } else if (family === 'ack' && action === 'order') {
-    const sub=rest[0] || 'status';
+    const sub=rest[0] || 'catalog';
     if(sub==='catalog'){
       writeOutput(rotflOrderCatalog(), flags.out);
     } else if(sub==='status'){
