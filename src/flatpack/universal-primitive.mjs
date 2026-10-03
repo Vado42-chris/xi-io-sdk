@@ -1,8 +1,5 @@
-import crypto from 'node:crypto';
-
 const clone=v=>structuredClone(v);
 const list=v=>Array.isArray(v)?v:[];
-const digest=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
 
 export function validateUniversalArtifact(doc){
   const fail=(first_red,detail)=>({ok:false,schema:'xiio.sdk.universal-artifact-validation/v1',first_red,detail,effect_authority:0});
@@ -65,7 +62,7 @@ export function executeUniversalPrimitiveOperation(source,command){
   const doc=clone(source);
   const p=primitiveById(doc,command.primitive_ref);
   if(!list(p.operations).includes(command.operation)) throw new Error(`OPERATION_NOT_ADMITTED:${command.operation}`);
-  const primitiveId=p.identity, artifactId=doc.artifact.artifact_ref, beforeDigest=digest(doc);
+  const primitiveId=p.identity, artifactId=doc.artifact.artifact_ref;
   if(command.operation==='MOVE') p.geometry={...(p.geometry||{}),x:command.args?.x,y:command.args?.y};
   else if(command.operation==='RESIZE') p.geometry={...(p.geometry||{}),width:command.args?.width,height:command.args?.height};
   else if(command.operation==='TRANSFORM') setPath(p,command.args?.path,command.args?.value);
@@ -73,7 +70,7 @@ export function executeUniversalPrimitiveOperation(source,command){
   if(p.identity!==primitiveId||doc.artifact.artifact_ref!==artifactId) throw new Error('IDENTITY_MUTATION_FORBIDDEN');
   const after=validateUniversalArtifact(doc);
   if(!after.ok) throw new Error(`RESULT_INVALID:${after.first_red}`);
-  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:p.identity,artifact_ref:artifactId,operation:command.operation,before_digest:beforeDigest,after_digest:digest(doc),effect_ceiling:0};
+  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:p.identity,artifact_ref:artifactId,operation:command.operation,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
   doc.receipts=[...list(doc.receipts),receipt];
   return {artifact:doc,receipt};
 }
@@ -101,7 +98,7 @@ export function compileUniversalProjection(doc,projectionRef){
   if(!recipe) throw new Error(`PROJECTION_NOT_FOUND:${projectionRef}`);
   if(doc.authority.visibility!=='PUBLIC') throw new Error('VISIBILITY_NOT_PUBLIC');
   const blocks=recipe.primitive_refs.map(id=>{const p=primitiveById(doc,id); if(p.authority?.visibility!=='PUBLIC') throw new Error(`PRIMITIVE_VISIBILITY_NOT_PUBLIC:${id}`); return {primitive_ref:p.identity,semantic_type:p.semantic_type,geometry:clone(p.geometry||{}),content:clone(p.content||{}),style:clone(p.style||{}),metadata:clone(p.metadata||{})};});
-  return {schema:'xiio.sdk.publisher-projection-candidate/v1',projection_ref:recipe.projection_ref,projection_kind:recipe.kind,artifact_ref:doc.artifact.artifact_ref,article_ref:doc.metadata?.article_ref,template_rig_ref:doc.artifact.template_ref,primitive_refs:clone(recipe.primitive_refs),blocks,lineage:{version_ref:doc.artifact.version_ref,source_digest:digest(doc)},effect_ceiling:0};
+  return {schema:'xiio.sdk.publisher-projection-candidate/v1',projection_ref:recipe.projection_ref,projection_kind:recipe.kind,artifact_ref:doc.artifact.artifact_ref,article_ref:doc.metadata?.article_ref,template_rig_ref:doc.artifact.template_ref,primitive_refs:clone(recipe.primitive_refs),blocks,lineage:{version_ref:doc.artifact.version_ref,source_digest_ref:doc.lineage?.digest||null,bins_digest_state:'PENDING_BINS_CUSTODY'},effect_ceiling:0};
 }
 
 export function reverseUniversalProjectionReadback(source,projection){

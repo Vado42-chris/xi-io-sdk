@@ -34,6 +34,9 @@ assert.equal(validateUniversalArtifact(doc).ok,true);
 const human=executeUniversalPrimitiveOperation(doc,{operation_ref:'op:h1',actor:{kind:'human',ref:'person:owner'},primitive_ref:'p:headline',operation:'TRANSFORM',args:{path:'content.text',value:'Human edit'}});
 const ai=executeUniversalPrimitiveOperation(human.artifact,{operation_ref:'op:a1',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:headline',operation:'TRANSFORM',args:{path:'style.font_size',value:48}});
 assert.equal(human.receipt.primitive_ref,ai.receipt.primitive_ref);
+assert.equal(human.receipt.bins_digest_state,'PENDING_BINS_CUSTODY');
+assert.equal(human.receipt.before_digest_ref,null);
+assert.equal(ai.receipt.after_digest_ref,null);
 const z2=resolveUniversalContextualTools(ai.artifact,['p:headline']);
 assert.deepEqual(z2.tools.map(x=>x.tool_ref),['tool:text']);
 const rig=extractUniversalTemplateRig(ai.artifact);
@@ -47,4 +50,4 @@ assert.throws(()=>compileUniversalProjection(privateArtifact,'projection:microsi
 const privateNode=structuredClone(ai.artifact);privateNode.primitives[0].authority.visibility='PRIVATE';
 assert.throws(()=>compileUniversalProjection(privateNode,'projection:microsite'),/PRIMITIVE_VISIBILITY_NOT_PUBLIC/);
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{operation_ref:'op:bad',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:headline',operation:'TRANSFORM',args:{path:'identity',value:'fork'}}),/TRANSFORM_PATH_NOT_ADMITTED/);
-console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,publisher_projection:true,reverse_readback_same_ids:true,visibility_before_render:true,unadmitted_tools_hidden:true,effects:0}));
+console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,publisher_projection:true,reverse_readback_same_ids:true,visibility_before_render:true,unadmitted_tools_hidden:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
