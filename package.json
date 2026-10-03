@@ -82,7 +82,8 @@
     "./receipts/fractal-consumer": "./src/receipts/fractal-consumer.mjs",
     "./runtime/pneuma": "./src/runtime/pneuma-frontdoor.mjs",
     "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
-    "./preflight/order-runtime": "./src/preflight/order-runtime.mjs"
+    "./preflight/order-runtime": "./src/preflight/order-runtime.mjs",
+    "./flatpack/universal-primitive": "./src/flatpack/universal-primitive.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
@@ -145,6 +146,7 @@
     "check:pneuma-frontdoor": "node scripts/validate-pneuma-frontdoor.mjs",
     "check:flatpack-continuation": "node scripts/validate-flatpack-continuation.mjs",
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
-    "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs"
+    "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs",
+    "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs"
   }
 }
