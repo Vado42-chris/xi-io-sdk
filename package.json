@@ -147,6 +147,7 @@
     "check:flatpack-continuation": "node scripts/validate-flatpack-continuation.mjs",
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
     "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs",
-    "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs"
+    "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs",
+    "check:radial-relationship-layout": "node scripts/validate-universal-radial-relationship-layout.mjs"
   }
 }
