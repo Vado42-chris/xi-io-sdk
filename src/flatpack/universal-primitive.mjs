@@ -141,3 +141,53 @@ export function reverseUniversalProjectionReadback(source,projection){
   const ok=projection.artifact_ref===source.artifact.artifact_ref&&missing.length===0;
   return {schema:'xiio.sdk.publisher-reverse-readback/v1',ok,projection_ref:projection.projection_ref,artifact_ref:projection.artifact_ref,article_ref:projection.article_ref,primitive_refs:refs,version_ref:source.artifact.version_ref,missing_primitive_refs:missing,same_source_ids:ok,effect_ceiling:0};
 }
+
+
+export function compileUniversalRadialRelationshipLayout(input={}){
+  const centerRef=String(input.center_ref||'').trim();
+  if(!centerRef) throw new Error('RADIAL_CENTER_REF_REQUIRED');
+  const source=list(input.relationships);
+  const seen=new Set();
+  const relationships=source.map((raw,index)=>{
+    const targetRef=String(raw?.target_ref||raw?.product_id||raw?.ref||'').trim();
+    if(!targetRef) throw new Error(`RADIAL_TARGET_REF_REQUIRED:${index}`);
+    if(seen.has(targetRef)) throw new Error(`RADIAL_TARGET_REF_DUPLICATE:${targetRef}`);
+    seen.add(targetRef);
+    return {
+      target_ref:targetRef,
+      label:String(raw?.label||raw?.name||targetRef),
+      kind:String(raw?.kind||'relationship'),
+      metadata:clone(raw?.metadata||{})
+    };
+  });
+  const radiusRaw=Number(input.radius);
+  const radius=Number.isFinite(radiusRaw)?Math.max(0.1,Math.min(0.48,radiusRaw)):0.34;
+  const startRaw=Number(input.start_degrees);
+  const startDegrees=Number.isFinite(startRaw)?startRaw:-90;
+  const count=relationships.length;
+  const nodes=relationships.map((relationship,index)=>{
+    const angleDegrees=count?startDegrees+(360/count)*index:startDegrees;
+    const radians=angleDegrees*Math.PI/180;
+    return {
+      identity:`relationship:${centerRef}:${relationship.target_ref}`,
+      center_ref:centerRef,
+      target_ref:relationship.target_ref,
+      label:relationship.label,
+      kind:relationship.kind,
+      order:index,
+      angle_degrees:Number(angleDegrees.toFixed(6)),
+      x:Number((0.5+Math.cos(radians)*radius).toFixed(6)),
+      y:Number((0.5+Math.sin(radians)*radius).toFixed(6)),
+      metadata:relationship.metadata
+    };
+  });
+  return {
+    schema:'xiio.sdk.radial-relationship-layout/v1',
+    center_ref:centerRef,
+    radius,
+    start_degrees:startDegrees,
+    relationship_count:count,
+    nodes,
+    effect_ceiling:0
+  };
+}
