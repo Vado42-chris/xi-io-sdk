@@ -87,7 +87,7 @@
     "./mutation/addressable": "./src/mutation/addressable.mjs"
   },
   "scripts": {
-    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs",
+    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
