@@ -109,10 +109,76 @@ export function executeUniversalPrimitiveOperation(source,command){
   return {artifact:doc,receipt};
 }
 
+function normalizedToolDescriptor(tool){
+  return {
+    schema:'xiio.sdk.self-describing-tool/v1',
+    tool_ref:String(tool?.tool_ref||''),
+    name:String(tool?.name||tool?.tool_ref||'Unnamed tool'),
+    owner:String(tool?.owner||'UNKNOWN'),
+    category:String(tool?.category||'General'),
+    description:String(tool?.description||''),
+    outcome:String(tool?.outcome||''),
+    admitted:tool?.admitted===true,
+    public_safe:tool?.public_safe===true,
+    when_semantic_types:clone(list(tool?.when_semantic_types)),
+    operations:clone(list(tool?.operations)),
+    controls:clone(list(tool?.controls)),
+    settings:clone(list(tool?.settings)),
+    article:{
+      title:String(tool?.article?.title||tool?.name||tool?.tool_ref||'Tool'),
+      summary:String(tool?.article?.summary||tool?.description||''),
+      tags:clone(list(tool?.article?.tags))
+    },
+    publisher:{
+      slug:String(tool?.publisher?.slug||String(tool?.tool_ref||'tool').replace(/^tool:/,'').replace(/[^a-z0-9-]+/gi,'-').toLowerCase()),
+      route:String(tool?.publisher?.route||''),
+      cta_label:String(tool?.publisher?.cta_label||'Explore tool'),
+      service_category:String(tool?.publisher?.service_category||tool?.category||'General')
+    }
+  };
+}
+
 export function resolveUniversalContextualTools(doc,selectionRefs=[]){
   const semantic=new Set(selectionRefs.map(id=>primitiveById(doc,id).semantic_type));
-  const tools=list(doc.metadata?.contextual_tools).filter(t=>t.admitted===true&&(list(t.when_semantic_types).length===0||list(t.when_semantic_types).some(x=>semantic.has(x))));
-  return {schema:'xiio.sdk.contextual-tool-runtime/v1',plane:'Z2',artifact_ref:doc.artifact.artifact_ref,primitive_selection_refs:selectionRefs,tools:clone(tools),effect_ceiling:0};
+  const tools=list(doc.metadata?.contextual_tools)
+    .filter(t=>t.admitted===true&&(list(t.when_semantic_types).length===0||list(t.when_semantic_types).some(x=>semantic.has(x))))
+    .map(normalizedToolDescriptor);
+  return {schema:'xiio.sdk.contextual-tool-runtime/v1',plane:'Z2',artifact_ref:doc.artifact.artifact_ref,primitive_selection_refs:selectionRefs,tools,effect_ceiling:0};
+}
+
+export function describeUniversalContextualTools(doc,selectionRefs=[]){
+  const resolved=resolveUniversalContextualTools(doc,selectionRefs);
+  return {
+    schema:'xiio.sdk.contextual-tool-description/v1',
+    artifact_ref:resolved.artifact_ref,
+    article_ref:doc.metadata?.article_ref||null,
+    plane:'Z2',
+    primitive_selection_refs:clone(resolved.primitive_selection_refs),
+    tools:clone(resolved.tools),
+    effect_ceiling:0
+  };
+}
+
+export function compileUniversalToolProjection(doc,toolRef,projectionKind='microsite'){
+  const tool=list(doc.metadata?.contextual_tools).find(t=>t?.tool_ref===toolRef&&t?.admitted===true);
+  if(!tool) throw new Error(`TOOL_NOT_ADMITTED:${toolRef}`);
+  const descriptor=normalizedToolDescriptor(tool);
+  if(descriptor.public_safe!==true) throw new Error(`TOOL_NOT_PUBLIC_SAFE:${toolRef}`);
+  return {
+    schema:'xiio.sdk.publisher-tool-projection/v1',
+    projection_kind:projectionKind,
+    projection_ref:`projection:tool:${descriptor.publisher.slug}:${projectionKind}`,
+    artifact_ref:doc.artifact.artifact_ref,
+    article_ref:doc.metadata?.article_ref||null,
+    tool_ref:descriptor.tool_ref,
+    tool:descriptor,
+    lineage:{
+      version_ref:doc.artifact?.version_ref||null,
+      source_generation:doc.lineage?.source_generation||null,
+      source_digest_ref:doc.lineage?.digest||null
+    },
+    effect_ceiling:0
+  };
 }
 
 export function extractUniversalTemplateRig(doc){
