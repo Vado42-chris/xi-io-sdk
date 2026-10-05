@@ -29,7 +29,9 @@
     "PATH!=ILLUMINATION",
     "REGISTERED_PRIMITIVE_MUST_BE_PORTABLE_FILE_CUBE_PREPARABLE",
     "PRIMITIVE_REGISTRATION_WITHOUT_SHIPPING_PATH = FAIL",
-    "FILE_CUBE_PREPARABLE != SHIPPED"
+    "FILE_CUBE_PREPARABLE != SHIPPED",
+    "PLATFORM_REQUIREMENT_RETYPE_BY_PRODUCT = FAIL",
+    "PLATFORM_CONTRACT_MUST_PROJECT_THROUGH_FLATPACK"
   ],
   "dispatch": {
     "expected": 41,
@@ -583,5 +585,28 @@
     "popover-menu",
     "choice-group",
     "inline-status"
+  ],
+  "platform_contracts": [
+    {
+      "id": "android-interaction",
+      "family": "interaction-platform",
+      "kind": "flatpack-contract",
+      "source": "standards/interaction-platform.android.v1.json",
+      "validator": "scripts/validate-interaction-platform-android.mjs",
+      "inherited_by": [
+        "inbox",
+        "publisher",
+        "articles",
+        "studio",
+        "dashboards",
+        "widgets",
+        "windows",
+        "websites",
+        "android-webview"
+      ],
+      "maturity": "CANDIDATE",
+      "portable_shipping": true,
+      "owner_retype_required": false
+    }
   ]
 }
