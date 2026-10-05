@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   validateUniversalArtifact,executeUniversalPrimitiveOperation,resolveUniversalContextualTools,
+  describeUniversalContextualTools,compileUniversalToolProjection,
   extractUniversalTemplateRig,compileUniversalProjection,reverseUniversalProjectionReadback
 } from '../src/flatpack/universal-primitive.mjs';
 
@@ -27,7 +28,10 @@ const doc={
  lineage:{source_generation:'fixture:g1',parent_version_ref:null,digest:'fixture'},
  authority:{visibility:'PUBLIC',effect_ceiling:'READ_ONLY'},receipts:[],
  metadata:{article_ref:'article:one',template_defaults:{density:'comfortable'},responsive_rules:{narrow:'stack',wide:'columns'},
-  contextual_tools:[{tool_ref:'tool:text',owner:'SDK',admitted:true,when_semantic_types:['heading'],operations:['TRANSFORM']},{tool_ref:'tool:fake',owner:'UNKNOWN',admitted:false,when_semantic_types:[],operations:['EXECUTE']}],
+  contextual_tools:[
+    {tool_ref:'tool:text',name:'Typography',owner:'SDK',category:'Create & edit',description:'Edit the selected text directly on the same addressable primitive used by AI.',outcome:'Change words and typographic scale without forking the artifact.',admitted:true,public_safe:true,when_semantic_types:['heading'],operations:['TRANSFORM'],controls:[{control_ref:'control:text',label:'Text',kind:'textarea',binding:'content.text'},{control_ref:'control:font-size',label:'Size',kind:'number',binding:'style.fontSize'}],article:{title:'Typography',summary:'Direct text editing on one shared primitive.',tags:['text','wysiwyg']},publisher:{slug:'typography',route:'/tools/typography/',cta_label:'Explore typography',service_category:'Create & edit'}},
+    {tool_ref:'tool:fake',owner:'UNKNOWN',admitted:false,when_semantic_types:[],operations:['EXECUTE']}
+  ],
   contextual_settings:[{setting_ref:'setting:density',owner:'ARTICLES',admitted:true,value:'comfortable'}]}
 };
 assert.equal(validateUniversalArtifact(doc).ok,true);
@@ -48,6 +52,17 @@ const deleted=executeUniversalPrimitiveOperation(ordered.artifact,{operation_ref
 assert.equal(deleted.artifact.primitives.some(x=>x.identity==='p:new-copy'),false);
 const z2=resolveUniversalContextualTools(deleted.artifact,['p:headline']);
 assert.deepEqual(z2.tools.map(x=>x.tool_ref),['tool:text']);
+assert.equal(z2.tools[0].name,'Typography');
+assert.equal(z2.tools[0].description.startsWith('Edit the selected text'),true);
+assert.equal(z2.tools[0].controls[0].binding,'content.text');
+const described=describeUniversalContextualTools(deleted.artifact,['p:headline']);
+assert.equal(described.schema,'xiio.sdk.contextual-tool-description/v1');
+assert.equal(described.tools[0].publisher.service_category,'Create & edit');
+const toolProjection=compileUniversalToolProjection(deleted.artifact,'tool:text','microsite');
+assert.equal(toolProjection.schema,'xiio.sdk.publisher-tool-projection/v1');
+assert.equal(toolProjection.tool.tool_ref,'tool:text');
+assert.equal(toolProjection.tool.article.title,'Typography');
+assert.equal(toolProjection.effect_ceiling,0);
 const rig=extractUniversalTemplateRig(deleted.artifact);
 assert.equal(rig.primitive_graph.length,3);
 assert.equal(rig.slots.length,2);
@@ -60,4 +75,4 @@ assert.throws(()=>compileUniversalProjection(privateArtifact,'projection:microsi
 const privateNode=structuredClone(deleted.artifact);privateNode.primitives[0].authority.visibility='PRIVATE';
 assert.throws(()=>compileUniversalProjection(privateNode,'projection:microsite'),/PRIMITIVE_VISIBILITY_NOT_PUBLIC/);
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{operation_ref:'op:bad',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:headline',operation:'TRANSFORM',args:{path:'identity',value:'fork'}}),/TRANSFORM_PATH_NOT_ADMITTED/);
-console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,publisher_projection:true,reverse_readback_same_ids:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
+console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,reverse_readback_same_ids:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
