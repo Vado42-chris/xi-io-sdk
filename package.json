@@ -87,7 +87,7 @@
     "./mutation/addressable": "./src/mutation/addressable.mjs"
   },
   "scripts": {
-    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation",
+    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:interaction-platform-android",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -149,6 +149,7 @@
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
     "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs",
     "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs",
-    "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs"
+    "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs",
+    "check:interaction-platform-android": "node scripts/validate-interaction-platform-android.mjs"
   }
 }
