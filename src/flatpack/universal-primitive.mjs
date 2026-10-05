@@ -120,6 +120,7 @@ function normalizedToolDescriptor(tool){
     outcome:String(tool?.outcome||''),
     admitted:tool?.admitted===true,
     public_safe:tool?.public_safe===true,
+    when_selection:String(tool?.when_selection||'any'),
     when_semantic_types:clone(list(tool?.when_semantic_types)),
     operations:clone(list(tool?.operations)),
     controls:clone(list(tool?.controls)),
@@ -140,8 +141,12 @@ function normalizedToolDescriptor(tool){
 
 export function resolveUniversalContextualTools(doc,selectionRefs=[]){
   const semantic=new Set(selectionRefs.map(id=>primitiveById(doc,id).semantic_type));
+  const hasSelection=selectionRefs.length>0;
   const tools=list(doc.metadata?.contextual_tools)
-    .filter(t=>t.admitted===true&&(list(t.when_semantic_types).length===0||list(t.when_semantic_types).some(x=>semantic.has(x))))
+    .filter(t=>t.admitted===true)
+    .filter(t=>t.when_selection!=='required'||hasSelection)
+    .filter(t=>t.when_selection!=='none'||!hasSelection)
+    .filter(t=>list(t.when_semantic_types).length===0||list(t.when_semantic_types).some(x=>semantic.has(x)))
     .map(normalizedToolDescriptor);
   return {schema:'xiio.sdk.contextual-tool-runtime/v1',plane:'Z2',artifact_ref:doc.artifact.artifact_ref,primitive_selection_refs:selectionRefs,tools,effect_ceiling:0};
 }
