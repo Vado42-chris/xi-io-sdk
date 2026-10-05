@@ -1,0 +1,78 @@
+{
+  "schema": "xiio.sdk.interaction-platform-contract/v1",
+  "contract_id": "XIIO-INTERACTION-PLATFORM-ANDROID-001",
+  "status": "CANDIDATE",
+  "purpose": "Machine-readable interaction requirements inherited by React/Vite WebView and other UI projections so product owners do not manually restate platform ergonomics.",
+  "breakpoints": {
+    "mobile_max_css_px": 1023,
+    "desktop_min_css_px": 1024
+  },
+  "android_webview": {
+    "selection": {
+      "default_nonselectable_roles": [
+        "layout-header",
+        "sidebar",
+        "button",
+        "drag-target"
+      ],
+      "content_selection_preserved": true
+    },
+    "touch": {
+      "minimum_target_css_px": 44,
+      "icon_only_requires_aria_label": true,
+      "hover_only_reveal_forbidden_below_css_px": 1024,
+      "mobile_reveal_requires_explicit_touch_toggle": true
+    },
+    "contrast": {
+      "normal_text_min_ratio": 4.5,
+      "tokens_requiring_dark_surface_validation": [
+        "--color-settled",
+        "--void"
+      ],
+      "token_values_are_brand_projection_owned": true
+    },
+    "navigation": {
+      "mobile_bottom_navigation_required": true,
+      "preserve_route_stacks": true,
+      "safe_area_padding_bottom": "env(safe-area-inset-bottom)"
+    },
+    "scrolling": {
+      "major_layout_overscroll_behavior": "none",
+      "nested_content_scroll_regions_may_scroll": true
+    }
+  },
+  "projection_targets": [
+    "inbox",
+    "publisher",
+    "articles",
+    "studio",
+    "dashboards",
+    "widgets",
+    "windows",
+    "websites",
+    "android-webview"
+  ],
+  "flatpack_binding": {
+    "inherit_by_default": true,
+    "owner_retype_required": false,
+    "portable": true,
+    "private_user_data": false,
+    "private_instance_metadata": false,
+    "source_owner": "xi-io-sdk",
+    "consumer_rule": "Consumer projections may specialize layout and brand, but may not weaken minimum interaction/accessibility invariants without an explicit qualified override."
+  },
+  "hard": [
+    "MOBILE != SHRUNK_DESKTOP",
+    "HOVER_ONLY_ACTION_ON_TOUCH = FAIL",
+    "ICON_ONLY_WITHOUT_ACCESSIBLE_NAME = FAIL",
+    "TOUCH_TARGET_LT_44PX = FAIL",
+    "NORMAL_TEXT_CONTRAST_LT_4_5 = FAIL",
+    "MOBILE_BOTTOM_NAV_MUST_PRESERVE_ROUTE_STACK",
+    "SAFE_AREA_MUST_NOT_BE_HARDCODED",
+    "MAJOR_LAYOUT_OVERSCROLL != BROWSER_DEFAULT",
+    "GLOBAL_SELECT_NONE_MUST_NOT_DISABLE_CONTENT_SELECTION",
+    "BRAND_TOKEN_CHANGE_REQUIRES_CONTRAST_READBACK",
+    "REGISTER_ONCE_PROJECT_MANY",
+    "OWNER_RETYPE=0"
+  ]
+}
