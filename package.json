@@ -98,7 +98,7 @@
     "./io/byte-reader": "./src/io/byte-reader.mjs"
   },
   "scripts": {
-    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:byte-reader",
+    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:byte-reader && npm run check:interaction-platform-android",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -174,6 +174,7 @@
     "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs",
     "check:self-drive-continuation": "node scripts/validate-self-drive-continuation.mjs",
     "check:local-agent-service": "node --test test/local-agent-service.test.mjs",
-    "check:byte-reader": "node scripts/validate-isolated-byte-reader.mjs && node scripts/validate-byte-reader-mutations.mjs && node scripts/validate-package-consumer.mjs"
+    "check:byte-reader": "node scripts/validate-isolated-byte-reader.mjs && node scripts/validate-byte-reader-mutations.mjs && node scripts/validate-package-consumer.mjs",
+    "check:interaction-platform-android": "node scripts/validate-interaction-platform-android.mjs"
   }
 }
