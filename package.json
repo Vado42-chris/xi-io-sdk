@@ -84,7 +84,8 @@
     "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
     "./preflight/order-runtime": "./src/preflight/order-runtime.mjs",
     "./flatpack/universal-primitive": "./src/flatpack/universal-primitive.mjs",
-    "./mutation/addressable": "./src/mutation/addressable.mjs"
+    "./mutation/addressable": "./src/mutation/addressable.mjs",
+    "./flatpack/toolchest": "./src/flatpack/toolchest.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor",
@@ -149,6 +150,7 @@
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
     "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs",
     "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs",
-    "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs"
+    "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs",
+    "check:toolchest-flatpack-100s": "node scripts/validate-toolchest-flatpack-100s.mjs"
   }
 }
