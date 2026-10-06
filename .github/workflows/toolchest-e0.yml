@@ -1,0 +1,22 @@
+name: Toolchest reusable flatpack 100s
+on:
+  pull_request:
+    paths:
+      - 'fixtures/toolchest/e0-punchcard-graph.json'
+      - 'src/flatpack/toolchest.mjs'
+      - 'scripts/validate-toolchest-e0.mjs'
+      - 'scripts/validate-toolchest-flatpack-100s.mjs'
+      - '.github/workflows/toolchest-e0.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/validate-toolchest-e0.mjs
+      - run: node scripts/validate-toolchest-flatpack-100s.mjs
+      - run: node scripts/validate-toolchest-strips-100s.mjs
