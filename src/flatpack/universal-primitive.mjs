@@ -50,6 +50,29 @@ export function validateUniversalArtifact(doc){
   else {
     for(const key of requiredCtl) if(!String(ctl[key]||'').trim()) envelopeMissing.push(key);
     if(ctl.rotfl_state&&!['1s','2s','3s','4s','5s','00'].includes(ctl.rotfl_state)) envelopeMissing.push('rotfl_state_invalid');
+
+    // Pneuma is the address/rotation context, ROTFL is traversal through it.
+    // Preserve owner vocabulary literally rather than collapsing it into ROTFL.
+    const pneuma=ctl.pneuma;
+    if(!pneuma||typeof pneuma!=='object') envelopeMissing.push('pneuma');
+    else {
+      for(const key of ['root_ref','base_ref','home_ref','coms_ref','compass_ref','payload_ref','time_ref','billing_ref','delivered_ref'])
+        if(!String(pneuma[key]||'').trim()) envelopeMissing.push('pneuma:'+key);
+      const address=pneuma.address;
+      if(!address||typeof address!=='object') envelopeMissing.push('pneuma:address');
+      else for(const key of ['value_ref','axis_ref','scale_ref','plane_ref','direction_ref','orientation_ref','projection_ref'])
+        if(!String(address[key]||'').trim()) envelopeMissing.push('pneuma:address:'+key);
+    }
+
+    const oor=ctl.order_of_operations;
+    if(!oor||typeof oor!=='object') envelopeMissing.push('order_of_operations');
+    else {
+      for(const key of ['cadence_ref','meter_ref','reap_ref','coms_ref','roll_ref'])
+        if(!String(oor[key]||'').trim()) envelopeMissing.push('oor:'+key);
+      if(!Array.isArray(oor.transform_chain)||oor.transform_chain.join('>')!=='FLATTEN>ROTATE>EXTRUDE>PROJECT>FLATTEN')
+        envelopeMissing.push('oor:transform_chain');
+    }
+
     for(const role of ['human','visible_worker','headless_worker']) if(!String(ctl.channels?.[role]||'').trim()) envelopeMissing.push('channel:'+role);
     for(const phase of ['result','return','apply_return','readback','reap','next']) if(!(phase in (ctl.lifecycle||{}))) envelopeMissing.push('lifecycle:'+phase);
     if(!('human_meter_ref' in (ctl.cog||{}))) envelopeMissing.push('cog:human_meter_ref');
@@ -249,7 +272,11 @@ export function qualifyUniversalControlEnvelope(doc){
       'ARTICLE!=SECOND_COORDINATE_SYSTEM',
       'PUBLISHER!=SECOND_COORDINATE_SYSTEM',
       'WARD_GATE_MISSING!=PROMOTABLE',
-      'RECIPROCAL_COG_UNMEASURED!=PROMOTABLE'
+      'RECIPROCAL_COG_UNMEASURED!=PROMOTABLE',
+      'PNEUMA!=ROTFL',
+      'ROTFL_TRAVERSES_PNEUMA_ADDRESS',
+      'OOR!=DECORATIVE_METADATA',
+      'FLATTEN_ROTATE_EXTRUDE_PROJECT_FLATTEN=ADDRESS_TRANSFORM_CHAIN'
     ]
   };
   return {
