@@ -230,3 +230,35 @@ export function reverseUniversalProjectionReadback(source,projection){
   const ok=projection.artifact_ref===source.artifact.artifact_ref&&missing.length===0;
   return {schema:'xiio.sdk.publisher-reverse-readback/v1',ok,projection_ref:projection.projection_ref,artifact_ref:projection.artifact_ref,article_ref:projection.article_ref,primitive_refs:refs,version_ref:source.artifact.version_ref,missing_primitive_refs:missing,same_source_ids:ok,effect_ceiling:0};
 }
+
+
+export function qualifyUniversalControlEnvelope(doc){
+  const base=validateUniversalArtifact(doc);
+  if(!base.ok) return base;
+  if(base.control_envelope_state!=='COMPLETE') return {
+    ok:false,
+    schema:'xiio.sdk.universal-control-envelope-qualification/v1',
+    first_red:'CONTROL_ENVELOPE_MIGRATION_REQUIRED',
+    missing:base.control_envelope_missing,
+    artifact_ref:base.artifact_ref,
+    effect_authority:0,
+    hard:[
+      'PRODUCT_PROJECTION!=NEW_CONTROL_MODEL',
+      'API!=SECOND_COORDINATE_SYSTEM',
+      'AIMAIL!=SECOND_COORDINATE_SYSTEM',
+      'ARTICLE!=SECOND_COORDINATE_SYSTEM',
+      'PUBLISHER!=SECOND_COORDINATE_SYSTEM',
+      'WARD_GATE_MISSING!=PROMOTABLE',
+      'RECIPROCAL_COG_UNMEASURED!=PROMOTABLE'
+    ]
+  };
+  return {
+    ok:true,
+    schema:'xiio.sdk.universal-control-envelope-qualification/v1',
+    artifact_ref:base.artifact_ref,
+    coordinate_ref:base.coordinate_ref,
+    generation_ref:base.generation_ref,
+    effect_authority:0,
+    first_red:null
+  };
+}
