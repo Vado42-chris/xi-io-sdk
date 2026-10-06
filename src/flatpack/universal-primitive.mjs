@@ -41,21 +41,24 @@ export function validateUniversalArtifact(doc){
   }
   if(!doc.authority?.visibility||doc.authority?.effect_ceiling===undefined) return fail('AUTHORITY','visibility/effect ceiling required');
 
-  // Universal control envelope: the same recursive coordinate must survive
-  // SDK -> Articles -> Publisher and every product/service projection.
-  const ctl=doc.control_envelope;
-  if(!ctl||typeof ctl!=='object') return fail('CONTROL_ENVELOPE','control_envelope required');
+  // Universal control envelope migration: legacy artifacts remain readable/migratable.
+  // Promotion gates, not base parsing, require full envelope closure.
+  const ctl=doc.control_envelope&&typeof doc.control_envelope==='object'?doc.control_envelope:null;
+  const envelopeMissing=[];
   const requiredCtl=['coordinate_ref','ack_ref','generation_ref','rotfl_state','trinity_ref','return_target_ref','ward_gate_ref','switchboard_route_ref'];
-  for(const key of requiredCtl) if(!String(ctl[key]||'').trim()) return fail('CONTROL_ENVELOPE',key+' required');
-  if(!['1s','2s','3s','4s','5s','00'].includes(ctl.rotfl_state)) return fail('CONTROL_ENVELOPE','rotfl_state invalid');
-  if(!ctl.channels||typeof ctl.channels!=='object') return fail('CONTROL_ENVELOPE','channels required');
-  for(const role of ['human','visible_worker','headless_worker']) if(!String(ctl.channels[role]||'').trim()) return fail('CONTROL_ENVELOPE','channel '+role+' required');
-  if(!ctl.lifecycle||typeof ctl.lifecycle!=='object') return fail('CONTROL_ENVELOPE','lifecycle required');
-  for(const phase of ['result','return','apply_return','readback','reap','next']) if(!(phase in ctl.lifecycle)) return fail('CONTROL_ENVELOPE','lifecycle '+phase+' required');
-  if(!ctl.cog||typeof ctl.cog!=='object'||!('human_meter_ref' in ctl.cog)||!('ai_meter_ref' in ctl.cog)) return fail('CONTROL_ENVELOPE','reciprocal cog refs required');
-  if(!ctl.runtime||typeof ctl.runtime!=='object'||!('dependencies_ref' in ctl.runtime)||!('status_ref' in ctl.runtime)) return fail('CONTROL_ENVELOPE','runtime dependency/status refs required');
+  if(!ctl) envelopeMissing.push('control_envelope');
+  else {
+    for(const key of requiredCtl) if(!String(ctl[key]||'').trim()) envelopeMissing.push(key);
+    if(ctl.rotfl_state&&!['1s','2s','3s','4s','5s','00'].includes(ctl.rotfl_state)) envelopeMissing.push('rotfl_state_invalid');
+    for(const role of ['human','visible_worker','headless_worker']) if(!String(ctl.channels?.[role]||'').trim()) envelopeMissing.push('channel:'+role);
+    for(const phase of ['result','return','apply_return','readback','reap','next']) if(!(phase in (ctl.lifecycle||{}))) envelopeMissing.push('lifecycle:'+phase);
+    if(!('human_meter_ref' in (ctl.cog||{}))) envelopeMissing.push('cog:human_meter_ref');
+    if(!('ai_meter_ref' in (ctl.cog||{}))) envelopeMissing.push('cog:ai_meter_ref');
+    if(!('dependencies_ref' in (ctl.runtime||{}))) envelopeMissing.push('runtime:dependencies_ref');
+    if(!('status_ref' in (ctl.runtime||{}))) envelopeMissing.push('runtime:status_ref');
+  }
 
-  return {ok:true,schema:'xiio.sdk.universal-artifact-validation/v1',artifact_ref:artifactRef,shared_plane_ref:planeRef,scale:'5s',primitive_count:ids.size,identity_preserved:true,control_envelope_preserved:true,coordinate_ref:ctl.coordinate_ref,generation_ref:ctl.generation_ref,effect_authority:0,first_red:null};
+  return {ok:true,schema:'xiio.sdk.universal-artifact-validation/v1',artifact_ref:artifactRef,shared_plane_ref:planeRef,scale:'5s',primitive_count:ids.size,identity_preserved:true,control_envelope_state:envelopeMissing.length?'MIGRATION_REQUIRED':'COMPLETE',control_envelope_missing:envelopeMissing,control_envelope_preserved:envelopeMissing.length===0,coordinate_ref:ctl?.coordinate_ref||null,generation_ref:ctl?.generation_ref||null,effect_authority:0,first_red:null};
 }
 
 function primitiveById(doc,id){
