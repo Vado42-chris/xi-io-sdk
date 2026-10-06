@@ -4,7 +4,9 @@
     "PROFILE_DESCRIBES_VALIDATION_NOT_AUTHORITY",
     "FILE_TYPE_CHANGES_PROFILE_NOT_CELL_TOPOLOGY",
     "BYTE_TRANSPORT_REQUIRED_FOR_ALL_TYPES",
-    "TEXT_DECODING_IS_PARSER_BEHAVIOR_NOT_TRANSFER_BEHAVIOR"
+    "TEXT_DECODING_IS_PARSER_BEHAVIOR_NOT_TRANSFER_BEHAVIOR",
+    "MEDIA_TYPE_PROFILE != NEW_FILE_GRAMMAR",
+    "AUDIO_VIDEO_PROFILE_CHANGE != PACKET_IDENTITY_CHANGE"
   ],
   "profiles": [
     {
@@ -93,6 +95,32 @@
       "transport": "BYTES",
       "parser_class": "BINARY_SIGNATURE_OR_DECLARED_PARSER",
       "consumer_class": "DECLARED_CONSUMER"
+    },
+    {
+      "profile_id": "audio.bytes.v1",
+      "media_types": [
+        "audio/wav",
+        "audio/x-wav",
+        "audio/mpeg",
+        "audio/mp4",
+        "audio/ogg",
+        "audio/flac"
+      ],
+      "transport": "BYTES",
+      "parser_class": "AUDIO_CONTAINER_DECODE",
+      "consumer_class": "AUDIO_PLAYER_OR_ANALYZER"
+    },
+    {
+      "profile_id": "video.bytes.v1",
+      "media_types": [
+        "video/mp4",
+        "video/webm",
+        "video/quicktime",
+        "video/x-matroska"
+      ],
+      "transport": "BYTES",
+      "parser_class": "VIDEO_CONTAINER_DECODE",
+      "consumer_class": "VIDEO_PLAYER_OR_ANALYZER"
     }
   ]
 }
