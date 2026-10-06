@@ -1,0 +1,18 @@
+{
+  "schema":"xiio.sdk.toolchest-punchcard-graph/v1",
+  "toolchest_ref":"xiio:article/toolchest",
+  "generation":"E0-G1",
+  "owner":"SDK",
+  "effect_authority":0,
+  "groups":[
+    {"ref":"toolchest:group:root","label":"ROOT","children":["gateway","web-search","overview","analytics","intelligence","crm","comms","commerce","finance","archives","legal","case-studies","bins"]},
+    {"ref":"toolchest:group:base","label":"BASE","children":["business-plan","enterprise","automation","integrations","marketplace","services-tiers","the-wiring","sim-maze","ai-setup","metadata","portfolio-census"]},
+    {"ref":"toolchest:group:home","label":"HOME","children":["work-room","distro-builder","studio","produce"]}
+  ],
+  "auxiliary":["page-search","ask-the-estate","level-streak-xp","declared-surface","workspace-context","account-context","icon-rail"],
+  "punchcard_contract":{
+    "identity_rule":"Every group, entry and auxiliary surface has an addressable SDK ref while retaining one parent Toolchest article identity.",
+    "required_cells":["IDENTITY","SELECT","INSPECT","CONTENT","ORDER","VISIBILITY","CAPABILITY","RETURN"],
+    "hard":["CHILD_ADDRESSABLE!=CHILD_TOOLCHEST","SDK_ATOM!=ARTICLES_SEMANTIC","SDK_REF_CHANGE_REQUIRES_EXPLICIT_VERSION"]
+  }
+}
