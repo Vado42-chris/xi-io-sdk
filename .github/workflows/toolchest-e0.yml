@@ -19,3 +19,4 @@ jobs:
           node-version: '22'
       - run: node scripts/validate-toolchest-e0.mjs
       - run: node scripts/validate-toolchest-flatpack-100s.mjs
+      - run: node scripts/validate-toolchest-strips-100s.mjs
