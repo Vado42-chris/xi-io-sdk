@@ -38,6 +38,7 @@ import { runCli, commandLexicon } from '../src/cli/public-exports.mjs';
 import { recoverAriesRunner, discoverRunnerServices, discoverRunnerListener } from '../src/recovery/aries-runner.mjs';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 import { executePneuma } from '../src/runtime/pneuma-frontdoor.mjs';
+import { scanXaxis, earnRcp, ibalBalance } from '../src/xaxis/rcp.mjs';
 import { compileLocalCompass, writeCompassReceipt } from '../src/compass/local-truth.mjs';
 import { inspectMachineTopology, prepareCargoExecution } from '../src/compass/machine-topology.mjs';
 import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
@@ -116,6 +117,10 @@ Human registries:
   xi-io registry primitives     Show public SDK primitive catalog
   xi-io doctor                  Show workspace/Ollama/tool readiness + disk-truth compass
   xi-io status --json           Read-only CLI/compass/Hex/Studio/Inbox status envelope
+  xi-io x scan [workspace]       Scan local X-axis stub/function signatures and group overlaps
+  xi-io x rcp [workspace]        Earn a local X-axis RCP receipt from that census
+  xi-io ibal balance --left N --right N --unknown N
+                                Calculate @ibal two-sided balance without hiding UNKNOWN
   xi-io search status            Read local Search runtime status
   xi-io lifecycle status          Read Studio materialized ROTFL lifecycle
   xi-io lifecycle next            Project current lifecycle selection/returns
@@ -1563,6 +1568,17 @@ if (
       },{stable:true});
     }
   }else usage(1);
+} else if (top === 'x') {
+  const action=process.argv[3] || 'scan';
+  const root=process.argv[4] && !process.argv[4].startsWith('--') ? process.argv[4] : process.cwd();
+  const scan=scanXaxis(root);
+  if(action==='scan') emitCliResult('x.scan',{...scan,state:scan.stub_occurrences?'WAIT':'PASS',first_red:scan.stub_occurrences?'STUB_SIGNATURES_PRESENT':null},{stable:true});
+  else if(action==='rcp') emitCliResult('x.rcp',{...earnRcp(scan),first_red:scan.stub_occurrences?'STUB_SIGNATURES_PRESENT':null},{stable:true});
+  else usage(1);
+} else if (top === 'ibal' && process.argv[3] === 'balance') {
+  const {flags}=args(process.argv.slice(4));
+  const result=ibalBalance({left:Number(flags.left||0),right:Number(flags.right||0),unknown:Number(flags.unknown||0)});
+  emitCliResult('ibal.balance',{...result,state:result.balanced?'PASS':'WAIT',first_red:result.balanced?null:(result.unknown?'UNKNOWN_REMAINS':'BALANCE_DELTA_REMAINS')},{stable:true});
 } else if (top === 'search') {
   const result=await searchRuntime(process.argv.slice(3));
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
