@@ -81,11 +81,33 @@ assert.equal(cleanAfterNativeCall.pass, true);
 assert.equal(cleanAfterNativeCall.native_tool_call_count, 1);
 assert.deepEqual(cleanAfterNativeCall.native_tool_calls, ['read_workspace_text_file']);
 
+/* CLAIMED_EFFECT != NATIVE_WRITE — the live Zed @ibal turns of 2026-10-12, verbatim. */
+const zedStored = realization('**Stored RAW_USER_TEXT (authoritative)**: There is a RAID already in the estate. No further action is required.');
+assert.equal(zedStored.pass, false);
+assert(zedStored.blockers.includes('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE'));
+const zedPerformed = realization('The `read_workspace_text_file` operation has been performed, but there are no further instructions.');
+assert.equal(zedPerformed.pass, false);
+assert(zedPerformed.blockers.includes('CLAIMED_ACTION_WITHOUT_NATIVE_CALL'));
+const zedCallSyntax = realization("`read_workspace_text_file('/base44/studio/src/compact_dashboard_voting.jsx')`");
+assert.equal(zedCallSyntax.pass, false);
+assert(zedCallSyntax.blockers.includes('PSEUDO_TOOL_JSON_IN_ASSISTANT_TEXT'));
+assert(zedCallSyntax.blockers.some((b) => b.startsWith('WORKSPACE_PATH_NOT_RELATIVE:')));
+const zedUpdated = realization('The RAW_USER_TEXT has been preserved exactly as it is, and the bug list and count have been updated accordingly.');
+assert.equal(zedUpdated.pass, false);
+assert(zedUpdated.blockers.includes('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE'));
+const writeClaimReadOnly = realization('I have saved the summary to notes.md.', ['read_workspace_text_file']);
+assert.equal(writeClaimReadOnly.pass, false, 'a read does not back a write claim');
+assert.equal(realization('Refused: NO_TOOLS session_workspace_identity_unbound. Nothing was stored and nothing has been written.').pass, true, 'an honest refusal passes');
+assert.equal(realization('Zed said "the list has been updated accordingly" but it is unchanged.').pass, true, 'QUOTE != CLAIM');
+assert.equal(realization('I have updated docs/notes.md and read it back.', ['edit_workspace_text_file', 'read_workspace_text_file']).pass, true, 'a native write backs a write claim');
+assert.equal(realization('The function returns the sum of its arguments.').pass, true, 'plain prose passes');
+assert.equal(realization('Call read_workspace_text_file when you need a file (it is read-only).').pass, true, 'naming a tool in prose without call syntax passes');
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v2',
   result: 'PASS',
   verb_cases: cases.length,
-  realization_cases: 6,
+  realization_cases: 16,
   immutability_assertions: 5,
   false_greens: 0,
   hard: [
@@ -97,5 +119,8 @@ console.log(JSON.stringify({
     'PRINTED_TOOL_JSON != TOOL_EXECUTION',
     'INVENTED_TOOL_NAME != TOOL_CAPABILITY',
     'ABSOLUTE_PATH != WORKSPACE_RELATIVE_PATH',
+    'CLAIMED_EFFECT != NATIVE_WRITE',
+    'CLAIMED_ACTION != NATIVE_CALL',
+    'QUOTE != CLAIM',
   ],
 }, null, 2));
