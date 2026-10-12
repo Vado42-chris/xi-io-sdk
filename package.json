@@ -27,6 +27,7 @@
     "./evaluation/mission-conservation": "./src/evaluation/mission-conservation.mjs",
     "./evaluation/closure-anti-laundering-catalog": "./src/evaluation/closure-anti-laundering-catalog.json",
     "./evaluation/tool-verb-fidelity": "./src/evaluation/tool-verb-fidelity.mjs",
+    "./quorum/cube-quorum-cli": "./src/quorum/cube-quorum-cli.mjs",
     "./evaluation/x-intersection-ux": "./src/evaluation/x-intersection-ux.mjs",
     "./baseline": "./src/baseline/compiler.mjs",
     "./baseline/products": "./src/baseline/product-capability.mjs",
@@ -149,6 +150,7 @@
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
     "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs",
     "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs",
-    "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs"
+    "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs",
+    "check:cube-quorum-cli": "node scripts/validate-cube-quorum-cli.mjs"
   }
 }
