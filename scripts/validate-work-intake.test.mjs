@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {validateWorkIntake as validate} from './validate-work-intake.mjs';
 const pr={number:172,state:'open',body:'Refs #14\nReuses: src/baseline/product-capability.mjs'};
 const issues=[{number:14,state:'open'}];
-const args=()=>({pr:{...pr},issues:[...issues],openPrs:[],lookupComplete:true});
+/* Deep-copy issue rows — hostile tests mutate state and must not poison later cases. */
+const args=()=>({pr:{...pr},issues:issues.map((i)=>({...i})),openPrs:[],lookupComplete:true});
 test('current open canonical issue and reuse qualifies',()=>{assert.equal(validate(args()).ok,true)});
 const hostile=(name,edit,code)=>test(name,()=>{const a=args();edit(a);const r=validate(a);assert.equal(r.ok,false);assert.ok(r.errors.some(x=>x.startsWith(code)),JSON.stringify(r))});
 hostile('missing refs',a=>a.pr.body='Reuses: current','EXACT_ONE_OPEN_ISSUE_REF_REQUIRED');

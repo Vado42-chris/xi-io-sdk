@@ -10,7 +10,9 @@ const fixture=()=>({products:roster.map(product)});
 const canon=x=>JSON.stringify(x,(k,v)=>v&&!Array.isArray(v)&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 const pin=doc=>'sha256:'+createHash('sha256').update(canon(doc)).digest('hex');
 const opts=doc=>({roster:[...roster],publishedRoster:[...published],livePublishedRoster:[...published],sourcePin:pin(doc),livePin:pin(doc)});
-const reject=(label,mutate,code)=>test(label,()=>{const doc=fixture(),o=opts(doc);mutate(doc,o);if(o.sourcePin===o.livePin){o.sourcePin=pin(doc);o.livePin=pin(doc);}const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.some(x=>x.startsWith(code)),JSON.stringify(r.failures));assert.equal(r.visible.length,0);});
+/* Re-pin only when both pins remain present and equal after mutate. Nulling
+ * both used to compare equal and accidentally restore a valid pin. */
+const reject=(label,mutate,code)=>test(label,()=>{const doc=fixture(),o=opts(doc);mutate(doc,o);if(o.sourcePin&&o.livePin&&o.sourcePin===o.livePin){o.sourcePin=pin(doc);o.livePin=pin(doc);}const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.some(x=>x.startsWith(code)),JSON.stringify(r.failures));assert.equal(r.visible.length,0);});
 test('valid fixture qualifies only published IDs without publication authority',()=>{const doc=fixture();const r=validate(doc,opts(doc));assert.equal(r.ok,true);assert.deepEqual(r.visible.map(x=>x.id),published);assert.equal(r.publication_authorized,false);});
 reject('missing catalogue',d=>delete d.products,'PRODUCTS_ARRAY_MISSING');
 reject('missing roster',(d,o)=>delete o.roster,'PINNED_ROSTER_REQUIRED');
