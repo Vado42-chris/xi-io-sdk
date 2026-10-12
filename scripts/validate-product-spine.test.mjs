@@ -46,3 +46,7 @@ reject('missing source pin',(d,o)=>{o.sourcePin=null;o.livePin=null;},'STALE_OR_
 reject('missing commercial dimension basis',(d)=>{delete d.products[0].basis.commercial;},'DIMENSION_BASIS_MISSING:commercial');
 reject('persona name used as grant',(d)=>{d.products[0].persona_name='Designer';d.products[0].authorization_ref='Designer';},'PERSONA_NOT_AUTHORIZATION');
 reject('price keyed directly by maturity label',(d)=>{d.products[0].pricing={SILVER:49};},'PRODUCT_PRICE_FORBIDDEN');
+
+reject('both published rosters collude on a tenth id',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);o.livePublishedRoster.push(d.products[9].id);},'LIVE_PUBLISHED_ROSTER_NOT_ACCEPTED_NINE');
+reject('unknown classification basis is not evidence',(d)=>{d.products[0].basis.classification='UNKNOWN';},'DIMENSION_BASIS_MISSING:classification');
+reject('price_amount product field prohibited',(d)=>{d.products[0].price_amount=20;},'PRODUCT_PRICE_FORBIDDEN');
