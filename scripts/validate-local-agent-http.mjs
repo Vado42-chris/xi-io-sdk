@@ -85,6 +85,10 @@ try {
   assert.equal(status.json.state, 'DEGRADED', 'fixture without local Ollama must not claim runtime READY');
   assert.equal(status.json.first_red, 'OLLAMA_MODEL_NOT_READY');
   assert.equal(status.json.runtime_verified, false);
+  assert.equal(status.json.installed_sdk_generation_verified, false, 'model readiness never proves installed SDK');
+  assert.equal(status.json.native_receipt_state, 'INSTALLED_GENERATION_READBACK_REQUIRED');
+  assert.equal(status.json.service_listener_observed, true);
+  assert.equal(typeof status.json.service_process_pid, 'number');
   const page = await request({ url: '/' });
   assert.equal(page.status, 200);
   assert.match(page.text, /<title>theme<\/title>/);
