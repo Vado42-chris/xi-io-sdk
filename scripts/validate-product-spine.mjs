@@ -28,6 +28,7 @@ export function validateProductSpine(catalogue,{roster,publishedRoster,livePubli
  if(members&&(![...expected].every(x=>typeof x==='string'&&x.trim())||expected.size!==members.length))fail('ROSTER_IDS_INVALID');
  const publicIds=published?ids(published):new Set();
  if(published&&(![...publicIds].every(x=>typeof x==='string'&&x.trim())||publicIds.size!==published.length||![...publicIds].every(x=>expected.has(x))))fail('PUBLISHED_ROSTER_INVALID');
+ if(livePublished && (ids(livePublished).size!==livePublished.length || livePublished.some(p=>typeof (typeof p==='string'?p:p?.id)!=='string' || !(typeof p==='string'?p:p?.id).trim())))fail('LIVE_PUBLISHED_ROSTER_IDS_INVALID');
  if(published&&livePublished&&!exact(publicIds,ids(livePublished)))fail('PUBLISHED_SET_NOT_LIVE_PIN');
  if(livePublished&&!exact(ids(livePublished),publicNine))fail('LIVE_PUBLISHED_ROSTER_NOT_ACCEPTED_NINE');
  const seen=new Set(),actualPublished=[];
