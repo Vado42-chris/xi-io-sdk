@@ -22,13 +22,19 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function listBugsLedgers(cubeRoot) {
+  return fs.readdirSync(cubeRoot)
+    .filter((n) => /^CUBE\.bugs\..*\.json$/i.test(n))
+    .sort()
+    .map((n) => path.join(cubeRoot, n));
+}
+
 function findBugsLedger(cubeRoot) {
-  const preferred = path.join(cubeRoot, 'CUBE.bugs.business-canary.20261012.json');
-  if (fs.existsSync(preferred)) return preferred;
-  const entries = fs.readdirSync(cubeRoot).filter((n) => /^CUBE\.bugs\..*\.json$/i.test(n));
-  if (!entries.length) return null;
-  entries.sort();
-  return path.join(cubeRoot, entries[entries.length - 1]);
+  const ledgers = listBugsLedgers(cubeRoot);
+  if (!ledgers.length) return null;
+  const preferred = path.join(cubeRoot, 'CUBE.bugs.linux-business-os.20261012.json');
+  if (ledgers.includes(preferred)) return preferred;
+  return ledgers[ledgers.length - 1];
 }
 
 function findBusinessRecord(cubeRoot) {
@@ -41,16 +47,26 @@ function findBusinessRecord(cubeRoot) {
 }
 
 function loadBugs(cubeRoot) {
-  const ledgerPath = findBugsLedger(cubeRoot);
-  if (!ledgerPath) {
-    return { ledgerPath: null, bugs: [], business_record: findBusinessRecord(cubeRoot) };
+  const ledgers = listBugsLedgers(cubeRoot);
+  if (!ledgers.length) {
+    return { ledgerPath: null, bugs: [], business_record: findBusinessRecord(cubeRoot), ledgers: [] };
   }
-  const ledger = readJson(ledgerPath);
+  const byId = new Map();
+  let primary = null;
+  for (const ledgerPath of ledgers) {
+    const ledger = readJson(ledgerPath);
+    if (!primary) primary = { ledgerPath, ledger };
+    for (const bug of Array.isArray(ledger.bugs) ? ledger.bugs : []) {
+      if (!bug?.bug_uuid) continue;
+      if (!byId.has(bug.bug_uuid)) byId.set(bug.bug_uuid, bug);
+    }
+  }
   return {
-    ledgerPath,
-    bugs: Array.isArray(ledger.bugs) ? ledger.bugs : [],
-    business_record: ledger.business_record || findBusinessRecord(cubeRoot),
-    ledger,
+    ledgerPath: primary.ledgerPath,
+    ledgers,
+    bugs: [...byId.values()],
+    business_record: primary.ledger.business_record || findBusinessRecord(cubeRoot),
+    ledger: primary.ledger,
   };
 }
 
