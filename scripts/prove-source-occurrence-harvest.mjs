@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {harvestSourceOccurrences} from '../src/continuity/source-occurrence-harvest.mjs';
+const events=Array.from({length:10},(_,i)=>({schema:'xiio.inbox.source-occurrence@1',occurrenceKey:'occ:'+i,idempotencyKey:'idem:'+i,sourceRevision:'G1',provider:'browser'}));
+const bytesByOccurrence=Object.fromEntries(events.map(e=>[e.occurrenceKey,Buffer.alloc(28224,0x42)]));
+const result=harvestSourceOccurrences(events,{bytesByOccurrence,source_ref:'studio:session',generation:'G1'});
+assert.equal(result.received,10);assert.equal(result.unique,1);assert.equal(result.redundant,9);
+assert.equal(result.payloads[0].occurrence_refs.length,10);assert.equal(result.provider_currentness,'UNVERIFIED');assert.equal(result.effect_authority,false);
+assert.throws(()=>harvestSourceOccurrences([{...events[0],sourceRevision:'G2'}],{bytesByOccurrence,source_ref:'studio:session',generation:'G1'}));
+assert.throws(()=>harvestSourceOccurrences(events,{bytesByOccurrence:{},source_ref:'studio:session',generation:'G1'}));
+console.log(JSON.stringify({schema:'xiio.sdk.source-occurrence-harvest-test/v1',checks:8,failed:0,unique:1,received:10,provider_effect:false}));
