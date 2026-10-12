@@ -100,7 +100,7 @@ export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir =
     const admission = admitLocalRequest(req, { port: bound });
     if (!admission.ok) return send(res, admission.status, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'REFUSED', reason: admission.reason });
     try {
-      if (admission.route === 'status') return send(res, 200, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'READY', busy, ...(await status()) });
+      if (admission.route === 'status') { const observed = await status(); const modelReady = observed?.ollama_state === 'READY_MODEL_PRESENT'; return send(res, 200, { ...observed, schema: LOCAL_AGENT_HTTP_SCHEMA, state: modelReady ? 'READY' : 'DEGRADED', busy, runtime_verified: modelReady, first_red: modelReady ? null : 'OLLAMA_MODEL_NOT_READY' }); }
       if (admission.route === 'ui') return serveUi(res, uiDir, admission.pathname);
       if (busy) return send(res, 409, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BUSY', reason: 'ONE_TURN_AT_A_TIME' });
       const raw = await readBody(req);
