@@ -98,6 +98,11 @@ assert.equal(zedUpdated.pass, false);
 assert(zedUpdated.blockers.includes('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE'));
 const writeClaimReadOnly = realization('I have saved the summary to notes.md.', ['read_workspace_text_file']);
 assert.equal(writeClaimReadOnly.pass, false, 'a read does not back a write claim');
+/* Contractions must match too — "I've saved" was the live gap (I\\s+have only). */
+const iveSaved = realization("I've saved the summary to notes.md.");
+assert.equal(iveSaved.pass, false, "I've saved without a native write is blocked");
+assert(iveSaved.blockers.includes('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE'));
+assert(iveSaved.claimed_effects.some((c) => /I've saved/i.test(c)));
 assert.equal(realization('Refused: NO_TOOLS session_workspace_identity_unbound. Nothing was stored and nothing has been written.', [], ['session_workspace_identity_unbound']).pass, true, 'an honest refusal the host issued passes');
 
 /* CITED_POLICY != ISSUED_POLICY — the live Zed @ibal turn of 2026-10-12, verbatim. */
@@ -175,7 +180,7 @@ console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v2',
   result: 'PASS',
   verb_cases: cases.length,
-  realization_cases: 33,
+  realization_cases: 34,
   immutability_assertions: 5,
   false_greens: 0,
   hard: [
