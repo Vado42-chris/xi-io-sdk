@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';import {declareAiProviderAdapter,routeConversationTurn,swapConversationProvider} from '../src/providers/ai-conversation-adapter.mjs';
+const names=['ollama','chatgpt','jules','base44','bolt','pressmaster','notebooklm','suno','slack','linear'];
+const adapters=names.map(n=>declareAiProviderAdapter({provider_ref:'provider:'+n,plugin_ref:'plugin:'+n,capabilities:['conversation.receive','conversation.return','structured.payload'],transports:['plugin'],effect_ceiling:'NO_EFFECT'}));
+const req={conversation_ref:'conversation:trinity:self-review',surface_ref:'surface:pin:1791275776313',payload_ref:'payload:turn:1',required_capabilities:['conversation.receive','conversation.return']};
+for(const n of names){const r=routeConversationTurn({adapters,request:{...req,provider_ref:'provider:'+n}});assert.equal(r.state,'ROUTED');assert.equal(r.provider_ref,'provider:'+n);assert.equal(r.conversation_ref,req.conversation_ref);assert.equal(r.surface_ref,req.surface_ref);}
+let route=routeConversationTurn({adapters,request:{...req,provider_ref:'provider:ollama'}});for(const n of names){route=swapConversationProvider({adapters,current_route:route,next_provider_ref:'provider:'+n});assert.equal(route.provider_ref,'provider:'+n);assert.equal(route.conversation_ref,req.conversation_ref);assert.equal(route.payload_ref,req.payload_ref);}
+const no=routeConversationTurn({adapters,request:{...req,required_capabilities:['video.generate']}});assert.equal(no.state,'UNROUTABLE');
+console.log(JSON.stringify({schema:'xiio.sdk.ai-provider-swap-100s/v1',state:'PASS',providers:names.length,swaps:names.length,identity_preserved:true,unroutable_fails_closed:true,effect_authority:0}));
