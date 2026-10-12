@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 /** Task 27: validate canonical product catalogue before any published projection.
  * Read-only. This SDK does not own or mutate the xi-io.net catalogue.
  */
+const PUBLIC_IDS = new Set(['studio', 'desktop', 'publisher', 'switchboard', 'bins', 'inbox', 'ibal', 'benchmark', 'wordpress']);
 export function validateProductSpine(catalogue, { expectedCount = 29 } = {}) {
   const failures = [];
   const products = Array.isArray(catalogue?.products) ? catalogue.products : null;
@@ -22,6 +23,10 @@ export function validateProductSpine(catalogue, { expectedCount = 29 } = {}) {
     if (typeof product.name !== 'string' || !product.name.trim()) failures.push('PRODUCT_NAME_MISSING:' + index);
     if (typeof product.published !== 'boolean') failures.push('PUBLISHED_BOOLEAN_MISSING:' + (product.id || index));
   }
+  const declaredPublished = products.filter(p => p && p.published === true).map(p => p.id);
+  if (declaredPublished.length !== PUBLIC_IDS.size) failures.push('PUBLISHED_COUNT_MISMATCH');
+  for (const id of PUBLIC_IDS) if (!declaredPublished.includes(id)) failures.push('REQUIRED_PUBLISHED_ID_MISSING:' + id);
+  for (const id of declaredPublished) if (!PUBLIC_IDS.has(id)) failures.push('UNAUTHORIZED_PUBLISHED_ID:' + id);
   const visible = failures.length ? [] : products.filter(product => product.published === true);
   return {
     schema: 'xiio.product-spine-qualification/v1',
