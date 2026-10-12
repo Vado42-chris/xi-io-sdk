@@ -1,52 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateProductSpine } from './validate-product-spine.mjs';
-
-const publicIds = ['studio','desktop','publisher','switchboard','bins','inbox','ibal','benchmark','wordpress'];
-const catalogue = () => ({ products: Array.from({ length: 29 }, (_, i) => ({
-  id: publicIds[i] || 'product-' + i, name: 'Product ' + i, published: i < 9
-})) });
-
-test('29 valid products qualify, only published products are visible', () => {
-  const result = validateProductSpine(catalogue());
-  assert.equal(result.ok, true);
-  assert.equal(result.visible.length, 9);
-  assert.equal(result.publication_authorized, false);
-});
-test('nine-product legacy catalogue is rejected', () => {
-  assert.equal(validateProductSpine({ products: catalogue().products.slice(0, 9) }).first_red, 'PRODUCT_COUNT_MISMATCH');
-});
-test('missing published flags fail closed', () => {
-  const doc = catalogue(); delete doc.products[0].published;
-  assert.ok(validateProductSpine(doc).failures.some(x => x.startsWith('PUBLISHED_BOOLEAN_MISSING')));
-  assert.equal(validateProductSpine(doc).visible.length, 0);
-});
-test('duplicate IDs fail closed', () => {
-  const doc = catalogue(); doc.products[1].id = doc.products[0].id;
-  assert.ok(validateProductSpine(doc).failures.some(x => x.startsWith('PRODUCT_ID_DUPLICATE')));
-});
-test('invalid catalogue and malformed records are rejected', () => {
-  assert.equal(validateProductSpine({}).first_red, 'PRODUCTS_ARRAY_MISSING');
-  const doc = catalogue(); doc.products[2] = null;
-  assert.ok(validateProductSpine(doc).failures.some(x => x.startsWith('PRODUCT_RECORD_INVALID')));
-});
-
-test('unapproved tenth published product fails closed', () => {
- const doc = catalogue(); doc.products[9].published = true;
- const result = validateProductSpine(doc);
- assert.equal(result.ok, false);
- assert.ok(result.failures.includes('UNAUTHORIZED_PUBLISHED_ID:product-9'));
- assert.equal(result.visible.length, 0);
-});
-test('missing one of the nine required published identities fails closed', () => {
- const doc = catalogue(); doc.products[0].published = false;
- const result = validateProductSpine(doc);
- assert.equal(result.ok, false);
- assert.ok(result.failures.includes('REQUIRED_PUBLISHED_ID_MISSING:studio'));
-});
-test('replacing required public identity with another fails closed', () => {
- const doc = catalogue(); doc.products[0].id = 'other-studio';
- const result = validateProductSpine(doc);
- assert.equal(result.ok, false);
- assert.ok(result.failures.includes('REQUIRED_PUBLISHED_ID_MISSING:studio'));
-});
+import {validateProductSpine as validate} from './validate-product-spine.mjs';
+const published=['studio','desktop','publisher','switchboard','bins','inbox','ibal','benchmark','wordpress'];
+const roster=[...published,'ward','cube','hex'];
+const basis={classification:'catalogue',commercial:'owner',maturity:'release',authorization_ref:'ward'};
+const product=id=>({id,name:id,published:published.includes(id),classification:'PRODUCT',commercial:'LICENSED',maturity:'SILVER',authorization_ref:'capability:release',basis:{...basis}});
+const fixture=()=>({products:roster.map(product)});
+const opts=()=>({roster:[...roster],publishedRoster:[...published],sourcePin:'sha:fixture',livePin:'sha:fixture'});
+const reject=(label,mutate,code)=>test(label,()=>{const doc=fixture(),o=opts();mutate(doc,o);const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.some(x=>x.startsWith(code)),JSON.stringify(r.failures));assert.equal(r.visible.length,0);});
+test('valid fixture qualifies only published IDs without publication authority',()=>{const r=validate(fixture(),opts());assert.equal(r.ok,true);assert.deepEqual(r.visible.map(x=>x.id),published);assert.equal(r.publication_authorized,false);});
+reject('missing catalogue',d=>delete d.products,'PRODUCTS_ARRAY_MISSING');
+reject('missing roster',(d,o)=>delete o.roster,'PINNED_ROSTER_REQUIRED');
+reject('invented id',d=>d.products.push(product('invented')),'CATALOGUE_MEMBERSHIP_MISMATCH');
+reject('dropped id',d=>d.products.pop(),'CATALOGUE_MEMBERSHIP_MISMATCH');
+reject('duplicate id',d=>d.products[1].id=d.products[0].id,'PRODUCT_ID_DUPLICATE');
+reject('missing published flag',d=>delete d.products[0].published,'PUBLISHED_BOOLEAN_MISSING');
+reject('published mismatch',d=>d.products[9].published=true,'PUBLISHED_SET_MISMATCH');
+reject('stale source pin',(d,o)=>o.livePin='sha:stale','STALE_OR_MISSING_PIN');
+reject('missing classification',d=>delete d.products[0].classification,'DIMENSION_MISSING:classification');
+reject('missing commercial',d=>delete d.products[0].commercial,'DIMENSION_MISSING:commercial');
+reject('missing maturity',d=>delete d.products[0].maturity,'DIMENSION_MISSING:maturity');
+reject('missing authorization',d=>delete d.products[0].authorization_ref,'DIMENSION_MISSING:authorization_ref');
+reject('missing basis',d=>delete d.products[0].basis.maturity,'DIMENSION_BASIS_MISSING:maturity');
+reject('SIVER typo',d=>d.products[0].maturity='SIVER','MATURITY_TYPO_SIVER');
+reject('product price',d=>d.products[0].price=99,'PRODUCT_PRICE_FORBIDDEN');
+reject('maturity keyed price',d=>d.products[0].price_by_maturity={SILVER:99},'PRODUCT_PRICE_FORBIDDEN');
+reject('persona grant',d=>d.products[0].authorization_ref='persona:designer','PERSONA_NOT_AUTHORIZATION');
+reject('malformed product',d=>d.products[0]=null,'PRODUCT_RECORD_INVALID');
+reject('projection missing published id',d=>d.products[0].published=false,'PUBLISHED_SET_MISMATCH');
