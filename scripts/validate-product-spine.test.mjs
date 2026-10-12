@@ -50,3 +50,6 @@ reject('price keyed directly by maturity label',(d)=>{d.products[0].pricing={SIL
 reject('both published rosters collude on a tenth id',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);o.livePublishedRoster.push(d.products[9].id);},'LIVE_PUBLISHED_ROSTER_NOT_ACCEPTED_NINE');
 reject('unknown classification basis is not evidence',(d)=>{d.products[0].basis.classification='UNKNOWN';},'DIMENSION_BASIS_MISSING:classification');
 reject('price_amount product field prohibited',(d)=>{d.products[0].price_amount=20;},'PRODUCT_PRICE_FORBIDDEN');
+
+test('duplicate live-published identity is rejected even when its set matches',()=>{const doc=fixture(),o=opts(doc);o.livePublishedRoster=[...o.livePublishedRoster,o.livePublishedRoster[0]];const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.includes('LIVE_PUBLISHED_ROSTER_IDS_INVALID'));});
+test('empty live-published identity is rejected',()=>{const doc=fixture(),o=opts(doc);o.livePublishedRoster=[...o.livePublishedRoster,''];const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.includes('LIVE_PUBLISHED_ROSTER_IDS_INVALID'));});
