@@ -17,8 +17,11 @@
  */
 
 import http from 'node:http';
+import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const LOCAL_AGENT_HTTP_SCHEMA = 'xiio.cli.local-agent-http/v1';
 export const MAX_TURN_BYTES = 65_536;
@@ -28,6 +31,58 @@ const TYPES = Object.freeze({
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.woff2': 'font/woff2',
 });
+
+/**
+ * Native install receipt: sdk.path root must contain the HTTP door, and the
+ * running process must be that root's xi-local-agent.mjs (not a stale tree).
+ * Hard: OLLAMA_READY != INSTALLED_GENERATION_VERIFIED
+ */
+export function readInstalledSdkGeneration({
+  home = os.homedir(),
+  argv1 = process.argv[1] || '',
+  doorModuleUrl = import.meta.url,
+} = {}) {
+  const pathFile = path.join(home, '.local', 'share', 'xi-io', 'cli', 'sdk.path');
+  let configured = '';
+  try {
+    configured = fs.readFileSync(pathFile, 'utf8').trim().replace(/\r/g, '');
+  } catch {
+    return { ok: false, first_red: 'SDK_PATH_MISSING', path_file: pathFile };
+  }
+  if (!configured) return { ok: false, first_red: 'SDK_PATH_EMPTY', path_file: pathFile };
+  const sdkRoot = path.resolve(configured);
+  const door = path.join(sdkRoot, 'src', 'cli', 'local-agent-http.mjs');
+  const agent = path.join(sdkRoot, 'bin', 'xi-local-agent.mjs');
+  if (!fs.existsSync(door) || !fs.existsSync(agent)) {
+    return { ok: false, first_red: 'INSTALLED_SDK_NO_HTTP_DOOR', sdk_root: sdkRoot };
+  }
+  let argvResolved = '';
+  try { argvResolved = argv1 ? fs.realpathSync(path.resolve(argv1)) : ''; } catch { argvResolved = argv1 ? path.resolve(argv1) : ''; }
+  let agentResolved = '';
+  try { agentResolved = fs.realpathSync(agent); } catch { agentResolved = agent; }
+  const fromInstalledAgent = argvResolved === agentResolved;
+  if (!fromInstalledAgent) {
+    return {
+      ok: false,
+      first_red: 'PROCESS_NOT_FROM_INSTALLED_SDK',
+      sdk_root: sdkRoot,
+      argv1: argvResolved,
+      expected_agent: agentResolved,
+    };
+  }
+  let loadedDoor = '';
+  let installedDoor = '';
+  try {
+    loadedDoor = fs.realpathSync(fileURLToPath(doorModuleUrl));
+    installedDoor = fs.realpathSync(door);
+  } catch {
+    return { ok: false, first_red: 'DOOR_MODULE_NOT_FROM_INSTALLED_SDK', sdk_root: sdkRoot };
+  }
+  if (loadedDoor !== installedDoor) {
+    return { ok: false, first_red: 'DOOR_MODULE_NOT_FROM_INSTALLED_SDK', sdk_root: sdkRoot, loadedDoor, installedDoor };
+  }
+  return { ok: true, first_red: null, sdk_root: sdkRoot, agent: agentResolved };
+}
 
 /** Decide whether a request may reach the agent. Pure, so it is tested alone. */
 export function admitLocalRequest({ method = '', url = '/', headers = {} } = {}, { port } = {}) {
@@ -100,7 +155,32 @@ export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir =
     const admission = admitLocalRequest(req, { port: bound });
     if (!admission.ok) return send(res, admission.status, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'REFUSED', reason: admission.reason });
     try {
-      if (admission.route === 'status') { const observed = await status(); const modelReady = observed?.ollama_state === 'READY_MODEL_PRESENT'; return send(res, 200, { ...observed, schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'DEGRADED', busy, service_listener_observed: true, service_process_pid: process.pid, ollama_model_ready: modelReady, installed_sdk_generation_verified: false, runtime_verified: false, native_receipt_state: 'INSTALLED_GENERATION_READBACK_REQUIRED', first_red: modelReady ? 'INSTALLED_GENERATION_READBACK_REQUIRED' : 'OLLAMA_MODEL_NOT_READY' }); }
+      if (admission.route === 'status') {
+        const observed = await status();
+        const modelReady = observed?.ollama_state === 'READY_MODEL_PRESENT';
+        const generation = readInstalledSdkGeneration();
+        const installedOk = generation.ok === true;
+        const runtimeOk = modelReady && installedOk;
+        const firstRed = !installedOk
+          ? generation.first_red
+          : (modelReady ? null : 'OLLAMA_MODEL_NOT_READY');
+        return send(res, 200, {
+          ...observed,
+          schema: LOCAL_AGENT_HTTP_SCHEMA,
+          state: runtimeOk ? 'READY' : 'DEGRADED',
+          busy,
+          service_listener_observed: true,
+          service_process_pid: process.pid,
+          ollama_model_ready: modelReady,
+          installed_sdk_generation_verified: installedOk,
+          installed_sdk_root: generation.sdk_root || null,
+          runtime_verified: runtimeOk,
+          native_receipt_state: installedOk
+            ? (modelReady ? 'INSTALLED_GENERATION_AND_RUNTIME_OK' : 'INSTALLED_GENERATION_OK_MODEL_NOT_READY')
+            : 'INSTALLED_GENERATION_READBACK_REQUIRED',
+          first_red: firstRed,
+        });
+      }
       if (admission.route === 'ui') return serveUi(res, uiDir, admission.pathname);
       if (busy) return send(res, 409, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BUSY', reason: 'ONE_TURN_AT_A_TIME' });
       const raw = await readBody(req);
