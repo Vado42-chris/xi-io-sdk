@@ -98,3 +98,9 @@ MCP/A2A capability visibility never grants effect authority. Runtime execution a
 Use the smallest shared-owner patch that fixes the root contract. During hostile explosion, do not repair each failing path independently. Preserve all reds, reduce them to shared root causes, patch the semantic owner once, replay the affected denominator, then return/reap.
 
 No external send, purchase, deployment, destructive action, or other consequential provider effect is authorized by this file.
+
+## PR work-intake conformance (Task 27)
+
+Before creating or updating SDK PR work, read the referenced canonical open issue and search for an existing PR against it. Extend the existing PR/tool when applicable; do not create duplicate work. PR body requires exactly one `Refs #N` for an open non-PR issue and `Reuses: <path>`, or `New because:` with two named source searches. `.github/workflows/work-intake.yml` enforces these contracts on real PRs. The GitHub account is shared by owner-operated worker seats; a worker identity in text does not confer permission or independent review. Different-seat `ACK <exact head sha>` only counts with verified checks on that head and separately evidenced seat attribution. No green code check implies provider effect, deployment, or merge authority.
+
+`check:product-spine` tests synthetic source fixtures. It does not certify xi-io.net/live. A 29-member draft and a nine-member public projection must remain separate: `PUBLISHED_FALSE != DELETE`. Live/Node admission must wait for the accepted merged source file, exact identity match and content hash.
