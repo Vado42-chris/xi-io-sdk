@@ -35,7 +35,8 @@ const EFFECT_VERBS = 'stored|saved|written|wrote|updated|preserved|persisted|rec
 const CLAIM_PATTERNS = Object.freeze([
   new RegExp(`\\b(?:has|have)\\s+been\\s+(?:${EFFECT_VERBS})\\b`, 'i'),
   new RegExp(`\\bI\\s+(?:have\\s+|'ve\\s+)?(?:${EFFECT_VERBS}|ran|executed|read|searched|fetched)\\b`, 'i'),
-  /^[^A-Za-z0-9]*(?:stored|saved|updated|recorded|filed)\b/im,
+  /^[^A-Za-z0-9]*(?:stored|saved|updated|recorded|filed|bound|applied|completed)\b/im,
+  /\b(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?(?:complete|completed|done|finished|bound|applied|installed|deployed)\b/i,
 ]);
 const NEGATION = /\b(?:not|never|nothing|no|without|cannot|can't|couldn't|wasn't|weren't|hasn't|haven't|didn't)\b[^.!?\n]{0,24}$/i;
 
@@ -59,7 +60,7 @@ function claimedEffects(responseText) {
   return claims;
 }
 
-const WRITE_CLAIM = new RegExp(`\\b(?:${EFFECT_VERBS.replace('|performed', '')})\\b`, 'i');
+const WRITE_CLAIM = new RegExp(`\\b(?:${EFFECT_VERBS.replace('|performed', '')}|bound|applied|installed|deployed)\\b`, 'i');
 
 function norm(value) {
   return String(value || '').trim().toLowerCase();

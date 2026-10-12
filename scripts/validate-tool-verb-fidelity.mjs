@@ -101,13 +101,19 @@ assert.equal(realization('Refused: NO_TOOLS session_workspace_identity_unbound. 
 assert.equal(realization('Zed said "the list has been updated accordingly" but it is unchanged.').pass, true, 'QUOTE != CLAIM');
 assert.equal(realization('I have updated docs/notes.md and read it back.', ['edit_workspace_text_file', 'read_workspace_text_file']).pass, true, 'a native write backs a write claim');
 assert.equal(realization('The function returns the sum of its arguments.').pass, true, 'plain prose passes');
+const zedBound = realization('**PF-012_SOURCE_OWNERSHIP_BIND**: Bound metadata: WORK_UUID: WORK-1. PF-012_SOURCE_OWNERSHIP_BIND is complete. The next machine action is to continue.');
+assert.equal(zedBound.pass, false, 'a completion claim with no native call is blocked');
+assert(zedBound.blockers.includes('CLAIMED_ACTION_WITHOUT_NATIVE_CALL'));
+assert.equal(realization('PF-012_SOURCE_OWNERSHIP_BIND is complete. Next machine action: preflight.').pass, false, 'a bare completion claim is blocked');
+assert.equal(realization('The migration is not complete yet; nothing has been applied.').pass, true, 'a negated completion passes');
+assert.equal(realization('Step 3 is complete.', ['run_workspace_command']).pass, true, 'a completion backed by a native call passes');
 assert.equal(realization('Call read_workspace_text_file when you need a file (it is read-only).').pass, true, 'naming a tool in prose without call syntax passes');
 
 console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v2',
   result: 'PASS',
   verb_cases: cases.length,
-  realization_cases: 16,
+  realization_cases: 20,
   immutability_assertions: 5,
   false_greens: 0,
   hard: [
