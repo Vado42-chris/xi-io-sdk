@@ -10,21 +10,24 @@ const canonical=x=>JSON.stringify(x,(k,v)=>v&&!Array.isArray(v)&&typeof v==='obj
 const digest=x=>'sha256:'+createHash('sha256').update(x).digest('hex');
 const ids=x=>new Set(x.map(p=>typeof p==='string'?p:p?.id));
 const exact=(a,b)=>a.size===b.size&&[...a].every(x=>b.has(x));
-export function validateProductSpine(catalogue,{roster,publishedRoster,sourcePin,livePin,rawSource}={}){
+export function validateProductSpine(catalogue,{roster,publishedRoster,livePublishedRoster,sourcePin,livePin,rawSource}={}){
  const failures=[];
  const products=Array.isArray(catalogue?.products)?catalogue.products:null;
  const members=Array.isArray(roster)?roster:null;
  const published=Array.isArray(publishedRoster)?publishedRoster:null;
+ const livePublished=Array.isArray(livePublishedRoster)?livePublishedRoster:null;
  const fail=x=>failures.push(x);
  if(!products)fail('PRODUCTS_ARRAY_MISSING');
  if(!members||!members.length)fail('PINNED_ROSTER_REQUIRED');
  if(!published)fail('PUBLISHED_ROSTER_REQUIRED');
+ if(!livePublished)fail('LIVE_PUBLISHED_PIN_REQUIRED');
  const actualPin=digest(rawSource??canonical(catalogue));
  if(!sourcePin||!livePin||sourcePin!==livePin||sourcePin!==actualPin)fail('STALE_OR_MISSING_PIN');
  const expected=members?ids(members):new Set();
  if(members&&(![...expected].every(x=>typeof x==='string'&&x.trim())||expected.size!==members.length))fail('ROSTER_IDS_INVALID');
  const publicIds=published?ids(published):new Set();
  if(published&&(![...publicIds].every(x=>typeof x==='string'&&x.trim())||publicIds.size!==published.length||![...publicIds].every(x=>expected.has(x))))fail('PUBLISHED_ROSTER_INVALID');
+ if(published&&livePublished&&!exact(publicIds,ids(livePublished)))fail('PUBLISHED_SET_NOT_LIVE_PIN');
  const seen=new Set(),actualPublished=[];
  for(const [i,p] of (products||[]).entries()){
   if(!p||typeof p!=='object'||Array.isArray(p)){fail('PRODUCT_RECORD_INVALID:'+i);continue;}
@@ -50,10 +53,10 @@ export function validateProductSpine(catalogue,{roster,publishedRoster,sourcePin
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{
-  const [cataloguePath,rosterPath,publishedPath,sourcePin,livePin]=process.argv.slice(2);
-  if(!cataloguePath||!rosterPath||!publishedPath)throw Error('CATALOGUE_AND_ROSTERS_REQUIRED');
+  const [cataloguePath,rosterPath,publishedPath,livePublishedPath,sourcePin,livePin]=process.argv.slice(2);
+  if(!cataloguePath||!rosterPath||!publishedPath||!livePublishedPath)throw Error('CATALOGUE_AND_ROSTERS_REQUIRED');
   const rawSource=fs.readFileSync(cataloguePath);
-  const result=validateProductSpine(JSON.parse(rawSource),{rawSource,roster:JSON.parse(fs.readFileSync(rosterPath)),publishedRoster:JSON.parse(fs.readFileSync(publishedPath)),sourcePin,livePin});
+  const result=validateProductSpine(JSON.parse(rawSource),{rawSource,roster:JSON.parse(fs.readFileSync(rosterPath)),publishedRoster:JSON.parse(fs.readFileSync(publishedPath)),livePublishedRoster:JSON.parse(fs.readFileSync(livePublishedPath)),sourcePin,livePin});
   console.log(JSON.stringify({...result,visible:result.visible.map(p=>p.id)},null,2));if(!result.ok)process.exitCode=1;
  }catch(error){console.error(JSON.stringify({ok:false,first_red:'INPUT_OR_PARSE_FAILED',detail:error.message}));process.exitCode=2;}
 }
