@@ -82,7 +82,9 @@ try {
   assert.equal((await holding).status, 200);
 
   const status = await request({ url: '/v1/status' });
-  assert.equal(status.json.state, 'READY');
+  assert.equal(status.json.state, 'DEGRADED', 'fixture without local Ollama must not claim runtime READY');
+  assert.equal(status.json.first_red, 'OLLAMA_MODEL_NOT_READY');
+  assert.equal(status.json.runtime_verified, false);
   const page = await request({ url: '/' });
   assert.equal(page.status, 200);
   assert.match(page.text, /<title>theme<\/title>/);
