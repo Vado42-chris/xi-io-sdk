@@ -23,6 +23,10 @@ const RESPONSE_REALIZATION_HARD = Object.freeze([
   'TOOL_CALL != RESULT_READBACK',
   'CLAIMED_EFFECT != NATIVE_WRITE',
   'CLAIMED_ACTION != NATIVE_CALL',
+  'CLAIMED_MEASUREMENT != NATIVE_CALL',
+  'RESULT_WHILE_TOOLS_DENIED != REALIZED',
+  'AFG_BAR != EIGHT_OF_EIGHT',
+  'SCORE_ARITHMETIC != SELF_CONSISTENT',
   'QUOTE != CLAIM',
   'CITED_POLICY != ISSUED_POLICY',
 ]);
@@ -33,13 +37,24 @@ const RESPONSE_REALIZATION_HARD = Object.freeze([
 export const DEFAULT_WRITE_TOOL_NAMES = Object.freeze(['edit_workspace_text_file', 'run_workspace_command', 'run_xiio_cli_command']);
 
 const EFFECT_VERBS = 'stored|saved|written|wrote|updated|preserved|persisted|recorded|filed|created|committed|published|performed';
+/* Measurement verbs report a scored/simulated/tested outcome. Same bar as
+   effect verbs: native call this turn, or the number is prose fiction. */
+const MEASUREMENT_VERBS = 'simulated|scored|measured|tested';
 const CLAIM_PATTERNS = Object.freeze([
   new RegExp(`\\b(?:has|have)\\s+been\\s+(?:${EFFECT_VERBS})\\b`, 'i'),
-  new RegExp(`\\bI\\s+(?:have\\s+|'ve\\s+)?(?:${EFFECT_VERBS}|ran|executed|read|searched|fetched)\\b`, 'i'),
+  new RegExp(`\\bI(?:'ve|’ve|\\s+have|\\s+)\\s*(?:${EFFECT_VERBS}|${MEASUREMENT_VERBS}|ran|executed|read|searched|fetched)\\b`, 'i'),
+  new RegExp(`\\b(?:you|it|page|surface|reply)\\s+(?:${MEASUREMENT_VERBS})\\b`, 'i'),
+  new RegExp(`\\b(?:${MEASUREMENT_VERBS})\\s+\\d+\\b`, 'i'),
   /^[^A-Za-z0-9]*(?:stored|saved|updated|recorded|filed|bound|applied|completed)\b/im,
   /\b(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?(?:complete|completed|done|finished|bound|applied|installed|deployed)\b/i,
 ]);
 const NEGATION = /\b(?:not|never|nothing|no|without|cannot|can't|couldn't|wasn't|weren't|hasn't|haven't|didn't)\b[^.!?\n]{0,24}$/i;
+const SCORE_OF = /\b(\d+)\s*(?:out\s+of|of)\s*(\d+)\b/gi;
+const AFG_BAR_SEVEN = /\b(?:bar|threshold|pass(?:ing)?(?:\s+score)?|needs?|require[sd]?)\b[^.!?\n]{0,40}\b7\s*(?:out\s+of|of)\s*8\b/i;
+const ONLY_K_MISSING = /\bonly\s+(\d+|one|two|three|four|five|six|seven|eight)\b[^.!?\n]{0,48}\b(?:missing|failing|failed|absent|unmet)\b/i;
+const WORD_COUNT = Object.freeze({
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+});
 
 /** The speaker's own words: text inside double quotes belongs to whoever is quoted. */
 function ownWords(text) {
@@ -62,9 +77,12 @@ function claimedEffects(responseText) {
 }
 
 /* Refusals a model may print in its own words: a NO_TOOLS:<reason> token, or a
-   plain statement that tools/reads/executions are not allowed this turn. */
+   plain statement that tools/reads/executions are not allowed this turn.
+   Optional adverb ("currently", "still", "now", "temporarily") between
+   are/is and disabled — "tools are currently disabled" must match. */
 const POLICY_TOKEN = /\bNO_TOOLS[:\s]+([a-z][a-z0-9_]{2,63})\b/g;
-const TOOLS_DENIED = /\b(?:tools?\s+(?:are|is)\s+(?:disabled|not\s+(?:allowed|available|admitted))|no\s+(?:workspace\s+)?(?:file\s+reads?|tool\s+(?:calls?|executions?))\s+(?:are\s+)?(?:allowed|permitted|admitted))\b/i;
+const TOOLS_DENIED = /\b(?:tools?\s+(?:are|is)\s+(?:(?:currently|still|now|temporarily)\s+)?(?:disabled|not\s+(?:allowed|available|admitted))|no\s+(?:workspace\s+)?(?:file\s+reads?|tool\s+(?:calls?|executions?))\s+(?:are\s+)?(?:allowed|permitted|admitted))\b/i;
+const MEASUREMENT_CLAIM = new RegExp(`\\b(?:${MEASUREMENT_VERBS})\\b`, 'i');
 
 function citedPolicyRefusals(responseText) {
   const own = ownWords(responseText);
@@ -74,6 +92,25 @@ function citedPolicyRefusals(responseText) {
     if (reasons.length >= 8) break;
   }
   return { reasons, toolsDenied: TOOLS_DENIED.test(own) };
+}
+
+function scoreArithmeticFaults(own) {
+  const faults = [];
+  if (AFG_BAR_SEVEN.test(own)) faults.push('AFG_BAR_NOT_EIGHT_OF_EIGHT');
+  const scores = [];
+  for (const m of own.matchAll(SCORE_OF)) {
+    scores.push({ n: Number(m[1]), d: Number(m[2]), raw: m[0] });
+  }
+  const missing = own.match(ONLY_K_MISSING);
+  if (missing && scores.length) {
+    const rawK = String(missing[1]).toLowerCase();
+    const k = Object.hasOwn(WORD_COUNT, rawK) ? WORD_COUNT[rawK] : Number(rawK);
+    const afg = scores.find((s) => s.d === 8 && s.n < 8) || scores.find((s) => s.d === 8) || scores[0];
+    if (Number.isFinite(k) && afg.n + k !== afg.d) {
+      faults.push('SCORE_ARITHMETIC_INCONSISTENT');
+    }
+  }
+  return faults;
 }
 
 const WRITE_CLAIM = new RegExp(`\\b(?:${EFFECT_VERBS.replace('|performed', '')}|bound|applied|installed|deployed)\\b`, 'i');
@@ -243,13 +280,17 @@ export function evaluateAgentResponseRealization({
 
   /* CLAIMED_EFFECT != NATIVE_WRITE. A reply that says it stored, saved, wrote
      or updated something, in its own words and not negated, needs a native
-     write call this turn. A reply that says an action ran needs a native call
-     of any kind. Otherwise it is prose success without effect. */
+     write call this turn. A reply that says an action ran (or scored /
+     simulated / measured / tested) needs a native call of any kind.
+     Otherwise it is prose success without effect. */
   const claims = claimedEffects(response);
   const writes = new Set(boundedStrings(writeToolNames));
   const nativeWrite = nativeCalls.some((name) => writes.has(name));
   if (claims.some((c) => WRITE_CLAIM.test(c)) && !nativeWrite) blockers.push('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE');
   if (claims.length && !nativeCalls.length) blockers.push('CLAIMED_ACTION_WITHOUT_NATIVE_CALL');
+  if (claims.some((c) => MEASUREMENT_CLAIM.test(c)) && !nativeCalls.length) {
+    blockers.push('CLAIMED_MEASUREMENT_WITHOUT_NATIVE_CALL');
+  }
 
   /* CITED_POLICY != ISSUED_POLICY. A reply that refuses on a policy reason the
      host never issued this turn is an invented refusal: the model copied the
@@ -263,6 +304,15 @@ export function evaluateAgentResponseRealization({
   if (cited.toolsDenied && available.size && !issued.size && !nativeCalls.length) {
     blockers.push('INVENTED_TOOL_DENIAL');
   }
+  /* A reply that says tools are disabled cannot also report scored/simulated
+     results — that is a fake receipt wearing Field Guide words. */
+  const own = ownWords(response);
+  const hasMeasurement = claims.some((c) => MEASUREMENT_CLAIM.test(c)) || SCORE_OF.test(own);
+  SCORE_OF.lastIndex = 0;
+  if (cited.toolsDenied && hasMeasurement && !nativeCalls.length) {
+    blockers.push('RESULT_WHILE_TOOLS_DENIED');
+  }
+  for (const fault of scoreArithmeticFaults(own)) blockers.push(fault);
 
   if (pseudoCalls.length) blockers.push('PSEUDO_TOOL_JSON_IN_ASSISTANT_TEXT');
   for (const call of pseudoCalls) {

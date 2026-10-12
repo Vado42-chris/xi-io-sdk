@@ -120,11 +120,43 @@ assert.equal(realization('The migration is not complete yet; nothing has been ap
 assert.equal(realization('Step 3 is complete.', ['run_workspace_command']).pass, true, 'a completion backed by a native call passes');
 assert.equal(realization('Call read_workspace_text_file when you need a file (it is read-only).').pass, true, 'naming a tool in prose without call syntax passes');
 
+/* tools are currently disabled — adverb between are/is and disabled must match. */
+const currentlyDisabled = realization(
+  'Tools are currently disabled. Nothing was read and nothing has been written.',
+  [],
+  ['session_workspace_identity_unbound'],
+);
+assert.equal(currentlyDisabled.pass, true, 'honest currently-disabled refusal with issued policy passes');
+const currentlyDisabledInvented = realization('Tools are currently disabled due to NO_TOOLS:workspace_read_intent_ambiguous.');
+assert.equal(currentlyDisabledInvented.pass, false, 'currently disabled still catches invented policy');
+assert(currentlyDisabledInvented.blockers.includes('INVENTED_POLICY_REFUSAL:workspace_read_intent_ambiguous'));
+assert(currentlyDisabledInvented.blockers.includes('INVENTED_TOOL_DENIAL'));
+
+/* CLAIMED_MEASUREMENT != NATIVE_CALL — fake Field Guide score with no tools. */
+const fakeScore = realization(
+  "I've simulated the Field Guide rules against this page; you scored 6 out of 8. Tools are currently disabled, so only one rule is missing. The bar is 7 of 8.",
+);
+assert.equal(fakeScore.pass, false, 'simulated score with tools disabled is blocked');
+assert(fakeScore.blockers.includes('CLAIMED_MEASUREMENT_WITHOUT_NATIVE_CALL'));
+assert(fakeScore.blockers.includes('RESULT_WHILE_TOOLS_DENIED'));
+assert(fakeScore.blockers.includes('SCORE_ARITHMETIC_INCONSISTENT'));
+assert(fakeScore.blockers.includes('AFG_BAR_NOT_EIGHT_OF_EIGHT'));
+assert.equal(
+  realization('I measured the surface after the readback.', ['read_workspace_text_file']).pass,
+  true,
+  'a measurement backed by a native call passes',
+);
+assert.equal(
+  realization('I have not measured anything; tools are currently disabled.', [], ['session_workspace_identity_unbound']).pass,
+  true,
+  'negated measurement with honest denial passes',
+);
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v2',
   result: 'PASS',
   verb_cases: cases.length,
-  realization_cases: 24,
+  realization_cases: 30,
   immutability_assertions: 5,
   false_greens: 0,
   hard: [
@@ -138,6 +170,10 @@ console.log(JSON.stringify({
     'ABSOLUTE_PATH != WORKSPACE_RELATIVE_PATH',
     'CLAIMED_EFFECT != NATIVE_WRITE',
     'CLAIMED_ACTION != NATIVE_CALL',
+    'CLAIMED_MEASUREMENT != NATIVE_CALL',
+    'RESULT_WHILE_TOOLS_DENIED != REALIZED',
+    'AFG_BAR != EIGHT_OF_EIGHT',
+    'SCORE_ARITHMETIC != SELF_CONSISTENT',
     'QUOTE != CLAIM',
     'CITED_POLICY != ISSUED_POLICY',
   ],
