@@ -397,6 +397,9 @@ function realizationCorrection(realization) {
       'Workspace file paths must be relative to the current workspace; never use /LUNAR or another absolute path.',
       'If no admitted native tool can perform the requested action, return a typed blocker and exact wake. Do not claim the action ran.',
       'After a native mutation, rely on the tool result/readback before claiming success.',
+      ...(realization.blockers.some((b)=>b.startsWith('INVENTED_POLICY_REFUSAL') || b==='INVENTED_TOOL_DENIAL')
+        ? ['No policy refused tools this turn: the host issued no NO_TOOLS reason, and every listed tool is admitted. Do not cite a refusal the host did not issue. Act with a native call, or name the exact tool error you received.']
+        : []),
     ].join(' '),
   };
 }
@@ -413,6 +416,7 @@ async function chat(messages){
         observedToolCalls,
         availableToolNames:toolNames,
         workspacePathMode:'RELATIVE_ONLY',
+        issuedPolicyReasons:[],
       });
       if(realization.pass) return msg.content||'';
       messages.push(realizationCorrection(realization));

@@ -24,6 +24,7 @@ const RESPONSE_REALIZATION_HARD = Object.freeze([
   'CLAIMED_EFFECT != NATIVE_WRITE',
   'CLAIMED_ACTION != NATIVE_CALL',
   'QUOTE != CLAIM',
+  'CITED_POLICY != ISSUED_POLICY',
 ]);
 
 /* Tools that can change the workspace. A reply that says something was stored,
@@ -58,6 +59,21 @@ function claimedEffects(responseText) {
     }
   }
   return claims;
+}
+
+/* Refusals a model may print in its own words: a NO_TOOLS:<reason> token, or a
+   plain statement that tools/reads/executions are not allowed this turn. */
+const POLICY_TOKEN = /\bNO_TOOLS[:\s]+([a-z][a-z0-9_]{2,63})\b/g;
+const TOOLS_DENIED = /\b(?:tools?\s+(?:are|is)\s+(?:disabled|not\s+(?:allowed|available|admitted))|no\s+(?:workspace\s+)?(?:file\s+reads?|tool\s+(?:calls?|executions?))\s+(?:are\s+)?(?:allowed|permitted|admitted))\b/i;
+
+function citedPolicyRefusals(responseText) {
+  const own = ownWords(responseText);
+  const reasons = [];
+  for (const m of own.matchAll(POLICY_TOKEN)) {
+    if (!reasons.includes(m[1])) reasons.push(m[1]);
+    if (reasons.length >= 8) break;
+  }
+  return { reasons, toolsDenied: TOOLS_DENIED.test(own) };
 }
 
 const WRITE_CLAIM = new RegExp(`\\b(?:${EFFECT_VERBS.replace('|performed', '')}|bound|applied|installed|deployed)\\b`, 'i');
@@ -217,6 +233,7 @@ export function evaluateAgentResponseRealization({
   availableToolNames = [],
   workspacePathMode = 'RELATIVE_ONLY',
   writeToolNames = DEFAULT_WRITE_TOOL_NAMES,
+  issuedPolicyReasons = [],
 } = {}) {
   const response = String(responseText ?? '');
   const nativeCalls = boundedStrings(observedToolCalls);
@@ -233,6 +250,19 @@ export function evaluateAgentResponseRealization({
   const nativeWrite = nativeCalls.some((name) => writes.has(name));
   if (claims.some((c) => WRITE_CLAIM.test(c)) && !nativeWrite) blockers.push('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE');
   if (claims.length && !nativeCalls.length) blockers.push('CLAIMED_ACTION_WITHOUT_NATIVE_CALL');
+
+  /* CITED_POLICY != ISSUED_POLICY. A reply that refuses on a policy reason the
+     host never issued this turn is an invented refusal: the model copied the
+     shape of an earlier refusal and made up its cause. Only reasons the host
+     passes in issuedPolicyReasons may be cited. */
+  const issued = new Set(boundedStrings(issuedPolicyReasons));
+  const cited = citedPolicyRefusals(response);
+  for (const reason of cited.reasons) {
+    if (!issued.has(reason)) blockers.push(`INVENTED_POLICY_REFUSAL:${reason}`);
+  }
+  if (cited.toolsDenied && available.size && !issued.size && !nativeCalls.length) {
+    blockers.push('INVENTED_TOOL_DENIAL');
+  }
 
   if (pseudoCalls.length) blockers.push('PSEUDO_TOOL_JSON_IN_ASSISTANT_TEXT');
   for (const call of pseudoCalls) {

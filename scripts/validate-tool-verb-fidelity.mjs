@@ -39,11 +39,12 @@ assert.throws(
 assert.equal(R('run', 'read_workspace_text_file', ['read']).pass, false, 'mutation attempt must not weaken gate');
 
 const availableToolNames = ['read_workspace_text_file', 'edit_workspace_text_file', 'run_workspace_command'];
-const realization = (responseText, observedToolCalls = []) => evaluateAgentResponseRealization({
+const realization = (responseText, observedToolCalls = [], issuedPolicyReasons = []) => evaluateAgentResponseRealization({
   responseText,
   observedToolCalls,
   availableToolNames,
   workspacePathMode: 'RELATIVE_ONLY',
+  issuedPolicyReasons,
 });
 
 const validNamePrintedInsteadOfCalled = realization(
@@ -97,7 +98,17 @@ assert.equal(zedUpdated.pass, false);
 assert(zedUpdated.blockers.includes('CLAIMED_WRITE_WITHOUT_NATIVE_WRITE'));
 const writeClaimReadOnly = realization('I have saved the summary to notes.md.', ['read_workspace_text_file']);
 assert.equal(writeClaimReadOnly.pass, false, 'a read does not back a write claim');
-assert.equal(realization('Refused: NO_TOOLS session_workspace_identity_unbound. Nothing was stored and nothing has been written.').pass, true, 'an honest refusal passes');
+assert.equal(realization('Refused: NO_TOOLS session_workspace_identity_unbound. Nothing was stored and nothing has been written.', [], ['session_workspace_identity_unbound']).pass, true, 'an honest refusal the host issued passes');
+
+/* CITED_POLICY != ISSUED_POLICY — the live Zed @ibal turn of 2026-10-12, verbatim. */
+const zedInventedRefusal = realization("User's intent is clear but tools are disabled due to `NO_TOOLS:workspace_read_intent_ambiguous`. No workspace file reads or tool executions are allowed for this turn.");
+assert.equal(zedInventedRefusal.pass, false, 'an invented policy refusal is blocked');
+assert(zedInventedRefusal.blockers.includes('INVENTED_POLICY_REFUSAL:workspace_read_intent_ambiguous'));
+assert(zedInventedRefusal.blockers.includes('INVENTED_TOOL_DENIAL'));
+const unissuedRealReason = realization('Refused: NO_TOOLS:session_workspace_identity_unbound.');
+assert.equal(unissuedRealReason.pass, false, 'a real reason the host did not issue this turn is still invented');
+assert.equal(realization('Zed printed "NO_TOOLS:workspace_read_intent_ambiguous" but no such policy exists.').pass, true, 'a quoted refusal is not a refusal');
+assert.equal(realization('The tools are disabled in the old build, so I read the file instead.', ['read_workspace_text_file']).pass, true, 'naming a denial after a native call passes');
 assert.equal(realization('Zed said "the list has been updated accordingly" but it is unchanged.').pass, true, 'QUOTE != CLAIM');
 assert.equal(realization('I have updated docs/notes.md and read it back.', ['edit_workspace_text_file', 'read_workspace_text_file']).pass, true, 'a native write backs a write claim');
 assert.equal(realization('The function returns the sum of its arguments.').pass, true, 'plain prose passes');
@@ -113,7 +124,7 @@ console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v2',
   result: 'PASS',
   verb_cases: cases.length,
-  realization_cases: 20,
+  realization_cases: 24,
   immutability_assertions: 5,
   false_greens: 0,
   hard: [
@@ -128,5 +139,6 @@ console.log(JSON.stringify({
     'CLAIMED_EFFECT != NATIVE_WRITE',
     'CLAIMED_ACTION != NATIVE_CALL',
     'QUOTE != CLAIM',
+    'CITED_POLICY != ISSUED_POLICY',
   ],
 }, null, 2));
