@@ -9,7 +9,7 @@ const product=id=>({id,name:id,published:published.includes(id),classification:'
 const fixture=()=>({products:roster.map(product)});
 const canon=x=>JSON.stringify(x,(k,v)=>v&&!Array.isArray(v)&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 const pin=doc=>'sha256:'+createHash('sha256').update(canon(doc)).digest('hex');
-const opts=doc=>({roster:[...roster],publishedRoster:[...published],sourcePin:pin(doc),livePin:pin(doc)});
+const opts=doc=>({roster:[...roster],publishedRoster:[...published],livePublishedRoster:[...published],sourcePin:pin(doc),livePin:pin(doc)});
 const reject=(label,mutate,code)=>test(label,()=>{const doc=fixture(),o=opts(doc);mutate(doc,o);if(o.sourcePin===o.livePin){o.sourcePin=pin(doc);o.livePin=pin(doc);}const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.some(x=>x.startsWith(code)),JSON.stringify(r.failures));assert.equal(r.visible.length,0);});
 test('valid fixture qualifies only published IDs without publication authority',()=>{const doc=fixture();const r=validate(doc,opts(doc));assert.equal(r.ok,true);assert.deepEqual(r.visible.map(x=>x.id),published);assert.equal(r.publication_authorized,false);});
 reject('missing catalogue',d=>delete d.products,'PRODUCTS_ARRAY_MISSING');
@@ -32,8 +32,17 @@ reject('persona grant',d=>d.products[0].authorization_ref='persona:designer','PE
 reject('malformed product',d=>d.products[0]=null,'PRODUCT_RECORD_INVALID');
 reject('projection missing published id',d=>d.products[0].published=false,'PUBLISHED_SET_MISMATCH');
 
-reject('published roster and catalogue both invent a tenth public ID',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);},'PUBLISHED_SET_NOT_LIVE_NINE');
+reject('published roster and catalogue both invent a tenth public ID',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);},'PUBLISHED_SET_NOT_LIVE_PIN');
 reject('tolerates missing commercial basis only as failure',d=>delete d.products[0].basis.commercial,'DIMENSION_BASIS_MISSING:commercial');
 reject('tolerates missing classification basis only as failure',d=>delete d.products[0].basis.classification,'DIMENSION_BASIS_MISSING:classification');
 reject('tolerates missing authorization basis only as failure',d=>delete d.products[0].basis.authorization_ref,'DIMENSION_BASIS_MISSING:authorization_ref');
 test('maturity UNKNOWN with explicit basis is valid',()=>{const d=fixture();d.products[0].maturity='UNKNOWN';const o=opts(d);assert.equal(validate(d,o).ok,true);});
+
+reject('live published pin absent',(d,o)=>delete o.livePublishedRoster,'LIVE_PUBLISHED_PIN_REQUIRED');
+reject('published roster silently changes despite pinned live set',(d,o)=>{o.publishedRoster=['studio'];},'PUBLISHED_SET_NOT_LIVE_PIN');
+reject('published catalogue and claimed roster invent a public product',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);},'PUBLISHED_SET_NOT_LIVE_PIN');
+reject('published projection drops pinned ID',(d,o)=>{o.publishedRoster.pop();},'PUBLISHED_SET_NOT_LIVE_PIN');
+reject('missing source pin',(d,o)=>{o.sourcePin=null;o.livePin=null;},'STALE_OR_MISSING_PIN');
+reject('missing commercial dimension basis',(d)=>{delete d.products[0].basis.commercial;},'DIMENSION_BASIS_MISSING:commercial');
+reject('persona name used as grant',(d)=>{d.products[0].persona_name='Designer';d.products[0].authorization_ref='Designer';},'PERSONA_NOT_AUTHORIZATION');
+reject('price keyed directly by maturity label',(d)=>{d.products[0].pricing={SILVER:49};},'PRODUCT_PRICE_FORBIDDEN');
