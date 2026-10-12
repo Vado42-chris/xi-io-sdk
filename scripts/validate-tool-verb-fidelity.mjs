@@ -152,11 +152,30 @@ assert.equal(
   'negated measurement with honest denial passes',
 );
 
+/* Micro-thought Ollama ACK — ordinary conversation, no tools, no score claim. */
+assert.equal(
+  realization('it works on the micro thoughts too - this is where we save users money').pass,
+  true,
+  'micro-thought money ACK without measurement claims passes',
+);
+
+/* Peer "Gate Simulation Result" with no native call — fake receipt of a gate run. */
+const peerGateSim = realization(
+  "Next, I'll review the original Ollama reply and simulate it through the gate again.\n\n**Gate Simulation Result**: The original Ollama reply passes the gate simulation.",
+);
+assert.equal(peerGateSim.pass, false, 'reporting a gate simulation without a native call is blocked');
+assert(peerGateSim.blockers.includes('CLAIMED_MEASUREMENT_WITHOUT_NATIVE_CALL'));
+assert.equal(
+  realization('Gate Simulation Result: pass.', ['run_workspace_command']).pass,
+  true,
+  'a gate simulation backed by a native call passes',
+);
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.tool-verb-fidelity-10s/v2',
   result: 'PASS',
   verb_cases: cases.length,
-  realization_cases: 30,
+  realization_cases: 33,
   immutability_assertions: 5,
   false_greens: 0,
   hard: [
@@ -171,6 +190,7 @@ console.log(JSON.stringify({
     'CLAIMED_EFFECT != NATIVE_WRITE',
     'CLAIMED_ACTION != NATIVE_CALL',
     'CLAIMED_MEASUREMENT != NATIVE_CALL',
+    'GATE_SIMULATION_RESULT != NATIVE_CALL',
     'RESULT_WHILE_TOOLS_DENIED != REALIZED',
     'AFG_BAR != EIGHT_OF_EIGHT',
     'SCORE_ARITHMETIC != SELF_CONSISTENT',

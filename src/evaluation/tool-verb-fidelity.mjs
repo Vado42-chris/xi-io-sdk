@@ -24,6 +24,7 @@ const RESPONSE_REALIZATION_HARD = Object.freeze([
   'CLAIMED_EFFECT != NATIVE_WRITE',
   'CLAIMED_ACTION != NATIVE_CALL',
   'CLAIMED_MEASUREMENT != NATIVE_CALL',
+  'GATE_SIMULATION_RESULT != NATIVE_CALL',
   'RESULT_WHILE_TOOLS_DENIED != REALIZED',
   'AFG_BAR != EIGHT_OF_EIGHT',
   'SCORE_ARITHMETIC != SELF_CONSISTENT',
@@ -39,12 +40,15 @@ export const DEFAULT_WRITE_TOOL_NAMES = Object.freeze(['edit_workspace_text_file
 const EFFECT_VERBS = 'stored|saved|written|wrote|updated|preserved|persisted|recorded|filed|created|committed|published|performed';
 /* Measurement verbs report a scored/simulated/tested outcome. Same bar as
    effect verbs: native call this turn, or the number is prose fiction. */
-const MEASUREMENT_VERBS = 'simulated|scored|measured|tested';
+const MEASUREMENT_VERBS = 'simulated|scored|measured|tested|simulate|simulation';
 const CLAIM_PATTERNS = Object.freeze([
   new RegExp(`\\b(?:has|have)\\s+been\\s+(?:${EFFECT_VERBS})\\b`, 'i'),
-  new RegExp(`\\bI(?:'ve|’ve|\\s+have|\\s+)\\s*(?:${EFFECT_VERBS}|${MEASUREMENT_VERBS}|ran|executed|read|searched|fetched)\\b`, 'i'),
+  new RegExp(`\\bI(?:'ve|’ve|'ll|’ll|\\s+have|\\s+will|\\s+)\\s*(?:${EFFECT_VERBS}|${MEASUREMENT_VERBS}|ran|executed|read|searched|fetched)\\b`, 'i'),
   new RegExp(`\\b(?:you|it|page|surface|reply)\\s+(?:${MEASUREMENT_VERBS})\\b`, 'i'),
   new RegExp(`\\b(?:${MEASUREMENT_VERBS})\\s+\\d+\\b`, 'i'),
+  /* Noun form: "Gate Simulation Result" / "passes the gate simulation" without a native call. */
+  /\b(?:gate\s+simulation|simulation\s+result|passes\s+the\s+(?:gate\s+)?simulation)\b/i,
+  /\b(?:and|&)\s+simulate\b/i,
   /^[^A-Za-z0-9]*(?:stored|saved|updated|recorded|filed|bound|applied|completed)\b/im,
   /\b(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?(?:complete|completed|done|finished|bound|applied|installed|deployed)\b/i,
 ]);
