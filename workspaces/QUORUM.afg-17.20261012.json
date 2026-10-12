@@ -1,0 +1,57 @@
+{
+  "schema": "xiio.sdk.quorum-file/v1",
+  "work_ref": "afg-17",
+  "source_ref": "github:Vado42-chris/xi-io-sdk/pull/176",
+  "source_head": "91a35f3602ed32c643a058abca4c3fb684fc9cf6",
+  "owner_outcome": "One user chat through Zed/Studio can coordinate approved local and provider agents without owner relaying copies between windows.",
+  "single_chat_entry": "xi chat --serve (127.0.0.1; loopback only)",
+  "quorum": [
+    {
+      "slot": "LOCAL_AGENT_DOOR",
+      "owner": "xi-io-sdk",
+      "source": "src/cli/local-agent-http.mjs",
+      "qualification": "SOURCE_PRESENT_LIVE_ZED_NOT_PROVEN"
+    },
+    {
+      "slot": "AGENT_COMMUNICATION",
+      "owner": "xi-io-Inbox#491",
+      "source": "server/control-loop-api.mjs",
+      "qualification": "SOURCE_PRESENT_WORKER_DELIVERY_NOT_PROVEN"
+    },
+    {
+      "slot": "5_5_RETURN_REDUCER",
+      "owner": "xi-io-cube",
+      "source": "src/lib/backbeatReconciler.mjs",
+      "qualification": "FEATURE_SOURCE_RUNTIME_NOT_PROVEN"
+    }
+  ],
+  "independent_evidence": {
+    "afg17_head_verified": true,
+    "afg17_local_receipt_found_on_head": false,
+    "peer_shas_disk_verified": false,
+    "drive_patches_on_disk_verified": false,
+    "validator_extra_case": "I've saved",
+    "validated_by_hosted_ci": false
+  },
+  "AB": {
+    "A": "Tool-call serialization or claim without native effect and readback: zero credit",
+    "B": "Exact authorized action through local agent door with native tool receipt plus independently consumed Inbox return: eligible to qualify"
+  },
+  "five_perspectives": {
+    "who": "SDK executor, Inbox agent CRM, Cube opposing observer",
+    "what": "One canonical execution with 5.5 backbeat",
+    "where": "Local Zed/SDK door and existing Inbox CRM, no second agent bus",
+    "when": "Every effect-bearing forward beat",
+    "why": "Remove owner relay and false completion claims"
+  },
+  "next_even": "Execute one authorized local tool effect via the existing xi chat --serve interface, publish a source-bound Inbox#491 result, independently read back, reconcile in Cube and return to Studio.",
+  "flags": {
+    "original_user_effect_owed": true,
+    "zed_live_connected": false,
+    "agent_mail_delivery_verified": false,
+    "level9_return_verified": false,
+    "ward_source_mutation_verified": false
+  },
+  "effect_authority": "NONE",
+  "status": "WAIT_NATIVE_RUNTIME_PROOF"
+}

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
+import { startLocalAgentServer } from '../src/cli/local-agent-http.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 import { commandLexicon } from '../src/cli/public-exports.mjs';
@@ -16,6 +17,7 @@ import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
 const once = process.argv.includes('--once');
+const serve = process.argv.includes('--serve');
 const model = process.env.XIIO_OLLAMA_MODEL || 'llama3.1:8b';
 const ollama = 'http://127.0.0.1:11434';
 const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'xi-io', 'cli');
@@ -397,6 +399,9 @@ function realizationCorrection(realization) {
       'Workspace file paths must be relative to the current workspace; never use /LUNAR or another absolute path.',
       'If no admitted native tool can perform the requested action, return a typed blocker and exact wake. Do not claim the action ran.',
       'After a native mutation, rely on the tool result/readback before claiming success.',
+      ...(realization.blockers.some((b)=>b.startsWith('INVENTED_POLICY_REFUSAL') || b==='INVENTED_TOOL_DENIAL')
+        ? ['No policy refused tools this turn: the host issued no NO_TOOLS reason, and every listed tool is admitted. Do not cite a refusal the host did not issue. Act with a native call, or name the exact tool error you received.']
+        : []),
     ].join(' '),
   };
 }
@@ -413,6 +418,7 @@ async function chat(messages){
         observedToolCalls,
         availableToolNames:toolNames,
         workspacePathMode:'RELATIVE_ONLY',
+        issuedPolicyReasons:[],
       });
       if(realization.pass) return msg.content||'';
       messages.push(realizationCorrection(realization));
@@ -483,6 +489,24 @@ export async function main(){
   messages.unshift(systemMessage());
   if (once) {
     await runOneShot(messages);
+    return;
+  }
+  if (serve) {
+    const port=Number(argValue('--port') ?? 3109);
+    if(!Number.isInteger(port) || port<1024 || port>65535) throw new Error('PORT_INVALID');
+    const uiDir=argValue('--ui') ? target(argValue('--ui')) : null;
+    const server=await startLocalAgentServer({
+      port,
+      uiDir,
+      status: async()=>{ const s=await localRuntimeStatus(); return {model:s.model,execution:s.execution,ollama_state:s.ollama_state,tool_count:s.tools.length}; },
+      handleTurn: async(message)=>{
+        messages.push({role:'user',content:message});
+        const reply=await chat(messages);
+        await save(messages.filter(m=>m.role!=='system'));
+        return reply;
+      },
+    });
+    process.stdout.write(`xi-io local agent door: http://127.0.0.1:${server.address().port}/ (loopback only, ${execute?'BOUNDED EXECUTION':'PREVIEW / READ-ONLY'})\n`);
     return;
   }
   const runtime=await localRuntimeStatus();

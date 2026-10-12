@@ -44,6 +44,7 @@ import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
 import { reduceMultiplicativeFactors, compileTransitionProofMatrix } from '../src/evaluation/transition-proof-reducer.mjs';
+import { runQuorumCli } from '../src/quorum/cube-quorum-cli.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
@@ -203,6 +204,14 @@ Product runtime:
   xi-io studio start                      Start installed Studio shell and require :3099 readback
   xi-io studio open                       Open local Studio
   xi-io studio inbox                      Recover Inbox and open Studio Inbox wrapper
+
+Cube quorum (afg-19; read-only / dry-run; effect_authority 0):
+  xi-io quorum status [--project NAME] [--cube PATH]
+  xi-io quorum bugs [--project NAME] [--cube PATH]
+  xi-io quorum review <bug-uuid> --local [--assessment FILE] [--write]
+  xi-io quorum votes <bug-uuid> [--cube PATH]
+  xi-io quorum dispatch <bug-uuid> --dry-run
+  xi-io quorum return <work-uuid>
 
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
@@ -1565,6 +1574,23 @@ if (
   }else usage(1);
 } else if (top === 'search') {
   const result=await searchRuntime(process.argv.slice(3));
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
+} else if (top === 'quorum') {
+  const action=process.argv[3] || 'status';
+  const raw=process.argv.slice(4);
+  const flags={};
+  const filtered=[];
+  for (const value of raw) {
+    if (value === '--dry-run') { flags['dry-run']=true; continue; }
+    if (value === '--local') { flags.local=true; continue; }
+    if (value === '--write') { flags.write=true; continue; }
+    filtered.push(value);
+  }
+  const parsed=args(filtered);
+  Object.assign(flags, parsed.flags);
+  const target=parsed.positionals[0] || null;
+  const result=await runQuorumCli({ action, target, flags });
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
   process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
 } else if (top === 'hex' || top === 'inbox' || top === 'studio') {
