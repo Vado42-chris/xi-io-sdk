@@ -6,6 +6,7 @@ import {pathToFileURL} from 'node:url';
 // Fixture qualification is separate from xi-io.net live qualification.
 // Every expected identity comes from the pinned roster, never a literal count.
 const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+const publicNine=new Set(['studio','desktop','publisher','switchboard','bins','inbox','ibal','benchmark','wordpress']);
 const canonical=x=>JSON.stringify(x,(k,v)=>v&&!Array.isArray(v)&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 const digest=x=>'sha256:'+createHash('sha256').update(x).digest('hex');
 const ids=x=>new Set(x.map(p=>typeof p==='string'?p:p?.id));
@@ -28,6 +29,7 @@ export function validateProductSpine(catalogue,{roster,publishedRoster,livePubli
  const publicIds=published?ids(published):new Set();
  if(published&&(![...publicIds].every(x=>typeof x==='string'&&x.trim())||publicIds.size!==published.length||![...publicIds].every(x=>expected.has(x))))fail('PUBLISHED_ROSTER_INVALID');
  if(published&&livePublished&&!exact(publicIds,ids(livePublished)))fail('PUBLISHED_SET_NOT_LIVE_PIN');
+ if(livePublished&&!exact(ids(livePublished),publicNine))fail('LIVE_PUBLISHED_ROSTER_NOT_ACCEPTED_NINE');
  const seen=new Set(),actualPublished=[];
  for(const [i,p] of (products||[]).entries()){
   if(!p||typeof p!=='object'||Array.isArray(p)){fail('PRODUCT_RECORD_INVALID:'+i);continue;}
@@ -39,11 +41,11 @@ export function validateProductSpine(catalogue,{roster,publishedRoster,livePubli
   if(p.published===true)actualPublished.push(p.id);
   for(const field of ['classification','commercial','maturity','authorization_ref']){
    if(!has(p,field)||typeof p[field]!=='string'||!p[field].trim())fail('DIMENSION_MISSING:'+field+':'+p.id);
-   if(!p.basis||typeof p.basis[field]!=='string'||!p.basis[field].trim())fail('DIMENSION_BASIS_MISSING:'+field+':'+p.id);
+   if(!p.basis||typeof p.basis[field]!=='string'||!p.basis[field].trim()||p.basis[field].trim()==='UNKNOWN')fail('DIMENSION_BASIS_MISSING:'+field+':'+p.id);
   }
   if(p.maturity==='SIVER')fail('MATURITY_TYPO_SIVER:'+p.id);
   if(typeof p.maturity==='string'&&!['UNKNOWN','BRONZE','SILVER','GOLD','PLATINUM'].includes(p.maturity))fail('MATURITY_INVALID:'+p.id);
-  if(has(p,'price')||has(p,'pricing')||has(p,'price_by_maturity')||has(p,'maturity_price'))fail('PRODUCT_PRICE_FORBIDDEN:'+p.id);
+  if(has(p,'price')||has(p,'pricing')||has(p,'price_by_maturity')||has(p,'maturity_price')||has(p,'price_amount')||has(p,'maturity_pricing'))fail('PRODUCT_PRICE_FORBIDDEN:'+p.id);
   if(typeof p.authorization_ref==='string'&&/^(persona|person|user|human|role):/i.test(p.authorization_ref))fail('PERSONA_NOT_AUTHORIZATION:'+p.id);
   if(p.authorization_ref===p.persona||p.authorization_ref===p.persona_name)fail('PERSONA_NOT_AUTHORIZATION:'+p.id);
  }
