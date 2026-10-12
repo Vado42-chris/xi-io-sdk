@@ -6,7 +6,6 @@ import {pathToFileURL} from 'node:url';
 // Fixture qualification is separate from xi-io.net live qualification.
 // Every expected identity comes from the pinned roster, never a literal count.
 const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
-const publicNine=new Set(['studio','desktop','publisher','switchboard','bins','inbox','ibal','benchmark','wordpress']);
 const canonical=x=>JSON.stringify(x,(k,v)=>v&&!Array.isArray(v)&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 const digest=x=>'sha256:'+createHash('sha256').update(x).digest('hex');
 const ids=x=>new Set(x.map(p=>typeof p==='string'?p:p?.id));
@@ -26,7 +25,6 @@ export function validateProductSpine(catalogue,{roster,publishedRoster,sourcePin
  if(members&&(![...expected].every(x=>typeof x==='string'&&x.trim())||expected.size!==members.length))fail('ROSTER_IDS_INVALID');
  const publicIds=published?ids(published):new Set();
  if(published&&(![...publicIds].every(x=>typeof x==='string'&&x.trim())||publicIds.size!==published.length||![...publicIds].every(x=>expected.has(x))))fail('PUBLISHED_ROSTER_INVALID');
- if(published&&!exact(publicIds,publicNine))fail('PUBLISHED_SET_NOT_LIVE_NINE');
  const seen=new Set(),actualPublished=[];
  for(const [i,p] of (products||[]).entries()){
   if(!p||typeof p!=='object'||Array.isArray(p)){fail('PRODUCT_RECORD_INVALID:'+i);continue;}
