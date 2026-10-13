@@ -29,6 +29,8 @@ const manager=new QuorumAcp({ledger,stateDir:path.join(root,'sessions'),fetchImp
 try {
  await append({message_id:'other',thread_ref:'another-thread',from_agent:'owner:zed',body:'MUST_NOT_LEAK',created_at:'2026-01-01'});
  const {sessionId}=await manager.newSession({cwd:root},client);const s=manager.sessions.get(sessionId);
+ await new Promise(setImmediate);
+ assert.ok(updates.some(p=>p.update.sessionUpdate==='available_commands_update'&&p.update.availableCommands.some(c=>c.name==='quorum')),'Zed must receive slash-command declarations');
  const ask=text=>manager.prompt({sessionId,prompt:[{type:'text',text}]},client);
  const beforeUnaddressed=requests.length;
  await ask('/send do not deliver without recipients');
@@ -39,7 +41,7 @@ try {
  let rows=await manager.history(s);assert.equal(rows.length,2);assert.equal(rows[0].body,'one message');assert.equal(rows[1].body,'local reply');
  const turn=requests.find(r=>r.url.endsWith('/v1/turn'));assert.equal(turn.body.conversation_ref,s.threadRef);assert.deepEqual(turn.body.context,[]);
  assert.deepEqual(requests.find(r=>r.url.endsWith('/cli/v1/mail/send')).body.to,s.participants);
- assert.ok(updates.some(p=>p.update.content.text.includes('LEDGER_ONLY')),'never equate stored with consumed');
+ assert.ok(updates.some(p=>p.update.content?.text?.includes('LEDGER_ONLY')),'never equate stored with consumed');
  await ask('/advance');assert.equal(requests.find(r=>r.url.endsWith('/api/quorum/advance')).body.prefer_assignee,'agent:zed:r1');
  await ask('/assign agent:critic:r1 inspect one change');assert.equal(requests.find(r=>r.url.endsWith('/api/quorum/assign')).body.assignee,'agent:critic:r1');
  const assigns=requests.filter(r=>r.url.endsWith('/api/quorum/assign')).length;
@@ -52,7 +54,7 @@ try {
  manager.close();
  const resumed=new QuorumAcp({ledger,stateDir:path.join(root,'sessions'),fetchImpl,pollMs:60000});
  try {
-  const before=updates.length;await resumed.loadSession({sessionId,cwd:root},client);assert.ok(updates.length>before);
+  const before=updates.length;await resumed.loadSession({sessionId,cwd:root},client);await new Promise(setImmediate);assert.ok(updates.length>before);
   const shown=updates.length;await resumed.poll(resumed.sessions.get(sessionId));assert.equal(updates.length,shown,'replayed history is not emitted again');
   await assert.rejects(()=>resumed.loadSession({sessionId,cwd:'/wrong'},client),/WORKSPACE_MISMATCH/);
   const t=requests.filter(r=>r.url.endsWith('/v1/turn')).length;isolated=false;

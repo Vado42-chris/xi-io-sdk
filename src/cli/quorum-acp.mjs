@@ -9,6 +9,15 @@ import os from 'node:os';
 export const QUORUM_ACP_SCHEMA = 'xiio.zed.quorum-acp/v1';
 const refPattern = /^[A-Za-z0-9:_.-]{1,256}$/;
 const sessionPattern = /^[a-f0-9-]{36}$/;
+export const QUORUM_COMMANDS = [
+  {name:'help',description:'Show Ibal quorum commands'},
+  {name:'quorum',description:'Inspect quorum and registered seats'},
+  {name:'history',description:'Read the canonical AI Mail conversation'},
+  {name:'participants',description:'Select registered recipients',input:{hint:'agent:one,agent:two'}},
+  {name:'send',description:'Send to selected recipients',input:{hint:'message'}},
+  {name:'assign',description:'Assign work through the quorum controller',input:{hint:'agent:seat task'}},
+  {name:'advance',description:'Advance quorum with Zed preferred'},
+];
 export const HELP = `Ibal quorum — Zed alpha
 
 Write normally to talk to local Ibal. Your turn and reply stay in AI Mail.
@@ -83,6 +92,12 @@ export class QuorumAcp {
     await fs.writeFile(path.join(this.stateDir,s.sessionId+'.json'),JSON.stringify(metadata)+'\n',{mode:0o600});
   }
   async text(s,text) { await s.client.sessionUpdate({sessionId:s.sessionId,update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text}}}); }
+  async commands(s) { await s.client.sessionUpdate({sessionId:s.sessionId,update:{sessionUpdate:'available_commands_update',availableCommands:QUORUM_COMMANDS}}); }
+  scheduleCommands(s) {
+    // The client must receive session/new before it can route notifications for
+    // that session. Defer past the request response's microtasks.
+    setImmediate(()=>this.commands(s).catch(e=>process.stderr.write(`QUORUM_COMMANDS_FAILED=${e.message}\n`)));
+  }
   async history(s) { return this.readThread(this.ledger,s.threadRef); }
   async register(s) {
     const registered=await this.request(this.control,'/api/bridge/register',{
@@ -97,7 +112,7 @@ export class QuorumAcp {
     const sessionId=randomUUID();
     const s={sessionId,cwd,threadRef:this.defaultThread||`xiio:zed:quorum:${sessionId}`,participants:[],client,seen:new Set(),busy:false};
     for(const row of await this.history(s)) s.seen.add(row.message_id);
-    await this.register(s);await this.save(s);this.sessions.set(sessionId,s);this.watch(s);
+    await this.register(s);await this.save(s);this.sessions.set(sessionId,s);this.scheduleCommands(s);this.watch(s);
     return {sessionId};
   }
   async loadSession({sessionId,cwd},client) {
@@ -113,7 +128,7 @@ export class QuorumAcp {
       await client.sessionUpdate({sessionId,update:{sessionUpdate:owner?'user_message_chunk':'agent_message_chunk',content:{type:'text',text:owner?row.body:`${row.from_agent}: ${row.body}\n`}}});
       s.seen.add(row.message_id);
     }
-    s.busy=false;await this.register(s);this.watch(s);return {};
+    s.busy=false;await this.register(s);this.scheduleCommands(s);this.watch(s);return {};
   }
   watch(s) {
     s.timer=setInterval(()=>this.poll(s).catch(()=>{}),this.pollMs);s.timer.unref?.();
