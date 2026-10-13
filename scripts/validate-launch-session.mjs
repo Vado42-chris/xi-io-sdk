@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { observeAccount, chooseAccount } from '../src/identity/account-binding.mjs';
-import { openSession, mustPrompt, launchTicket, acceptTicket, planDesktopLaunch } from '../src/identity/launch-session.mjs';
+import { openSession, mustPrompt, launchTicket, acceptTicket, planDesktopLaunch } from '@xi-io/sdk/identity/launch-session';
 
 const refusal = (fn, code) => assert.throws(fn, (e) => e.code === code, `expected ${code}`);
 const t0 = '2026-10-12T19:00:00-06:00';
@@ -32,6 +32,25 @@ assert.equal(acceptTicket(inbox, { product: 'ward', now: later }).reason, 'TICKE
 assert.equal(acceptTicket(inbox, { product: 'inbox', now: '2026-10-14T19:00:00-06:00' }).reason, 'RETURN_TO_LAUNCHER', 'tickets are short; the session is not');
 assert.ok(Date.parse(inbox.expires_at) <= Date.parse(session.expires_at), 'a ticket never outlives its session');
 
+/* Deserialised tickets fail closed when incomplete, malformed, or not yet valid. */
+const invalidTickets = [
+  { kind: 'LAUNCH_TICKET', audience: 'inbox', expires_at: 'invalid' },
+  { ...inbox, schema: undefined },
+  { ...inbox, session_id: undefined },
+  { ...inbox, principal_ref: undefined },
+  { ...inbox, product: 'desktop' },
+  { ...inbox, issued_at: undefined },
+  { ...inbox, expires_at: 'invalid' },
+  { ...inbox, expires_at: undefined },
+  { ...inbox, issued_at: '2026-10-14T00:00:00Z' },
+  { ...inbox, expires_at: inbox.issued_at },
+  { ...inbox, expires_at: '2026-10-19T19:00:00-06:00' },
+];
+for (const ticket of invalidTickets) {
+  assert.equal(acceptTicket(ticket, { product: 'inbox', now: later }).ok, false);
+}
+assert.equal(acceptTicket(inbox, { product: 'inbox', now: inbox.expires_at }).ok, false, 'expiry boundary is exclusive');
+
 /* The launch the owner described: stable Desktop + linked Zed, zero prompts after sign-in. */
 const plan = planDesktopLaunch(session, { now: later, desktop_url: 'https://xi-io.base44.app/DesktopExperience', zed_profile_dir: '/home/user/.local/share/xi-io/zed-profile', zed_workspace: '/home/user/xi-io/studio' });
 assert.equal(plan.prompts_after_sign_in, 0);
@@ -58,6 +77,6 @@ assert.equal(JSON.stringify(plan).includes('keyring:xiio'), false, 'the credenti
 console.log(JSON.stringify({
   schema: 'xiio.sdk.launch-session-check/v1',
   result: 'PASS',
-  cases: 29,
+  cases: 41,
   hard: ['ONE_SIGN_IN_AT_LAUNCHER', 'SUB_PRODUCT_PROMPT = NEVER', 'EXPIRED -> RETURN_TO_LAUNCHER', 'TICKET_PER_PRODUCT', 'CREDENTIAL_BY_REFERENCE', 'DESKTOP+ZED_ONE_LINK'],
 }, null, 2));

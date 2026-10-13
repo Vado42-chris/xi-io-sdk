@@ -9,6 +9,8 @@
     "xiio": "./bin/xi.mjs"
   },
   "exports": {
+    "./identity/account-binding": "./src/identity/account-binding.mjs",
+    "./identity/launch-session": "./src/identity/launch-session.mjs",
     "./components": "./src/components/core.mjs",
     "./behavior": "./src/components/behavior.mjs",
     "./shell": "./src/components/shell.mjs",

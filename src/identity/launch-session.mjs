@@ -96,11 +96,22 @@ export function launchTicket(session, { product, now, link_ref = null } = {}) {
   });
 }
 
-/** A sub-product accepts only a live ticket cut for itself. */
+/** Validate a ticket from trusted launcher transport. This is not signature/authentication verification. */
 export function acceptTicket(ticket, { product, now }) {
-  if (ticket?.kind !== 'LAUNCH_TICKET') return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
+  const current = ms(now, 'NOW_REQUIRED');
+  const issued = typeof ticket?.issued_at === 'string' ? Date.parse(ticket.issued_at) : NaN;
+  const expires = typeof ticket?.expires_at === 'string' ? Date.parse(ticket.expires_at) : NaN;
+  if (ticket?.kind !== 'LAUNCH_TICKET' || ticket.schema !== LAUNCH_SESSION_SCHEMA
+      || typeof ticket.session_id !== 'string' || !/^[A-Za-z0-9:_-]{8,128}$/.test(ticket.session_id)
+      || typeof ticket.principal_ref !== 'string' || !ticket.principal_ref.trim()
+      || typeof ticket.product !== 'string' || !/^[a-z0-9_:-]{2,64}$/.test(ticket.product)
+      || ticket.product !== ticket.audience
+      || !Number.isFinite(issued) || !Number.isFinite(expires)
+      || expires <= issued || expires - issued > TICKET_MS
+      || current < issued || current >= expires) {
+    return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
+  }
   if (ticket.audience !== product) return Object.freeze({ ok: false, reason: 'TICKET_FOR_ANOTHER_PRODUCT' });
-  if (ms(now, 'NOW_REQUIRED') >= Date.parse(ticket.expires_at)) return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
   return Object.freeze({ ok: true, principal_ref: ticket.principal_ref, session_id: ticket.session_id });
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { observeAccount, chooseAccount, bindOwner } from '../src/identity/account-binding.mjs';
+import { observeAccount, chooseAccount, bindOwner } from '@xi-io/sdk/identity/account-binding';
 import { compileIbalTeamKit } from '../src/ibal/team-kit.mjs';
 
 const at = '2026-10-12T18:45:00-06:00';
