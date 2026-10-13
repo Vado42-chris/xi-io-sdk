@@ -60,6 +60,35 @@ assert.equal(plan.steps[1].ticket.link_ref, plan.link_ref, 'Zed carries the same
 assert.match(plan.link_ref, /^link:sess:launcher-0001:/, 'the link names the one sign-in');
 assert.equal(plan.steps[1].ticket.audience, 'zed-editor');
 
+/* Zed stays the default; an explicit adapter choice shares the same conversation and identity. */
+assert.equal(plan.external_surface, 'zed-editor');
+assert.equal(plan.steps[1].step, 'open_zed', 'preserve the existing Zed consumer');
+const launchOptions = { now: later, desktop_url: 'https://xi-io.base44.app/DesktopExperience' };
+for (const product of ['zed-editor', 'cursor-editor', 'vscode-editor', 'custom-editor']) {
+  const selected = planDesktopLaunch(session, {
+    ...launchOptions, conversation_ref: 'conversation:trinity-001',
+    external_surface: { product, profile_dir: '/isolated/profile', workspace: '/local/project' },
+  });
+  assert.equal(selected.external_surface, product);
+  assert.equal(selected.steps[1].ticket.audience, product);
+  assert.equal(selected.steps[1].profile_dir, '/isolated/profile');
+  assert.equal(selected.steps[1].workspace, '/local/project');
+  assert.equal(selected.steps[1].ticket.principal_ref, selected.steps[0].ticket.principal_ref);
+  assert.equal(selected.steps[1].ticket.session_id, selected.steps[0].ticket.session_id);
+  assert.equal(selected.steps[1].ticket.link_ref, selected.steps[0].ticket.link_ref);
+  assert.equal(selected.steps[1].conversation_ref, selected.steps[0].conversation_ref);
+  assert.equal(selected.conversation_ref, 'conversation:trinity-001');
+  assert.equal(selected.prompts_after_sign_in, 0);
+}
+for (const external_surface of [null, [], 'cursor-editor', {}, { product: 'desktop' }]) {
+  assert.throws(() => planDesktopLaunch(session, { ...launchOptions, external_surface }));
+}
+const external_surface = { product: 'cursor-editor', profile_dir: '/profile', workspace: '/project' };
+refusal(() => planDesktopLaunch(session, { ...launchOptions, external_surface: { ...external_surface, profile_dir: 'relative' } }), 'EXTERNAL_PROFILE_DIR_REQUIRED');
+refusal(() => planDesktopLaunch(session, { ...launchOptions, external_surface: { ...external_surface, workspace: 'relative' } }), 'EXTERNAL_WORKSPACE_REQUIRED');
+refusal(() => planDesktopLaunch(session, { ...launchOptions, external_surface: { ...external_surface, token: 'not-allowed' } }), 'SECRET_FIELD_REFUSED');
+refusal(() => planDesktopLaunch(session, { ...launchOptions, external_surface, conversation_ref: ' ' }), 'CONVERSATION_REF_INVALID');
+
 /* Hostiles. */
 refusal(() => openSession(choice, { session_id: 'sess:x0000001', credential_ref: 'keyring:a', opened_at: t0, expires_at: later, surface: 'inbox' }), 'ONLY_THE_LAUNCHER_SIGNS_IN');
 refusal(() => openSession(choice, { session_id: 'sess:x0000001', credential_ref: 'gho_raw_token_value', opened_at: t0, expires_at: later }), 'CREDENTIAL_BY_REFERENCE_REQUIRED');
@@ -78,5 +107,6 @@ console.log(JSON.stringify({
   schema: 'xiio.sdk.launch-session-check/v1',
   result: 'PASS',
   cases: 41,
+  editor_selection_scenarios: 15,
   hard: ['ONE_SIGN_IN_AT_LAUNCHER', 'SUB_PRODUCT_PROMPT = NEVER', 'EXPIRED -> RETURN_TO_LAUNCHER', 'TICKET_PER_PRODUCT', 'CREDENTIAL_BY_REFERENCE', 'DESKTOP+ZED_ONE_LINK'],
 }, null, 2));

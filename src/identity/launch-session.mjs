@@ -117,22 +117,32 @@ export function acceptTicket(ticket, { product, now }) {
 
 /**
  * The launch the owner described: one sign-in at the launcher, then the stable
- * Desktop and a linked Zed editing session, both cut from that sign-in.
+ * Desktop and a linked external Ibal surface, both cut from that sign-in.
+ * Zed is the default. Other editor adapters are an explicit user selection;
+ * this plan neither discovers the current IDE nor executes an editor command.
  */
-export function planDesktopLaunch(session, { now, desktop_url, zed_profile_dir, zed_workspace }) {
+export function planDesktopLaunch(session, { now, desktop_url, zed_profile_dir, zed_workspace, external_surface, conversation_ref = null }) {
   if (typeof desktop_url !== 'string' || !/^https:\/\//.test(desktop_url)) refuse('DESKTOP_URL_HTTPS_REQUIRED');
-  if (typeof zed_profile_dir !== 'string' || !zed_profile_dir.startsWith('/')) refuse('ZED_PROFILE_DIR_REQUIRED');
-  if (typeof zed_workspace !== 'string' || !zed_workspace.startsWith('/')) refuse('ZED_WORKSPACE_REQUIRED');
-  const link = `link:${session.session_id}:desktop+zed`;
+  if (external_surface !== undefined && (!external_surface || typeof external_surface !== 'object' || Array.isArray(external_surface))) refuse('EXTERNAL_SURFACE_REQUIRED');
+  const selected = external_surface ?? { product: 'zed-editor', profile_dir: zed_profile_dir, workspace: zed_workspace };
+  noSecrets(selected);
+  const { product, profile_dir, workspace } = selected;
+  if (typeof product !== 'string' || !/^[a-z0-9_:-]{2,64}$/.test(product) || product === 'desktop') refuse('EXTERNAL_SURFACE_PRODUCT_REQUIRED');
+  if (typeof profile_dir !== 'string' || !profile_dir.startsWith('/') || profile_dir.includes('\0')) refuse(product === 'zed-editor' ? 'ZED_PROFILE_DIR_REQUIRED' : 'EXTERNAL_PROFILE_DIR_REQUIRED');
+  if (typeof workspace !== 'string' || !workspace.startsWith('/') || workspace.includes('\0')) refuse(product === 'zed-editor' ? 'ZED_WORKSPACE_REQUIRED' : 'EXTERNAL_WORKSPACE_REQUIRED');
+  if (conversation_ref !== null && (typeof conversation_ref !== 'string' || !conversation_ref.trim() || conversation_ref.trim() !== conversation_ref || conversation_ref.length > 512)) refuse('CONVERSATION_REF_INVALID');
+  const link = `link:${session.session_id}:desktop+${product === 'zed-editor' ? 'zed' : product}`;
   const desktop = launchTicket(session, { product: 'desktop', now, link_ref: link });
-  const zed = launchTicket(session, { product: 'zed-editor', now, link_ref: link });
+  const external = launchTicket(session, { product, now, link_ref: link });
   return Object.freeze({
     schema: LAUNCH_SESSION_SCHEMA,
     kind: 'DESKTOP_LAUNCH_PLAN',
     link_ref: link,
+    external_surface: product,
+    conversation_ref,
     steps: Object.freeze([
-      Object.freeze({ step: 'open_desktop', url: desktop_url, ticket: desktop }),
-      Object.freeze({ step: 'open_zed', profile_dir: zed_profile_dir, workspace: zed_workspace, ticket: zed }),
+      Object.freeze({ step: 'open_desktop', url: desktop_url, conversation_ref, ticket: desktop }),
+      Object.freeze({ step: product === 'zed-editor' ? 'open_zed' : 'open_external_surface', product, profile_dir, workspace, conversation_ref, ticket: external }),
     ]),
     prompts_after_sign_in: 0,
     authority_granted: false,
