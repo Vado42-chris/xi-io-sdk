@@ -85,7 +85,8 @@
     "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
     "./preflight/order-runtime": "./src/preflight/order-runtime.mjs",
     "./flatpack/universal-primitive": "./src/flatpack/universal-primitive.mjs",
-    "./mutation/addressable": "./src/mutation/addressable.mjs"
+    "./mutation/addressable": "./src/mutation/addressable.mjs",
+    "./observability/observer55": "./src/observability/mode-aware-55.mjs"
   },
   "scripts": {
     "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor",
@@ -153,6 +154,7 @@
     "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs",
     "check:cube-quorum-cli": "node scripts/validate-cube-quorum-cli.mjs",
     "check:account-binding": "node scripts/validate-account-binding.mjs",
-    "check:launch-session": "node scripts/validate-launch-session.mjs"
+    "check:launch-session": "node scripts/validate-launch-session.mjs",
+    "check:observer55": "node scripts/validate-mode-aware-55.mjs"
   }
 }
