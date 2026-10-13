@@ -406,10 +406,12 @@ function realizationCorrection(realization) {
   };
 }
 
-async function chat(messages){
+async function chat(messages,{signal}={}){
   const observedToolCalls=[];
   for(let spin=0;spin<6;spin++){
-    const res=await fetch(ollama+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:AbortSignal.timeout(300000)});
+    if(signal?.aborted) throw new Error('TURN_ABORTED');
+    const bound=signal?AbortSignal.any([signal,AbortSignal.timeout(300000)]):AbortSignal.timeout(300000);
+    const res=await fetch(ollama+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:bound});
     if(!res.ok) throw new Error('OLLAMA_HTTP_'+res.status);
     const body=await res.json(), msg=body.message||{}; messages.push(msg);
     if(!msg.tool_calls?.length) {
@@ -499,9 +501,9 @@ export async function main(){
       port,
       uiDir,
       status: async()=>{ const s=await localRuntimeStatus(); return {model:s.model,execution:s.execution,ollama_state:s.ollama_state,tool_count:s.tools.length}; },
-      handleTurn: async(message)=>{
+      handleTurn: async(message,{signal}={})=>{
         messages.push({role:'user',content:message});
-        const reply=await chat(messages);
+        const reply=await chat(messages,{signal});
         await save(messages.filter(m=>m.role!=='system'));
         return reply;
       },
