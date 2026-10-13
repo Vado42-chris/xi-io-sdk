@@ -15,7 +15,7 @@ for(let i=0;i<200;i++){
   assert.equal(row.state,"UNKNOWN_REQUIRED_RESPONSES");assert.equal(row.R,null);assert.deepEqual(row.missing,["b"]);break;
  case "EXPLICIT_ZERO":
   row=snap55({questions:q,responses:{a:0,b:0},nowMs:now});
-  assert.equal(row.state,"SOURCE_BOUND_NUMERIC");assert.equal(row.R,0.005);assert.equal(row.known_count,2);break;
+  assert.equal(row.state,"SOURCE_BOUND_NUMERIC");assert.ok(Math.abs(row.R-0.005)<1e-12);assert.equal(row.known_count,2);break;
  case "FUTURE_DATE":
   row=snap55({questions:q,responses:{a:1,b:1},nowMs:now,journal:[{timestamp:now+3600000,sensoryEntropy:100}]});
   assert.equal(row.excluded_future,1);assert.equal(row.recent_entropy,0);break;
