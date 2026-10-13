@@ -10,7 +10,9 @@
  *   - an Origin header, when present, must be this door's own origin;
  *   - a turn must be application/json, so a cross-site browser request needs a
  *     preflight, and preflights are refused without CORS headers;
- *   - one turn at a time, bounded body, bounded time.
+ *   - one turn at a time, bounded body, bounded time: a turn past
+ *     TURN_TIMEOUT_MS is answered 504 and aborted, and a request that takes
+ *     longer than REQUEST_TIMEOUT_MS to arrive is dropped.
  *
  * The door grants nothing. Every turn still runs through the agent's own chat
  * loop, its realization gate, and its --execute ceiling.
@@ -25,7 +27,14 @@ import { fileURLToPath } from 'node:url';
 
 export const LOCAL_AGENT_HTTP_SCHEMA = 'xiio.cli.local-agent-http/v1';
 export const MAX_TURN_BYTES = 65_536;
+/* How long one turn may take before the page is told so. A local model on a
+   small machine can be slow; two minutes is long enough for a real answer and
+   short enough that a page never waits forever on a stuck one. */
+export const TURN_TIMEOUT_MS = 120_000;
+/* How long a request may take to arrive at all (headers and body). */
+export const REQUEST_TIMEOUT_MS = 30_000;
 const LOOPBACK = '127.0.0.1';
+const TIMED_OUT = Symbol('TIMED_OUT');
 const TYPES = Object.freeze({
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
@@ -144,10 +153,15 @@ async function serveUi(res, uiDir, pathname) {
 }
 
 /**
- * Start the door. `handleTurn(message)` runs one agent turn and resolves to the
- * reply text; `status()` resolves to the agent's runtime status.
+ * Start the door. `handleTurn(message, { signal })` runs one agent turn and
+ * resolves to the reply text; `status()` resolves to the agent's runtime status.
+ *
+ * A turn that outlives `turnTimeoutMs` is answered 504 TURN_TIMEOUT at once and
+ * its `signal` is aborted. The door stays BUSY until that turn actually stops:
+ * a timed-out turn may still be talking to the model, and starting a second
+ * one beside it would be two turns at once, which this door never allows.
  */
-export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir = null } = {}) {
+export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir = null, turnTimeoutMs = TURN_TIMEOUT_MS, requestTimeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   if (typeof handleTurn !== 'function' || typeof status !== 'function') throw new Error('LOCAL_AGENT_HANDLERS_REQUIRED');
   let busy = false;
   const server = http.createServer(async (req, res) => {
@@ -188,16 +202,29 @@ export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir =
       try { message = String(JSON.parse(raw)?.message ?? '').trim(); } catch { message = ''; }
       if (!message) return send(res, 400, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'REFUSED', reason: 'MESSAGE_REQUIRED' });
       busy = true;
+      const controller = new AbortController();
+      const turn = Promise.resolve()
+        .then(() => handleTurn(message, { signal: controller.signal }))
+        .finally(() => { busy = false; });
+      let timer;
+      const timedOut = new Promise((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), turnTimeoutMs); });
       try {
-        const reply = await handleTurn(message);
+        const reply = await Promise.race([turn, timedOut]);
+        if (reply === TIMED_OUT) {
+          controller.abort(new Error('TURN_TIMEOUT'));
+          turn.catch(() => {});
+          return send(res, 504, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BLOCKED', reason: 'TURN_TIMEOUT', timeout_ms: turnTimeoutMs, provider_effect: false });
+        }
         return send(res, 200, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'ANSWERED', reply, provider_effect: false });
       } finally {
-        busy = false;
+        clearTimeout(timer);
       }
     } catch (error) {
       return send(res, error?.status || 500, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BLOCKED', first_red: String(error?.message || error) });
     }
   });
+  server.requestTimeout = requestTimeoutMs;
+  server.headersTimeout = Math.min(requestTimeoutMs, 20_000);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, LOOPBACK, () => resolve(server));

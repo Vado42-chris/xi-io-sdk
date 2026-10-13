@@ -41,6 +41,8 @@ const EFFECT_VERBS = 'stored|saved|written|wrote|updated|preserved|persisted|rec
 /* Measurement verbs report a scored/simulated/tested outcome. Same bar as
    effect verbs: native call this turn, or the number is prose fiction. */
 const MEASUREMENT_VERBS = 'simulated|scored|measured|tested|simulate|simulation';
+const PASSIVE_EFFECTS = `${EFFECT_VERBS}|edited|changed|modified|deleted|removed|uploaded|sent|merged|closed|logged|synchroni[sz]ed|synced|verified|executed|called|invoked|run|started|launched|qualified|approved|admitted`;
+const EFFECT_NOUNS = 'receipts?|files?|records?|patch(?:es)?|commits?|results?|changes?|readbacks?|ledgers?|state|entr(?:y|ies)|rows?|logs?';
 const CLAIM_PATTERNS = Object.freeze([
   new RegExp(`\\b(?:has|have)\\s+been\\s+(?:${EFFECT_VERBS})\\b`, 'i'),
   new RegExp(`\\bI(?:'ve|’ve|'ll|’ll|\\s+have|\\s+will|\\s+)\\s*(?:${EFFECT_VERBS}|${MEASUREMENT_VERBS}|ran|executed|read|searched|fetched)\\b`, 'i'),
@@ -51,8 +53,16 @@ const CLAIM_PATTERNS = Object.freeze([
   /\b(?:and|&)\s+simulate\b/i,
   /^[^A-Za-z0-9]*(?:stored|saved|updated|recorded|filed|bound|applied|completed)\b/im,
   /\b(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?(?:complete|completed|done|finished|bound|applied|installed|deployed)\b/i,
+  /* A whole receipt narrated in the passive, never saying "I": "the tool has been
+     called", "the file was edited", "the change was verified", "the checkout was
+     started", "PR #176 has been qualified". Real 2026-10-12 fabrications. */
+  new RegExp(`\\b(?:was|were|has\\s+been|have\\s+been|is\\s+now|are\\s+now)\\s+(?:successfully\\s+)?(?:${PASSIVE_EFFECTS})\\b`, 'i'),
+  /* Noun plus participle: "Receipt stored at ...", "Receipts Logged & State Synchronized". */
+  new RegExp(`\\b(?:${EFFECT_NOUNS})\\s+(?:successfully\\s+)?(?:stored|saved|written|logged|recorded|committed|synchroni[sz]ed|synced|verified|filed|updated)\\b`, 'i'),
 ]);
 const NEGATION = /\b(?:not|never|nothing|no|without|cannot|can't|couldn't|wasn't|weren't|hasn't|haven't|didn't)\b[^.!?\n]{0,24}$/i;
+/* "If the change was verified, ..." describes a condition, not an effect. */
+const CONDITIONAL = /\b(?:if|whether|unless|until)\b[^.!?\n,]{0,40}$/i;
 const SCORE_OF = /\b(\d+)\s*(?:out\s+of|of)\s*(\d+)\b/gi;
 const AFG_BAR_SEVEN = /\b(?:bar|threshold|pass(?:ing)?(?:\s+score)?|needs?|require[sd]?)\b[^.!?\n]{0,40}\b7\s*(?:out\s+of|of)\s*8\b/i;
 const ONLY_K_MISSING = /\bonly\s+(\d+|one|two|three|four|five|six|seven|eight)\b[^.!?\n]{0,48}\b(?:missing|failing|failed|absent|unmet)\b/i;
@@ -72,7 +82,7 @@ function claimedEffects(responseText) {
     const flags = re.flags.includes('g') ? re.flags : re.flags + 'g';
     for (const m of own.matchAll(new RegExp(re.source, flags))) {
       const before = own.slice(Math.max(0, m.index - 40), m.index);
-      if (NEGATION.test(before)) continue;
+      if (NEGATION.test(before) || CONDITIONAL.test(before)) continue;
       claims.push(m[0].trim());
       if (claims.length >= 16) return claims;
     }
@@ -117,7 +127,7 @@ function scoreArithmeticFaults(own) {
   return faults;
 }
 
-const WRITE_CLAIM = new RegExp(`\\b(?:${EFFECT_VERBS.replace('|performed', '')}|bound|applied|installed|deployed)\\b`, 'i');
+const WRITE_CLAIM = new RegExp(`\\b(?:${EFFECT_VERBS.replace('|performed', '')}|bound|applied|installed|deployed|edited|changed|modified|deleted|removed|uploaded|merged|logged|synchroni[sz]ed|synced)\\b`, 'i');
 
 function norm(value) {
   return String(value || '').trim().toLowerCase();
@@ -140,7 +150,7 @@ function unsafeWorkspacePath(value) {
 function extractPseudoToolCalls(responseText) {
   const text = String(responseText ?? '');
   const calls = [];
-  const re = /["']?name["']?\s*:\s*["']([A-Za-z_][A-Za-z0-9_.:-]*)["'][\s\S]{0,1200}?["']?parameters["']?\s*:/gi;
+  const re = /["']?name["']?\s*:\s*["']([A-Za-z_][A-Za-z0-9_.:-]*)["'][\s\S]{0,1200}?["']?(?:parameters|arguments|args|input)["']?\s*:/gi;
   let match;
   while ((match = re.exec(text)) && calls.length < 32) {
     const window = text.slice(match.index, Math.min(text.length, match.index + 1800));
