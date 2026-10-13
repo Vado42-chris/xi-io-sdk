@@ -107,10 +107,58 @@ try {
   fs.rmSync(ui, { recursive: true, force: true });
 }
 
+/* Bounded time: a stuck turn is answered 504 and aborted, and the door stays
+   busy until that turn has really stopped, so two turns never run at once. */
+let sawAbort = false;
+let settle;
+const slow = await startLocalAgentServer({
+  port: 0,
+  turnTimeoutMs: 100,
+  status: async () => ({ model: 'fixture' }),
+  handleTurn: async (message, { signal } = {}) => {
+    if (message !== 'stuck') return `echo:${message}`;
+    await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+    sawAbort = signal.aborted;
+    await new Promise((resolve) => { settle = resolve; });
+    return 'too late';
+  },
+});
+const slowPort = slow.address().port;
+const slowRequest = ({ method = 'GET', url = '/', body = null }) => new Promise((resolve, reject) => {
+  const req = http.request({ host: '127.0.0.1', port: slowPort, method, path: url, headers: { host: `127.0.0.1:${slowPort}`, ...(body ? { 'content-type': 'application/json' } : {}) } }, (res) => {
+    let data = '';
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => resolve({ status: res.statusCode, json: (() => { try { return JSON.parse(data); } catch { return null; } })() }));
+  });
+  req.on('error', reject);
+  if (body) req.write(body);
+  req.end();
+});
+const slowTurn = (message) => slowRequest({ method: 'POST', url: '/v1/turn', body: JSON.stringify({ message }) });
+try {
+  const started = Date.now();
+  const stuck = await slowTurn('stuck');
+  assert.equal(stuck.status, 504, 'a stuck turn is answered, not left hanging');
+  assert.equal(stuck.json.reason, 'TURN_TIMEOUT');
+  assert.ok(Date.now() - started < 2000, 'answered near the timeout, not after the turn');
+  assert.equal(sawAbort, true, 'the stuck turn was told to stop');
+  assert.equal((await slowRequest({ url: '/v1/status' })).json.busy, true, 'still busy while the stuck turn is winding down');
+  assert.equal((await slowTurn('second')).status, 409, 'no second turn beside a timed-out one');
+  settle();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal((await slowRequest({ url: '/v1/status' })).json.busy, false, 'free once the stuck turn has stopped');
+  const after = await slowTurn('after');
+  assert.equal(after.status, 200);
+  assert.equal(after.json.reply, 'echo:after');
+} finally {
+  slow.close();
+}
+
 console.log(JSON.stringify({
   schema: 'xiio.sdk.local-agent-http-check/v1',
   result: 'PASS',
   admission_cases: 8,
   live_cases: 13,
-  hard: ['LOOPBACK_ONLY', 'HOST != FOREIGN', 'ORIGIN != FOREIGN', 'JSON_ONLY_TURNS', 'NO_CORS_HEADERS', 'ONE_TURN_AT_A_TIME', 'UI_CONTAINED'],
+  timeout_cases: 7,
+  hard: ['LOOPBACK_ONLY', 'HOST != FOREIGN', 'ORIGIN != FOREIGN', 'JSON_ONLY_TURNS', 'NO_CORS_HEADERS', 'ONE_TURN_AT_A_TIME', 'UI_CONTAINED', 'TURN_TIME_BOUNDED', 'TIMEOUT != SECOND_TURN'],
 }, null, 2));
