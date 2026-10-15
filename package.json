@@ -153,6 +153,8 @@
     "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs",
     "check:cube-quorum-cli": "node scripts/validate-cube-quorum-cli.mjs",
     "check:account-binding": "node scripts/validate-account-binding.mjs",
-    "check:launch-session": "node scripts/validate-launch-session.mjs"
+    "check:launch-session": "node scripts/validate-launch-session.mjs",
+    "doctor:first-run": "node src/install/first-run-diagnostic.mjs",
+    "check:first-run": "node scripts/first-run-diagnostic-check.mjs"
   }
 }
