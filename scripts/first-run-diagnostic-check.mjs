@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {inspectFirstRun} from '../src/install/first-run-diagnostic.mjs';
+const env={home:'/tmp/test-home',hasPath:()=>true,detectBinary:n=>n==='git'?'/usr/bin/git':null,detectEndpoint:()=>false};
+const virtual=inspectFirstRun({...env,mode:'virtual'});
+assert.equal(virtual.mode,'virtual');assert.equal(virtual.ready,false);assert.equal(virtual.effect_performed,false);
+assert.equal(virtual.checks.find(x=>x.id==='EXTERNAL_ACCOUNTS_READ_ONLY').pass,false);
+assert.equal(virtual.checks.find(x=>x.id==='DOMAIN_OWNERSHIP').pass,false);
+const single=inspectFirstRun({...env,mode:'single-machine',detectBinary:()=>'/usr/bin/tool',detectEndpoint:()=>true});
+assert.equal(single.ready,false);
+assert.equal(single.checks.find(x=>x.id==='SABLE_RUNNING').pass,false);
+assert.throws(()=>inspectFirstRun({...env,mode:'untrusted'}),/INVALID_MODE/);
+console.log(JSON.stringify({checks:7,pass:true,scope:'SDK local diagnostic',effect_performed:false}));
