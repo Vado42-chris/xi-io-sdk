@@ -1,0 +1,776 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "XI-IO PNEUMA candidate local control plane",
+    "version": "0.1.0-candidate",
+    "description": "Candidate contract only. Endpoint availability and authority must be independently discovered; no route is claimed live."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8794",
+      "description": "Candidate local CRM, runtime unverified"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "Receipt": {
+        "type": "object",
+        "required": [
+          "state",
+          "effect_performed",
+          "source_generation"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "WAIT",
+              "REJECTED",
+              "QUALIFIED",
+              "COMMITTED",
+              "READBACK_VERIFIED"
+            ]
+          },
+          "effect_performed": {
+            "type": "boolean"
+          },
+          "source_generation": {
+            "type": "string"
+          },
+          "receipt_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pre_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "post_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "next": {
+            "type": "string"
+          },
+          "owner_action_required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Mutation": {
+        "type": "object",
+        "required": [
+          "surface",
+          "mutations",
+          "expected_sha256",
+          "actor_id",
+          "work_uuid"
+        ],
+        "properties": {
+          "surface": {
+            "type": "string"
+          },
+          "mutations": {
+            "type": "object"
+          },
+          "expected_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "actor_id": {
+            "type": "string"
+          },
+          "work_uuid": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/scan": {
+      "post": {
+        "summary": "/api/v1/scan",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_scan_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ibal/balance": {
+      "post": {
+        "summary": "/api/v1/ibal/balance",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_ibal_balance_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rcp/earn": {
+      "post": {
+        "summary": "/api/v1/rcp/earn",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_rcp_earn_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/zed/launcher": {
+      "post": {
+        "summary": "/api/v1/zed/launcher",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_zed_launcher_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/read": {
+      "get": {
+        "summary": "/api/v1/settings/read",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_settings_read_get",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        }
+      }
+    },
+    "/api/v1/settings/mutate": {
+      "post": {
+        "summary": "/api/v1/settings/mutate",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_settings_mutate_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/reset": {
+      "post": {
+        "summary": "/api/v1/settings/reset",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_settings_reset_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/status": {
+      "get": {
+        "summary": "/api/v1/server/status",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_server_status_get",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        }
+      }
+    },
+    "/api/v1/server/control": {
+      "post": {
+        "summary": "/api/v1/server/control",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_server_control_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/xiio/boundary/admit": {
+      "post": {
+        "summary": "/api/v1/xiio/boundary/admit",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_xiio_boundary_admit_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/xiio/boundary/collect": {
+      "post": {
+        "summary": "/api/v1/xiio/boundary/collect",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_xiio_boundary_collect_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/xiio/boundary/receipt": {
+      "post": {
+        "summary": "/api/v1/xiio/boundary/receipt",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_xiio_boundary_receipt_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/xiio/fs/read": {
+      "post": {
+        "summary": "/api/v1/xiio/fs/read",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_xiio_fs_read_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/crm/roster": {
+      "get": {
+        "summary": "/api/v1/crm/roster",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_crm_roster_get",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        }
+      }
+    },
+    "/api/v1/crm/occurrences": {
+      "post": {
+        "summary": "/api/v1/crm/occurrences",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_crm_occurrences_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mail/ingress": {
+      "post": {
+        "summary": "/api/v1/mail/ingress",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_mail_ingress_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mail/dispatch": {
+      "post": {
+        "summary": "/api/v1/mail/dispatch",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_mail_dispatch_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ollama/status": {
+      "get": {
+        "summary": "/api/v1/ollama/status",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_ollama_status_get",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        }
+      }
+    },
+    "/api/v1/ollama/generate": {
+      "post": {
+        "summary": "/api/v1/ollama/generate",
+        "description": "Proposed only. Implementation must bind canonical SDK/Ward/Inbox authority and return independently verified bytes. No stub may self-report success.",
+        "operationId": "_api_v1_ollama_generate_post",
+        "responses": {
+          "200": {
+            "description": "Only when supported by real execution/readback evidence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not admitted"
+          },
+          "409": {
+            "description": "Stale source generation or prestate mismatch"
+          },
+          "501": {
+            "description": "Not implemented"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
