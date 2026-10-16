@@ -1,0 +1,116 @@
+{
+  "schema": "xiio.sdk.zed-acp-mcp-call-map/v1",
+  "purpose": "Use Zed as the single user-facing agent panel while XI-IO SDK/Inbox/Switchboard/Ward own governed effects and qualified 5.5 returns.",
+  "source": {
+    "discussion": "https://github.com/zed-industries/zed/discussions/34475",
+    "zed_docs": [
+      "zed-industries/zed:docs/src/ai/external-agents.md",
+      "zed-industries/zed:docs/src/ai/mcp.md",
+      "zed-industries/zed:docs/src/ai/tool-permissions.md",
+      "zed-industries/zed:docs/src/extensions/mcp-extensions.md"
+    ],
+    "inspected_at": "2026-10-16",
+    "source_currentness": "SOURCE_INSPECTED_RUNTIME_UNVERIFIED"
+  },
+  "host": "zed",
+  "provider_lanes": [
+    {
+      "kind": "ACP",
+      "agent": "Codex",
+      "discovery": "ACP registry"
+    },
+    {
+      "kind": "ACP",
+      "agent": "Claude",
+      "discovery": "ACP registry"
+    },
+    {
+      "kind": "ACP",
+      "agent": "Gemini CLI",
+      "discovery": "ACP registry"
+    },
+    {
+      "kind": "ACP",
+      "agent": "Cursor",
+      "discovery": "ACP registry if available"
+    },
+    {
+      "kind": "MCP",
+      "agent": "XI-IO provider-neutral tools",
+      "discovery": "custom local or remote MCP server"
+    },
+    {
+      "kind": "TERMINAL",
+      "agent": "Ollama local worker",
+      "discovery": "SDK/Aries runner, requires operational proof"
+    }
+  ],
+  "entrypoints": [
+    {
+      "host_tool": "edit_file / write_file",
+      "xiio_contract": "source_mutation",
+      "effect_owner": "Ward",
+      "status": "REQUIRES_REAL_SINK_INTERCEPT"
+    },
+    {
+      "host_tool": "terminal",
+      "xiio_contract": "runtime_command",
+      "effect_owner": "SDK",
+      "status": "REQUIRES_HOST_RUNTIME_AUTH_AND_READBACK"
+    },
+    {
+      "host_tool": "mcp:xiio:work_submit",
+      "xiio_contract": "work_submit",
+      "effect_owner": "Inbox CRM",
+      "status": "PROPOSED_TOOL_NAME_NOT_IMPLEMENTED"
+    },
+    {
+      "host_tool": "mcp:xiio:work_claim",
+      "xiio_contract": "work_claim",
+      "effect_owner": "Inbox CRM",
+      "status": "PROPOSED_TOOL_NAME_NOT_IMPLEMENTED"
+    },
+    {
+      "host_tool": "mcp:xiio:work_result",
+      "xiio_contract": "result_return",
+      "effect_owner": "Inbox/Bins",
+      "status": "PROPOSED_TOOL_NAME_NOT_IMPLEMENTED"
+    },
+    {
+      "host_tool": "mcp:xiio:reconcile_backbeat",
+      "xiio_contract": "five_point_five",
+      "effect_owner": "Cube/Switchboard",
+      "status": "PROPOSED_TOOL_NAME_NOT_IMPLEMENTED"
+    },
+    {
+      "host_tool": "mcp:xiio:ward_qualify_effect",
+      "xiio_contract": "admission",
+      "effect_owner": "Ward",
+      "status": "PROPOSED_TOOL_NAME_NOT_IMPLEMENTED"
+    }
+  ],
+  "permission_policy": {
+    "zed_setting": "agent.tool_permissions.default",
+    "recommended_default": "confirm",
+    "tool_name_example": "mcp:xiio:work_submit",
+    "read_only": "allow when independently bounded",
+    "source_mutation": "Ward gate regardless of Zed approval",
+    "effects": "require authoritative admission and independently verified readback",
+    "note": "Zed permission rules are a host prompt/ACL, not Ward authorization."
+  },
+  "five_point_five": {
+    "observers": "distinct agent/work identities, not UI tabs",
+    "base": "immutable fixture/source generation",
+    "return": "Result -> APPLY_RETURN -> REAP -> Studio readback",
+    "independent_effect_proof_required": true
+  },
+  "acceptance": {
+    "host_configuration_detected": false,
+    "zed_version_checked": false,
+    "mcp_server_running": false,
+    "acp_agents_verified": false,
+    "agent_mail_delivery": false,
+    "level9_source_write": false
+  },
+  "state": "CALL_MAP_SOURCE_ONLY_NO_RUNTIME_CREDIT"
+}
