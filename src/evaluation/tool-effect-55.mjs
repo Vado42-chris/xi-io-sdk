@@ -10,5 +10,5 @@ export function qualifyToolEffect55(receipt={}){
  if(receipt.independent_readback_verified!==true)return {qualified:false,code:'READBACK_UNVERIFIED'};
  if(receipt.ward_admission_verified!==true)return {qualified:false,code:'WARD_UNVERIFIED'};
  if(receipt.apply_return_verified!==true)return {qualified:false,code:'RETURN_UNVERIFIED'};
- return {qualified:true,code:'RECEIPT_STRUCTURE_QUALIFIED',receipt_digest:hash(receipt),note:'Structure-only; independent external verifier still required'};
+ return {qualified:false,structure_valid:true,code:'RECEIPT_STRUCTURE_QUALIFIED',receipt_digest:hash(receipt),note:'Structural receipt only. No independent Ward, readback or Apply Return attestation was validated.'};
 }
