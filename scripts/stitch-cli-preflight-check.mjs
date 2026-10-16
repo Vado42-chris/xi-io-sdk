@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {stitchPreflight,stitchInstallPlan} from '../src/providers/stitch-cli-preflight.mjs';
+const absent=stitchPreflight({runner:()=>({error:{code:'ENOENT'}})});
+assert.equal(absent.code,'STITCH_CLI_NOT_INSTALLED');
+const ok=stitchPreflight({runner:()=>({status:0,stdout:'1.0.0'})});
+assert.equal(ok.installed,true);
+assert.equal(ok.version,'1.0.0');
+const plan=stitchInstallPlan({target:'cursor'});
+assert.deepEqual(plan.commands[1],['stitch','mcp','install','--target','cursor','--dry-run']);
+assert.equal(plan.effect,false);
+assert.throws(()=>stitchInstallPlan({target:'zed'}),/UNSUPPORTED_STITCH_TARGET/);
+assert.throws(()=>stitchInstallPlan({scope:'global'}),/UNSUPPORTED_STITCH_SCOPE/);
+console.log(JSON.stringify({checks:7,passed:7,live_install:false}));
