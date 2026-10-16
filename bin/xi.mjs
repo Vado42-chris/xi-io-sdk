@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import {compileAolOnboard,appendAolSuggestion} from '../src/onboard/aol-55.mjs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1396,6 +1397,18 @@ if (
   || isDirectory(top)
 ) {
   await launchLocalOperator(topArgs);
+} else if (top === 'onboard') {
+  const {flags}=args(process.argv.slice(3));
+  const ingress=flags.ingress?flags.ingress.split(',').map(x=>x.trim()).filter(Boolean):[];
+  const packet=await compileAolOnboard({
+    node_id:flags.node||'@node_aries_pc',
+    context:flags.context||'HOME',
+    ingress,
+    domain:flags.domain||null,
+    lane:flags.lane||null
+  });
+  const result=flags.ledger?{...packet,ledger:appendAolSuggestion(packet,{ledgerPath:flags.ledger})}:packet;
+  writeOutput(result,flags.out);
 } else if (top === 'pneuma') {
   const raw=process.argv.slice(3);
   const execRotfl=raw.includes('--exec-rotfl');
