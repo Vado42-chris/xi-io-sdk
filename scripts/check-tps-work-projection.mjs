@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {projectTpsCycle as p} from '../src/evaluation/tps-work-projection.mjs';
+const base={work_id:'w',intent_ref:'intent',actor_ref:'worker',what:'inspected',where:'workspace',when:'generation-1',why:'user objective',next_how:'verify',context:'WORK',proficiency:'POWER'};
+let checks=0;const check=predicate=>{assert.ok(predicate);checks++};
+check(p(base).ai_mail_filed===false);
+check(p({...base,ai_mail:{state:'CONSUMED'}}).ai_mail_consumed===false);
+check(p({...base,ai_mail:{state:'CONSUMED',delivery_id:'d',consumer_ack:'ack'}}).ai_mail_consumed===true);
+check(p({...base,ai_mail:{state:'DELIVERED'}}).detail.conflicts.includes('DELIVERY_ID_MISSING'));
+check(p({...base,ai_mail:{state:'DELIVERED'}}).ai_mail_filed===false);
+check(p({...base,proficiency:'NEWBIE'}).presentation.fields.length===3);
+check(p({...base,proficiency:'POWER'}).presentation.fields.length>10);
+check(p({...base,context:'PRIVATE'}).context==='UNKNOWN');
+check(p({...base,elapsed_ms:-1,cost_amount:20}).detail.cost===null);
+check(p({}).detail.missing.length===8);
+check(p(base).qualified_effect===false);
+console.log(JSON.stringify({checks,scope:'pure SDK projection',effect:false,transport:false}));
