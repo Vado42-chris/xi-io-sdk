@@ -11,4 +11,5 @@ test({...fixture,apply_return_verified:false},'RETURN_UNVERIFIED');
 test(fixture,'RECEIPT_STRUCTURE_QUALIFIED');
 assert.equal(q(fixture).qualified,false,'self-reported verifier flags are not independent attestation');checks++;
 assert.equal(q(fixture).structure_valid,true);checks++;
+assert.equal(q({...fixture,ward_admission_ref:'ward:invented',independent_readback_ref:'read:invented',inbox_result_ref:'inbox:invented',apply_return_ref:'apply:invented'}).qualified,false,'forged receipts cannot qualify effects');checks++;
 console.log(JSON.stringify({schema:'xiio.sdk.tool-effect-55-check/v1',checks,scope:'structural fixture',provider_effect:false}));
