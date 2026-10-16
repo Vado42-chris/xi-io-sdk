@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {qualifyToolEffect55 as q} from '../src/evaluation/tool-effect-55.mjs';
+const fixture={work_uuid:'w',actor_ref:'a',assignment_ref:'as',tool_id:'stitch:cli',tool_digest:'a'.repeat(64),source_generation:'g',target_ref:'sandbox',operation:'generate',pre_sha256:'b'.repeat(64),ward_admission_ref:'ward:r',execution_id:'e',exit_code:0,post_sha256:'c'.repeat(64),independent_readback_ref:'read:r',inbox_result_ref:'inbox:r',apply_return_ref:'apply:r',independent_readback_verified:true,ward_admission_verified:true,apply_return_verified:true};
+let checks=0;const test=(x,code)=>{assert.equal(q(x).code,code);checks++};
+test({},'MISSING_EFFECT_EVIDENCE');
+test({...fixture,tool_digest:'bad'},'DIGEST_INVALID');
+test({...fixture,exit_code:1},'COMMAND_FAILED');
+test({...fixture,independent_readback_verified:false},'READBACK_UNVERIFIED');
+test({...fixture,ward_admission_verified:false},'WARD_UNVERIFIED');
+test({...fixture,apply_return_verified:false},'RETURN_UNVERIFIED');
+test(fixture,'RECEIPT_STRUCTURE_QUALIFIED');
+console.log(JSON.stringify({schema:'xiio.sdk.tool-effect-55-check/v1',checks,scope:'structural fixture',provider_effect:false}));
