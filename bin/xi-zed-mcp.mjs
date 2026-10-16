@@ -62,7 +62,7 @@ async function call(name,args){
    if(![consumer_ref,source_generation,observer_id].every(v=>valid(v,128)))return failed('INVALID_IDENTITY','Missing or invalid exact identity');
    if(!allowedConsumer||!allowedObserver||consumer_ref!==allowedConsumer||observer_id!==allowedObserver)return failed('ACTOR_SCOPE_DENIED','Host-bound consumer and observer identity required');
    const r=await localApi('/api/control-loop/agent-mail/qualify-consumption','POST',{consumer_ref,source_generation,observer_id});
-   return text({schema:'xiio.zed.agent-mail-qualification/v1',...r,work_executed:false,provider_effect:false,level9:false});
+   return text({schema:'xiio.zed.agent-mail-qualification/v1',...r,effect_authority:false,work_executed:false,provider_effect:false,level9:false,qualification_source:'LOCAL_CRM_REPORTED_UNVERIFIED'});
  }
  return failed('UNKNOWN_TOOL',name);
 }
