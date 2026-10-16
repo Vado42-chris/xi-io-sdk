@@ -21,7 +21,10 @@ Merge the following into the existing Zed settings (do not overwrite other setti
       "command": "xi-zed-mcp",
       "args": [],
       "env": {
-        "XIIO_INBOX_LOOPBACK_URL": "http://127.0.0.1:8794"
+        "XIIO_INBOX_LOOPBACK_URL": "http://127.0.0.1:8794",
+        "XIIO_ZED_ALLOWED_MAILBOX": "agent+yin@xi-io.net",
+        "XIIO_ZED_CONSUMER_REF": "agent:yin",
+        "XIIO_ZED_OBSERVER_ID": "yin"
       }
     }
   },
@@ -32,13 +35,17 @@ Merge the following into the existing Zed settings (do not overwrite other setti
   }
 }
 ```
+Replace the example mailbox/consumer/observer with an authenticated, assigned real local actor. The values restrict routing but **are not proof of authentication or Ward authority**. Do not configure arbitrary target identities for an untrusted external agent.
+
+In this SDK worktree, Zed's `task: spawn` also exposes `XI-IO: Zed + CRM live readiness` and `XI-IO: MCP protocol hostile (mock Inbox)` through `.zed/tasks.json`. The readiness task intentionally exits nonzero when Zed or the real CRM is absent. It never installs or modifies host tooling.
+
 Zed UI: Settings → AI → MCP Servers must show `xiio-inbox` active. Use Zed's native Agent Panel to invoke `xiio_inbox_health`, `xiio_agent_mail_list`, `xiio_agent_mail_qualify`. Inspect `dev: open acp logs` for external-agent forwarding. Zed may NOT forward native MCP tools automatically to every ACP external agent; this needs separate live proof.
 
 **Existing Inbox dependency:** `xiio_agent_mail_qualify` requires `POST /api/control-loop/agent-mail/qualify-consumption`. It is on Inbox candidate branch `fix/agent-mail-consumption-55-20261011`, **not qualified or live on current main**. If unavailable, the bridge emits a typed `INBOX_HTTP_404` or `INBOX_UNREACHABLE`, not a worker ACK. CRM persistence is NOT authoritative provider currentness. The Inbox candidate currently fails closed.
 
 ## Executable bridge boundary
 
-`bin/xi-zed-mcp.mjs` speaks MCP over stdio, denies non-loopback HTTP endpoints, times out, never persists secrets, and exposes three bounded actions:
+`bin/xi-zed-mcp.mjs` speaks MCP over stdio, denies non-loopback HTTP endpoints and cross-mailbox/observer requests, times out, never persists secrets, and exposes three bounded actions:
 - `xiio_inbox_health`: local control-loop status metadata.
 - `xiio_agent_mail_list`: metadata-only read of an `agent+...@xi-io.net` mailbox. Message subject/body/card are explicitly not returned.
 - `xiio_agent_mail_qualify`: forward exact consumer/generation/observer to existing Inbox qualification API. **No execution, delivery, Ward admission or Level 9 credit**.
