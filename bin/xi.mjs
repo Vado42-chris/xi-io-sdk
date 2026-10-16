@@ -1450,7 +1450,7 @@ if (
   const execute=process.argv.includes('--execute');
   const result=runStitchAction(action,workspace,{execute});
   process.stdout.write(JSON.stringify(result,null,2)+'\\n');
-  if(result.state==='FAILED'||result.state==='STITCH_CLI_NOT_INSTALLED')process.exitCode=2;
+  if(['FAILED','STITCH_CLI_NOT_INSTALLED','STITCH_CLI_UNHEALTHY','WARD_ADMISSION_REQUIRED'].includes(result.state))process.exitCode=2;
 } else if (top === 'zed') {
   const family=process.argv[3] || null;
   const action=process.argv[4] || 'status';
