@@ -11,7 +11,17 @@
   --xiui-status-verified: #61d39a;
   --xiui-status-unknown: #a8b0bd;
   --xiui-radius: 12px;
+  --xiui-font-heading: var(--xiio-font-heading, 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif);
+  --xiui-font-content: var(--xiio-font-content, Arial, Roboto, Helvetica, system-ui, sans-serif);
+  --xiui-font-system: var(--xiio-font-system, 'DejaVu Sans Mono', 'Liberation Mono', ui-monospace, monospace);
+  --xiui-font-heading-weight: 200;
+  --xiui-font-heading-tracking: .045em;
+  --xiui-font-body-leading: 1.55;
+  --xiui-section-gap: clamp(1rem, 2vw, 2rem);
+  --xiui-boundary-opacity: .22;
   color: var(--xiui-text);
+  font-family: var(--xiui-font-content);
+  line-height: var(--xiui-font-body-leading);
 }
 
 [data-xiui="page-shell"] { min-width: 0; }
@@ -53,3 +63,26 @@
 [data-xiui="next-action-strip"] { border-color: color-mix(in srgb, var(--xiui-accent) 45%, var(--xiui-line)); }
 @media (max-width: 720px) { [data-xiui="context-inspector"] { position: static; max-height: none; } [data-xiui="receipt-row"] { grid-template-columns: 1fr; } [data-xiui="evidence-panel"] dl { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { [data-xiui-root] *, [data-xiui-root] *::before, [data-xiui-root] *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; } }
+
+[data-xiui-root] :is(h1,h2,h3,[data-xiui-type="heading"]) {
+  font-family: var(--xiui-font-heading);
+  font-weight: var(--xiui-font-heading-weight);
+  font-stretch: condensed;
+  letter-spacing: var(--xiui-font-heading-tracking);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+[data-xiui-root] :is(code,pre,kbd,samp,[data-xiui-type="system"]) {
+  font-family: var(--xiui-font-system);
+  font-size: .92em;
+  line-height: 1.45;
+}
+[data-xiui-root] [data-xiui="section"] { gap: var(--xiui-section-gap); }
+[data-xiui-root] [data-xiui="panel"] {
+  border-color: color-mix(in srgb, var(--xiui-line) 22%, transparent);
+}
+[data-xiui-root] [data-xiui="panel"]:focus-within { border-color: var(--xiui-accent); }
+@media (prefers-contrast: more) {
+  [data-xiui-root] { --xiui-font-heading-weight: 400; }
+  [data-xiui-root] [data-xiui="panel"] { border-color: var(--xiui-line); }
+}
