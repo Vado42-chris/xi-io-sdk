@@ -17,7 +17,7 @@ const server=http.createServer(async(req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const addr=server.address();
-const child=spawn(process.execPath,[bin],{env:{...process.env,XIIO_INBOX_LOOPBACK_URL:'http://127.0.0.1:'+addr.port},stdio:['pipe','pipe','pipe']});
+const child=spawn(process.execPath,[bin],{env:{...process.env,XIIO_INBOX_LOOPBACK_URL:'http://127.0.0.1:'+addr.port,XIIO_ZED_ALLOWED_MAILBOX:'agent+yin@xi-io.net',XIIO_ZED_CONSUMER_REF:'agent:yin',XIIO_ZED_OBSERVER_ID:'yin'},stdio:['pipe','pipe','pipe']});
 let next=0;const pending=new Map();
 createInterface({input:child.stdout}).on('line',line=>{const msg=JSON.parse(line);const p=pending.get(msg.id);if(p){pending.delete(msg.id);p(msg);}});
 const rpc=(method,params={})=>new Promise((resolve,reject)=>{const id=++next;const timer=setTimeout(()=>{pending.delete(id);reject(Error('MCP timeout '+method));},3000);pending.set(id,msg=>{clearTimeout(timer);resolve(msg);});child.stdin.write(JSON.stringify({jsonrpc:'2.0',id,method,params})+'\n');});
@@ -30,6 +30,8 @@ try{
  check(health.result.isError===false);check(JSON.parse(health.result.content[0].text).effect_performed===false);
  const invalid=await rpc('tools/call',{name:'xiio_agent_mail_list',arguments:{address:'person@example.com'}});
  check(invalid.result.isError===true);
+ const forbidden=await rpc('tools/call',{name:'xiio_agent_mail_list',arguments:{address:'agent+yang@xi-io.net'}});
+ check(forbidden.result.isError===true);
  const mail=await rpc('tools/call',{name:'xiio_agent_mail_list',arguments:{address:'agent+yin@xi-io.net'}});
  const projection=JSON.parse(mail.result.content[0].text);
  check(projection.event_count===1);check(!JSON.stringify(projection).includes('SECRET'));check(projection.provider_effect===false);
@@ -37,6 +39,8 @@ try{
  check(stale.result.isError===true);
  const accepted=await rpc('tools/call',{name:'xiio_agent_mail_qualify',arguments:{consumer_ref:'agent:yin',source_generation:'g1',observer_id:'yin'}});
  const ack=JSON.parse(accepted.result.content[0].text);check(ack.qualified===true&&ack.work_executed===false&&ack.level9===false);
+ const foreign=await rpc('tools/call',{name:'xiio_agent_mail_qualify',arguments:{consumer_ref:'agent:yang',source_generation:'g1',observer_id:'yin'}});
+ check(foreign.result.isError===true);
  const missing=await rpc('tools/call',{name:'xiio_agent_mail_qualify',arguments:{source_generation:'g1',observer_id:'yin'}});
  check(missing.result.isError===true);
 }finally{child.kill();await new Promise(resolve=>server.close(resolve));}
