@@ -9,4 +9,6 @@ test({...fixture,independent_readback_verified:false},'READBACK_UNVERIFIED');
 test({...fixture,ward_admission_verified:false},'WARD_UNVERIFIED');
 test({...fixture,apply_return_verified:false},'RETURN_UNVERIFIED');
 test(fixture,'RECEIPT_STRUCTURE_QUALIFIED');
+assert.equal(q(fixture).qualified,false,'self-reported verifier flags are not independent attestation');checks++;
+assert.equal(q(fixture).structure_valid,true);checks++;
 console.log(JSON.stringify({schema:'xiio.sdk.tool-effect-55-check/v1',checks,scope:'structural fixture',provider_effect:false}));
