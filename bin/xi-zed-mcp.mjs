@@ -46,7 +46,7 @@ async function call(name,args){
  if(name==='xiio_inbox_health'){
    if(Object.keys(args).length)return failed('INVALID_ARGS','Unexpected arguments');
    const r=await localApi('/api/control-loop/status');
-   return text({schema:'xiio.zed.inbox-health/v1',reachable:true,source_schema:r.schema||null,status:r.status||r.state||'SOURCE_RESPONSE',delivery_verified:false,effect_performed:false});
+   return text({schema:'xiio.zed.inbox-health/v1',reachable:true,source_schema:r.schema||null,status:typeof r.status==='string'?r.status:typeof r.state==='string'?r.state:'SOURCE_RESPONSE',delivery_verified:false,effect_performed:false});
  }
  if(name==='xiio_agent_mail_list'){
    if(!valid(args.address,254)||!/^agent\+[a-z0-9-]+@xi-io\.net$/i.test(args.address))return failed('INVALID_AGENT_ADDRESS','Expected agent+name@xi-io.net');
@@ -73,8 +73,8 @@ async function receive(line){
   if(method==='ping'){send({id,result:{}});return;}
   if(method==='tools/list'){send({id,result:{tools:declarations}});return;}
   if(method==='tools/call'){
-    if(!params||typeof params.name!=='string'||!params.arguments||typeof params.arguments!=='object'||Array.isArray(params.arguments)){send({id,error:err(-32602,'Invalid params')});return;}
-    send({id,result:await call(params.name,params.arguments)});return;
+    if(!params||typeof params.name!=='string'||(params.arguments!==undefined&&(typeof params.arguments!=='object'||params.arguments===null||Array.isArray(params.arguments)))){send({id,error:err(-32602,'Invalid params')});return;}
+    send({id,result:await call(params.name,params.arguments??{})});return;
   }
   send({id,error:err(-32601,'Method not found')});
  }catch(e){send({id,result:failed(e.code||'INTERNAL_FAILURE',e.message||'Unknown failure')});}
