@@ -26,7 +26,7 @@ try{
  const init=await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'hostile',version:'1'}});
  check(init.result.serverInfo.name==='xiio-inbox-zed');
  const list=await rpc('tools/list');check(list.result.tools.length===3);
- const health=await rpc('tools/call',{name:'xiio_inbox_health',arguments:{}});
+ const health=await rpc('tools/call',{name:'xiio_inbox_health'});
  check(health.result.isError===false);check(JSON.parse(health.result.content[0].text).effect_performed===false);
  const invalid=await rpc('tools/call',{name:'xiio_agent_mail_list',arguments:{address:'person@example.com'}});
  check(invalid.result.isError===true);
