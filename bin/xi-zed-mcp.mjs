@@ -5,10 +5,13 @@ const VERSION='2025-03-26';
 const SERVER='xiio-inbox-zed';
 const FALLBACK='http://127.0.0.1:8794';
 const configured=process.env.XIIO_INBOX_LOOPBACK_URL||FALLBACK;
+const allowedMailbox=(process.env.XIIO_ZED_ALLOWED_MAILBOX||'').toLowerCase();
+const allowedConsumer=process.env.XIIO_ZED_CONSUMER_REF||'';
+const allowedObserver=process.env.XIIO_ZED_OBSERVER_ID||'';
 let origin;
 try {
   const url=new URL(configured);
-  if(url.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('HOST_NOT_LOOPBACK');
+  if(url.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(url.hostname)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('HOST_NOT_LOOPBACK');
   origin=url.origin;
 } catch(error) {
   process.stderr.write('XIIO_INBOX_ENDPOINT_REJECTED: '+error.message+'\n');
@@ -50,12 +53,14 @@ async function call(name,args){
  }
  if(name==='xiio_agent_mail_list'){
    if(!valid(args.address,254)||!/^agent\+[a-z0-9-]+@xi-io\.net$/i.test(args.address))return failed('INVALID_AGENT_ADDRESS','Expected agent+name@xi-io.net');
+   if(!allowedMailbox||args.address.toLowerCase()!==allowedMailbox)return failed('MAILBOX_SCOPE_DENIED','Host-bound mailbox identity required');
    const r=await localApi('/api/control-loop/sim-mail?address='+encodeURIComponent(args.address));
    return text(mailboxProjection(r));
  }
  if(name==='xiio_agent_mail_qualify'){
    const {consumer_ref,source_generation,observer_id}=args;
    if(![consumer_ref,source_generation,observer_id].every(v=>valid(v,128)))return failed('INVALID_IDENTITY','Missing or invalid exact identity');
+   if(!allowedConsumer||!allowedObserver||consumer_ref!==allowedConsumer||observer_id!==allowedObserver)return failed('ACTOR_SCOPE_DENIED','Host-bound consumer and observer identity required');
    const r=await localApi('/api/control-loop/agent-mail/qualify-consumption','POST',{consumer_ref,source_generation,observer_id});
    return text({schema:'xiio.zed.agent-mail-qualification/v1',...r,work_executed:false,provider_effect:false,level9:false});
  }
