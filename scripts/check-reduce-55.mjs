@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {reduce55 as reduce} from '../src/evaluation/reduce-55.mjs';
+const base={work_id:'work:1',source_generation:'g1',intended:{status:'ready'},observed:{status:'missing'},perspectives:[{seat:'execute',claim:'x'},{seat:'oppose',claim:'y'},{seat:'reconcile',claim:'z'}]};
+const micro=(micro_id,overrides={})=>({micro_id,owner_ref:'bins',difference_code:'MISSING_CONSUMER_ACK',action_ref:'verify:ack',proof_refs:['receipt:1'],evidence_refs:[micro_id],blocked_by:[],...overrides});
+let n=0;const t=(condition)=>{assert.ok(condition);n++};
+t(reduce({}).code==='WORK_ID_OR_GENERATION_MISSING');
+t(reduce({...base,obligations:[micro('a'),micro('a')]}).code==='DUPLICATE_MICRO_ID');
+t(reduce({...base,obligations:[micro('a')]}).how.owner_ref==='bins');
+t(reduce({...base,obligations:[micro('a')]}).authoritative_transition===false);
+t(reduce({...base,obligations:[micro('a'),micro('b')]}).quantized_groups[0].count===2);
+t(reduce({...base,obligations:[micro('a'),micro('b')]}).microstates.length===2);
+t(reduce({...base,obligations:[micro('a'),micro('b')]}).code==='MULTIPLE_ACTIONS_NEED_SELECTION');
+t(reduce({...base,obligations:[micro('a',{blocked_by:['ward']})]}).state==='BLOCKED');
+t(reduce({...base,obligations:[micro('a',{proof_refs:[]})]}).how===null);
+t(reduce({...base,obligations:[micro('a',{difference_code:'NO_DIFFERENCE'})]}).code==='AWAIT_VERIFIED_EFFECT');
+t(reduce({...base,obligations:[micro('a')]}).observations.length===3);
+console.log(JSON.stringify({schema:'xiio.sdk.reduction-55-test/v1',checks:n,scope:'structural only',effect:false}));
