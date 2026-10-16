@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {compileAolOnboard,appendAolSuggestion} from '../src/onboard/aol-55.mjs';
+const packet=await compileAolOnboard({node_id:'@node_aries_pc',context:'HOME',ingress:['gmail'],lane:'A',probeService:async()=> 'UNREACHABLE'});
+assert.equal(packet.steps.length,6);
+assert.equal(packet.steps[0].read_only,true);
+assert.equal(packet.steps[3].services.zed_acp.port,3100);
+assert.equal(packet.steps[5].state,'SUGGESTION_ONLY_NO_AGENT_EFFECT');
+assert.equal(packet.provider_effect,false);
+assert.equal(packet.mail_server_built,false);
+assert.throws(()=>appendAolSuggestion(packet,{ledgerPath:'/tmp/not-private.jsonl'}),/LEDGER_OUTSIDE_PRIVATE_HOME/);
+await assert.rejects(()=>compileAolOnboard({context:'PUBLIC'}),/CONTEXT_INVALID/);
+console.log(JSON.stringify({schema:'xiio.aol.onboard.55.check/v1',checks:8,failed:0,live_services:false,provider_effect:false}));
