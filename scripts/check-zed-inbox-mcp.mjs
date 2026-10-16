@@ -39,6 +39,7 @@ try{
  check(stale.result.isError===true);
  const accepted=await rpc('tools/call',{name:'xiio_agent_mail_qualify',arguments:{consumer_ref:'agent:yin',source_generation:'g1',observer_id:'yin'}});
  const ack=JSON.parse(accepted.result.content[0].text);check(ack.qualified===true&&ack.work_executed===false&&ack.level9===false);
+ check(ack.effect_authority===false&&ack.qualification_source==='LOCAL_CRM_REPORTED_UNVERIFIED');
  const foreign=await rpc('tools/call',{name:'xiio_agent_mail_qualify',arguments:{consumer_ref:'agent:yang',source_generation:'g1',observer_id:'yin'}});
  check(foreign.result.isError===true);
  const missing=await rpc('tools/call',{name:'xiio_agent_mail_qualify',arguments:{source_generation:'g1',observer_id:'yin'}});
