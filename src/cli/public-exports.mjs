@@ -11,6 +11,7 @@ import * as Lexicon from '../lexicon/resolve-token.mjs';
 import * as Adoption from '../adoption/primitive-plan.mjs';
 import * as Callables from '../callables/resolve.mjs';
 import * as OrderOfOperations from '../preflight/order-of-operations.mjs';
+import * as Flatpack from '../flatpack/primitives.mjs';
 
 const MAX_BYTES = 1_048_576;
 const modules = [
@@ -24,6 +25,7 @@ const modules = [
   ['@xi-io/sdk/adoption', Adoption],
   ['@xi-io/sdk/callables', Callables],
   ['@xi-io/sdk/preflight/order-of-operations', OrderOfOperations],
+  ['@xi-io/sdk/flatpack', Flatpack],
 ];
 const arity = {
   normalizeProviderFailure: [1, 1],
@@ -42,6 +44,16 @@ const arity = {
   listCallablePrimitives: [1, 1],
   compileRotflOrderOfOperations: [1, 1],
   validateRotflOrderOfOperations: [1, 1],
+  compileFlatplaneCube: [1, 1],
+  compileFlatpackPatch: [1, 1],
+  compileSpinSet: [1, 1],
+  detonateLogicGates: [1, 1],
+  compileBlastwaveImpact: [1, 1],
+  compileAftercareCard: [1, 1],
+  compileReapDebtMeter: [1, 1],
+  compileOwnerCogLedger: [1, 1],
+  compileProjectionRebaseGate: [1, 1],
+  compileCubeCoordinate: [1, 1],
 };
 const commands = new Map();
 for (const [specifier, module] of modules) {

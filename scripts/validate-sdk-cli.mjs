@@ -9,6 +9,7 @@ import { compileImpactFormation } from '../src/ibal/impact-formation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileContinuationDirective, compileContinuationLoop } from '../src/cadence/self-drive.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
+import { compileCubeCoordinate, compileReapDebtMeter, compileProjectionRebaseGate } from '../src/flatpack/primitives.mjs';
 
 const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
 function invoke(command, input) {
@@ -25,16 +26,57 @@ function invoke(command, input) {
 
 const discovery = invoke(['--commands'], '');
 assert.equal(discovery.code, 0);
-assert.equal(discovery.value.commands.length, 16);
+assert.equal(discovery.value.commands.length, 26);
 assert.equal(discovery.value.semantic_aliases, 'RESOLVABLE_THROUGH_COMMAND_LEXICON');
 assert.equal(discovery.value.vocabulary, 'EXACT_PUBLIC_EXPORT_NAMES');
-assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 16);
+assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 26);
 assert(discovery.value.commands.some(x => x.command === 'compileImpactFormation' && x.specifier === '@xi-io/sdk/ibal/impact-formation'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationCycle' && x.specifier === '@xi-io/sdk/cadence'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationDirective' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationLoop' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
 assert(discovery.value.commands.some(x => x.command === 'resolveLexiconCommand' && x.specifier === '@xi-io/sdk/command-lexicon/resolve'));
+assert(discovery.value.commands.some(x => x.command === 'compileFlatplaneCube' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileFlatpackPatch' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileSpinSet' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'detonateLogicGates' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileBlastwaveImpact' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileAftercareCard' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileReapDebtMeter' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileOwnerCogLedger' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileProjectionRebaseGate' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileCubeCoordinate' && x.specifier === '@xi-io/sdk/flatpack'));
 assert.equal(discovery.output, invoke(['--commands'], '').output);
+
+const coordinateInput = {
+  target_ref: 'dev.xi-io.net',
+  axis_x_work_state: 'OUTSIDE_ORIGIN',
+  axis_y_role: 'SDK/ROTFL+STUDIO',
+  axis_z_scale: 'MESO',
+  spin: 'HUMAN_USABLE',
+  cell_ref: 'S02/MESO',
+};
+const flatpackCoordinate = invoke(['compileCubeCoordinate'], { args: [coordinateInput] });
+assert.equal(flatpackCoordinate.code, 0);
+assert.deepEqual(flatpackCoordinate.value.result, compileCubeCoordinate(coordinateInput));
+
+const debtInput = { opened_units: 4, reaped_stew: 40, ratio: 10 };
+const debtResult = invoke(['compileReapDebtMeter'], { args: [debtInput] });
+assert.equal(debtResult.code, 0);
+assert.deepEqual(debtResult.value.result, compileReapDebtMeter(debtInput));
+assert.equal(debtResult.value.result.admitted, true);
+
+const projectionInput = {
+  current_generation: 'g2',
+  projections: [
+    { projection_ref: 'child:current', generation_ref: 'g2', state: 'ACTIVE' },
+    { projection_ref: 'child:stale', generation_ref: 'g1', state: 'ACTIVE' },
+  ],
+};
+const projectionResult = invoke(['compileProjectionRebaseGate'], { args: [projectionInput] });
+assert.equal(projectionResult.code, 0);
+assert.deepEqual(projectionResult.value.result, compileProjectionRebaseGate(projectionInput));
+assert.equal(projectionResult.value.result.pass, false);
+assert.equal(projectionResult.value.result.blockers.length, 1);
 
 const failure = { provider: 'External provider', http_status: 429, provider_status: 'RESOURCE_EXHAUSTED' };
 const computed = invoke(['normalizeProviderFailure'], { args: [failure] });
@@ -213,4 +255,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 16, positive_cases: 18, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 26, positive_cases: 21, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
