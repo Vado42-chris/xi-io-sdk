@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {normalizeConversationOccurrence,cubeSpinToken,LEVELS} from '../src/conversation/unified-token.mjs';
+const sha='a'.repeat(64);
+const raw={provider:'gemini',conversation_id:'c1',message_id:'m1',raw_ref:'bins:blob1',raw_sha256:sha,observed_at:'2026-10-17T12:00:00Z',branch_id:'b1',parent_message_id:'m0'};
+let checks=0;const check=x=>{assert.ok(x);checks++};
+const occurrence=normalizeConversationOccurrence(raw);
+check(occurrence.raw_ref==='bins:blob1'&&occurrence.parent_message_id==='m0');
+check(occurrence.authority==='NONE'&&occurrence.provider_effect===false);
+assert.throws(()=>normalizeConversationOccurrence({...raw,raw_sha256:'bad'}));checks++;
+const perspectives={who:'agent',what:'observe',where:'cube',when:'g1',why:'user outcome'};
+const token=cubeSpinToken({level:5,step:3,perspectives,fixture_sha256:sha,predicate_sha256:sha});
+check(token.denominator===5&&token.level===5);
+check(token.effect_authority===false);
+check(LEVELS.length===10);
+assert.throws(()=>cubeSpinToken({level:11,step:3,perspectives,fixture_sha256:sha,predicate_sha256:sha}));checks++;
+console.log(JSON.stringify({checks,failures:0,scope:'SDK contract only',provider_capture:false,live_delivery:false}));
