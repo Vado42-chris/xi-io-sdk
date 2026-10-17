@@ -1,0 +1,21 @@
+name: Zed MCP front door preflight
+on:
+  push:
+    branches:
+      - test/zed-mcp-frontdoor-20261017
+  pull_request:
+    paths:
+      - 'bin/xi-zed-mcp.mjs'
+      - 'scripts/check-zed-mcp-frontdoor-20261017.mjs'
+      - '.github/workflows/zed-mcp-frontdoor.yml'
+jobs:
+  frontdoor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/check-zed-mcp-frontdoor-20261017.mjs
