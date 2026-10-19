@@ -53,6 +53,7 @@ assert.equal(normalizedCollision.primitives.at(-1).identity,' p:headline ');
 const repeated=structuredClone(related);repeated.primitives[0].relationships.push('p:image');
 assert.equal(validateUniversalArtifact(repeated).ok,true);
 assert.deepEqual(extractUniversalTemplateRig(repeated).primitive_graph[0].relationships,['p:image','p:image']);
+assert.deepEqual(compileUniversalProjection(repeated,'projection:microsite').blocks[0].relationship_refs,['p:image','p:image']);
 const unknownSeam=structuredClone(related);unknownSeam.seam_equivalence[0].state='UNKNOWN';
 assert.equal(validateUniversalArtifact(unknownSeam).first_red,'SEAM_CONTINUITY');
 assert.equal(unknownSeam.seam_equivalence[0].state,'UNKNOWN');
@@ -155,6 +156,44 @@ const reorderedKeys=structuredClone(projection);
 reorderedKeys.blocks[0]=Object.fromEntries(Object.entries(reorderedKeys.blocks[0]).reverse());
 assert.equal(reverseUniversalProjectionReadback(deleted.artifact,reorderedKeys).ok,true);
 
+// In-process arrays can contain holes; every/map alone skip those indices.
+const arraySource=structuredClone(deleted.artifact);
+arraySource.primitives[0].content={rows:[['a','b'],['c','d']]};
+arraySource.primitives[0].style={stops:[0,0.5,1]};
+arraySource.primitives[0].metadata={tags:['one','two']};
+const arrayProjection=compileUniversalProjection(arraySource,'projection:microsite');
+const sparseHostiles=[
+ ['first primitive ref',p=>{delete p.primitive_refs[0];},'PROJECTION_PRIMITIVE_REFS'],
+ ['last primitive ref',p=>{delete p.primitive_refs[p.primitive_refs.length-1];},'PROJECTION_PRIMITIVE_REFS'],
+ ['first block',p=>{delete p.blocks[0];},'PROJECTION_BLOCK_REFS'],
+ ['last block',p=>{delete p.blocks[p.blocks.length-1];},'PROJECTION_BLOCK_REFS'],
+ ['inner content array',p=>{delete p.blocks[0].content.rows[0][0];},'PROJECTION_BLOCK_CONTENT'],
+ ['outer content array',p=>{delete p.blocks[0].content.rows[0];},'PROJECTION_BLOCK_CONTENT'],
+ ['style array',p=>{delete p.blocks[0].style.stops[1];},'PROJECTION_BLOCK_CONTENT'],
+ ['metadata array',p=>{delete p.blocks[0].metadata.tags[0];},'PROJECTION_BLOCK_CONTENT']
+];
+for(const [name,mutate,firstRed] of sparseHostiles){
+ const p=structuredClone(arrayProjection);mutate(p);
+ const beforeSource=structuredClone(arraySource),beforeProjection=structuredClone(p);
+ const result=reverseUniversalProjectionReadback(arraySource,p);
+ assert.equal(result.ok,false,name);assert.equal(result.same_source_ids,false,name);
+ assert.equal(result.first_red,firstRed,name);assert.equal(result.effect_ceiling,0,name);
+ assert.deepEqual(arraySource,beforeSource);assert.deepEqual(p,beforeProjection);
+ // JSON transport replaces holes with null; this is an in-process regression.
+ assert.equal(reverseUniversalProjectionReadback(arraySource,JSON.parse(JSON.stringify(p))).ok,false,name);
+}
+// Compare own-index shape without inventing a blanket sparse-source prohibition.
+const sparseSource=structuredClone(arraySource);delete sparseSource.primitives[0].content.rows[0][0];
+const sparseProjection=compileUniversalProjection(sparseSource,'projection:microsite');
+assert.equal(reverseUniversalProjectionReadback(sparseSource,sparseProjection).ok,true);
+const filledHole=structuredClone(sparseProjection);filledHole.blocks[0].content.rows[0][0]=undefined;
+assert.equal(reverseUniversalProjectionReadback(sparseSource,filledHole).first_red,'PROJECTION_BLOCK_CONTENT');
+const undefinedSource=structuredClone(arraySource);undefinedSource.primitives[0].content.rows[0][0]=undefined;
+const undefinedProjection=compileUniversalProjection(undefinedSource,'projection:microsite');
+assert.equal(reverseUniversalProjectionReadback(undefinedSource,undefinedProjection).ok,true);
+const removedUndefined=structuredClone(undefinedProjection);delete removedUndefined.blocks[0].content.rows[0][0];
+assert.equal(reverseUniversalProjectionReadback(undefinedSource,removedUndefined).first_red,'PROJECTION_BLOCK_CONTENT');
+
 const subset=structuredClone(deleted.artifact);
 subset.projection_recipes[0].primitive_refs=['p:headline'];
 subset.primitives.find(p=>p.identity==='p:image').authority.visibility='PRIVATE';
@@ -186,13 +225,25 @@ triad.primitives[0].relationships=[triad.primitives[1].identity,triad.primitives
 triad.primitives[1].relationships=[triad.primitives[0].identity];
 triad.primitives[2].relationships=[triad.primitives[0].identity];
 triad.projection_recipes.push({...triad.projection_recipes[0],projection_ref:'projection:studio',kind:'studio'});
+const sourceOps=triad.primitives.map(p=>({id:p.identity,ops:[...p.operations],rels:[...p.relationships]}));
 const triViews=['projection:microsite','projection:hex','projection:studio']
   .map(ref=>compileUniversalProjection(triad,ref));
 const triRig=extractUniversalTemplateRig(triad);
 assert.equal(triRig.primitive_graph.reduce((n,p)=>n+p.relationships.length,0),4);
+// Public relationship_refs must survive every rotating viewpoint (not drop to []).
+for(const view of triViews){
+  assert.deepEqual(view.blocks.find(b=>b.primitive_ref===triad.primitives[0].identity).relationship_refs,
+    [triad.primitives[1].identity,triad.primitives[2].identity]);
+  assert.deepEqual(view.blocks.find(b=>b.primitive_ref===triad.primitives[1].identity).relationship_refs,
+    [triad.primitives[0].identity]);
+}
 let directionalChecks=0;
 for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(i!==j){
   assert.deepEqual(triViews[i].primitive_refs,triViews[j].primitive_refs);
+  assert.deepEqual(
+    triViews[i].blocks.map(b=>({id:b.primitive_ref,rels:b.relationship_refs})),
+    triViews[j].blocks.map(b=>({id:b.primitive_ref,rels:b.relationship_refs})),
+  );
   assert.equal(reverseUniversalProjectionReadback(triad,triViews[i]).ok,true);
   assert.equal(reverseUniversalProjectionReadback(triad,triViews[j]).ok,true);
   assert.deepEqual(triRig.primitive_graph.map(x=>x.primitive_ref),triad.primitives.map(x=>x.identity));
@@ -200,5 +251,31 @@ for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(i!==j){
 }
 assert.equal(directionalChecks,6);
 
-console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,reverse_readback_same_ids:true,reverse_readback_recipe_lineage_hostiles:readbackHostiles.length,public_subset_preserved:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
+// HOSTILE: public edge drop / private edge leak / reverse mismatch
+const dropped=structuredClone(triViews[0]);
+dropped.blocks[0].relationship_refs=[];
+assert.equal(reverseUniversalProjectionReadback(triad,dropped).first_red,'PROJECTION_BLOCK_CONTENT');
+const leaked=structuredClone(subsetProjection);
+leaked.blocks[0].relationship_refs=['p:image'];
+assert.equal(JSON.stringify(subsetProjection).includes('p:image'),false);
+assert.equal(reverseUniversalProjectionReadback(subset,leaked).first_red,'PROJECTION_BLOCK_CONTENT');
+const privateEdgeSource=structuredClone(subset);
+assert.deepEqual(compileUniversalProjection(privateEdgeSource,'projection:microsite').blocks[0].relationship_refs,[]);
+const staleGen=structuredClone(triViews[0]);
+staleGen.lineage.source_generation='fixture:stale';
+assert.equal(reverseUniversalProjectionReadback(triad,staleGen).first_red,'PROJECTION_LINEAGE');
+const contradictory=structuredClone(triViews[0]);
+contradictory.blocks[1].relationship_refs=[triad.primitives[2].identity];
+assert.equal(reverseUniversalProjectionReadback(triad,contradictory).first_red,'PROJECTION_BLOCK_CONTENT');
+const duplicateSource=structuredClone(triad);
+duplicateSource.primitives[0].relationships.push(triad.primitives[1].identity);
+const duplicateView=compileUniversalProjection(duplicateSource,'projection:microsite');
+assert.deepEqual(duplicateView.blocks[0].relationship_refs,[triad.primitives[1].identity,triad.primitives[2].identity,triad.primitives[1].identity]);
+const collapsedDuplicate=structuredClone(duplicateView);
+collapsedDuplicate.blocks[0].relationship_refs.pop();
+assert.equal(reverseUniversalProjectionReadback(duplicateSource,collapsedDuplicate).first_red,'PROJECTION_BLOCK_CONTENT');
+assert.deepEqual(triad.primitives.map(p=>({id:p.identity,ops:[...p.operations],rels:[...p.relationships]})),sourceOps);
+
+console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,reverse_readback_sparse_hostiles:sparseHostiles.length,public_relationship_refs:true,rotate_triangle_3v3:true,directional_checks:directionalChecks,reverse_readback_same_ids:true,reverse_readback_recipe_lineage_hostiles:readbackHostiles.length,public_subset_preserved:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
+
 

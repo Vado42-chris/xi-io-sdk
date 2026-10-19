@@ -29,8 +29,26 @@ export function compileMiniPromptStack(input){
 
 export function applyMiniPromptReceipt(stack,{card_id,receipt_ref,verified=false}={}){
   if(!stack||stack.schema!=='xiio.sdk.mini-prompt-stack/v1')throw new Error('STACK_INVALID');
-  const cards=stack.cards.map(c=>c.card_id===card_id?{...c,state:verified?'VERIFIED':'RESULT',ticks:c.ticks+(verified?1:0),cogs:Math.max(0,c.cogs-1),receipt_ref:receipt_ref||null}:c);
+  if(!Array.isArray(stack.cards)||stack.cards.length===0)throw new Error('STACK_CARDS_INVALID');
+  if(stack.denominator?.total!==stack.cards.length)throw new Error('STACK_DENOMINATOR_MISMATCH');
+  const ids=new Set();
+  for(const card of stack.cards){
+    if(!card||typeof card.card_id!=='string'||!card.card_id.trim()||ids.has(card.card_id))throw new Error('STACK_CARD_ID_INVALID');
+    ids.add(card.card_id);
+    if(card.state==='VERIFIED'&&(typeof card.receipt_ref!=='string'||!card.receipt_ref.trim()))throw new Error('VERIFIED_RECEIPT_REQUIRED');
+  }
+  const target=stack.cards.find(c=>c.card_id===card_id);
+  if(!target)throw new Error('CARD_NOT_FOUND');
+  const isVerified=verified===true;
+  if(isVerified&&(typeof receipt_ref!=='string'||!receipt_ref.trim()))throw new Error('VERIFIED_RECEIPT_REQUIRED');
+  if(target.state==='VERIFIED'&&target.receipt_ref!==receipt_ref)throw new Error('VERIFIED_RECEIPT_CONFLICT');
+  // Verification is caller-supplied evidence, not provider execution or APPLY_RETURN.
+  // Replaying an accepted receipt cannot add ticks or downgrade a verified card.
+  const cards=stack.cards.map(c=>c.card_id===card_id&&c.state!=='VERIFIED'?{...c,state:isVerified?'VERIFIED':'RESULT',ticks:c.ticks+(isVerified?1:0),cogs:c.state==='RESULT'?c.cogs:Math.max(0,c.cogs-1),receipt_ref:receipt_ref||null}:c);
   const closed=cards.filter(c=>c.state==='VERIFIED').length;
   const next=cards.find(c=>c.state==='UNPROVEN')||null;
-  return {...stack,cards,denominator:{...stack.denominator,closed},game:{...stack.game,ticks:cards.reduce((n,c)=>n+c.ticks,0),cogs:cards.filter(c=>c.state!=='VERIFIED').length,hope:closed},next:next?{action:next.phase,card_id:next.card_id,state:'READY_FOR_ADMISSION'}:{action:'TERMINAL_FIXED_POINT',state:'VERIFIED'},terminal:!next};
+  const pending=cards.find(c=>c.state!=='VERIFIED')||null;
+  const terminal=cards.length>0&&closed===cards.length;
+  return {...stack,cards,denominator:{...stack.denominator,closed},game:{...stack.game,ticks:cards.reduce((n,c)=>n+c.ticks,0),cogs:cards.filter(c=>c.state!=='VERIFIED').length,hope:closed},next:next?{action:next.phase,card_id:next.card_id,state:'READY_FOR_ADMISSION'}:terminal?{action:'TERMINAL_FIXED_POINT',state:'VERIFIED'}:{action:'TRUE_WAIT',card_id:pending?.card_id,state:pending?.state||'EMPTY'},terminal};
 }
+
