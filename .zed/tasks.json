@@ -1,0 +1,25 @@
+[
+  {
+    "label": "XI-IO: Zed + CRM live readiness",
+    "command": "node",
+    "args": [
+      "scripts/zed-runtime-preflight.mjs",
+      "--require-live"
+    ],
+    "allow_concurrent_runs": false,
+    "use_new_terminal": false,
+    "show_summary": true,
+    "save": "none"
+  },
+  {
+    "label": "XI-IO: MCP protocol hostile (mock Inbox)",
+    "command": "node",
+    "args": [
+      "scripts/check-zed-inbox-mcp.mjs"
+    ],
+    "allow_concurrent_runs": false,
+    "use_new_terminal": false,
+    "show_summary": true,
+    "save": "none"
+  }
+]
