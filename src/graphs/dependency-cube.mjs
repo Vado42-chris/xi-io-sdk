@@ -201,6 +201,7 @@ export function compileDependencyCube(input={}){
     denominator:{edges:edges.length,projects:projects.length,triangulation_keys:triangulation.length},
     faces,
     edges,
+    relationships:edges.map(e=>({edge_id:e.edge_id,relationship_ref:e.relationship_ref,dependency_key:e.dependency_key,source_ref:e.owner_ref,target_ref:e.target_ref,face:e.face,state:e.state,currentness:e.currentness,affected_project_refs:e.affected_project_refs,generation:root.generation})),
     triangulation,
     ibal_impact_projection:impact,
     studio_projections,
