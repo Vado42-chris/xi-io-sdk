@@ -138,6 +138,23 @@ for(const [name,changeProjection,changeSource=()=>{}] of readbackHostiles){
 }
 const reordered=structuredClone(projection);reordered.primitive_refs.reverse();reordered.blocks.reverse();
 assert.equal(reverseUniversalProjectionReadback(deleted.artifact,reordered).ok,true);
+
+const tamperedContent=structuredClone(projection);
+tamperedContent.blocks[0].content={text:'UNAUTHORIZED_PUBLIC_CHANGE'};
+assert.equal(reverseUniversalProjectionReadback(deleted.artifact,tamperedContent).first_red,'PROJECTION_BLOCK_CONTENT');
+const tamperedGeometry=structuredClone(projection);
+tamperedGeometry.blocks[0].geometry.width=999;
+assert.equal(reverseUniversalProjectionReadback(deleted.artifact,tamperedGeometry).first_red,'PROJECTION_BLOCK_CONTENT');
+const injected=structuredClone(projection);
+injected.blocks[0].private_graph=['private:edge'];
+assert.equal(reverseUniversalProjectionReadback(deleted.artifact,injected).first_red,'PROJECTION_BLOCK_CONTENT');
+const missingField=structuredClone(projection);
+delete missingField.blocks[0].semantic_type;
+assert.equal(reverseUniversalProjectionReadback(deleted.artifact,missingField).first_red,'PROJECTION_BLOCK_CONTENT');
+const reorderedKeys=structuredClone(projection);
+reorderedKeys.blocks[0]=Object.fromEntries(Object.entries(reorderedKeys.blocks[0]).reverse());
+assert.equal(reverseUniversalProjectionReadback(deleted.artifact,reorderedKeys).ok,true);
+
 const subset=structuredClone(deleted.artifact);
 subset.projection_recipes[0].primitive_refs=['p:headline'];
 subset.primitives.find(p=>p.identity==='p:image').authority.visibility='PRIVATE';
@@ -162,4 +179,26 @@ assert.throws(()=>compileUniversalProjection(privateArtifact,'projection:microsi
 const privateNode=structuredClone(deleted.artifact);privateNode.primitives[0].authority.visibility='PRIVATE';
 assert.throws(()=>compileUniversalProjection(privateNode,'projection:microsite'),/PRIMITIVE_VISIBILITY_NOT_PUBLIC/);
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{operation_ref:'op:bad',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:headline',operation:'TRANSFORM',args:{path:'identity',value:'fork'}}),/TRANSFORM_PATH_NOT_ADMITTED/);
+
+const triad=structuredClone(deleted.artifact);
+assert.equal(triad.primitives.length,3);
+triad.primitives[0].relationships=[triad.primitives[1].identity,triad.primitives[2].identity];
+triad.primitives[1].relationships=[triad.primitives[0].identity];
+triad.primitives[2].relationships=[triad.primitives[0].identity];
+triad.projection_recipes.push({...triad.projection_recipes[0],projection_ref:'projection:studio',kind:'studio'});
+const triViews=['projection:microsite','projection:hex','projection:studio']
+  .map(ref=>compileUniversalProjection(triad,ref));
+const triRig=extractUniversalTemplateRig(triad);
+assert.equal(triRig.primitive_graph.reduce((n,p)=>n+p.relationships.length,0),4);
+let directionalChecks=0;
+for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(i!==j){
+  assert.deepEqual(triViews[i].primitive_refs,triViews[j].primitive_refs);
+  assert.equal(reverseUniversalProjectionReadback(triad,triViews[i]).ok,true);
+  assert.equal(reverseUniversalProjectionReadback(triad,triViews[j]).ok,true);
+  assert.deepEqual(triRig.primitive_graph.map(x=>x.primitive_ref),triad.primitives.map(x=>x.identity));
+  directionalChecks++;
+}
+assert.equal(directionalChecks,6);
+
 console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,reverse_readback_same_ids:true,reverse_readback_recipe_lineage_hostiles:readbackHostiles.length,public_subset_preserved:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
+

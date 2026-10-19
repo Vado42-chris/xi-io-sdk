@@ -218,6 +218,19 @@ export function reverseUniversalProjectionReadback(source,projection){
   const sameRefs=(actual,expected)=>Array.isArray(actual)&&Array.isArray(expected)&&
     actual.length===expected.length&&new Set(actual).size===actual.length&&
     new Set(expected).size===expected.length&&actual.every(id=>expected.includes(id));
+  // Compare the already-released block payload only. Private source edges must
+  // never be copied to the public projection to satisfy a readback check.
+  const samePublicPayload=(a,b)=>{
+    if(Object.is(a,b))return true;
+    if(Array.isArray(a)||Array.isArray(b))
+      return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&a.every((v,i)=>samePublicPayload(v,b[i]));
+    if(a&&b&&typeof a==='object'&&typeof b==='object'){
+      const keys=Object.keys(a);
+      return keys.length===Object.keys(b).length&&keys.every(k=>
+        Object.prototype.hasOwnProperty.call(b,k)&&samePublicPayload(a[k],b[k]));
+    }
+    return false;
+  };
   let expected,firstRed=null;
   // Resolve the declared public recipe, not the whole editable/private graph.
   try { expected=compileUniversalProjection(source,projection?.projection_ref); }
@@ -229,6 +242,10 @@ export function reverseUniversalProjectionReadback(source,projection){
       projection.article_ref!==expected.article_ref) firstRed='PROJECTION_IDENTITY';
     else if(!sameRefs(projection.primitive_refs,expected.primitive_refs)||missing.length) firstRed='PROJECTION_PRIMITIVE_REFS';
     else if(!Array.isArray(projection.blocks)||!sameRefs(projection.blocks.map(b=>b?.primitive_ref),expected.primitive_refs)) firstRed='PROJECTION_BLOCK_REFS';
+    else if(projection.blocks.some(actual=>{
+      const sourceBlock=expected.blocks.find(b=>b.primitive_ref===actual?.primitive_ref);
+      return !sourceBlock||!samePublicPayload(actual,sourceBlock);
+    })) firstRed='PROJECTION_BLOCK_CONTENT';
     else if(!expected.lineage.version_ref||!expected.lineage.source_generation||
       projection.lineage?.version_ref!==expected.lineage.version_ref||
       projection.lineage?.source_generation!==expected.lineage.source_generation||
@@ -240,3 +257,4 @@ export function reverseUniversalProjectionReadback(source,projection){
   // A failed g1 -> g2 readback must not relabel the candidate as g2.
   return {schema:'xiio.sdk.publisher-reverse-readback/v1',ok,projection_ref:projection?.projection_ref,artifact_ref:projection?.artifact_ref,article_ref:projection?.article_ref,primitive_refs:refs,version_ref:projection?.lineage?.version_ref??null,source_generation:projection?.lineage?.source_generation??null,missing_primitive_refs:missing,same_source_ids:ok,first_red:firstRed,effect_ceiling:0};
 }
+
