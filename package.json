@@ -157,6 +157,6 @@
     "check:cube-quorum-cli": "node scripts/validate-cube-quorum-cli.mjs",
     "check:account-binding": "node scripts/validate-account-binding.mjs",
     "check:launch-session": "node scripts/validate-launch-session.mjs",
-    "check:quorum-acp": "node scripts/validate-quorum-acp.mjs"
+    "check:quorum-acp": "node scripts/validate-quorum-acp.mjs && node scripts/validate-quorum-acp-cli-install.mjs"
   }
 }
