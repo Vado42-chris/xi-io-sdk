@@ -19,6 +19,10 @@ jobs:
           node-version: '22'
       - name: Run SDK checks
         run: npm run check
+      - name: Verify single Zed ACP quorum and isolated installed wrapper
+        run: npm run check:quorum-acp
+      - name: Verify accepted Zed Inbox MCP front door
+        run: npm run check:zed-inbox-mcp
       - name: Upload SDK ROTFL heatmap receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
