@@ -215,15 +215,17 @@ export function compileUniversalProjection(doc,projectionRef){
 export function reverseUniversalProjectionReadback(source,projection){
   const ids=new Set(list(source?.primitives).map(p=>p?.identity));
   const refs=list(projection?.primitive_refs),missing=refs.filter(id=>!ids.has(id));
+  const ownIndex=(array,index)=>Object.prototype.hasOwnProperty.call(array,index);
   const sameRefs=(actual,expected)=>Array.isArray(actual)&&Array.isArray(expected)&&
     actual.length===expected.length&&new Set(actual).size===actual.length&&
-    new Set(expected).size===expected.length&&actual.every(id=>expected.includes(id));
+    new Set(expected).size===expected.length&&Array.from(actual).every((id,i)=>ownIndex(actual,i)&&expected.includes(id));
   // Compare the already-released block payload only. Private source edges must
   // never be copied to the public projection to satisfy a readback check.
   const samePublicPayload=(a,b)=>{
     if(Object.is(a,b))return true;
     if(Array.isArray(a)||Array.isArray(b))
-      return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&a.every((v,i)=>samePublicPayload(v,b[i]));
+      return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&Array.from(a.keys()).every(i=>
+        ownIndex(a,i)===ownIndex(b,i)&&(!ownIndex(a,i)||samePublicPayload(a[i],b[i])));
     if(a&&b&&typeof a==='object'&&typeof b==='object'){
       const keys=Object.keys(a);
       return keys.length===Object.keys(b).length&&keys.every(k=>
