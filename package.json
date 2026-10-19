@@ -155,6 +155,7 @@
     "check:cube-quorum-cli": "node scripts/validate-cube-quorum-cli.mjs",
     "check:account-binding": "node scripts/validate-account-binding.mjs",
     "check:launch-session": "node scripts/validate-launch-session.mjs",
-    "check:zed-inbox-mcp": "node scripts/check-zed-inbox-mcp.mjs"
+    "check:zed-inbox-mcp": "node scripts/check-zed-inbox-mcp.mjs",
+    "check:relationship-preservation-55": "node scripts/validate-relationship-preservation-55.mjs"
   }
 }
