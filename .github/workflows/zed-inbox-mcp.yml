@@ -1,0 +1,29 @@
+name: Zed Inbox MCP Bridge
+on:
+  pull_request:
+    paths:
+      - 'bin/xi-zed-mcp.mjs'
+      - 'scripts/check-zed-inbox-mcp.mjs'
+      - 'docs/integrations/zed-agent-mail-force-multiplier.md'
+      - 'package.json'
+      - 'scripts/zed-runtime-preflight.mjs'
+      - '.zed/tasks.json'
+      - '.github/workflows/zed-inbox-mcp.yml'
+  workflow_dispatch:
+jobs:
+  hostile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check executable syntax
+        run: node --check bin/xi-zed-mcp.mjs
+      - name: Local-only Zed and upstream toolchain preflight
+        run: node scripts/zed-runtime-preflight.mjs
+      - name: MCP protocol, local Inbox mock, and denied effects
+        run: node scripts/check-zed-inbox-mcp.mjs
