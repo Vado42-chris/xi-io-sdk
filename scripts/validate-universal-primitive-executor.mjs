@@ -53,6 +53,7 @@ assert.equal(normalizedCollision.primitives.at(-1).identity,' p:headline ');
 const repeated=structuredClone(related);repeated.primitives[0].relationships.push('p:image');
 assert.equal(validateUniversalArtifact(repeated).ok,true);
 assert.deepEqual(extractUniversalTemplateRig(repeated).primitive_graph[0].relationships,['p:image','p:image']);
+assert.deepEqual(compileUniversalProjection(repeated,'projection:microsite').blocks[0].relationship_refs,['p:image','p:image']);
 const unknownSeam=structuredClone(related);unknownSeam.seam_equivalence[0].state='UNKNOWN';
 assert.equal(validateUniversalArtifact(unknownSeam).first_red,'SEAM_CONTINUITY');
 assert.equal(unknownSeam.seam_equivalence[0].state,'UNKNOWN');
@@ -186,6 +187,7 @@ triad.primitives[0].relationships=[triad.primitives[1].identity,triad.primitives
 triad.primitives[1].relationships=[triad.primitives[0].identity];
 triad.primitives[2].relationships=[triad.primitives[0].identity];
 triad.projection_recipes.push({...triad.projection_recipes[0],projection_ref:'projection:studio',kind:'studio'});
+const sourceOps=triad.primitives.map(p=>({id:p.identity,ops:[...p.operations],rels:[...p.relationships]}));
 const triViews=['projection:microsite','projection:hex','projection:studio']
   .map(ref=>compileUniversalProjection(triad,ref));
 const triRig=extractUniversalTemplateRig(triad);
@@ -227,6 +229,14 @@ assert.equal(reverseUniversalProjectionReadback(triad,staleGen).first_red,'PROJE
 const contradictory=structuredClone(triViews[0]);
 contradictory.blocks[1].relationship_refs=[triad.primitives[2].identity];
 assert.equal(reverseUniversalProjectionReadback(triad,contradictory).first_red,'PROJECTION_BLOCK_CONTENT');
+const duplicateSource=structuredClone(triad);
+duplicateSource.primitives[0].relationships.push(triad.primitives[1].identity);
+const duplicateView=compileUniversalProjection(duplicateSource,'projection:microsite');
+assert.deepEqual(duplicateView.blocks[0].relationship_refs,[triad.primitives[1].identity,triad.primitives[2].identity,triad.primitives[1].identity]);
+const collapsedDuplicate=structuredClone(duplicateView);
+collapsedDuplicate.blocks[0].relationship_refs.pop();
+assert.equal(reverseUniversalProjectionReadback(duplicateSource,collapsedDuplicate).first_red,'PROJECTION_BLOCK_CONTENT');
+assert.deepEqual(triad.primitives.map(p=>({id:p.identity,ops:[...p.operations],rels:[...p.relationships]})),sourceOps);
 
 console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,public_relationship_refs:true,rotate_triangle_3v3:true,directional_checks:directionalChecks,reverse_readback_same_ids:true,reverse_readback_recipe_lineage_hostiles:readbackHostiles.length,public_subset_preserved:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
 

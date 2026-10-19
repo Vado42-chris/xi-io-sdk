@@ -211,12 +211,10 @@ export function extractUniversalTemplateRig(doc){
 function publicRelationshipRefs(doc,recipeRefs,p){
   const allowed=new Set(list(recipeRefs));
   const out=[];
-  const seen=new Set();
   for(const ref of list(p.relationships)){
-    if(!allowed.has(ref)||seen.has(ref)) continue;
+    if(!allowed.has(ref)) continue;
     const target=list(doc.primitives).find(x=>x.identity===ref);
     if(!target||target.authority?.visibility!=='PUBLIC') continue;
-    seen.add(ref);
     out.push(ref);
   }
   return out;
