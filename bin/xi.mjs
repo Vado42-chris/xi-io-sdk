@@ -1007,6 +1007,37 @@ function processCount(pattern){
   const n=Number(String(r.stdout||'0').trim()||0);
   return Number.isFinite(n)?n:0;
 }
+// Status-only observation. A failed process query is UNKNOWN, never absence.
+// Recovery retains its existing process/admission behavior below.
+function observeProcessCount(pattern){
+  const r=spawnSync('pgrep',['-fc',pattern],{encoding:'utf8'});
+  const raw=String(r.stdout??'').trim();
+  if(r.error || r.signal || ![0,1].includes(r.status) || !/^\d+$/.test(raw)) return null;
+  const n=Number(raw);
+  if(!Number.isSafeInteger(n) || (r.status===0 && n===0) || (r.status===1 && n!==0)) return null;
+  return n;
+}
+function zedIbalStatusBindingReady(source){
+  const zed=source?.zed;
+  const acp=source?.acp;
+  const entry=acp?.runtime_entrypoint || acp?.agent;
+  // Accepted framework launcher uses Node + the operator runtime directly.
+  // Keep legacy wrapper readiness, but do not require it for this exact binding.
+  const direct=typeof entry==='string' && /(?:^|\/)agent-runtime-operator\.mjs$/.test(entry)
+    && zed?.agent_servers_ibal_command===acp?.node
+    && Array.isArray(zed?.agent_servers_ibal_args)
+    && zed.agent_servers_ibal_args.length===1 && zed.agent_servers_ibal_args[0]===entry;
+  return Boolean(zed?.agent_servers_ok && acp?.agent_ok && acp?.node_ok && source?.ollama?.ok
+    && (acp?.wrapper_ok || direct));
+}
+function zedIbalStatusFirstRed(bindingApplied,baseline){
+  if(!bindingApplied) return 'BINDING_APPLIED';
+  if(baseline.zed_process_count===null) return 'ZED_PROCESS_OBSERVATION_UNKNOWN';
+  if(baseline.zed_process_count===0) return 'ZED_PROCESS_NOT_OBSERVED';
+  if(baseline.acp_agent_count===null) return 'ACP_PROCESS_OBSERVATION_UNKNOWN';
+  if(baseline.acp_agent_count===0) return 'ACP_PROCESS_NOT_OBSERVED';
+  return 'ACP_SESSION_READBACK_UNVERIFIED';
+}
 function ndjsonLineCount(file){
   try{
     const raw=fs.readFileSync(file,'utf8');
@@ -1021,8 +1052,10 @@ async function zedIbalRuntime(action='status'){
   const home=os.homedir();
   const ledger=path.join(home,'.local','state','xi-io','ibal-acp-001a','events','operations.ndjson');
   const baseline={
-    zed_process_count:processCount('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
-    acp_agent_count:processCount('acp-agent/agent\\.mjs'),
+    zed_process_count:(action==='status'?observeProcessCount:processCount)('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
+    acp_agent_count:action==='status'
+      ? observeProcessCount('acp-agent/agent(-runtime-operator)?\\.mjs([[:space:]]|$)')
+      : processCount('acp-agent/agent\\.mjs'),
     event_count:ndjsonLineCount(ledger),
   };
   const {map,root}=await frameworkRootFromCompass();
@@ -1039,7 +1072,7 @@ async function zedIbalRuntime(action='status'){
   const mod=await import(pathToFileURL(configurePath).href+`?xiio=${Date.now()}`);
   let source=mod.zedIbalStatus();
   let configure=null;
-  const sourceReady=()=>Boolean(
+  const sourceReady=()=>action==='status'?zedIbalStatusBindingReady(source):Boolean(
     source?.zed?.agent_servers_ok && source?.acp?.wrapper_ok && source?.acp?.agent_ok
     && source?.acp?.node_ok && source?.ollama?.ok
   );
@@ -1055,9 +1088,9 @@ async function zedIbalRuntime(action='status'){
       ? ['T1_LOAD::SOURCE','T2_SPAWN::SOURCE','T3_SESSION::SOURCE']
       : [],
     cells:[
-      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
+      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count===null?'UNKNOWN':baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
       {id:'T1_LOAD::READBACK',state:'WAIT'},
-      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
+      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count===null?'UNKNOWN':baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
       {id:'T2_SPAWN::READBACK',state:'WAIT'},
       {id:'T3_SESSION::PROCESS',state:'WAIT'},
       {id:'T3_SESSION::READBACK',state:'WAIT'},
@@ -1066,9 +1099,10 @@ async function zedIbalRuntime(action='status'){
   if(action!=='recover') return {
     schema:'xiio.cli.zed-ibal/v1',
     state:bindingApplied?'PASS_WITH_WAITS':'FAIL_CURRENT',
-    first_red:bindingApplied?(baseline.zed_process_count>0?'ACP_SPAWNED':'ZED_RUNNING'):'BINDING_APPLIED',
+    first_red:zedIbalStatusFirstRed(bindingApplied,baseline),
     root,source,binding_applied:bindingApplied,baseline,matrix,
     active_factors:['ZED_RUNNING','ACP_SPAWNED','ACP_SESSION_DELTA'],
+    process_observation_scope:'COMMAND_LINE_PATTERN_ONLY_NOT_SESSION_OR_TOOL_PROOF',
     provider_effect:false,authority_granted:false,
   };
   if(!bindingApplied) return {
