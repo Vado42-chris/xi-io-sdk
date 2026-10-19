@@ -7,7 +7,8 @@
     "xi": "./bin/xi.mjs",
     "xi-io": "./bin/xi.mjs",
     "xiio": "./bin/xi.mjs",
-    "xi-quorum-acp": "./bin/xi-quorum-acp.mjs"
+    "xi-quorum-acp": "./bin/xi-quorum-acp.mjs",
+    "xi-zed-mcp": "./bin/xi-zed-mcp.mjs"
   },
   "exports": {
     "./identity/account-binding": "./src/identity/account-binding.mjs",
