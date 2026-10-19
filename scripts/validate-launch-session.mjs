@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { observeAccount, chooseAccount } from '../src/identity/account-binding.mjs';
-import { openSession, mustPrompt, launchTicket, acceptTicket, planDesktopLaunch } from '@xi-io/sdk/identity/launch-session';
+import { openSession, mustPrompt, launchTicket, acceptTicket, planDesktopLaunch } from '../src/identity/launch-session.mjs';
 
 const refusal = (fn, code) => assert.throws(fn, (e) => e.code === code, `expected ${code}`);
 const t0 = '2026-10-12T19:00:00-06:00';
