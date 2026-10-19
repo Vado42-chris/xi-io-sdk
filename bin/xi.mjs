@@ -437,11 +437,14 @@ function installLocalCli() {
     '',
   ].join('\n');
 
-  const bins=['xi-io','xiio','xi'];
+  // The installed SDK owns the Zed ACP launcher; do not ship a second Studio MCP adapter.
+  // ACP reuses the installed Ibal protocol SDK and existing CRM/controller.
+  const quorumWrapper=wrapper.replaceAll('bin/xi.mjs','bin/xi-quorum-acp.mjs');
+  const bins=['xi-io','xiio','xi','xi-quorum-acp'];
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
-    fs.writeFileSync(dest,wrapper,{encoding:'utf8',mode:0o755});
+    fs.writeFileSync(dest,name==='xi-quorum-acp'?quorumWrapper:wrapper,{encoding:'utf8',mode:0o755});
     fs.chmodSync(dest,0o755);
   }
 
