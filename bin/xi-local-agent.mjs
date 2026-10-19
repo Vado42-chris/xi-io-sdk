@@ -501,7 +501,13 @@ export async function main(){
       port,
       uiDir,
       status: async()=>{ const s=await localRuntimeStatus(); return {model:s.model,execution:s.execution,ollama_state:s.ollama_state,tool_count:s.tools.length}; },
-      handleTurn: async(message,{signal}={})=>{
+      handleTurn: async(message,{signal,conversationRef,context=[]}={})=>{
+        if (conversationRef !== undefined) {
+          // AI Mail is the durable owner. A bound conversation must never inherit
+          // the legacy workspace-wide chat cache or write a second history there.
+          const isolated = [systemMessage(), ...context.map(m => ({ role:m.role, content:m.content })), { role:'user', content:message }];
+          return chat(isolated,{signal});
+        }
         messages.push({role:'user',content:message});
         const reply=await chat(messages,{signal});
         await save(messages.filter(m=>m.role!=='system'));

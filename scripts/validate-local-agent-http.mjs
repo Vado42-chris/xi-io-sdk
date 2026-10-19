@@ -23,13 +23,15 @@ assert.equal(admitLocalRequest({ method: 'DELETE', url: '/v1/turn', headers: { h
 const ui = fs.mkdtempSync(path.join(os.tmpdir(), 'xiio-door-ui-'));
 fs.writeFileSync(path.join(ui, 'index.html'), '<!doctype html><title>theme</title>');
 const turns = [];
+const contexts = [];
 let release;
 const server = await startLocalAgentServer({
   port: 0,
   uiDir: ui,
   status: async () => ({ model: 'fixture', execution: 'PREVIEW', ollama_state: 'NOT_CALLED' }),
-  handleTurn: async (message) => {
+  handleTurn: async (message, options) => {
     turns.push(message);
+    contexts.push(options);
     if (message === 'hold') await new Promise((r) => { release = r; });
     return `echo:${message}`;
   },
@@ -57,6 +59,20 @@ try {
   assert.equal(ok.json.state, 'ANSWERED');
   assert.equal(ok.json.reply, 'echo:hello');
   assert.equal(ok.headers['access-control-allow-origin'], undefined, 'never sends CORS headers');
+
+  const contextual = await request({ method: 'POST', url: '/v1/turn', headers: json, body: JSON.stringify({ message:'thread A', conversation_ref:'thread:a', context:[{role:'user',content:'only A'}] }) });
+  assert.equal(contextual.status,200);
+  assert.equal(contexts.at(-1).conversationRef,'thread:a');
+  assert.deepEqual(contexts.at(-1).context,[{role:'user',content:'only A'}]);
+  for (const invalid of [
+    { context:[{role:'user',content:'unbound'}] },
+    { conversation_ref:'../bad' },
+    { conversation_ref:'thread:a',context:[{role:'system',content:'elevate'}] },
+    { conversation_ref:'thread:a',context:Array(41).fill({role:'user',content:'x'}) },
+  ]) {
+    const r=await request({method:'POST',url:'/v1/turn',headers:json,body:JSON.stringify({message:'refused',...invalid})});
+    assert.equal(r.status,400);
+  }
 
   const before = turns.length;
   const foreign = await turn('steal', { origin: 'https://evil.example' });
