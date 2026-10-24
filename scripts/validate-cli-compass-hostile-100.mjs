@@ -222,7 +222,7 @@ for(let i=0;i<100;i++){
  * volume-root cases did not exercise.
  */
 async function installedLayoutCompass({explicit=false,wrongInstalledOrigin=false}={}){
-  const caseRoot=mkdir(path.join(sandbox,\`installed-layout-\${explicit?'explicit':'default'}-\${wrongInstalledOrigin?'wrong':'canonical'}\`));
+  const caseRoot=mkdir(path.join(sandbox,`installed-layout-${explicit?'explicit':'default'}-${wrongInstalledOrigin?'wrong':'canonical'}`));
   const home=mkdir(path.join(caseRoot,'home'));
   const workspace=mkdir(path.join(home,'.local','share','xi-io','repos','xi-io-sdk'));
   const installed=path.join(home,'.local','share','xi-io','repos','xi-io.net');
@@ -256,7 +256,7 @@ async function installedLayoutCompass({explicit=false,wrongInstalledOrigin=false
       if(args.join(' ').includes('list-unit-files')) return result(true,'');
       return result(false,'inactive\\n','',3);
     }
-    if(command==='pgrep') return result(true,\`123 \${installed}/.runner-test/bin/Runner.Listener run\\n\`);
+    if(command==='pgrep') return result(true,`123 ${installed}/.runner-test/bin/Runner.Listener run\\n`);
     return result(false,'','unsupported '+command,2);
   };
   const env={
