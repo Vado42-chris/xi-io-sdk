@@ -214,6 +214,88 @@ for(let i=0;i<100;i++){
   });
 }
 
+
+/* Real installed-layout regressions.
+ * These are deliberately outside the existing 100-hostile denominator: the
+ * original suite remains a stable qualification surface, while these prove the
+ * ~/.local/share/xi-io/repos/xi-io.net discovery join that the 100 synthetic
+ * volume-root cases did not exercise.
+ */
+async function installedLayoutCompass({explicit=false,wrongInstalledOrigin=false}={}){
+  const caseRoot=mkdir(path.join(sandbox,\`installed-layout-\${explicit?'explicit':'default'}-\${wrongInstalledOrigin?'wrong':'canonical'}\`));
+  const home=mkdir(path.join(caseRoot,'home'));
+  const workspace=mkdir(path.join(home,'.local','share','xi-io','repos','xi-io-sdk'));
+  const installed=path.join(home,'.local','share','xi-io','repos','xi-io.net');
+  const explicitFramework=path.join(caseRoot,'explicit-framework');
+  mkFramework(installed);
+  if(explicit) mkFramework(explicitFramework);
+  const canonical='https://github.com/Vado42-chris/xi-io.net.git';
+  const wrong='https://github.com/example/not-framework.git';
+  const localHead='a'.repeat(40);
+  const providerHead=localHead;
+  const exec=(command,args,{cwd}={})=>{
+    if(command==='git'){
+      const sig=args.join(' ');
+      if(sig==='rev-parse --show-toplevel'){
+        if(cwd===workspace) return result(true,workspace+'\\n');
+        return result(true,String(cwd)+'\\n');
+      }
+      if(sig==='rev-parse --is-inside-work-tree') return result(true,'true\\n');
+      if(sig==='remote get-url origin'){
+        if(cwd===workspace) return result(true,'https://github.com/Vado42-chris/xi-io-sdk.git\\n');
+        if(cwd===installed) return result(true,(wrongInstalledOrigin?wrong:canonical)+'\\n');
+        if(cwd===explicitFramework) return result(true,canonical+'\\n');
+      }
+      if(sig==='rev-parse HEAD') return result(true,localHead+'\\n');
+      if(sig==='branch --show-current') return result(true,'main\\n');
+      if(sig==='status --porcelain=v1') return result(true,'');
+      if(sig==='ls-remote origin refs/heads/main') return result(true,providerHead+'\\trefs/heads/main\\n');
+      return result(false,'','unsupported git '+sig,2);
+    }
+    if(command==='systemctl'){
+      if(args.join(' ').includes('list-unit-files')) return result(true,'');
+      return result(false,'inactive\\n','',3);
+    }
+    if(command==='pgrep') return result(true,\`123 \${installed}/.runner-test/bin/Runner.Listener run\\n\`);
+    return result(false,'','unsupported '+command,2);
+  };
+  const env={
+    ...process.env,HOME:home,USER:'tester',
+    XDG_STATE_HOME:path.join(home,'.local','state'),
+    XIIO_FRAMEWORK_ROOT:explicit?explicitFramework:'',
+    XIIO_VOLUME_ROOT:'',XIIO_COMMON_ROOT:'',XIIO_STUDIO_FINAL_ROOT:'',
+    XIIO_COMPASS_PROVIDER_READ:'1',
+  };
+  const compass=await compileLocalCompass({
+    cwd:workspace,env,sdkRoot,hostname:'aries',exec,
+    probe:probeFactory({ollama:'PASS',glass:'PASS'}),
+    providerRead:true,
+    runtimeInspect:()=>({schema:'xiio.cli.runtime-observation/v1',state:'PASS_CURRENT',effect_authority:0}),
+  });
+  return {compass,installed,explicitFramework};
+}
+
+{
+  const {compass,installed}=await installedLayoutCompass();
+  assert.equal(compass.roots.framework.state,'PASS');
+  assert.equal(compass.roots.framework.selected.path,fs.realpathSync(installed));
+  assert.equal(compass.roots.framework.selected.canonical_origin,true);
+  assert.equal(compass.roots.framework.selected.generation_state,'EXACT_PROVIDER_MAIN');
+}
+{
+  const {compass,explicitFramework}=await installedLayoutCompass({explicit:true});
+  assert.equal(compass.roots.framework.state,'PASS');
+  assert.equal(compass.roots.framework.selected.path,fs.realpathSync(explicitFramework),
+    'explicit XIIO_FRAMEWORK_ROOT must retain precedence over installed-layout discovery');
+}
+{
+  const {compass}=await installedLayoutCompass({wrongInstalledOrigin:true});
+  assert.equal(compass.roots.framework.state,'FAIL');
+  assert.equal(compass.roots.framework.selected,null);
+  assert.ok(compass.roots.framework.observations.some(row=>row.canonical_origin===false),
+    'wrong installed repository must be observed and rejected, never promoted');
+}
+
 if (rejected!==100 || falseGreen!==0) {
   const failures=receipts.filter((row)=>row.state!=='EXPECTED');
   const families=new Map();
