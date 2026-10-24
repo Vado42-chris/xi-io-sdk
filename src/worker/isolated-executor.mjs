@@ -27,7 +27,12 @@ export function executorAvailable(env = process.env) {
 
 export function bwrapArgs({ workspace, hide = [], home = os.homedir() }) {
   const ws = fs.realpathSync(workspace);
-  const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--tmpfs', home];
+  // Do not expose the host root read-only: that still leaks unrelated project and
+  // private-media files to model-run tests. Make a blank root and mount only
+  // system runtime libraries, the Node executable, and the granted workspace.
+  const args = ['--tmpfs', '/', '--ro-bind', '/usr', '/usr',
+    '--ro-bind', '/lib', '/lib', '--ro-bind', '/lib64', '/lib64',
+    '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--tmpfs', home];
   // NVM installs Node under HOME; masking HOME otherwise also masks the runtime.
   // Mount only the executable read-only into sandbox-private /tmp, never HOME.
   const hostNode = fs.realpathSync(process.execPath);
