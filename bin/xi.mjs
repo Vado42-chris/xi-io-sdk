@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import {runStitchAction} from '../src/integrations/stitch-cli.mjs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1477,6 +1478,13 @@ if (
   }catch(error){
     emitCliResult('verify',{schema:'xiio.cli.verify/v1',state:'INVALID',source_ref:sourceRef,checks:[],first_red:'INVALID_JSON',silent_remainder:0},{error:{code:'INVALID_JSON',message:String(error.message||error)}});
   }
+} else if (top === 'stitch') {
+  const action=process.argv[3] || 'doctor';
+  const workspace=process.argv[4] && process.argv[4]!=='--execute' ? process.argv[4] : process.cwd();
+  const execute=process.argv.includes('--execute');
+  const result=runStitchAction(action,workspace,{execute});
+  process.stdout.write(JSON.stringify(result,null,2)+'\\n');
+  if(['FAILED','STITCH_CLI_NOT_INSTALLED','STITCH_CLI_UNHEALTHY','WARD_ADMISSION_REQUIRED'].includes(result.state))process.exitCode=2;
 } else if (top === 'zed') {
   const family=process.argv[3] || null;
   const action=process.argv[4] || 'status';
