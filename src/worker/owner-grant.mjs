@@ -5,9 +5,11 @@
  * service administration and unrelated files outside the grant; the acting
  * worker must never create, alter or impersonate its own authority.
  *
- * Built on the existing sign-in path (account-binding -> launch-session): the
- * grant is a launch ticket for product `local-agent`, bound to one project
- * directory, carrying a closed set of operations. A yes is consent only: it
+ * Reuses account-binding: the granting account must be observed from the
+ * provider (`gh api user`) and chosen by the person. It does NOT claim to be a
+ * launcher session: no persisted launcher session exists in source to consume
+ * (launch-session.mjs has no caller), so recovering that link remains open and
+ * no credential_ref is invented here. A yes is consent only: it
  * never marks O0-O11 complete. The checks that apply to this operation run on
  * every effect (see `checkGrant`); the rest are recorded as not applicable.
  *
@@ -20,14 +22,13 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { observeAccount, chooseAccount } from '../identity/account-binding.mjs';
-import { openSession, launchTicket, acceptTicket } from '../identity/launch-session.mjs';
 
 export const OWNER_GRANT_SCHEMA = 'xiio.sdk.owner-grant/v1';
 export const GRANT_PRODUCT = 'local-agent';
 /** The only operations a grant can carry. Anything elevated is outside it by construction. */
 export const GRANTABLE_OPERATIONS = Object.freeze(['edit', 'test']);
 export const ELEVATED_OPERATIONS = Object.freeze(['publish', 'credentials', 'service_admin', 'network', 'recover']);
-const MAX_GRANT_MS = 12 * 60 * 60 * 1000; // a launch ticket's own ceiling
+const MAX_GRANT_MS = 12 * 60 * 60 * 1000;
 
 function refuse(code) { const e = new TypeError(code); e.code = code; throw e; }
 
@@ -48,18 +49,14 @@ export function composeGrant({ observed, chosen, project, operations, hours, now
   if (!(ms > 0) || ms > MAX_GRANT_MS) refuse('GRANT_DURATION_OUT_OF_RANGE');
   if (typeof source_generation !== 'string' || !source_generation) refuse('GRANT_SOURCE_GENERATION_REQUIRED');
   const t = Date.parse(now);
-  const id = grant_id || `grant-${crypto.randomUUID()}`;
-  const session = openSession(choice, {
-    session_id: id, credential_ref: `keyring:${choice.account.provider}`,
-    opened_at: new Date(t).toISOString(), expires_at: new Date(t + ms).toISOString(),
-  });
-  const ticket = launchTicket(session, { product: GRANT_PRODUCT, now, link_ref: `project:${projectDir}` });
+  if (Number.isNaN(t)) refuse('NOW_REQUIRED');
   return Object.freeze({
-    schema: OWNER_GRANT_SCHEMA, kind: 'OWNER_GRANT', grant_id: id,
-    principal_ref: session.principal_ref, account_display: session.account_display,
-    project: projectDir, operations: Object.freeze(ops), excluded: ELEVATED_OPERATIONS,
-    source_generation, issued_at: ticket.issued_at, expires_at: ticket.expires_at,
-    ticket, granted_via: 'owner_tty', authority_granted: false,
+    schema: OWNER_GRANT_SCHEMA, kind: 'OWNER_GRANT', grant_id: grant_id || `grant-${crypto.randomUUID()}`,
+    principal_ref: choice.account.principal_ref, account_display: `${choice.account.provider}:${choice.account.login}`,
+    account_observed_via: choice.account.observed_via, project: projectDir,
+    operations: Object.freeze(ops), excluded: ELEVATED_OPERATIONS, source_generation,
+    issued_at: new Date(t).toISOString(), expires_at: new Date(t + ms).toISOString(),
+    granted_via: 'owner_tty', launcher_session_ref: null, authority_granted: false,
   });
 }
 
@@ -67,7 +64,7 @@ export function composeGrant({ observed, chosen, project, operations, hours, now
 export function describeGrant(g) {
   return [
     `Project:     ${g.project}`,
-    `Allowed:     ${g.operations.join(', ')} (inside this project only)`,
+    `Allowed:     ${g.operations.join(', ')} (inside this project only; tests run read-only, only edits change files)`,
     `Not allowed: ${g.excluded.join(', ')}, and files outside the project`,
     `Account:     ${g.account_display}`,
     `Expires:     ${g.expires_at}`,
@@ -86,10 +83,9 @@ export function checkGrant(grant, { operation, workspace, now, source_generation
   const red = (first_red) => Object.freeze({ ok: false, first_red, authority_granted: false });
   if (!grant || grant.kind !== 'OWNER_GRANT' || grant.schema !== OWNER_GRANT_SCHEMA) return red('OWNER_GRANT_MISSING');
   if (revoked) return red('OWNER_GRANT_REVOKED');
-  const accepted = acceptTicket(grant.ticket, { product: GRANT_PRODUCT, now });
-  if (!accepted.ok) return red(accepted.reason === 'RETURN_TO_LAUNCHER' ? 'OWNER_GRANT_EXPIRED' : 'OWNER_GRANT_' + accepted.reason);
-  if (Date.parse(now) >= Date.parse(grant.expires_at)) return red('OWNER_GRANT_EXPIRED');
-  if (grant.ticket.link_ref !== `project:${grant.project}`) return red('OWNER_GRANT_TAMPERED');
+  const t = Date.parse(now);
+  if (!(t >= Date.parse(grant.issued_at)) || t >= Date.parse(grant.expires_at)) return red('OWNER_GRANT_EXPIRED');
+  if (Date.parse(grant.expires_at) - Date.parse(grant.issued_at) > MAX_GRANT_MS) return red('OWNER_GRANT_TAMPERED');
   if (path.resolve(workspace) !== grant.project) return red('OWNER_GRANT_WRONG_PROJECT');
   if (ELEVATED_OPERATIONS.includes(operation)) return red('OPERATION_ELEVATED_OUTSIDE_GRANT');
   if (!GRANTABLE_OPERATIONS.includes(operation)) return red('O1_OPERATION_UNKNOWN');

@@ -17,7 +17,7 @@ const tmp = (p) => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const observed = { provider: 'github', observed_via: 'provider_api_readback', subject_id: 4242, login: 'owner', observed_at: new Date().toISOString() };
 const cells = [];
 const t = async (name, fn) => { await fn(); cells.push(name); };
-assert.ok(executorAvailable(), 'bwrap must be available for this suite');
+if (!executorAvailable()) { console.log(JSON.stringify({ check:'OWNER_GRANT_ISOLATED_EXECUTOR', status:'FAIL', first_red:'EXECUTOR_UNAVAILABLE_ON_THIS_HOST_INSTALL_BUBBLEWRAP' })); process.exit(1); }
 
 function grantFor(grantDir, project, { operations = ['edit', 'test'], hours = 1, generation = head } = {}) {
   const g = composeGrant({ observed, chosen: 'owner', project, operations, hours, now: new Date().toISOString(), source_generation: generation });
@@ -107,11 +107,35 @@ await t('self-authorization: the model cannot run `xi grant` or admission writer
   assert.deepEqual(fs.readdirSync(gd).filter((f) => f.endsWith('.json')), []);
 });
 await t('self-authorization: code run in the executor cannot see or write the grant store', async () => {
-  const ws = project(); const gd = tmp('xiio-grants-'); grantFor(gd, ws);
-  fs.writeFileSync(path.join(ws, 'forge.mjs'), `import fs from 'node:fs'; const d=${JSON.stringify(gd)}; console.log('SEES='+JSON.stringify(fs.readdirSync(d))); fs.writeFileSync(d+'/forged.json','{}'); console.log('WROTE_IN_SANDBOX');\n`);
+  const ws = project(); const gd = tmp('xiio-grants-'); const g = grantFor(gd, ws);
+  fs.writeFileSync(path.join(ws, 'forge.mjs'), `import fs from 'node:fs'; const d=${JSON.stringify(gd)}; let seen='NONE'; try{seen=JSON.stringify(fs.readdirSync(d))}catch(e){seen='ERR_'+e.code} console.log('SEES='+seen); try{fs.mkdirSync(d,{recursive:true});fs.writeFileSync(d+'/forged.json','{}');console.log('WROTE_IN_SANDBOX_SCRATCH')}catch(e){console.log('WRITE_ERR_'+e.code)}\n`);
   const r = await runIsolated({ workspace: ws, command: 'node', args: ['forge.mjs'], hide: [gd, defaultGrantDir()] });
-  assert.match(r.output, /SEES=\[\]/);
+  assert.doesNotMatch(r.output, new RegExp(g.grant_id), 'grant id never visible inside');
   assert.equal(fs.existsSync(path.join(gd, 'forged.json')), false, 'host grant store untouched');
+});
+await t('confidentiality: a host file outside the project (non-hidden mount) is unreadable inside', async () => {
+  const sentinelDir = fs.mkdtempSync('/var/tmp/xiio-sentinel-'); const sentinel = path.join(sentinelDir, 'secret.txt');
+  fs.writeFileSync(sentinel, 'SENTINEL_BYTES_DO_NOT_LEAK');
+  const ws = project();
+  fs.writeFileSync(path.join(ws, 'peek.mjs'), `import fs from 'node:fs'; try{console.log('READ='+fs.readFileSync(${JSON.stringify(sentinel)},'utf8'))}catch(e){console.log('READ_ERR_'+e.code)}\n`);
+  const r = await runIsolated({ workspace: ws, command: 'node', args: ['peek.mjs'] });
+  fs.rmSync(sentinelDir, { recursive: true, force: true });
+  assert.doesNotMatch(r.output, /SENTINEL_BYTES_DO_NOT_LEAK/); assert.match(r.output, /READ_ERR_ENOENT/);
+});
+await t('a test-only grant cannot mutate the project (tests run read-only)', () => {
+  const ws = project(); const gd = tmp('xiio-grants-'); grantFor(gd, ws, { operations: ['test'] });
+  fs.writeFileSync(path.join(ws, 'value.txt'), '42\n');
+  fs.writeFileSync(path.join(ws, 'mutate.mjs'), "import fs from 'node:fs'; try{fs.writeFileSync('value.txt','HACKED');fs.unlinkSync('check.mjs');console.log('MUTATED')}catch(e){console.log('MUTATE_ERR_'+e.code)}\n");
+  const { results } = runAgent({ ws, grantDir: gd, plan: [testRun('mutate.mjs'), testRun('check.mjs')] });
+  assert.match(results[0].output, /MUTATE_ERR_EROFS/);
+  assert.equal(fs.readFileSync(path.join(ws, 'value.txt'), 'utf8'), '42\n'); assert.equal(fs.existsSync(path.join(ws, 'check.mjs')), true);
+  assert.match(results[1].output, /TEST_PASS value=42/, 'positive control: a read-only test still runs and passes');
+});
+await t('audit is part of admission: unwritable audit refuses the effect', () => {
+  const ws = project(); const gd = tmp('xiio-grants-'); grantFor(gd, ws);
+  fs.rmSync(path.join(gd, 'audit.jsonl')); fs.mkdirSync(path.join(gd, 'audit.jsonl'));
+  const { results } = runAgent({ ws, grantDir: gd, plan: [edit('value.txt', '42\n')] });
+  assert.equal(results[0].reason, 'OWNER_GRANT_AUDIT_UNAVAILABLE'); assert.equal(fs.existsSync(path.join(ws, 'value.txt')), false);
 });
 await t('path escape: ../ and a symlink out of the project are refused', () => {
   const ws = project(); const gd = tmp('xiio-grants-'); grantFor(gd, ws); const outside = tmp('xiio-outside-');

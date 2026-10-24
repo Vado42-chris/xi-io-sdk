@@ -63,7 +63,9 @@ export function effectGate(operation = 'edit') {
   const dir = defaultGrantDir();
   const { grant, revoked } = findGrant(dir, { workspace: cwd, now });
   const decision = checkGrant(grant, { operation, workspace: cwd, now, source_generation: sdkSourceGeneration(), revoked });
-  try { audit(dir, { event: decision.ok ? 'EFFECT_ADMITTED' : 'EFFECT_REFUSED', operation, project: cwd, grant_id: grant?.grant_id || null, first_red: decision.first_red || null }); } catch {}
+  // Audit is part of the admission: if it cannot be written, nothing is admitted.
+  try { audit(dir, { event: decision.ok ? 'EFFECT_ADMITTED' : 'EFFECT_REFUSED', operation, project: cwd, grant_id: grant?.grant_id || null, first_red: decision.first_red || null }); }
+  catch { return { ok:false, state:'BLOCKED', reason:'OWNER_GRANT_AUDIT_UNAVAILABLE', provider_effect:false, authority_granted:false }; }
   if (decision.ok) return null;
   return { ok:false, state:'BLOCKED', reason:'OWNER_GRANT_REQUIRED', first_red:decision.first_red, lifecycle_first_red:lifecycle.first_red||lifecycle.reason, next:'run `xi grant` yourself in a terminal for this project', provider_effect:false, authority_granted:false };
 }

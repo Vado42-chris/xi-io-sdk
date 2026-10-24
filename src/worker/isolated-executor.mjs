@@ -3,10 +3,10 @@
  * Tests and package scripts execute arbitrary code, so a command-name
  * allowlist is not containment. Every command run for the model goes through
  * bubblewrap (bwrap, the OS sandbox Codex also uses):
- *   - the whole filesystem is read-only;
- *   - only the granted project is writable;
- *   - $HOME, /tmp and every authority directory (grants, admission state) are
- *     replaced by empty tmpfs, so no grant, key or policy is visible or writable;
+ *   - only system dirs, the node install and the project are visible, all
+ *     read-only; nothing else on the host exists inside (no other homes,
+ *     mounts, grants, keys or policy);
+ *   - tests cannot change the project; /tmp and $HOME are empty scratch;
  *   - no network; dies with its parent; new session (no terminal injection).
  * If bwrap is missing or cannot start, the command is refused. There is no
  * fallback to host execution. */
@@ -25,16 +25,22 @@ export function executorAvailable(env = process.env) {
   return r.status === 0;
 }
 
-export function bwrapArgs({ workspace, hide = [], home = os.homedir() }) {
+/* Allowlisted view, never the host root: system dirs and the node install read-only,
+   the project read-only (tests cannot change it; edits go only through the audited
+   edit tool), an empty writable /tmp and HOME for scratch. Nothing else exists. */
+export function bwrapArgs({ workspace, hide = [], home = os.homedir(), nodeBin = process.execPath }) {
   const ws = fs.realpathSync(workspace);
-  const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--tmpfs', home];
   for (const dir of hide) {
     let real = null;
     try { real = fs.realpathSync(dir); } catch { continue; }
-    if (ws === real || ws.startsWith(real + path.sep)) throw new Error('EXECUTOR_PROJECT_CONTAINS_AUTHORITY_DIR');
-    args.push('--tmpfs', real);
+    if (ws === real || ws.startsWith(real + path.sep) || real.startsWith(ws + path.sep)) throw new Error('EXECUTOR_PROJECT_CONTAINS_AUTHORITY_DIR');
   }
-  args.push('--bind', ws, ws, '--chdir', ws, '--setenv', 'HOME', home,
+  const nodePrefix = path.dirname(path.dirname(fs.realpathSync(nodeBin)));
+  const args = [];
+  for (const sys of ['/usr', '/bin', '/sbin', '/lib', '/lib64', '/etc']) args.push('--ro-bind-try', sys, sys);
+  if (!['/usr', '/'].includes(nodePrefix)) args.push('--ro-bind', nodePrefix, nodePrefix);
+  args.push('--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--tmpfs', home,
+    '--ro-bind', ws, ws, '--chdir', ws, '--setenv', 'HOME', home, '--setenv', 'TMPDIR', '/tmp',
     '--unshare-all', '--die-with-parent', '--new-session', '--');
   return args;
 }
