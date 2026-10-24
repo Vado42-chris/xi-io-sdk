@@ -135,6 +135,13 @@ assert.equal(missingGb.device_execute_gate.state,'UNKNOWN');
 assert.equal(missingGb.optional_transport_diagnostics.remote_desktop.core_gate,false);
 assert.deepEqual(missingGb.cells,gb.cells,'legacy provider projection contaminated core gates');
 
+fs.writeFileSync(statePath,'{malformed-legacy-state','utf8');
+const invalidGates=spawnSync(process.execPath,['bin/xi.mjs','gates','--check','--json'],{encoding:'utf8',env});
+const invalidGb=JSON.parse(invalidGates.stdout);
+assert.deepEqual(invalidGb.cells,gb.cells,'corrupt optional relay changed core gates');
+assert.equal(invalidGb.optional_transport_diagnostics.remote_desktop.state,'FAIL_CURRENT');
+assert.equal(invalidGb.device_execute_gate.state,'UNKNOWN','corrupt relay must not produce native pass');
+
 fs.rmSync(tmp,{recursive:true,force:true});
 console.log(JSON.stringify({
   schema:'xiio.sdk.cli-home-cloud-bridge-currentness-check/v1',
