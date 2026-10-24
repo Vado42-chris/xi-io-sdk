@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { compileWorkerLifecycleKit, workerLifecyclePrimitiveCatalog } from '../src/worker/lifecycle.mjs';
+import {
+  compileWorkerLifecycleKit,
+  workerLifecyclePrimitiveCatalog,
+  compileWorkerAdapterConformance,
+  WORKER_ADAPTER_REQUIRED_BINDINGS,
+  WORKER_RESTART_BOUNDARIES,
+  WORKER_QUALIFICATION_DOMAINS,
+} from '../src/worker/lifecycle.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 import pkg from '../package.json' with { type: 'json' };
 
@@ -43,6 +50,164 @@ assert.throws(
   /applicable_id_UNKNOWN/,
 );
 assert.throws(()=>compileWorkerLifecycleKit({}),/generation_INVALID/);
+
+const lifecycleGeneration='sdk:worker-lifecycle:g1';
+const adapterGeneration='adapter:g1';
+const qualDomain=(name)=>({
+  execution_ref:`e:${name}:execute`,
+  hostile_ref:`e:${name}:hostile`,
+  independent_review_ref:`e:${name}:review`,
+  executor_principal_ref:`principal:${name}:execute`,
+  hostile_principal_ref:`principal:${name}:hostile`,
+  reviewer_principal_ref:`principal:${name}:review`,
+});
+const fullBindings=()=>({
+  work_generation:{verified:true,evidence_ref:'e:work',work_ref:'work:1',generation_ref:'work:g1'},
+  currentness_recovery:{verified:true,evidence_ref:'e:current',currentness_ref:'current:g1',recovery_ref:'recovery:1',hallberg_recovery_ref:'hallberg:recovery:1',lifecycle_selected:true,keyword_triggered:false,ordinary_work_covered:true},
+  admission:{verified:true,evidence_ref:'e:admission',assignment_ref:'assignment:1',principal_ref:'principal:worker:1',admission_ref:'admission:1',current:true},
+  tool_capability:{verified:true,evidence_ref:'e:tools',capability_ref:'capability:1',tool_catalog_ref:'tools:g1',qualified:true,current:true},
+  ack:{verified:true,evidence_ref:'e:ack',ack_ref:'ack:1',sow_ref:'sow:1'},
+  privacy_effect:{verified:true,evidence_ref:'e:privacy',privacy_ref:'privacy:1',effect_ceiling:'READ_ONLY'},
+  bounded_execution:{verified:true,evidence_ref:'e:execution',attempt_ref:'attempt:1',execution_ref:'execution:1',bounded:true},
+  yar:{verified:true,evidence_ref:'e:yar',yar_ref:'yar:1',interrupted_return_reconciled:true},
+  result_return:{verified:true,evidence_ref:'e:return',result_ref:'result:1',return_ref:'return:1',apply_return_ref:'apply:1',exactly_once:true,retry_completes_owed_writes:true},
+  verified_readback:{verified:true,evidence_ref:'e:readback',readback_ref:'readback:1',consumer_ref:'consumer:1'},
+  affected_recompile:{verified:true,evidence_ref:'e:affected',affected_set_ref:'affected:1',recompile_ref:'recompile:1',all_and_only:true},
+  restart_reconciliation:{verified:true,evidence_ref:'e:restart',coverage_ref:'restart:1',covered_boundaries:[...WORKER_RESTART_BOUNDARIES]},
+  qualification_independence:{verified:true,evidence_ref:'e:qualification',domains:Object.fromEntries(WORKER_QUALIFICATION_DOMAINS.map((name)=>[name,qualDomain(name)]))},
+  installed_consumer:{verified:true,evidence_ref:'e:installed',installed_generation:adapterGeneration,lifecycle_generation:lifecycleGeneration},
+});
+const conforming=()=>({
+  adapter_id:'adapter:test',
+  adapter_kind:'OLLAMA_LOCAL',
+  source_generation:adapterGeneration,
+  installed_generation:adapterGeneration,
+  lifecycle_generation:lifecycleGeneration,
+  bindings:fullBindings(),
+});
+
+let adapter=compileWorkerAdapterConformance(conforming());
+assert.equal(adapter.schema,'xiio.sdk.worker-adapter-lifecycle-conformance/v1');
+assert.equal(adapter.denominator,WORKER_ADAPTER_REQUIRED_BINDINGS.length);
+assert.equal(adapter.pass,WORKER_ADAPTER_REQUIRED_BINDINGS.length);
+assert.equal(adapter.fail,0);
+assert.equal(adapter.release_eligible,true);
+assert.equal(adapter.first_red,null);
+assert.equal(adapter.authority_granted,false);
+assert.equal(adapter.provider_effect,false);
+
+for(const missing of WORKER_ADAPTER_REQUIRED_BINDINGS){
+  const input=conforming();
+  delete input.bindings[missing];
+  const result=compileWorkerAdapterConformance(input);
+  assert.equal(result.release_eligible,false,missing);
+  assert.equal(result.first_red?.id,missing,missing);
+  assert.equal(result.first_red?.state,'MISSING',missing);
+}
+
+for(const [binding,field,reason] of [
+  ['work_generation','generation_ref','WORK_GENERATION_IDENTITY_INCOMPLETE'],
+  ['currentness_recovery','hallberg_recovery_ref','CURRENTNESS_RECOVERY_INCOMPLETE'],
+  ['admission','assignment_ref','REAL_ADMISSION_BINDING_INCOMPLETE'],
+  ['tool_capability','capability_ref','TOOL_CAPABILITY_NOT_CURRENT_QUALIFIED'],
+  ['ack','sow_ref','ACK_SOW_BINDING_INCOMPLETE'],
+  ['privacy_effect','privacy_ref','PRIVACY_EFFECT_BOUNDARY_INCOMPLETE'],
+  ['bounded_execution','attempt_ref','BOUNDED_EXECUTION_INCOMPLETE'],
+  ['yar','yar_ref','YAR_REF_MISSING'],
+  ['result_return','apply_return_ref','RESULT_RETURN_CHAIN_INCOMPLETE'],
+  ['verified_readback','readback_ref','VERIFIED_READBACK_INCOMPLETE'],
+  ['affected_recompile','affected_set_ref','AFFECTED_ONLY_RECOMPILE_INCOMPLETE'],
+]){
+  const input=conforming();
+  delete input.bindings[binding][field];
+  const result=compileWorkerAdapterConformance(input);
+  assert.equal(result.release_eligible,false,reason);
+  assert.equal(result.cells.find((row)=>row.id===binding)?.reason,reason);
+}
+
+for(const [mutate,binding,reason] of [
+  [x=>{x.bindings.currentness_recovery.lifecycle_selected=false;},'currentness_recovery','RECOVERY_NOT_LIFECYCLE_SELECTED'],
+  [x=>{x.bindings.currentness_recovery.keyword_triggered=true;},'currentness_recovery','KEYWORD_TRIGGERED_RECOVERY_FORBIDDEN'],
+  [x=>{x.bindings.currentness_recovery.ordinary_work_covered=false;},'currentness_recovery','ORDINARY_WORK_RECOVERY_BYPASS'],
+  [x=>{x.bindings.admission.current=false;},'admission','REAL_ADMISSION_BINDING_INCOMPLETE'],
+  [x=>{x.bindings.tool_capability.qualified=false;},'tool_capability','TOOL_CAPABILITY_NOT_CURRENT_QUALIFIED'],
+  [x=>{x.bindings.bounded_execution.bounded=false;},'bounded_execution','BOUNDED_EXECUTION_INCOMPLETE'],
+  [x=>{x.bindings.yar.interrupted_return_reconciled=false;},'yar','YAR_INTERRUPTED_RETURN_UNRECONCILED'],
+  [x=>{x.bindings.result_return.exactly_once=false;},'result_return','RESULT_RETURN_NOT_EXACTLY_ONCE'],
+  [x=>{x.bindings.result_return.retry_completes_owed_writes=false;},'result_return','INTERRUPTED_RETURN_RETRY_DOES_NOT_COMPLETE_OWED_WRITES'],
+  [x=>{x.bindings.affected_recompile.all_and_only=false;},'affected_recompile','AFFECTED_ONLY_RECOMPILE_INCOMPLETE'],
+]){
+  const input=conforming();
+  mutate(input);
+  const result=compileWorkerAdapterConformance(input);
+  assert.equal(result.release_eligible,false,reason);
+  assert.equal(result.cells.find((row)=>row.id===binding)?.reason,reason);
+}
+
+{
+  const input=conforming();
+  input.bindings.restart_reconciliation.covered_boundaries=input.bindings.restart_reconciliation.covered_boundaries.filter((x)=>x!=='YAR');
+  const result=compileWorkerAdapterConformance(input);
+  assert.equal(result.release_eligible,false);
+  assert.match(result.cells.find((row)=>row.id==='restart_reconciliation')?.reason||'',/RESTART_RECONCILIATION_BOUNDARY_MISSING:YAR/);
+}
+
+{
+  const input=conforming();
+  input.bindings.qualification_independence.domains.admission.reviewer_principal_ref=
+    input.bindings.qualification_independence.domains.admission.executor_principal_ref;
+  const result=compileWorkerAdapterConformance(input);
+  assert.equal(result.release_eligible,false);
+  assert.equal(
+    result.cells.find((row)=>row.id==='qualification_independence')?.reason,
+    'QUALIFICATION_PRINCIPALS_NOT_INDEPENDENT:admission',
+  );
+}
+
+{
+  const input=conforming();
+  delete input.bindings.qualification_independence.domains.affected_return.hostile_ref;
+  const result=compileWorkerAdapterConformance(input);
+  assert.equal(result.release_eligible,false);
+  assert.equal(
+    result.cells.find((row)=>row.id==='qualification_independence')?.reason,
+    'QUALIFICATION_DOMAIN_INCOMPLETE:affected_return',
+  );
+}
+
+for(const adapter_kind of ['BASE44_CLOUD','HEX_NATIVE','OLLAMA_LOCAL','CLI_MCP','FUTURE_PROVIDER']){
+  const input=conforming();
+  input.adapter_kind=adapter_kind;
+  const pass=compileWorkerAdapterConformance(input);
+  assert.equal(pass.release_eligible,true,adapter_kind);
+  delete input.bindings.ack;
+  const fail=compileWorkerAdapterConformance(input);
+  assert.equal(fail.release_eligible,false,adapter_kind);
+  assert.equal(fail.first_red?.id,'ack',adapter_kind);
+}
+
+let stale=conforming();
+stale.installed_generation='adapter:g0';
+stale.bindings.installed_consumer.installed_generation='adapter:g0';
+adapter=compileWorkerAdapterConformance(stale);
+assert.equal(adapter.release_eligible,false);
+assert.equal(adapter.cells.find((row)=>row.id==='installed_consumer')?.reason,'INSTALLED_GENERATION_MISMATCH');
+
+stale=conforming();
+stale.bindings.installed_consumer.lifecycle_generation='sdk:worker-lifecycle:old';
+adapter=compileWorkerAdapterConformance(stale);
+assert.equal(adapter.release_eligible,false);
+assert.equal(adapter.cells.find((row)=>row.id==='installed_consumer')?.reason,'LIFECYCLE_GENERATION_MISMATCH');
+
+const gamified=compileWorkerAdapterConformance({
+  ...conforming(),
+  gamification:{level:999,score:1000000,rank:'META_ARCHITECT',effect_authority:true},
+});
+assert.equal(gamified.release_eligible,true);
+assert.equal(gamified.authority_granted,false);
+assert.equal(gamified.provider_effect,false);
+assert.ok(gamified.hard.includes('GAMIFICATION!=AUTHORITY'));
+assert.ok(gamified.hard.includes('MISSING_ADAPTER_BINDING=>RELEASE_FAIL'));
 
 const source=fs.readFileSync(new URL('../src/worker/lifecycle.mjs',import.meta.url),'utf8');
 assert.doesNotMatch(source,/effect_authority\s*:\s*true/);
