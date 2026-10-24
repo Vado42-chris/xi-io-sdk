@@ -220,6 +220,7 @@ function chooseFramework({cwd,env,volume,exec,providerRead}){
   const candidates=[
     env.XIIO_FRAMEWORK_ROOT||null,
     gitTop.ok?gitTop.stdout:null,
+    path.join(env.HOME||os.homedir(),'.local','share','xi-io','repos','xi-io.net'),
     volume?path.join(volume,'999_Work','003_Projects','003_xi-io_net'):null,
   ];
   const unique=uniq(candidates.map(real));
