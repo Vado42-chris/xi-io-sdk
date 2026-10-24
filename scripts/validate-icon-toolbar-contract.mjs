@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { renderIconButton } from '../src/components/shell.mjs';
+
+const icon = '<svg aria-hidden="true"><path d="M0 0"/></svg>';
+const enabled = renderIconButton({ label: 'Inspect changes', iconHtml: icon, shortcut: 'Control+Shift+I', commandId: 'work.inspect', controls: 'diff-drawer' });
+assert.match(enabled, /aria-label="Inspect changes"/);
+assert.match(enabled, /aria-keyshortcuts="Control\+Shift\+I"/);
+assert.match(enabled, /data-xiui-command="work.inspect"/);
+assert.match(enabled, /aria-controls="diff-drawer"/);
+assert.match(enabled, /aria-expanded="false"/);
+assert.match(enabled, /title="Inspect changes \(Control\+Shift\+I\)"/);
+const disabled = renderIconButton({ label: 'Apply patch', disabled: true, disabledReason: 'Ward admission missing' });
+assert.match(disabled, /disabled aria-disabled="true"/);
+assert.match(disabled, /title="Apply patch: Ward admission missing"/);
+assert.doesNotMatch(renderIconButton({label:'Search'}), /aria-expanded/);
+assert.throws(() => renderIconButton({iconHtml:icon}), /accessible label/);
+assert.throws(() => renderIconButton({label:'Save', disabled:true}), /requires a reason/);
+assert.throws(() => renderIconButton({label:'Save',commandId:'bad id'}), /invalid command id/);
+assert.match(renderIconButton({label:'<unsafe>',title:'"oops"',shortcut:'Alt+<' }), /aria-label="&lt;unsafe&gt;"/);
+console.log('SDK icon command contract PASS (render only, no runtime effect claimed)');
