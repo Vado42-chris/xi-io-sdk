@@ -312,8 +312,13 @@ assert.throws(
   ()=>validateXiioCliArgs(['recover','aries-runner','--execute']),
   /XIIO_RECOVERY_REQUIRES_EXECUTE/
 );
+// --execute alone is a request, not authority: recovery also needs the shared lifecycle admission.
+assert.throws(
+  ()=>validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true,admissionGate:()=>({state:'BLOCKED'})}),
+  /XIIO_RECOVERY_REQUIRES_LIFECYCLE_ADMISSION/
+);
 assert.deepEqual(
-  validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true}),
+  validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true,admissionGate:()=>null}),
   ['recover','aries-runner','--execute']
 );
 assert.throws(

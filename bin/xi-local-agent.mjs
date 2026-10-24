@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
 import { startLocalAgentServer } from '../src/cli/local-agent-http.mjs';
@@ -13,6 +13,7 @@ import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 import { commandLexicon } from '../src/cli/public-exports.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
+import { requireRotflMutationAdmission } from '../src/preflight/order-runtime.mjs';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
@@ -34,6 +35,23 @@ const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--retur
 const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
 const MAX_ONCE_INPUT_BYTES = 65_536;
 
+/* --execute is a request, not authority. Every entrypoint (bin/xi.mjs and this
+   direct one) must pass the same shared ROTFL lifecycle admission before any
+   effectful tool runs; otherwise this file is a side door around it. */
+function sdkSourceGeneration() {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const git = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding:'utf8', timeout:5000 });
+  if (git.status === 0 && String(git.stdout || '').trim()) return String(git.stdout).trim();
+  const version = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  return `sdk-package:${version}`;
+}
+export function effectGate() {
+  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+  const admission = requireRotflMutationAdmission({ current_source_generation: sdkSourceGeneration() });
+  if (admission.admitted) return null;
+  return { ok:false, state:'BLOCKED', reason:'ROTFL_LIFECYCLE_ADMISSION_REQUIRED', first_red:admission.first_red, provider_effect:false, authority_granted:false };
+}
+
 function argValue(name) {
   const index = process.argv.indexOf(name);
   if (index < 0) return null;
@@ -52,7 +70,7 @@ function target(raw) {
 }
 
 async function run(command, args = []) {
-  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+  const gate = effectGate(); if (gate) return gate;
   if (!commands.has(command) || !Array.isArray(args) || args.length > 32) throw new Error('COMMAND_DENIED');
   if (args.some(a => typeof a !== 'string' || a.includes('\0') || path.isAbsolute(a) || a.split(/[\\/]+/).includes('..'))) throw new Error('COMMAND_DENIED');
   if (command === 'git' && !gitCommands.has(args[0])) throw new Error('GIT_COMMAND_DENIED');
@@ -309,13 +327,14 @@ function readXiioRegistry(kind) {
   throw new Error('REGISTRY_KIND_DENIED');
 }
 
-export function validateXiioCliArgs(argv,{executionEnabled=execute}={}) {
+export function validateXiioCliArgs(argv,{executionEnabled=execute,admissionGate=effectGate}={}) {
   if(!Array.isArray(argv) || argv.length<1 || argv.length>64) throw new Error('XIIO_ARGS_INVALID');
   if(argv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
   if(!xiioFamilies.has(argv[0])) throw new Error('XIIO_COMMAND_FAMILY_DENIED');
   if(argv[0]==='recover'){
     if(argv[1]!=='aries-runner') throw new Error('XIIO_RECOVERY_TARGET_DENIED');
     if(argv.includes('--execute') && !executionEnabled) throw new Error('XIIO_RECOVERY_REQUIRES_EXECUTE');
+    if(argv.includes('--execute') && admissionGate()) throw new Error('XIIO_RECOVERY_REQUIRES_LIFECYCLE_ADMISSION');
   }
   for(let i=0;i<argv.length;i+=1){
     const flag=argv[i];
@@ -325,6 +344,7 @@ export function validateXiioCliArgs(argv,{executionEnabled=execute}={}) {
     if(flag==='--out' && value==='-'){i+=1;continue;}
     target(value);
     if(flag==='--out' && !execute) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_EXECUTE');
+    if(flag==='--out' && admissionGate()) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_LIFECYCLE_ADMISSION');
     i+=1;
   }
   return argv;
@@ -375,7 +395,7 @@ async function tool(name,a={}) {
   if(name==='resolve_xiio_command') return resolveLexiconCommand(String(a.token||''));
   if(name==='run_xiio_cli_command') return runXiioCliCommand(a);
   if(name==='edit_workspace_text_file') {
-    if(!execute) return {ok:false,state:'BLOCKED',reason:'START_WITH_XI_CHAT_EXECUTE'};
+    const gate=effectGate(); if(gate) return gate;
     const p=target(a.path), next=String(a.new_text??''); if(Buffer.byteLength(next)>262144) throw new Error('EDIT_TOO_LARGE');
     if(a.operation==='create') await fsp.writeFile(p,next,{flag:'wx'});
     else { const old=String(a.old_text??''), cur=await fsp.readFile(p,'utf8'); if(!old||cur.indexOf(old)<0||cur.indexOf(old)!==cur.lastIndexOf(old)) throw new Error('EDIT_STALE_OR_AMBIGUOUS'); await fsp.writeFile(p,cur.replace(old,next)); }
