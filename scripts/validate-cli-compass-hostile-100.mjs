@@ -237,26 +237,26 @@ async function installedLayoutCompass({explicit=false,wrongInstalledOrigin=false
     if(command==='git'){
       const sig=args.join(' ');
       if(sig==='rev-parse --show-toplevel'){
-        if(cwd===workspace) return result(true,workspace+'\\n');
-        return result(true,String(cwd)+'\\n');
+        if(cwd===workspace) return result(true,workspace);
+        return result(true,String(cwd));
       }
-      if(sig==='rev-parse --is-inside-work-tree') return result(true,'true\\n');
+      if(sig==='rev-parse --is-inside-work-tree') return result(true,'true');
       if(sig==='remote get-url origin'){
-        if(cwd===workspace) return result(true,'https://github.com/Vado42-chris/xi-io-sdk.git\\n');
-        if(cwd===installed) return result(true,(wrongInstalledOrigin?wrong:canonical)+'\\n');
-        if(cwd===explicitFramework) return result(true,canonical+'\\n');
+        if(cwd===workspace) return result(true,'https://github.com/Vado42-chris/xi-io-sdk.git');
+        if(cwd===installed) return result(true,(wrongInstalledOrigin?wrong:canonical));
+        if(cwd===explicitFramework) return result(true,canonical);
       }
-      if(sig==='rev-parse HEAD') return result(true,localHead+'\\n');
-      if(sig==='branch --show-current') return result(true,'main\\n');
+      if(sig==='rev-parse HEAD') return result(true,localHead);
+      if(sig==='branch --show-current') return result(true,'main');
       if(sig==='status --porcelain=v1') return result(true,'');
-      if(sig==='ls-remote origin refs/heads/main') return result(true,providerHead+'\\trefs/heads/main\\n');
+      if(sig==='ls-remote origin refs/heads/main') return result(true,providerHead+' refs/heads/main');
       return result(false,'','unsupported git '+sig,2);
     }
     if(command==='systemctl'){
       if(args.join(' ').includes('list-unit-files')) return result(true,'');
-      return result(false,'inactive\\n','',3);
+      return result(false,'inactive','',3);
     }
-    if(command==='pgrep') return result(true,`123 ${installed}/.runner-test/bin/Runner.Listener run\\n`);
+    if(command==='pgrep') return result(true,`123 ${installed}/.runner-test/bin/Runner.Listener run`);
     return result(false,'','unsupported '+command,2);
   };
   const env={
