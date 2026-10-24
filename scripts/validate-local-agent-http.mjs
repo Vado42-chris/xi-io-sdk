@@ -194,6 +194,7 @@ let settle;
 const slow = await startLocalAgentServer({
   port: 0,
   turnTimeoutMs: 100,
+  observeInstalledGeneration: () => ({ ok: true, first_red: null, sdk_root: '/fixture/sdk', agent: '/fixture/sdk/bin/xi-local-agent.mjs' }),
   status: async () => ({ model: 'fixture' }),
   handleTurn: async (message, { signal } = {}) => {
     if (message !== 'stuck') return `echo:${message}`;
