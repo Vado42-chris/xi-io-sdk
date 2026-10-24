@@ -64,7 +64,7 @@ fs.writeFileSync(statePath,JSON.stringify({
 
 const env={...process.env,XIIO_REMOTE_DESKTOP_STATE_PATH:statePath,XIIO_INVOKED_AS:'xi-io'};
 const run=spawnSync(process.execPath,['bin/xi.mjs','status','--json'],{encoding:'utf8',env});
-assert([1,2].includes(run.status),`typed remote-session red should produce WAIT/REJECT exit, got ${run.status}: ${run.stderr}`);
+assert([0,1,2].includes(run.status),`legacy adapter state must not decide core CLI exit, got ${run.status}: ${run.stderr}`);
 const body=JSON.parse(run.stdout);
 assert.equal(body.remote_desktop.plugin_auth_state,'PASS');
 assert.equal(body.remote_desktop.device_registration_state,'PASS');
@@ -88,14 +88,31 @@ assert.equal(body.io.remote_desktop.plugin_auth_state,'PASS');
 assert.equal(body.io.remote_desktop.live_device_session_state,'FAIL_CURRENT');
 assert.equal(body.io.remote_desktop.cord_free_state,'WAIT_LIVE_SESSION');
 assert.equal(body.io.remote_desktop.home_node_role,'DURABLE_EXECUTION_AND_CUSTODY_EDGE');
+assert.equal(body.io.remote_desktop.adapter_role,'OPTIONAL_LEGACY_TRANSPORT');
+assert.equal(body.io.remote_desktop.gates_native_execution,false);
+assert.equal(body.remote_desktop.adapter_role,'OPTIONAL_LEGACY_TRANSPORT');
+assert.equal(body.remote_desktop.gates_native_execution,false);
+assert.equal(body.io.device_execute.capability,'device.execute');
+assert.equal(body.io.device_execute.state,'UNKNOWN');
+assert.equal(body.io.device_execute.authority_owner,'Ward');
+assert.equal(body.io.device_execute.routing_owner,'Switchboard');
+assert.equal(body.io.device_execute.receipt_owner,'BINS');
+assert.equal(body.io.device_execute.native_effect_verified,false);
+assert.equal(body.io.device_execute.peer_ack_verified,false);
 assert.equal(body.io.remote_desktop.client_access_model,'ANY_AUTHORIZED_CLIENT_ANYWHERE');
 
 const gates=spawnSync(process.execPath,['bin/xi.mjs','gates','--check','--json'],{encoding:'utf8',env});
 const gb=JSON.parse(gates.stdout);
 const byId=Object.fromEntries(gb.cells.map(x=>[x.id,x.state]));
-assert.equal(byId.REMOTE_PLUGIN_AUTH,'PASS');
-assert.equal(byId.REMOTE_DEVICE_REGISTRATION,'PASS');
-assert.equal(byId.REMOTE_LIVE_SESSION,'FAIL_CURRENT');
+assert.equal('REMOTE_PLUGIN_AUTH' in byId,false);
+assert.equal('REMOTE_DEVICE_REGISTRATION' in byId,false);
+assert.equal('REMOTE_LIVE_SESSION' in byId,false);
+assert.equal(gb.device_execute_gate.id,'XIIO_DEVICE_EXECUTE');
+assert.equal(gb.device_execute_gate.state,'UNKNOWN');
+assert.equal(gb.device_execute_gate.blocks_device_execution,true);
+assert.equal(gb.device_execute_gate.blocks_unrelated_local_work,false);
+assert.equal(gb.optional_transport_diagnostics.remote_desktop.state,'FAIL_CURRENT');
+assert.equal(gb.optional_transport_diagnostics.remote_desktop.core_gate,false);
 
 const missing=spawnSync(process.execPath,['bin/xi.mjs','status','--json'],{
   encoding:'utf8',
@@ -106,6 +123,17 @@ const mb=JSON.parse(missing.stdout);
 assert.equal(mb.remote_desktop.state,'TRUE_WAIT');
 assert.equal(mb.remote_desktop.plugin_auth_state,'UNKNOWN');
 assert.equal(mb.remote_desktop.first_red,'REMOTE_DESKTOP_STATE_PROJECTION_MISSING');
+assert.equal(mb.io.device_execute.state,'UNKNOWN');
+assert.equal(mb.io.device_execute.native_effect_verified,false);
+const missingGates=spawnSync(process.execPath,['bin/xi.mjs','gates','--check','--json'],{
+  encoding:'utf8',
+  env:{...process.env,XIIO_REMOTE_DESKTOP_STATE_PATH:path.join(tmp,'missing.json'),XIIO_INVOKED_AS:'xi-io'}
+});
+const missingGb=JSON.parse(missingGates.stdout);
+assert.equal(missingGb.state,gb.state,'optional provider outage changed unrelated CLI gate');
+assert.equal(missingGb.device_execute_gate.state,'UNKNOWN');
+assert.equal(missingGb.optional_transport_diagnostics.remote_desktop.core_gate,false);
+assert.deepEqual(missingGb.cells,gb.cells,'legacy provider projection contaminated core gates');
 
 fs.rmSync(tmp,{recursive:true,force:true});
 console.log(JSON.stringify({
@@ -114,6 +142,9 @@ console.log(JSON.stringify({
   auth_pass_preserved:true,
   registration_pass_preserved:true,
   live_session_fail_preserved:true,
+  legacy_provider_optional:true,
+  unrelated_cli_gates_independent_of_provider:true,
+  sovereign_device_execute_fail_closed:true,
   missing_projection_is_wait_not_not_authenticated:true,
   home_node_remains_authoritative_during_session_loss:true,
   cloud_relay_is_not_home_state_owner:true,
