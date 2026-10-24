@@ -140,15 +140,18 @@ await t('elevated effects stay outside any grant (recover --execute needs full l
   assert.throws(() => composeGrant({ observed, chosen: 'owner', project: ws, operations: ['publish'], hours: 1, now: new Date().toISOString(), source_generation: head }), /NOT_GRANTABLE/);
   assert.throws(() => composeGrant({ observed, chosen: 'owner', project: os.homedir(), operations: ['edit'], hours: 1, now: new Date().toISOString(), source_generation: head }), /TOO_BROAD/);
 });
-await t('isolated test cannot see unrelated host media or private home', async () => {
+await t('isolated test cannot read a synthetic file outside its project', async () => {
   const ws = project();
-  const r = await runIsolated({ workspace: ws, command: 'node', args: ['-e',
-    "const fs=require('node:fs');console.log(JSON.stringify({project:fs.existsSync('check.mjs'),external:fs.existsSync('/media/chrishallberg/Storage 22'),home:fs.existsSync(process.env.HOME+'/.ssh')}))" ] });
-  assert.equal(r.ok, true);
-  const visibility = JSON.parse(r.output.trim());
-  assert.equal(visibility.project, true);
-  assert.equal(visibility.external, false);
-  assert.equal(visibility.home, false);
+  const outside = fs.realpathSync(fs.mkdtempSync('/var/tmp/xiio-executor-private-'));
+  try {
+    fs.writeFileSync(path.join(outside, 'synthetic-canary.txt'), 'synthetic fixture only\n');
+    const check = "const fs=require('node:fs');console.log(JSON.stringify({project:fs.existsSync('check.mjs'),external:fs.existsSync("+JSON.stringify(path.join(outside,'synthetic-canary.txt'))+")}))";
+    const r = await runIsolated({ workspace: ws, command: 'node', args: ['-e', check] });
+    assert.equal(r.ok, true);
+    const visibility = JSON.parse(r.output.trim());
+    assert.equal(visibility.project, true);
+    assert.equal(visibility.external, false, 'outside-project private fixture must not be visible');
+  } finally { fs.rmSync(outside, { recursive: true, force: true }); }
 });
 await t('a yes never marks lifecycle steps complete', async () => {
   const { checkGrant } = await import('../src/worker/owner-grant.mjs');
