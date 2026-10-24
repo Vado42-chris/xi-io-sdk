@@ -32,8 +32,8 @@
     "FILE_CUBE_PREPARABLE != SHIPPED"
   ],
   "dispatch": {
-    "expected": 41,
-    "materialized_primitives": 41,
+    "expected": 42,
+    "materialized_primitives": 42,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
@@ -572,6 +572,17 @@
       "export": "compileFlatpackPacket|projectFlatpackQualifiers|validateFlatpackPacketRoundtrip|reduceFlatpackArtifact|expandFlatpackArtifact|validateFlatpackReductionRoundtrip",
       "source": "src/flatpack/executable-packet.mjs",
       "specifier": "@xi-io/sdk/flatpack/packet",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "worker-lifecycle-kit",
+      "callable_uuid": "d6d64d79-8e38-53a1-ad28-13e68f817b66",
+      "family": "worker",
+      "kind": "compiler",
+      "export": "compileWorkerLifecycleKit|workerLifecyclePrimitiveCatalog",
+      "source": "src/worker/lifecycle.mjs",
+      "specifier": "@xi-io/sdk/worker/lifecycle",
       "styles": [],
       "maturity": "CANDIDATE"
     }
