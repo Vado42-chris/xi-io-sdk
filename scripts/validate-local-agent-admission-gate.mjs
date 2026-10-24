@@ -42,7 +42,8 @@ function runCase(name, prepare) {
       `  :{role:"assistant",tool_calls:[{function:{name:"edit_workspace_text_file",arguments:{path:${JSON.stringify(marker)},operation:"create",new_text:"ok\\n"}}}]};`,
       ' return {ok:true,json:async()=>({message})};};',
     ].join('\n'));
-    const statePath = path.join(dir, 'oor.json');
+    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xiio-admitstate-'));
+    const statePath = path.join(stateDir, 'oor.json');
     prepare(statePath);
     const run = spawnSync(process.execPath, [direct, '--execute', '--once'], {
       cwd:dir, input:'synthetic request', encoding:'utf8', timeout:15000,
@@ -71,4 +72,18 @@ t('admitted for this exact generation: the bounded write proceeds (no over-block
   const c = runCase('admitted', (f) => admittedState(f, head));
   assert.equal(c.wrote, true);
 });
+t('the edit tool cannot write the admission state even when it lives inside the workspace', () => {
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'xiio-statews-')));
+  const code = `const m=await import(${JSON.stringify('file://'+direct)});const r=(p)=>{try{m.resolveWorkspacePath(p);return 'OK'}catch(e){return e.message}};process.stdout.write(JSON.stringify([r('state/oor.json'),r('ok.txt')]))`;
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd:ws, encoding:'utf8', env:{ ...process.env, XIIO_OOR_STATE_PATH:path.join(ws,'state','oor.json') } });
+  fs.rmSync(ws, { recursive:true, force:true });
+  assert.deepEqual(JSON.parse(run.stdout), ['PATH_DENIED_ADMISSION_STATE', 'OK']);
+});
+const { validateXiioCliArgs } = await import('../bin/xi-local-agent.mjs');
+const deny = (args) => { try { validateXiioCliArgs(args, { executionEnabled:true, admissionGate:() => ({ state:'BLOCKED' }) }); return 'ALLOWED'; } catch (e) { return e.message; } };
+t('--out=file spelling cannot skip the write check (unadmitted)', () => assert.notEqual(deny(['ack','order','catalog','--out=x.json']), 'ALLOWED'));
+t('the model cannot advance its own admission (ack order advance)', () => assert.equal(deny(['ack','order','advance','--step','O0','--evidence','e','--preflight','p']), 'XIIO_ADMISSION_STATE_OWNER_ONLY'));
+t('the model cannot initialise admission state (ack order init)', () => assert.equal(deny(['ack','order','init','--input','i.json']), 'XIIO_ADMISSION_STATE_OWNER_ONLY'));
+t('the model cannot point any command at another admission state (--state=)', () => assert.equal(deny(['ack','order','status','--state=s.json']), 'XIIO_ADMISSION_STATE_OWNER_ONLY'));
+t('positive control: reading status and the catalog still works', () => { assert.equal(deny(['ack','order','status']), 'ALLOWED'); assert.equal(deny(['ack','order','catalog']), 'ALLOWED'); });
 console.log(JSON.stringify({ check:'LOCAL_AGENT_ADMISSION_GATE', status:'PASS', source_generation:head, cases:cells.length, provider_effects:0 }));

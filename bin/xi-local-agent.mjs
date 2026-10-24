@@ -13,7 +13,7 @@ import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 import { commandLexicon } from '../src/cli/public-exports.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
-import { requireRotflMutationAdmission } from '../src/preflight/order-runtime.mjs';
+import { requireRotflMutationAdmission, defaultRotflOrderStatePath } from '../src/preflight/order-runtime.mjs';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
@@ -60,12 +60,23 @@ function argValue(name) {
   return value;
 }
 
+export function resolveWorkspacePath(raw) { return target(raw); }
 function target(raw) {
   if (typeof raw !== 'string' || !raw.trim() || path.isAbsolute(raw)) throw new Error('PATH_DENIED');
   const parts = raw.split(/[\\/]+/);
   if (parts.includes('..') || parts.some(p => blocked.has(p) || /^\.env(?:\.|$)/i.test(p))) throw new Error('PATH_DENIED');
   const resolved = path.resolve(cwd, raw);
   if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) throw new Error('PATH_DENIED');
+  // Never let a workspace tool touch the admission state, even when it sits under the workspace or behind a symlink.
+  const stateDir = path.dirname(path.resolve(defaultRotflOrderStatePath()));
+  let real = resolved;
+  for (let probe = resolved; ; probe = path.dirname(probe)) {
+    try { real = path.join(fs.realpathSync(probe), path.relative(probe, resolved)); break; } catch {}
+    if (probe === path.dirname(probe)) break;
+  }
+  for (const candidate of [resolved, real]) {
+    if (candidate === stateDir || candidate.startsWith(stateDir + path.sep)) throw new Error('PATH_DENIED_ADMISSION_STATE');
+  }
   return resolved;
 }
 
@@ -327,9 +338,14 @@ function readXiioRegistry(kind) {
   throw new Error('REGISTRY_KIND_DENIED');
 }
 
-export function validateXiioCliArgs(argv,{executionEnabled=execute,admissionGate=effectGate}={}) {
-  if(!Array.isArray(argv) || argv.length<1 || argv.length>64) throw new Error('XIIO_ARGS_INVALID');
-  if(argv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
+export function validateXiioCliArgs(rawArgv,{executionEnabled=execute,admissionGate=effectGate}={}) {
+  if(!Array.isArray(rawArgv) || rawArgv.length<1 || rawArgv.length>64) throw new Error('XIIO_ARGS_INVALID');
+  if(rawArgv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
+  // --flag=value is the same flag: split it so no check can be skipped by spelling.
+  const argv=rawArgv.flatMap((value)=>/^--[a-z][a-z0-9-]*=/.test(value)?[value.slice(0,value.indexOf('=')),value.slice(value.indexOf('=')+1)]:[value]);
+  // The acting model must never write or advance its own admission state.
+  if(argv[0]==='ack' && argv[1]==='order' && argv[2]!=='status' && argv[2]!=='catalog') throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
+  if(argv.includes('--state')) throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
   if(!xiioFamilies.has(argv[0])) throw new Error('XIIO_COMMAND_FAMILY_DENIED');
   if(argv[0]==='recover'){
     if(argv[1]!=='aries-runner') throw new Error('XIIO_RECOVERY_TARGET_DENIED');
