@@ -144,6 +144,17 @@ await t('path escape: ../ and a symlink out of the project are refused', () => {
   assert.match(JSON.stringify(results[0]), /PATH_DENIED/);
   assert.equal(fs.existsSync(path.join(outside, 'escape.txt')), false, 'symlink escape blocked');
 });
+await t('persistence: from a home-dir session the model cannot rewrite launchers, sdk.path, shell rc or systemd units', () => {
+  const home = tmp('xiio-home-persist-');
+  for (const d of ['.local/share/xi-io/cli', '.local/bin', '.config/systemd/user']) fs.mkdirSync(path.join(home, d), { recursive: true });
+  const code = `const m=await import(${JSON.stringify('file://'+agent)});const r=p=>{try{m.resolveWorkspacePath(p);return 'WRITABLE'}catch(e){return e.message}};process.stdout.write(JSON.stringify(['.local/share/xi-io/cli/sdk.path','.local/bin/xi-io','.bashrc','.config/systemd/user/x.service','notes.txt'].map(r)))`;
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: home, encoding: 'utf8', env: { ...process.env, HOME: home } });
+  const res = JSON.parse(run.stdout);
+  assert.deepEqual(res.slice(0, 4), Array(4).fill('PATH_DENIED_HOME_PERSISTENCE')); assert.equal(res[4], 'WRITABLE', 'positive control: an ordinary file still works');
+  const devCheckout = path.join(home, '.local/share/xi-io/repos/proj'); fs.mkdirSync(devCheckout, { recursive: true });
+  const run2 = spawnSync(process.execPath, ['--input-type=module', '-e', `const m=await import(${JSON.stringify('file://'+agent)});try{m.resolveWorkspacePath('src/a.mjs');process.stdout.write('OK')}catch(e){process.stdout.write(e.message)}`], { cwd: devCheckout, encoding: 'utf8', env: { ...process.env, HOME: home } });
+  assert.equal(run2.stdout, 'OK', 'positive control: a project inside ~/.local stays editable');
+});
 await t('executor unavailable: tests refused, never run on the host', () => {
   const ws = project(); const gd = tmp('xiio-grants-'); grantFor(gd, ws);
   const { results } = runAgent({ ws, grantDir: gd, plan: [testRun('check.mjs')], extraEnv: { XIIO_BWRAP_BIN: '/nonexistent/bwrap' } });

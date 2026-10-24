@@ -94,6 +94,14 @@ function target(raw) {
   }
   // Containment is decided on the real path: a symlink inside the project must not lead out of it.
   if (real !== cwd && !real.startsWith(cwd + path.sep)) throw new Error('PATH_DENIED_SYMLINK_ESCAPE');
+  // Persistence guard: never write your home's dot-files/dirs (shell rc, ~/.local/bin launchers,
+  // the sdk.path pointer, ~/.config/systemd) unless the project itself lives inside that dot-dir.
+  const home = fs.realpathSync(os.homedir());
+  if (real === home || real.startsWith(home + path.sep)) {
+    const top = path.relative(home, real).split(path.sep)[0];
+    const cwdTop = (cwd === home || !cwd.startsWith(home + path.sep)) ? null : path.relative(home, cwd).split(path.sep)[0];
+    if (top.startsWith('.') && top !== cwdTop) throw new Error('PATH_DENIED_HOME_PERSISTENCE');
+  }
   for (const candidate of [resolved, real]) for (const dir of authorityDirs()) {
     if (candidate === dir || candidate.startsWith(dir + path.sep)) throw new Error('PATH_DENIED_ADMISSION_STATE');
   }
