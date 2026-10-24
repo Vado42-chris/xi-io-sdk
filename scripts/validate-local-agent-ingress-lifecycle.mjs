@@ -7,7 +7,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const repo=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
+const repo=process.env.XIIO_TEST_SDK_ROOT
+  ? fs.realpathSync(process.env.XIIO_TEST_SDK_ROOT)
+  : path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 const main=path.join(repo,'bin/xi.mjs');
 const direct=path.join(repo,'bin/xi-local-agent.mjs');
 const originHead=spawnSync('git',['-C',repo,'rev-parse','HEAD'],{encoding:'utf8'});
