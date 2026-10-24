@@ -28,6 +28,10 @@ export function executorAvailable(env = process.env) {
 export function bwrapArgs({ workspace, hide = [], home = os.homedir() }) {
   const ws = fs.realpathSync(workspace);
   const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--tmpfs', home];
+  // NVM installs Node under HOME; masking HOME otherwise also masks the runtime.
+  // Mount only the executable read-only into sandbox-private /tmp, never HOME.
+  const hostNode = fs.realpathSync(process.execPath);
+  args.push('--dir', '/tmp/xiio-runtime', '--ro-bind', hostNode, '/tmp/xiio-runtime/node');
   for (const dir of hide) {
     let real = null;
     try { real = fs.realpathSync(dir); } catch { continue; }
@@ -45,7 +49,11 @@ export function runIsolated({ workspace, command, args = [], hide = [], timeoutM
   let prefix;
   try { prefix = bwrapArgs({ workspace, hide }); } catch (e) { return Promise.resolve({ ok: false, state: 'BLOCKED', reason: e.message }); }
   return new Promise((resolve, reject) => {
-    const child = spawn(bwrapBin(env), [...prefix, command, ...args], { env: { PATH: env.PATH, LANG: env.LANG || 'C.UTF-8' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const sandboxCommand = command === 'node' ? '/tmp/xiio-runtime/node' : command;
+    const child = spawn(bwrapBin(env), [...prefix, sandboxCommand, ...args], {
+      env: { PATH: '/tmp/xiio-runtime:/usr/bin:/bin', LANG: env.LANG || 'C.UTF-8' },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
     let output = ''; const timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);
     const add = (b) => { if (Buffer.byteLength(output) < 98304) output += b.toString(); };
     child.stdout.on('data', add); child.stderr.on('data', add);
