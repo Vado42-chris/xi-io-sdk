@@ -105,9 +105,11 @@ try {
 /* Installed-generation boundary: status/UI stay diagnostic, but a stale or
    uninstalled process cannot send a turn into the agent at all. */
 let unverifiedTurns = 0;
+const unverifiedUi = fs.mkdtempSync(path.join(os.tmpdir(), 'xiio-door-unverified-ui-'));
+fs.writeFileSync(path.join(unverifiedUi, 'index.html'), '<!doctype html><title>recovery</title>');
 const unverified = await startLocalAgentServer({
   port: 0,
-  uiDir: ui,
+  uiDir: unverifiedUi,
   observeInstalledGeneration: () => ({ ok: false, first_red: 'PROCESS_NOT_FROM_INSTALLED_SDK' }),
   status: async () => ({ model: 'fixture', execution: 'BOUNDED', ollama_state: 'READY_MODEL_PRESENT' }),
   handleTurn: async (message) => { unverifiedTurns += 1; return `echo:${message}`; },
@@ -149,6 +151,7 @@ try {
   assert.equal(unverifiedTurns, 0, 'unverified runtime never reaches handleTurn');
 } finally {
   unverified.close();
+  fs.rmSync(unverifiedUi, { recursive: true, force: true });
 }
 
 let observerFailureTurns = 0;
