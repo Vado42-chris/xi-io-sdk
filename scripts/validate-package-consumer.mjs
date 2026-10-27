@@ -24,7 +24,7 @@ try {
 
   writeFileSync(path.join(consumer, 'consumer.mjs'), `
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import catalog from '@xi-io/sdk/catalog' with { type: 'json' };
 import { resolveCallable } from '@xi-io/sdk/callables';
@@ -32,6 +32,21 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
+import { readExactBytes } from '@xi-io/sdk/io/byte-reader';
+
+// Real installed-package consumer of the new public byte-reader export.
+const byteFixture = fileURLToPath(new URL('./byte-fixture.dat', import.meta.url));
+const byteVector = Buffer.from([0x00, 0x7f, 0x80, 0xff, 0x42]);
+writeFileSync(byteFixture, byteVector);
+try {
+  const observed = readExactBytes(byteFixture, { offset: 1, length: 3 });
+  assert.equal(observed.bytesRead, 3);
+  assert.deepEqual(observed.bytes, byteVector.subarray(1, 4));
+  assert.throws(() => readExactBytes(byteFixture, { offset: 4, length: 2 }), { code: 'UNEXPECTED_EOF' });
+} finally {
+  unlinkSync(byteFixture);
+}
+
 
 const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
 assert(routeRecord, 'catalog route primitive missing');
