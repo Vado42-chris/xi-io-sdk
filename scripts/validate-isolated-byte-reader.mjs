@@ -58,6 +58,32 @@ try {
     assert.throws(() => readExactBytes(file, { length: 1, io }), { code: 'EIO' });
     assert.equal(closeCount, 1);
   });
+  check('short-read-loop', () => {
+    let readCalls = 0;
+    const io = { ...fs, readSync(fd, buffer, bufferOffset, remaining, fileOffset) {
+      readCalls += 1;
+      return fs.readSync(fd, buffer, bufferOffset, Math.min(1, remaining), fileOffset);
+    } };
+    const actual = readExactBytes(file, { length: bytes.length, io });
+    assert.equal(Buffer.compare(actual.bytes, bytes), 0);
+    assert.equal(readCalls, bytes.length);
+  });
+  check('early-zero-read-closes-descriptor', () => {
+    let closeCount = 0;
+    const io = { ...fs, readSync() { return 0; },
+      closeSync(fd) { closeCount += 1; fs.closeSync(fd); } };
+    assert.throws(() => readExactBytes(file, { length: 1, io }), { code: 'UNEXPECTED_EOF' });
+    assert.equal(closeCount, 1);
+  });
+  check('nonregular-target', () =>
+    assert.throws(() => readExactBytes(root, { length: 1 }), { code: 'NOT_REGULAR_FILE' }));
+  check('close-only-failure', () => {
+    const io = { ...fs, closeSync(fd) {
+      fs.closeSync(fd);
+      throw Object.assign(new Error('injected close failure'), { code: 'EIO' });
+    } };
+    assert.throws(() => readExactBytes(file, { length: 1, io }), { code: 'EIO' });
+  });
   check('read-close-double-fault', () => {
     const io = { ...fs, readSync() { throw Object.assign(new Error('read'), { code: 'EIO' }); },
       closeSync(fd) { fs.closeSync(fd); throw Object.assign(new Error('close'), { code: 'EBADF' }); } };
