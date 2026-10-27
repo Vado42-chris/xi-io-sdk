@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { readExactBytes } from '../src/io/byte-reader.mjs';
 
 const base = process.env.XI_WORKSPACE_TEMP || os.tmpdir();
@@ -77,6 +78,23 @@ try {
   });
   check('nonregular-target', () =>
     assert.throws(() => readExactBytes(root, { length: 1 }), { code: 'NOT_REGULAR_FILE' }));
+  check('fifo-never-blocks-even-for-zero-length', () => {
+    const fifo = path.join(root, 'no-writer.fifo');
+    const made = spawnSync('mkfifo', [fifo], { encoding: 'utf8', timeout: 2000 });
+    assert.equal(made.status, 0, made.stderr || 'mkfifo unavailable');
+    const code = [
+      "import { readExactBytes } from './src/io/byte-reader.mjs';",
+      "try { readExactBytes(process.argv[1], { length: 0 }); process.exitCode = 2; }",
+      "catch (error) { if (error.code !== 'NOT_REGULAR_FILE') { process.exitCode = 3; } else { console.log(error.code); } }",
+    ].join('\n');
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', code, fifo], {
+      cwd: path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'),
+      encoding: 'utf8', timeout: 2000,
+    });
+    assert.equal(child.error?.code, undefined, 'FIFO open must not hang');
+    assert.equal(child.status, 0, child.stderr || 'unexpected FIFO status');
+    assert.match(child.stdout, /NOT_REGULAR_FILE/);
+  });
   check('close-only-failure', () => {
     const io = { ...fs, closeSync(fd) {
       fs.closeSync(fd);
