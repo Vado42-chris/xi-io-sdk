@@ -20,6 +20,11 @@ const mutations = [
     ),
   },
   {
+    name: 'remove-nonblocking-fifo-open',
+    source: source.replace(' | fs.constants.O_NONBLOCK', ''),
+    test: tests,
+  },
+  {
     name: 'suppress-descriptor-close',
     source: source.replace('io.closeSync(descriptor);', '/* MUTATION: CLOSE SUPPRESSED */'),
     test: tests,
