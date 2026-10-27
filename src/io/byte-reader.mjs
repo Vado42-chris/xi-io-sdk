@@ -31,7 +31,7 @@ export function readExactBytes(target, {
   let failure;
   let result;
   try {
-    descriptor = io.openSync(path.resolve(target), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    descriptor = io.openSync(path.resolve(target), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
     const metadata = io.fstatSync(descriptor);
     if (!metadata.isFile()) throw new ByteReadError('NOT_REGULAR_FILE', 'Target is not a regular file');
     const buffer = Buffer.alloc(length);
