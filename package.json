@@ -159,6 +159,6 @@
     "check:launch-session": "node scripts/validate-launch-session.mjs",
     "check:zed-inbox-mcp": "node scripts/check-zed-inbox-mcp.mjs",
     "check:worker-lifecycle-kit": "node scripts/validate-worker-lifecycle-kit.mjs",
-    "check:byte-reader": "node scripts/validate-isolated-byte-reader.mjs && node scripts/validate-byte-reader-mutations.mjs"
+    "check:byte-reader": "node scripts/validate-isolated-byte-reader.mjs && node scripts/validate-byte-reader-mutations.mjs && node scripts/validate-package-consumer.mjs"
   }
 }
