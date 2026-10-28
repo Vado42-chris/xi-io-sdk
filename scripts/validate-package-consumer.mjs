@@ -32,6 +32,7 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
+import { compileFlapHarvest } from '@xi-io/sdk/transport/flap-harvest';
 import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
 import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
@@ -49,6 +50,13 @@ const blackhole = evaluateApiBlackholeClaim({claim_kind:'PROSE',proof_scope:'SYN
 assert.equal(blackhole.promotion_allowed,false);
 assert.equal(blackhole.authority_granted,false);
 assert.equal(blackhole.provider_effect,false);
+const flapItem={occurrence_ref:'occ:packaged',canonical_identity:'identity:package',generation:'G1',
+  content_sha256:'a'.repeat(64),content_bytes:1};
+const flapDecision=compileFlapHarvest({occurrences:[flapItem],current_generation:'G1'});
+assert.equal(flapDecision.resume.state,'AWAIT_EXECUTION_ADMISSION');
+assert.equal(flapDecision.resume.repeat_effect,false);
+assert.equal(flapDecision.runtime_complete,false);
+assert.equal(flapDecision.provider_effect,false);
 const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
 assert(routeRecord, 'catalog route primitive missing');
 const resolved = resolveCallable(catalog, routeRecord.callable_uuid);
