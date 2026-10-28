@@ -293,3 +293,10 @@ export function compileWorkerLifecycleKit(input={}){
     ],
   }));
 }
+
+// Executable lifecycle kernel is owned here; provider plugins import it, never clone it.
+export {
+  WORKER_CONNECTION_SCHEMA, WORKER_CANARY_TEXT, WORKER_CANARY_SHA256,
+  createSharedWorkerConnection, inspectLocalAgentStatus,
+  normalizeLocalAgentMessage, validateLocalAgentTurnReply,
+} from './connection.mjs';
