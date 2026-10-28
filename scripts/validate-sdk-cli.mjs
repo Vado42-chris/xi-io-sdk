@@ -65,6 +65,17 @@ assert.deepEqual(snapComputed.value.result,snap55(snapPacket));
 assert.equal(snapComputed.value.result.state,'SOURCE_BOUND_NUMERIC');
 assert.equal(snapComputed.value.result.effect_authority,0);
 assert(Number.isFinite(snapComputed.value.result.R));
+assert.equal(snapComputed.output,invoke(['snap55'],{args:[snapPacket]}).output,
+  'same explicit timestamp and packet must preserve byte-identical output');
+const snapImplicitNow=invoke(['snap55'],{args:[{
+  questions:snapQuestions,responses:{a:0,b:4},
+  journal:[{timestamp:snapNow-3_600_000,sensoryEntropy:20}]
+}]});
+assert.equal(snapImplicitNow.code,2,'ambient wall-clock timestamp is not a replayable desktop input');
+assert.equal(snapImplicitNow.value.status,'REJECTED');
+assert.equal(snapImplicitNow.value.reason,'INVALID_INPUT');
+assert.equal(snapImplicitNow.value.provider_effect,false);
+
 const snapUnknown = invoke(['snap55'], {args:[{...snapPacket,responses:{a:0}}]});
 assert.equal(snapUnknown.code,0);
 assert.equal(snapUnknown.value.result.state,'UNKNOWN_REQUIRED_RESPONSES');
