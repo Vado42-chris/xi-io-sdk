@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import {snap55 as sdkRegistrySnap55} from '@xi-io/sdk/evaluation/hallbergmaths-snap55';
 import {snap55,temporalWeight,maskedResponse,FIBONACCI_WEIGHTS,ACTUAL_LEGACY_HALF_LIFE_HOURS} from '../src/evaluation/hallbergmaths-snap55.mjs';
+assert.equal(sdkRegistrySnap55,snap55,'public package export must resolve to the same qualified source');
 assert.equal(FIBONACCI_WEIGHTS.reduce((a,b)=>a+b,0),33);
 assert.ok(Math.abs(ACTUAL_LEGACY_HALF_LIFE_HOURS-12.476649250079015)<1e-10);
 const now=Date.UTC(2026,9,13);
