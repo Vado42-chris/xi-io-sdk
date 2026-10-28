@@ -65,6 +65,13 @@ assert.deepEqual(snapComputed.value.result,snap55(snapPacket));
 assert.equal(snapComputed.value.result.state,'SOURCE_BOUND_NUMERIC');
 assert.equal(snapComputed.value.result.effect_authority,0);
 assert(Number.isFinite(snapComputed.value.result.R));
+const independentSnapBaseline = 32 / 84; // known answers: 0 × 13 + 4 × 8, max 4 × (13 + 8)
+const independentSnapR = (1/4)*independentSnapBaseline + (65/100)*(20/100) + (1/10)*(5/100);
+assert.ok(Math.abs(snapComputed.value.result.baseline-independentSnapBaseline)<1e-14,
+  'independent weighted denominator must survive actual CLI transport');
+assert.ok(Math.abs(snapComputed.value.result.R-independentSnapR)<1e-14,
+  'read-only SNAP numerical answer must agree with independent known-answer arithmetic');
+
 assert.equal(snapComputed.output,invoke(['snap55'],{args:[snapPacket]}).output,
   'same explicit timestamp and packet must preserve byte-identical output');
 const snapImplicitNow=invoke(['snap55'],{args:[{
