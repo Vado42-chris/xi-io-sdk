@@ -32,6 +32,7 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
+import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
 import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
 
@@ -44,6 +45,10 @@ assert.equal(yar.complete, false);
 assert.equal(yar.state, 'FAIL_CLOSED');
 assert.equal(yar.effect_authority, 0);
 
+const blackhole = evaluateApiBlackholeClaim({claim_kind:'PROSE',proof_scope:'SYNTHETIC_FIXTURE',source_generation:'package:g1'});
+assert.equal(blackhole.promotion_allowed,false);
+assert.equal(blackhole.authority_granted,false);
+assert.equal(blackhole.provider_effect,false);
 const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
 assert(routeRecord, 'catalog route primitive missing');
 const resolved = resolveCallable(catalog, routeRecord.callable_uuid);
