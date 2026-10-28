@@ -32,11 +32,17 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
+import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
 
 const blank = compileBlankTestBed({ artifact_id: 'bed:clean-package', generation: 'g1' });
 assert.deepEqual(parseTestArtifact(serializeTestArtifact(blank)), blank);
 assert.equal(blank.authority.live_runtime, false);
+
+const yar = compileYar({ schema: YAR_SCHEMA, ack_ref: 'ack:package-only' });
+assert.equal(yar.complete, false);
+assert.equal(yar.state, 'FAIL_CLOSED');
+assert.equal(yar.effect_authority, 0);
 
 const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
 assert(routeRecord, 'catalog route primitive missing');
