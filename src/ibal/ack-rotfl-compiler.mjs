@@ -72,9 +72,14 @@ function compileEconomy(raw={}){
       rate_microunits_per_second:int(rateRaw.rate_microunits_per_second,'rate_microunits_per_second',0),
     };
   }
-  const numerator=measured!=null&&rate?measured*rate.rate_microunits_per_second:null;
-  const denominator=numerator==null?null:1000;
-  const exact=numerator==null?null:numerator%1000===0?numerator/1000:null;
+  // Input integers are safe individually, but their product can exceed binary64 precision.
+  // Keep exact values as decimal strings at JSON boundaries; never label rounded numbers exact.
+  const numeratorBig=measured!=null&&rate?BigInt(measured)*BigInt(rate.rate_microunits_per_second):null;
+  const denominator=numeratorBig==null?null:1000;
+  const safeNumber=n=>n!=null&&n<=BigInt(Number.MAX_SAFE_INTEGER)?Number(n):null;
+  const numerator=safeNumber(numeratorBig);
+  const wholeBig=numeratorBig!=null&&numeratorBig%1000n===0n?numeratorBig/1000n:null;
+  const exact=safeNumber(wholeBig);
   const ownerCogs=raw.owner_cogs==null?null:int(raw.owner_cogs,'owner_cogs',0);
   const measuredTokens=raw.measured_tokens==null?null:int(raw.measured_tokens,'measured_tokens',0);
   return freeze({
@@ -86,9 +91,12 @@ function compileEconomy(raw={}){
     pricing_ref:rate?.pricing_ref||null,
     rate_microunits_per_second:rate?.rate_microunits_per_second??null,
     exact_cost_microunits_numerator:numerator,
+    exact_cost_microunits_numerator_decimal:numeratorBig?.toString()??null,
     exact_cost_microunits_denominator:denominator,
     exact_cost_microunits:exact,
-    exact_cost_rational:numerator==null?null:`${numerator}/1000`,
+    exact_cost_microunits_decimal:wholeBig?.toString()??null,
+    exact_cost_precision:numeratorBig==null?'UNBOUND':numerator!=null?'SAFE_NUMBER':'DECIMAL_STRING_REQUIRED',
+    exact_cost_rational:numeratorBig==null?null:`${numeratorBig}/1000`,
     time_money_state:measured==null?'UNMEASURED':rate==null?'MEASURED_TIME_UNPRICED':'MEASURED_TIME_RATE_BOUND_CANDIDATE',
     time_money_bound_bit:measured!=null&&rate!=null?1:0,
     billing_authorized:false,
