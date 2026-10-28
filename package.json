@@ -93,7 +93,8 @@
     "./worker/lifecycle": "./src/worker/lifecycle.mjs",
     "./evaluation/api-blackhole-proof-envelope": "./src/evaluation/api-blackhole-proof-envelope.mjs",
     "./transport/flap-harvest": "./src/transport/flap-harvest.mjs",
-    "./evaluation/hallbergmaths-snap55": "./src/evaluation/hallbergmaths-snap55.mjs"
+    "./evaluation/hallbergmaths-snap55": "./src/evaluation/hallbergmaths-snap55.mjs",
+    "./ibal/kernel-maths-guard": "./src/ibal/kernel-maths-guard.mjs"
   },
   "scripts": {
     "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit",
