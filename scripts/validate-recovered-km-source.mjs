@@ -70,7 +70,7 @@ for(const bad of [
  {...evidence,cube:'a|b'},
  {...evidence,cube:''},
  {...evidence,token:'sensitive'},
- {cube:'work.X',gen:41,digest:'b'.repeat(64)},
+ {...evidence,digest:'b'.repeat(64)},
 ]){
  const r=compileKmCrossing(evidence,bad);
  if(bad.digest==='b'.repeat(64)){compute(r);yes(r.result.predicate==='NO_EFFECT_EVIDENCE');}
