@@ -102,7 +102,21 @@ function checkInputTree(value) {
   }
 }
 
-async function readInput(stream) {
+// JSON.parse rounds some fractional epoch literals to an integer before SNAP sees them.
+// Inspect the raw primitive token (Node 22 reviver context) for this one read-only command.
+function snapExactEpoch(key, value, context) {
+  if ((key === 'nowMs' || key === 'timestamp') && typeof value === 'number') {
+    const exact = Number.isSafeInteger(value) && context?.source === JSON.stringify(value);
+    if (!exact) {
+      if (key === 'nowMs') throw new Error('INVALID_INPUT');
+      // Journal uncertainty must remain UNKNOWN rather than become a plausible sample.
+      return null;
+    }
+  }
+  return value;
+}
+
+async function readInput(stream, strictSnapEpoch = false) {
   const chunks = [];
   let size = 0;
   for await (const chunk of stream) {
@@ -111,7 +125,7 @@ async function readInput(stream) {
     if (size > MAX_BYTES) throw new Error('INPUT_BOUNDS');
     chunks.push(buffer);
   }
-  const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  const input = JSON.parse(Buffer.concat(chunks).toString('utf8'), strictSnapEpoch ? snapExactEpoch : undefined);
   if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length !== 1 || !Array.isArray(input.args)) throw new Error('INVALID_INPUT');
   checkInputTree(input);
   return input.args;
@@ -130,7 +144,7 @@ export async function runCli(argv, { stdin = process.stdin, stdout = process.std
     return 2;
   }
   try {
-    const args = await readInput(stdin);
+    const args = await readInput(stdin, command === 'snap55');
     if (args.length < binding.arity[0] || args.length > binding.arity[1]) throw new Error('INVALID_INPUT');
     // A user-visible desktop SNAP must be replayable from its recorded input.
     // Never substitute ambient wall-clock time for a missing snapshot timestamp.
