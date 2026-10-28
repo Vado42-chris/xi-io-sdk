@@ -13,6 +13,7 @@ import * as Callables from '../callables/resolve.mjs';
 import * as OrderOfOperations from '../preflight/order-of-operations.mjs';
 import * as Flatpack from '../flatpack/primitives.mjs';
 import * as HallbergSnap55 from '../evaluation/hallbergmaths-snap55.mjs';
+import * as KernelMathsGuard from '../ibal/kernel-maths-guard.mjs';
 
 const MAX_BYTES = 1_048_576;
 const modules = [
@@ -28,8 +29,16 @@ const modules = [
   ['@xi-io/sdk/preflight/order-of-operations', OrderOfOperations],
   ['@xi-io/sdk/flatpack', Flatpack],
   ['@xi-io/sdk/evaluation/hallbergmaths-snap55', HallbergSnap55],
+  ['@xi-io/sdk/ibal/kernel-maths-guard', KernelMathsGuard],
 ];
 const arity = {
+  compileKmCycle: [1, 1],
+  compileKmSeams: [2, 2],
+  compileKmCrossing: [2, 3],
+  compileKmLineage: [3, 3],
+  compileKmSeamIdentity: [2, 2],
+  compileKmStack: [1, 1],
+  compileKmObserver: [2, 2],
   snap55: [1, 1],
   compileFlatplaneCube: [1, 1],
   compileFlatpackPatch: [1, 1],
