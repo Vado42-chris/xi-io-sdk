@@ -705,7 +705,26 @@ async function statusSnapshot() {
     productRuntime('studio','status'),
     productRuntime('inbox','status'),
   ]);
+  // A legacy desktop relay is optional diagnostic evidence, never XI-IO authority.
+  // Native device.execute requires a separately verified Ward + Switchboard + BINS
+  // consumer receipt; do not turn absence of that receipt into a provider outage.
   const remoteDesktop=remoteDesktopStatus();
+  const deviceExecute={
+    schema:'xiio.cli.sovereign-device-execute/v1',
+    capability:'device.execute',
+    state:'UNKNOWN',
+    first_red:'XIIO_NATIVE_DEVICE_EXECUTE_READBACK_UNVERIFIED',
+    authority_owner:'Ward',
+    routing_owner:'Switchboard',
+    receipt_owner:'BINS',
+    shared_server_role:'Loki',
+    device_session_transport:'OUTBOUND_SCOPED_REVOCABLE',
+    authenticated_session_verified:false,
+    native_effect_verified:false,
+    peer_ack_verified:false,
+    provider_effect:false,
+    authority_granted:false,
+  };
   const map=stableStatusProjection(rawMap);
   const hex=stableStatusProjection(rawHex);
   const studio=stableStatusProjection(rawStudio);
@@ -737,7 +756,10 @@ async function statusSnapshot() {
       products:{hex:hex.state,studio:studio.state,inbox:inbox.state},
       provider_ingress_state:'OBSERVED_LOCAL_ONLY',
       provider_egress_state:'NOT_EVALUATED',
+      device_execute:deviceExecute,
       remote_desktop:{
+        adapter_role:'OPTIONAL_LEGACY_TRANSPORT',
+        gates_native_execution:false,
         plugin_auth_state:remoteDesktop.plugin_auth_state,
         device_registration_state:remoteDesktop.device_registration_state,
         live_device_session_state:remoteDesktop.live_device_session_state,
@@ -751,7 +773,8 @@ async function statusSnapshot() {
     compass:map,
     machine_topology:topology,
     runner,
-    remote_desktop:remoteDesktop,
+    remote_desktop:{...remoteDesktop,adapter_role:'OPTIONAL_LEGACY_TRANSPORT',gates_native_execution:false},
+    device_execute:deviceExecute,
     products:{hex,studio,inbox},
     local_effect:true,
     provider_effect:false,
@@ -766,6 +789,9 @@ async function statusSnapshot() {
       'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
       'REMOTE_DESKTOP_AUTH_OK != LIVE_DEVICE_SESSION',
       'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE',
+      'LEGACY_TRANSPORT != SOVEREIGN_DEVICE_EXECUTE',
+      'OPTIONAL_PROVIDER_UNAVAILABLE != CORE_CLI_FAILURE',
+      'NATIVE_DEVICE_EXECUTE_NOT_VERIFIED != AVAILABLE',
     ],
   };
 }
@@ -781,13 +807,32 @@ async function gatesCheck(){
     {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
     {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
     {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
-    {id:'REMOTE_PLUGIN_AUTH',state:status.remote_desktop?.plugin_auth_state||'UNKNOWN',evidence_ref:'remote_desktop:auth'},
-    {id:'REMOTE_DEVICE_REGISTRATION',state:status.remote_desktop?.device_registration_state||'UNKNOWN',evidence_ref:'remote_desktop:device'},
-    {id:'REMOTE_LIVE_SESSION',state:status.remote_desktop?.live_device_session_state||'UNKNOWN',evidence_ref:'remote_desktop:session'},
+    // Remote transport availability must not block unrelated local CLI work.
+    // Use device_execute_gate for remote capability checks; it cannot PASS
+    // before an independent XI-IO-native readback exists.
   ];
   const hardFail=cells.some(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(c.state));
   const waits=cells.filter(c=>['WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED','OBSERVED_LOCAL_ONLY'].includes(c.state));
-  return {schema:'xiio.cli.gates-check/v1',state:hardFail?'FAIL_CURRENT':waits.length?'PASS_WITH_WAITS':'PASS',cells,first_red:cells.find(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID','WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED'].includes(c.state))?.id||null,silent_remainder:0,hard:['XI_SOURCE_STATUS != IO_PROVIDER_STATUS','PORT_BOUND != QUALIFIED_RUNTIME','UNKNOWN != PASS','PROVIDER_INGRESS != PROVIDER_EGRESS','STATUS != EFFECT_AUTHORITY']};
+  const device_execute_gate={
+    id:'XIIO_DEVICE_EXECUTE',
+    state:status.device_execute.state,
+    first_red:status.device_execute.first_red,
+    evidence_ref:null,
+    blocks_device_execution:true,
+    blocks_unrelated_local_work:false,
+  };
+  const optional_transport_diagnostics={
+    remote_desktop:{
+      state:status.remote_desktop.state,
+      adapter_role:'OPTIONAL_LEGACY_TRANSPORT',
+      core_gate:false,
+      first_red:status.remote_desktop.first_red||null,
+    }
+  };
+  return {schema:'xiio.cli.gates-check/v1',state:hardFail?'FAIL_CURRENT':waits.length?'PASS_WITH_WAITS':'PASS',cells,
+    device_execute_gate,optional_transport_diagnostics,
+    first_red:cells.find(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID','WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED'].includes(c.state))?.id||null,
+    silent_remainder:0,hard:['XI_SOURCE_STATUS != IO_PROVIDER_STATUS','PORT_BOUND != QUALIFIED_RUNTIME','UNKNOWN != PASS','PROVIDER_INGRESS != PROVIDER_EGRESS','STATUS != EFFECT_AUTHORITY','LEGACY_PROVIDER_MUST_NOT_GATE_XIIO_LOCAL_CLI','DEVICE_EXECUTE_REQUIRES_NATIVE_EVIDENCE']};
 }
 
 function verifyArtifact(value,{source_ref='stdin'}={}){
@@ -1007,6 +1052,37 @@ function processCount(pattern){
   const n=Number(String(r.stdout||'0').trim()||0);
   return Number.isFinite(n)?n:0;
 }
+// Status-only observation. A failed process query is UNKNOWN, never absence.
+// Recovery retains its existing process/admission behavior below.
+function observeProcessCount(pattern){
+  const r=spawnSync('pgrep',['-fc',pattern],{encoding:'utf8'});
+  const raw=String(r.stdout??'').trim();
+  if(r.error || r.signal || ![0,1].includes(r.status) || !/^\d+$/.test(raw)) return null;
+  const n=Number(raw);
+  if(!Number.isSafeInteger(n) || (r.status===0 && n===0) || (r.status===1 && n!==0)) return null;
+  return n;
+}
+function zedIbalStatusBindingReady(source){
+  const zed=source?.zed;
+  const acp=source?.acp;
+  const entry=acp?.runtime_entrypoint || acp?.agent;
+  // Accepted framework launcher uses Node + the operator runtime directly.
+  // Keep legacy wrapper readiness, but do not require it for this exact binding.
+  const direct=typeof entry==='string' && /(?:^|\/)agent-runtime-operator\.mjs$/.test(entry)
+    && zed?.agent_servers_ibal_command===acp?.node
+    && Array.isArray(zed?.agent_servers_ibal_args)
+    && zed.agent_servers_ibal_args.length===1 && zed.agent_servers_ibal_args[0]===entry;
+  return Boolean(zed?.agent_servers_ok && acp?.agent_ok && acp?.node_ok && source?.ollama?.ok
+    && (acp?.wrapper_ok || direct));
+}
+function zedIbalStatusFirstRed(bindingApplied,baseline){
+  if(!bindingApplied) return 'BINDING_APPLIED';
+  if(baseline.zed_process_count===null) return 'ZED_PROCESS_OBSERVATION_UNKNOWN';
+  if(baseline.zed_process_count===0) return 'ZED_PROCESS_NOT_OBSERVED';
+  if(baseline.acp_agent_count===null) return 'ACP_PROCESS_OBSERVATION_UNKNOWN';
+  if(baseline.acp_agent_count===0) return 'ACP_PROCESS_NOT_OBSERVED';
+  return 'ACP_SESSION_READBACK_UNVERIFIED';
+}
 function ndjsonLineCount(file){
   try{
     const raw=fs.readFileSync(file,'utf8');
@@ -1021,8 +1097,10 @@ async function zedIbalRuntime(action='status'){
   const home=os.homedir();
   const ledger=path.join(home,'.local','state','xi-io','ibal-acp-001a','events','operations.ndjson');
   const baseline={
-    zed_process_count:processCount('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
-    acp_agent_count:processCount('acp-agent/agent\\.mjs'),
+    zed_process_count:(action==='status'?observeProcessCount:processCount)('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
+    acp_agent_count:action==='status'
+      ? observeProcessCount('acp-agent/agent(-runtime-operator)?\\.mjs([[:space:]]|$)')
+      : processCount('acp-agent/agent\\.mjs'),
     event_count:ndjsonLineCount(ledger),
   };
   const {map,root}=await frameworkRootFromCompass();
@@ -1039,7 +1117,7 @@ async function zedIbalRuntime(action='status'){
   const mod=await import(pathToFileURL(configurePath).href+`?xiio=${Date.now()}`);
   let source=mod.zedIbalStatus();
   let configure=null;
-  const sourceReady=()=>Boolean(
+  const sourceReady=()=>action==='status'?zedIbalStatusBindingReady(source):Boolean(
     source?.zed?.agent_servers_ok && source?.acp?.wrapper_ok && source?.acp?.agent_ok
     && source?.acp?.node_ok && source?.ollama?.ok
   );
@@ -1055,9 +1133,9 @@ async function zedIbalRuntime(action='status'){
       ? ['T1_LOAD::SOURCE','T2_SPAWN::SOURCE','T3_SESSION::SOURCE']
       : [],
     cells:[
-      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
+      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count===null?'UNKNOWN':baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
       {id:'T1_LOAD::READBACK',state:'WAIT'},
-      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
+      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count===null?'UNKNOWN':baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
       {id:'T2_SPAWN::READBACK',state:'WAIT'},
       {id:'T3_SESSION::PROCESS',state:'WAIT'},
       {id:'T3_SESSION::READBACK',state:'WAIT'},
@@ -1066,9 +1144,10 @@ async function zedIbalRuntime(action='status'){
   if(action!=='recover') return {
     schema:'xiio.cli.zed-ibal/v1',
     state:bindingApplied?'PASS_WITH_WAITS':'FAIL_CURRENT',
-    first_red:bindingApplied?(baseline.zed_process_count>0?'ACP_SPAWNED':'ZED_RUNNING'):'BINDING_APPLIED',
+    first_red:zedIbalStatusFirstRed(bindingApplied,baseline),
     root,source,binding_applied:bindingApplied,baseline,matrix,
     active_factors:['ZED_RUNNING','ACP_SPAWNED','ACP_SESSION_DELTA'],
+    process_observation_scope:'COMMAND_LINE_PATTERN_ONLY_NOT_SESSION_OR_TOOL_PROOF',
     provider_effect:false,authority_granted:false,
   };
   if(!bindingApplied) return {

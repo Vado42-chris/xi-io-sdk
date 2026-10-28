@@ -53,6 +53,29 @@ Current public runtime owners:
 
 A terminal ACK state, `RESULT`, `RETURN`, or `APPLY_RETURN`, is invalid when its reusable template denominator has not completed the ROTFL runtime route.
 
+### Structural claims are not runtime proof (2026-10-28 SDK kernel correction)
+
+The public SDK accepts submitted template refs, receipt refs, readback refs and
+binary bits as **untrusted structural input**. None of those strings authenticates
+execution, even when `state=EXECUTED` and all claimed bits are one.
+
+- `supplied_complete` and `template_supplied_pass` count claimed template coverage.
+- `runtime_complete` and `template_pass` remain false/zero in the
+  structural-only SDK path until a separately authenticated and generation-bound
+  runtime verifier is integrated. Payload-provided `authenticated`, `verified`
+  or `runtime_complete` flags are never authority.
+- `route_id` identifies the template plan, while `submission_digest`
+  distinguishes different supplied receipts/readbacks for that plan.
+- Item Trinity preserves the useful `SUPPLIED_UNVERIFIED` UX state and never
+  grants closure credit. Distributed ACK `RESULT`, `RETURN`, and
+  `APPLY_RETURN` fail closed without authenticated runtime proof.
+- This SDK change **does not** claim provider-effect verification. The connection
+  builder owns authenticated execution and physical readback; an authorized
+  adopter must wire and qualify that evidence before verified terminal ACKs work.
+
+Hard: `SUBMITTED_RECEIPT_REF != AUTHENTICATED_RUNTIME_READBACK` and
+`SDK_STRUCTURAL_OK != QUALIFIED_OPERATIONAL_COMPLETION`.
+
 ## Runtime test economy
 
 `npm run check` routes the complete SDK validation denominator through `scripts/run-runtime-rotfl-sdk-check.mjs`.
@@ -92,6 +115,39 @@ conversation occurrence
 ```
 
 MCP/A2A capability visibility never grants effect authority. Runtime execution and readback remain separately qualified.
+
+## Live connection recovery catch-up (SDK notebook and paused agents)
+
+NotebookLM, a resurrected SDK notebook agent, or any agent absent from the
+October 27–28 XI-IO connectivity repair must **not** reuse its old connection
+status as current. After the Studio CURRENT front door above, resolve the
+framework owner's provider-current
+`docs/ops/CHATGPT-PRIVATE-MCP-TUNNEL-20261028.md`
+and framework [#1366](https://github.com/Vado42-chris/xi-io.net/issues/1366)
+as observed connection receipts and pending gates. Refresh the referenced
+GitHub commits **and** physical installed-generation evidence; neither a
+GitHub comment nor this SDK paragraph is the canonical runtime authority.
+
+Owner's most recent externally returned Loki receipt:
+`MCP_STDIO_INSTALLED_PROTOCOL_VERIFIED` for
+`private-mcp-stdio-f743a92fe4fb`. Previous Loki HEX MCP host source
+was physically read back; the broad HEX auto-install run `40670506512`
+was cancelled; the current framework main workflow validates source on
+hosted runners, and broad install is manual dispatch only. These are
+not proof of a running Secure MCP Tunnel, ChatGPT plugin attachment,
+first-party device-session issuance, Ward admission, network/share
+discovery, protected host execution, or BINS/Work RETURN.
+
+Preserve the existing Loki server, Aries client, identities, tunnels,
+records and installed HEX generation. Never re-run the HEX installer,
+create duplicate enrollment/authority, silently expose private host data,
+or substitute Desktop Commander. A paused agent must classify old
+statements `HISTORICAL_REVIEW_NOT_CURRENT`, and refresh from the current
+owner and physical returns before contributing a proposed correction.
+If no connector is available to send the correction to a private notebook,
+record `NOTEBOOK_DIRECT_DELIVERY_UNVERIFIED` rather than claiming
+the notebook was updated. One mutation custodian, affected source
+readback, explicit Ward consent and physical runtime proof still apply.
 
 ## Mutation boundary
 

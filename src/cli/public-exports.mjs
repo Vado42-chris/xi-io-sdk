@@ -11,6 +11,7 @@ import * as Lexicon from '../lexicon/resolve-token.mjs';
 import * as Adoption from '../adoption/primitive-plan.mjs';
 import * as Callables from '../callables/resolve.mjs';
 import * as OrderOfOperations from '../preflight/order-of-operations.mjs';
+import * as Flatpack from '../flatpack/primitives.mjs';
 
 const MAX_BYTES = 1_048_576;
 const modules = [
@@ -24,8 +25,19 @@ const modules = [
   ['@xi-io/sdk/adoption', Adoption],
   ['@xi-io/sdk/callables', Callables],
   ['@xi-io/sdk/preflight/order-of-operations', OrderOfOperations],
+  ['@xi-io/sdk/flatpack', Flatpack],
 ];
 const arity = {
+  compileFlatplaneCube: [1, 1],
+  compileFlatpackPatch: [1, 1],
+  compileSpinSet: [1, 1],
+  detonateLogicGates: [1, 1],
+  compileBlastwaveImpact: [1, 1],
+  compileAftercareCard: [1, 1],
+  compileReapDebtMeter: [1, 1],
+  compileOwnerCogLedger: [1, 1],
+  compileProjectionRebaseGate: [1, 1],
+  compileCubeCoordinate: [1, 1],
   normalizeProviderFailure: [1, 1],
   normalizeWakeEnvelope: [1, 1],
   evaluateWakeProgress: [1, 2],
@@ -34,6 +46,7 @@ const arity = {
   compileContinuationCycle: [1, 1],
   compileContinuationDirective: [1, 1],
   compileContinuationLoop: [1, 1],
+  compileRejoinSeams: [1, 1],
   resolveLexiconCommand: [1, 1],
   derivePrimitiveAdoptionPlan: [1, 1],
   deriveAffectedPrimitiveConsumers: [1, 1],

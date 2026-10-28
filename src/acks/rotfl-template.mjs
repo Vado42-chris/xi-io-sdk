@@ -13,7 +13,7 @@ export function validateRotflAckTemplateRuns(templateRefs,runs){
   const errors=[];
   if(!Array.isArray(templateRefs)||templateRefs.length===0||templateRefs.some(x=>!bounded(x))) errors.push('TEMPLATE_REFS_INVALID');
   if(!Array.isArray(runs)||runs.length===0) errors.push('TEMPLATE_RUNS_MISSING');
-  if(errors.length) return {ok:false,errors,runtime_complete:false,run_count:Array.isArray(runs)?runs.length:0};
+  if(errors.length) return {ok:false,errors,supplied_complete:false,runtime_complete:false,verification_state:'INVALID',run_count:Array.isArray(runs)?runs.length:0};
   const refSet=new Set(templateRefs);
   if(refSet.size!==templateRefs.length) errors.push('TEMPLATE_REFS_DUPLICATE');
   const seen=new Set();
@@ -43,7 +43,16 @@ export function validateRotflAckTemplateRuns(templateRefs,runs){
     if(!pass) runtimeComplete=false;
   }
   for(const ref of refSet) if(!seen.has(ref)){errors.push('TEMPLATE_RUN_MISSING:'+ref);runtimeComplete=false;}
-  return {ok:errors.length===0,errors,runtime_complete:errors.length===0&&runtimeComplete,run_count:runs.length};
+  // Supplied refs and bits are claims. This structural validator has no authenticated
+  // runtime readback, so it must never certify that execution actually completed.
+  const suppliedComplete=errors.length===0&&runtimeComplete;
+  return {
+    ok:errors.length===0,errors,
+    supplied_complete:suppliedComplete,
+    runtime_complete:false,
+    verification_state:errors.length?'INVALID':suppliedComplete?'SUPPLIED_UNVERIFIED':'INCOMPLETE',
+    run_count:runs.length,
+  };
 }
 
 export function compileRotflAckTemplateRoute({item_ref,rotfl}={}){
@@ -63,16 +72,26 @@ export function compileRotflAckTemplateRoute({item_ref,rotfl}={}){
     runtime_rotfl_receipt_ref:run.runtime_rotfl_receipt_ref,
     runtime_readback_ref:run.runtime_readback_ref,
     next_input_ref:run.next_input_ref,
-    pass_bit:run.state==='EXECUTED'&&run.known_bit===1&&run.value_bit===1&&run.talk_action_zero_bit===1&&run.time_money_bound_bit===1?1:0,
+    supplied_pass_bit:run.state==='EXECUTED'&&run.known_bit===1&&run.value_bit===1&&run.talk_action_zero_bit===1&&run.time_money_bound_bit===1?1:0,
+    pass_bit:0, // No independently authenticated execution readback in this input.
+    verification_state:run.state==='EXECUTED'&&run.known_bit===1&&run.value_bit===1&&run.talk_action_zero_bit===1&&run.time_money_bound_bit===1?'SUPPLIED_UNVERIFIED':'INCOMPLETE',
   }));
   return Object.freeze({
     schema:ROTFL_ACK_TEMPLATE_ROUTE_SCHEMA,
     route_id:digest({item_ref,templates:runs.map(x=>[x.template_ref,x.template_generation,x.runtime_generation])}),
     item_ref,
     template_denominator:runs.length,
-    template_pass:runs.reduce((n,x)=>n+x.pass_bit,0),
-    template_zero:runs.reduce((n,x)=>n+(x.pass_bit===1?0:1),0),
-    runtime_complete:verdict.runtime_complete,
+    template_pass:0,
+    template_zero:runs.length,
+    template_supplied_pass:runs.reduce((n,x)=>n+x.supplied_pass_bit,0),
+    template_supplied_zero:runs.reduce((n,x)=>n+(x.supplied_pass_bit===1?0:1),0),
+    supplied_runtime_complete:verdict.supplied_complete,
+    runtime_complete:false,
+    verification_state:verdict.verification_state,
+    // A route plan ID is not an execution proof. Bind submitted claims separately.
+    submission_digest:digest({item_ref,runs}),
+    receipt_independence_verified:false,
+    generation_current_verified:false,
     runs,
     authority_granted:false,
     provider_effect:false,
@@ -82,6 +101,8 @@ export function compileRotflAckTemplateRoute({item_ref,rotfl}={}){
       'TALK_ACTION_ZERO_BIT=0->NO_TEMPLATE_PASS',
       'TIME_MONEY_BOUND_BIT=0->NO_TEMPLATE_PASS',
       'TEMPLATE_RUN_UNKNOWN!=PASS',
+      'SUPPLIED_TEMPLATE_PASS!=VERIFIED_TEMPLATE_PASS',
+      'RUNTIME_RECEIPT_REF!=AUTHENTICATED_READBACK',
       'TEMPLATE_RUNTIME_PASS!=EFFECT_AUTHORITY'
     ])
   });

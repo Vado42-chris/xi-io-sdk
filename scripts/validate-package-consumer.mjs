@@ -32,7 +32,31 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
+import { compileFlapHarvest } from '@xi-io/sdk/transport/flap-harvest';
+import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
+import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
+import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
 
+const blank = compileBlankTestBed({ artifact_id: 'bed:clean-package', generation: 'g1' });
+assert.deepEqual(parseTestArtifact(serializeTestArtifact(blank)), blank);
+assert.equal(blank.authority.live_runtime, false);
+
+const yar = compileYar({ schema: YAR_SCHEMA, ack_ref: 'ack:package-only' });
+assert.equal(yar.complete, false);
+assert.equal(yar.state, 'FAIL_CLOSED');
+assert.equal(yar.effect_authority, 0);
+
+const blackhole = evaluateApiBlackholeClaim({claim_kind:'PROSE',proof_scope:'SYNTHETIC_FIXTURE',source_generation:'package:g1'});
+assert.equal(blackhole.promotion_allowed,false);
+assert.equal(blackhole.authority_granted,false);
+assert.equal(blackhole.provider_effect,false);
+const flapItem={occurrence_ref:'occ:packaged',canonical_identity:'identity:package',generation:'G1',
+  content_sha256:'a'.repeat(64),content_bytes:1};
+const flapDecision=compileFlapHarvest({occurrences:[flapItem],current_generation:'G1'});
+assert.equal(flapDecision.resume.state,'AWAIT_EXECUTION_ADMISSION');
+assert.equal(flapDecision.resume.repeat_effect,false);
+assert.equal(flapDecision.runtime_complete,false);
+assert.equal(flapDecision.provider_effect,false);
 const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
 assert(routeRecord, 'catalog route primitive missing');
 const resolved = resolveCallable(catalog, routeRecord.callable_uuid);
@@ -89,11 +113,22 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 16);
+  assert.equal(discovery.commands.length, 27);
+  for (const command of ['compileFlatplaneCube','compileFlatpackPatch','compileSpinSet','detonateLogicGates','compileBlastwaveImpact','compileAftercareCard','compileReapDebtMeter','compileOwnerCogLedger','compileProjectionRebaseGate','compileCubeCoordinate']) {
+    assert(discovery.commands.some((entry) => entry.command === command && entry.specifier === '@xi-io/sdk/flatpack'), `packaged Flatpack registry missing ${command}`);
+  }
+  const reapMeter = JSON.parse(execFileSync(cli, ['sdk', 'call', 'compileReapDebtMeter'], {
+    cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: [{ opened_units: 1, reaped_stew: 10, ratio: 10 }] }),
+  }));
+  assert.equal(reapMeter.status, 'COMPUTED');
+  assert.equal(reapMeter.result.admitted, true);
+  assert.equal(reapMeter.authority_granted, false);
+  assert.equal(reapMeter.provider_effect, false);
   assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationDirective'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationLoop'));
+  assert(discovery.commands.some((entry) => entry.command === 'compileRejoinSeams'));
   assert(discovery.commands.some((entry) => entry.command === 'resolveLexiconCommand'));
   const cliResult = JSON.parse(execFileSync(cli, ['sdk', 'call', 'resolveLexiconCommand'], {
     cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: ['#babysit'] }),
@@ -118,7 +153,26 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.equal(selfDrive.result.next_packet.work_ref, 'work:next');
   assert.equal(selfDrive.result.next_packet.owner_ingress_required, false);
 
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
+  const rejoinInput = {
+    ...selfDriveInput,
+    phase_event: 'POST_EFFECT_READBACK',
+    backlog: [{ id: 'SEAM_ONE', state: 'TRUE_WAIT', priority: 1, wake_when: 'receipt:seam-one' }],
+    seams: [{ seam_ref: 'SEAM_ONE', kind: 'ACK', state: 'TRUE_WAIT', priority: 1, wake_receipt_ref: 'receipt:seam-one' }],
+    seam_receipts: [{
+      receipt_ref: 'receipt:seam-one', seam_ref: 'SEAM_ONE', root_ref: selfDriveInput.root_ref,
+      subject_generation: selfDriveInput.subject_generation, current_generation: selfDriveInput.current_generation,
+      authenticated: true, verified: true, provider_readback: true,
+    }],
+  };
+  const rejoin = JSON.parse(execFileSync(cli, ['sdk', 'call', 'compileRejoinSeams'], {
+    cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: [rejoinInput] }),
+  }));
+  assert.equal(rejoin.status, 'COMPUTED');
+  assert.equal(rejoin.result.next_action.action, 'COMPILE_RETURN');
+  assert.equal(rejoin.result.authority_granted, false);
+  assert.equal(rejoin.result.provider_effect, false);
+
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

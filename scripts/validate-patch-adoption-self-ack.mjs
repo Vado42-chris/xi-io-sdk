@@ -9,7 +9,8 @@ const ack=validateRotflDistributedAck(fixture.self_ack);
 assert.equal(ack.ok,true);
 assert.equal(ack.authority_granted,false);
 assert.equal(ack.effect_attempt_eligible,false);
-assert.equal(ack.template_runtime_complete,true);
+assert.equal(ack.template_runtime_complete,false);
+assert.equal(ack.template_supplied_complete,true);
 
 const out=compileAckItemTrinity(fixture.trinity_input);
 assert.equal(out.ack_item_count,10);
@@ -41,7 +42,7 @@ console.log(JSON.stringify({
  declared_pass:6,
  declared_wait:4,
  trinity_accounting_100:true,
- rotfl_template_runtime_complete:true,
+ rotfl_template_runtime_complete:false,rotfl_template_supplied_complete:true,
  authority_granted:false,
  provider_effect:false,
  external_communication:false,

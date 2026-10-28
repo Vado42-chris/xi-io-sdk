@@ -7,7 +7,7 @@ import { normalizeProviderFailure } from '../src/providers/state.mjs';
 import { compileIbalCanary } from '../src/ibal/canary.mjs';
 import { compileImpactFormation } from '../src/ibal/impact-formation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
-import { compileContinuationDirective, compileContinuationLoop } from '../src/cadence/self-drive.mjs';
+import { compileContinuationDirective, compileContinuationLoop, compileRejoinSeams } from '../src/cadence/self-drive.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 
 const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
@@ -25,15 +25,26 @@ function invoke(command, input) {
 
 const discovery = invoke(['--commands'], '');
 assert.equal(discovery.code, 0);
-assert.equal(discovery.value.commands.length, 16);
+assert.equal(discovery.value.commands.length, 27);
 assert.equal(discovery.value.semantic_aliases, 'RESOLVABLE_THROUGH_COMMAND_LEXICON');
 assert.equal(discovery.value.vocabulary, 'EXACT_PUBLIC_EXPORT_NAMES');
-assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 16);
+assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 27);
 assert(discovery.value.commands.some(x => x.command === 'compileImpactFormation' && x.specifier === '@xi-io/sdk/ibal/impact-formation'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationCycle' && x.specifier === '@xi-io/sdk/cadence'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationDirective' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationLoop' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
+assert(discovery.value.commands.some(x => x.command === 'compileRejoinSeams' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
 assert(discovery.value.commands.some(x => x.command === 'resolveLexiconCommand' && x.specifier === '@xi-io/sdk/command-lexicon/resolve'));
+assert(discovery.value.commands.some(x => x.command === 'compileFlatplaneCube' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileFlatpackPatch' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileSpinSet' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'detonateLogicGates' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileBlastwaveImpact' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileAftercareCard' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileReapDebtMeter' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileOwnerCogLedger' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileProjectionRebaseGate' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'compileCubeCoordinate' && x.specifier === '@xi-io/sdk/flatpack'));
 assert.equal(discovery.output, invoke(['--commands'], '').output);
 
 const failure = { provider: 'External provider', http_status: 429, provider_status: 'RESOURCE_EXHAUSTED' };
@@ -97,6 +108,29 @@ assert.equal(directive.value.result.next_packet.owner_ingress_required, false);
 assert.equal(directive.value.result.next_packet.provider_effect, false);
 assert.equal(directive.value.result.reconciliation_state, 'NOT_REQUIRED');
 assert.equal(directive.value.result.destructive_follow_on_allowed, true);
+
+const rejoinInput = {
+  ...directiveInput,
+  phase_event: 'POST_EFFECT_READBACK',
+  backlog: [{ id: 'SEAM_ONE', state: 'TRUE_WAIT', priority: 1, wake_when: 'receipt:seam-one' }],
+  seams: [{ seam_ref: 'SEAM_ONE', kind: 'ACK', state: 'TRUE_WAIT', priority: 1, wake_receipt_ref: 'receipt:seam-one' }],
+  seam_receipts: [{
+    receipt_ref: 'receipt:seam-one',
+    seam_ref: 'SEAM_ONE',
+    root_ref: directiveInput.root_ref,
+    subject_generation: directiveInput.subject_generation,
+    current_generation: directiveInput.current_generation,
+    authenticated: true,
+    verified: true,
+    provider_readback: true,
+  }],
+};
+const rejoin = invoke(['compileRejoinSeams'], { args: [rejoinInput] });
+assert.equal(rejoin.code, 0);
+assert.deepEqual(rejoin.value.result, compileRejoinSeams(rejoinInput));
+assert.equal(rejoin.value.result.next_action.action, 'COMPILE_RETURN');
+assert.equal(rejoin.value.result.authority_granted, false);
+assert.equal(rejoin.value.result.provider_effect, false);
 
 const heartbeatInput = { ...continuationInput, owner_heartbeat_count: 1 };
 const heartbeatDirective = invoke(['compileContinuationDirective'], { args: [heartbeatInput] });
@@ -213,4 +247,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 16, positive_cases: 18, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 27, positive_cases: 19, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));

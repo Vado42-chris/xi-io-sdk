@@ -38,7 +38,8 @@ out=compilePreparedRotflTemplateRoute({
  prep_by_surface:prepMap(['TEMPLATE']),
  input:{item_ref:'item:a',rotfl:{reusable_template_refs:templateRefs,template_runs:templateRuns}}
 });
-assert.equal(out.admitted,true);assert.equal(out.result.runtime_complete,true);
+assert.equal(out.admitted,true);assert.equal(out.result.runtime_complete,false);
+assert.equal(out.result.supplied_runtime_complete,true);
 
 const proof=(id)=>({state:'PASS',proof_ref:'proof:'+id});
 const layers=['MICRO','MESO','MACRO','META'],stages=['CHANGE_MATERIALIZED','EXACT_HEAD_PROOF','REVIEW_DISPOSITION','MERGED_TO_MAIN','MAIN_READBACK_CURRENT','AFFECTED_RETURN_CURRENT'];
