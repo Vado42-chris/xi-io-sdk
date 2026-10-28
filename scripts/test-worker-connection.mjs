@@ -36,7 +36,8 @@ function make(){
     expires_at:'2026-10-28T14:40:00.000Z'};},
   startWorker:async({request})=>{calls.start++;return {state:'STARTED',run_ref:'run:1',worker_ref:request.worker_ref,request_digest:request.request_digest};},
   observeWorker:async()=>{calls.observeWorker++;return behavior.liveness;},
-  executeCanary:async({request,canary_text,canary_sha256})=>{calls.execute++;
+  executeCanary:async({request,canary_text,canary_sha256,idempotency_key})=>{calls.execute++;
+    assert.equal(idempotency_key,request.request_digest,'Ward executor receives stable atomic claim key');
     assert.equal(canary_text,WORKER_CANARY_TEXT); assert.equal(canary_sha256,WORKER_CANARY_SHA256);
     return behavior.runCanary||{schema:'xiio.switchboard.worker-canary-result/v1',state:'RESULT_PRESERVED',
       worker_ref:request.worker_ref,work_ref:request.work_ref,request_digest:request.request_digest,
@@ -51,7 +52,10 @@ function make(){
   readAccount:async()=>{calls.readAccount++;return behavior.account;},
   readInstalledWorker:async()=>{calls.readInstalledWorker++;return behavior.worker;},
   observeWorker:async()=>{calls.observeWorker++;return behavior.liveness;},
-  readAttempt:async({operation})=>{calls.readAttempt++;return operation==='worker.start' ? (behavior.startAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'}) : behavior.attempt;},
+  readAttempt:async({operation})=>{calls.readAttempt++;
+    if(operation==='worker.start')return behavior.startAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'};
+    if(operation==='worker.canary')return behavior.canaryAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'};
+    return behavior.attempt;},
   withCurrentAuthority:async(_envelope,callback)=>{calls.withCurrentAuthority++;return callback(trusted);}
  };
  return createSharedWorkerConnection({ports,clock:()=>epoch});
@@ -206,4 +210,47 @@ test('SDK preview message gate refuses oversized and empty payloads',()=>{
  assert.equal(normalizeLocalAgentMessage('').first_red,'MESSAGE_INVALID_OR_OVERSIZE');
  assert.equal(normalizeLocalAgentMessage('x'.repeat(16_385)).first_red,'MESSAGE_INVALID_OR_OVERSIZE');
  assert.equal(normalizeLocalAgentMessage(' ping ').message,'ping');
+});
+
+test('canary lost ACK blocks redispatch before Ward or worker effects',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'UNKNOWN',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+  assert.equal(calls.readPreserved,0);
+});
+test('canary preserved result requires recovery rather than rerunning',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'RESULT_PRESERVED',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('canary completed return cannot launch a second canary',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'COMPLETE_VERIFIED',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(calls.execute,0);
+});
+test('canary attempt bound to another Work is refused before Ward admission',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',
+    worker_ref:base.worker_ref,work_ref:'work:foreign'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_ATTEMPT_UNVERIFIED');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('canary with mismatched attempt digest is refused before any effect',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',
+    worker_ref:base.worker_ref,work_ref:'work:1',operation:'worker.canary',
+    request_digest:'f'.repeat(64)};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_ATTEMPT_UNVERIFIED');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
 });
