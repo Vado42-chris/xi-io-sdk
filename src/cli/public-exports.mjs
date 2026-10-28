@@ -132,6 +132,9 @@ export async function runCli(argv, { stdin = process.stdin, stdout = process.std
   try {
     const args = await readInput(stdin);
     if (args.length < binding.arity[0] || args.length > binding.arity[1]) throw new Error('INVALID_INPUT');
+    // A user-visible desktop SNAP must be replayable from its recorded input.
+    // Never substitute ambient wall-clock time for a missing snapshot timestamp.
+    if (command === 'snap55' && (!args[0] || typeof args[0] !== 'object' || Array.isArray(args[0]) || !Object.hasOwn(args[0], 'nowMs'))) throw new Error('INVALID_INPUT');
     const result = binding.callable(...args);
     checkInputTree(result);
     emit({ schema: 'xiio.sdk.command-result/v1', status: 'COMPUTED', command, callable: `${binding.specifier}#${command}`, lexicon: { namespace: commandCatalog().namespace, command_id: 'sdk.call', version: manifest.version }, provider_effect: false, authority_granted: false, result });
