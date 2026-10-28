@@ -76,6 +76,45 @@ execution, even when `state=EXECUTED` and all claimed bits are one.
 Hard: `SUBMITTED_RECEIPT_REF != AUTHENTICATED_RUNTIME_READBACK` and
 `SDK_STRUCTURAL_OK != QUALIFIED_OPERATIONAL_COMPLETION`.
 
+## Worker lifecycle evidence boundary
+
+`src/worker/lifecycle.mjs:compileWorkerAdapterConformance` compiles supplied
+contract coverage, not authenticated provider execution. Existing `cells`, `pass`,
+`fail`, and `first_red` remain structural diagnostics. `supplied_complete` and
+`structural_eligible` make that scope explicit; `runtime_complete` and
+`release_eligible` remain false. Payload `verified`, `authenticated`, process IDs,
+worker/model labels and historical `STARTED` events cannot change that boundary.
+`runtime_first_red` names the missing authenticated generation-bound proof.
+
+The existing owner join must be supplied by the connection/Work runtime, not a
+new SDK observer, credential store or authority:
+
+- Plugins' unmerged PR45 work-api-handshake donor contract binds `root_ref`, `work_ref`, `work_generation`,
+  `consumer_id`, `canonical_provider_id`, `connection_instance_ref`, `account_ref`,
+  `capability_ref`, `host_surface_generation` and `adapter_generation`.
+- Ibal's hotfolder worker binding preserves `project_id`, `work_id`,
+  `assignment_ref`, `attempt_id`, `agent_id`, `source_generation`, `return_ref`
+  and `operation_ref`. These must join the same current provider/Work tuple;
+  matching labels or independently supplied references do not establish that join.
+- Current process-instance/attempt liveness must be observed by the execution
+  owner; historical start records are not liveness. Durable RESULT, RETURN,
+  APPLY_RETURN and consumer readback must refer to the same attempt and target.
+- Recovery must re-read those owners; it must not blindly repeat an uncertain
+  effect or promote a cached receipt to current authentication.
+
+`runWorkerLifecycleAttempt` shares the existing Ibal durable phase engine. Its
+adopter must retain the same job/worker/capacity leases across the entire call,
+private insert-only history, current-owner checks and qualified effect owners.
+The SDK owns phase ordering and same-binding result/return validation only;
+it does not own transport, process creation, account admission or credentials.
+Restarted EXECUTION_STARTED/APPLY_RETURN_STARTED requires owner reconciliation,
+never blind effect replay. The Ibal consumer adoption is separately qualified.
+
+The authenticated production join remains unimplemented in this SDK path.
+A disposable Ibal process/return canary is test evidence only, never provider
+account, native-installation, Ward admission or Switchboard effect proof.
+`time_money_bound_bit` retains its metering meaning, not a timeout or lease.
+
 ## Runtime test economy
 
 `npm run check` routes the complete SDK validation denominator through `scripts/run-runtime-rotfl-sdk-check.mjs`.
