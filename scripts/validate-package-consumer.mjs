@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,7 +35,19 @@ import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
 import { compileFlapHarvest } from '@xi-io/sdk/transport/flap-harvest';
 import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
 import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
+import { snap55 } from '@xi-io/sdk/evaluation/hallbergmaths-snap55';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
+
+// Package import itself must expose offline Hallberg SNAP, without a workspace login.
+const knownAt=Date.UTC(2026,9,13);
+const knownPacket={questions:[{id:'a',pillar:'autism'},{id:'b',pillar:'adhd'}],
+  responses:{a:0,b:4},nowMs:knownAt,journal:[{timestamp:knownAt-3600000,sensoryEntropy:20}]};
+const knownSnap=snap55(knownPacket);
+const knownBaseline=32/84, knownR=0.25*knownBaseline+0.65*0.2+0.005;
+assert.equal(knownSnap.state,'SOURCE_BOUND_NUMERIC');
+assert(Math.abs(knownSnap.baseline-knownBaseline)<1e-14);
+assert(Math.abs(knownSnap.R-knownR)<1e-14);
+assert.equal(knownSnap.effect_authority,0);
 
 const blank = compileBlankTestBed({ artifact_id: 'bed:clean-package', generation: 'g1' });
 assert.deepEqual(parseTestArtifact(serializeTestArtifact(blank)), blank);
@@ -113,10 +125,46 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 27);
+  assert.equal(discovery.commands.length, 28);
+  assert(discovery.commands.some((entry) => entry.command === 'snap55' && entry.specifier === '@xi-io/sdk/evaluation/hallbergmaths-snap55'));
   for (const command of ['compileFlatplaneCube','compileFlatpackPatch','compileSpinSet','detonateLogicGates','compileBlastwaveImpact','compileAftercareCard','compileReapDebtMeter','compileOwnerCogLedger','compileProjectionRebaseGate','compileCubeCoordinate']) {
     assert(discovery.commands.some((entry) => entry.command === command && entry.specifier === '@xi-io/sdk/flatpack'), `packaged Flatpack registry missing ${command}`);
   }
+  // Installed tarball, not repo-relative import: execute the actual public CLI offline.
+  const snapNow=Date.UTC(2026,9,13);
+  const snapInput={args:[{questions:[{id:'a',pillar:'autism'},{id:'b',pillar:'adhd'}],
+    responses:{a:0,b:4},nowMs:snapNow,journal:[{timestamp:snapNow-3600000,sensoryEntropy:20}]}]};
+  const snapWire=JSON.stringify(snapInput);
+  const snapOptions={cwd:consumer,encoding:'utf8',input:snapWire,stdio:['pipe','pipe','pipe']};
+  const snapRaw=execFileSync(cli,['sdk','call','snap55'],snapOptions);
+  const installedSnap=JSON.parse(snapRaw);
+  assert.equal(installedSnap.status,'COMPUTED');
+  assert.equal(installedSnap.callable,'@xi-io/sdk/evaluation/hallbergmaths-snap55#snap55');
+  assert.equal(installedSnap.result.state,'SOURCE_BOUND_NUMERIC');
+  assert(Math.abs(installedSnap.result.baseline-(32/84))<1e-14);
+  assert(Math.abs(installedSnap.result.R-(0.25*(32/84)+0.65*0.2+0.005))<1e-14);
+  assert.equal(installedSnap.authority_granted,false);
+  assert.equal(installedSnap.provider_effect,false);
+  assert.equal(snapRaw,execFileSync(cli,['sdk','call','snap55'],snapOptions),'installed SNAP replay must be byte identical');
+
+  const noTimestamp=spawnSync(cli,['sdk','call','snap55'],{
+    ...snapOptions,input:JSON.stringify({args:[{questions:snapInput.args[0].questions,responses:{a:0,b:4}}]})
+  });
+  assert.equal(noTimestamp.status,2);
+  assert.equal(JSON.parse(noTimestamp.stdout).status,'REJECTED');
+  const roundedNowWire=snapWire.replace('"nowMs":'+snapNow,'"nowMs":'+snapNow+'.0001');
+  assert.notEqual(roundedNowWire,snapWire);
+  assert.equal(JSON.parse(roundedNowWire).args[0].nowMs,snapNow,'raw hostile must silently round if parser lacks source guard');
+  const roundedNow=spawnSync(cli,['sdk','call','snap55'],{...snapOptions,input:roundedNowWire});
+  assert.equal(roundedNow.status,2);
+  assert.equal(JSON.parse(roundedNow.stdout).status,'REJECTED');
+  const journalAt=snapNow-3600000;
+  const roundedJournalWire=snapWire.replace('"timestamp":'+journalAt,'"timestamp":'+journalAt+'.0001');
+  assert.notEqual(roundedJournalWire,snapWire);
+  const journalUnknown=JSON.parse(execFileSync(cli,['sdk','call','snap55'],{...snapOptions,input:roundedJournalWire}));
+  assert.equal(journalUnknown.result.state,'UNKNOWN_JOURNAL_DATA');
+  assert.equal(journalUnknown.result.R,null);
+  assert.equal(journalUnknown.provider_effect,false);
   const reapMeter = JSON.parse(execFileSync(cli, ['sdk', 'call', 'compileReapDebtMeter'], {
     cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: [{ opened_units: 1, reaped_stew: 10, ratio: 10 }] }),
   }));
@@ -172,7 +220,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.equal(rejoin.result.authority_granted, false);
   assert.equal(rejoin.result.provider_effect, false);
 
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 repo_relative_imports=0');
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 installed_snap55=1 snap55_replay_precise=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
