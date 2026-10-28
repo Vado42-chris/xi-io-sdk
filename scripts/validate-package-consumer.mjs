@@ -89,7 +89,17 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 17);
+  assert.equal(discovery.commands.length, 27);
+  for (const command of ['compileFlatplaneCube','compileFlatpackPatch','compileSpinSet','detonateLogicGates','compileBlastwaveImpact','compileAftercareCard','compileReapDebtMeter','compileOwnerCogLedger','compileProjectionRebaseGate','compileCubeCoordinate']) {
+    assert(discovery.commands.some((entry) => entry.command === command && entry.specifier === '@xi-io/sdk/flatpack'), `packaged Flatpack registry missing ${command}`);
+  }
+  const reapMeter = JSON.parse(execFileSync(cli, ['sdk', 'call', 'compileReapDebtMeter'], {
+    cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: [{ opened_units: 1, reaped_stew: 10, ratio: 10 }] }),
+  }));
+  assert.equal(reapMeter.status, 'COMPUTED');
+  assert.equal(reapMeter.result.admitted, true);
+  assert.equal(reapMeter.authority_granted, false);
+  assert.equal(reapMeter.provider_effect, false);
   assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationDirective'));
