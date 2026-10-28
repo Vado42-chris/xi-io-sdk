@@ -185,6 +185,51 @@ const pulseSha=await import('node:crypto').then(m=>m.default.createHash('sha256'
 assert.equal(pass.pulse_sha256,pulseSha);
 assert.equal(pass.pulse_bytes,pulseBytes.length);
 
+// Existing third-party state is historical evidence, not a native prerequisite.
+// Exercise the real reducer against the same native fixture for every variant.
+const legacyPath=path.join(root,'remote-desktop.current.json');
+const activeProjection=value=>({
+  state:value.state, source_checks_pass:value.source_checks_pass,
+  checks:value.checks, claims:value.claims, first_red:value.first_red,
+});
+const legacyVariants=[
+  ['offline',{authentication:{state:'PASS'},device_registration:{state:'PASS'},live_device_session:{state:'FAIL_CURRENT'}}],
+  ['quota',{state:'BLOCKED_QUOTA',authentication:{state:'PASS'},live_device_session:{state:'UNKNOWN'}}],
+  ['revoked',{authentication:{state:'REVOKED'},device_registration:{state:'UNKNOWN'},live_device_session:{state:'UNKNOWN'}}],
+  ['missing',null],
+  ['malformed','not-json'],
+];
+for(const [name,value] of legacyVariants){
+  if(value===null)fs.rmSync(legacyPath,{force:true});
+  else fs.writeFileSync(legacyPath,typeof value==='string'?value:JSON.stringify(value));
+  const result=await executePneuma({root:'local',aries:'root',
+    bus:`ws://127.0.0.1:${port}/aries/bus`,exec_rotfl:true,state_root:root,
+    output_path:pulsePath,probe_timeout_ms:1000});
+  assert.equal(result.source_checks_pass,true,`${name}: legacy provider must not block native source checks`);
+  assert.deepEqual(activeProjection(result),activeProjection(pass),`${name}: legacy state contaminated native projection`);
+  assert.equal(result.checks.some(row=>row.id.startsWith('REMOTE_')),false);
+  assert.equal(result.authority_granted,false);
+  assert.equal(result.claims.rotfl_loop_closed,false,'fixture must not become physical effect proof');
+}
+
+// Removing a vendor dependency must never remove the actual native Ward gate.
+write(['remote-desktop.current.json'],{authentication:{state:'PASS'},
+  device_registration:{state:'PASS'},live_device_session:{state:'PASS'}});
+for(const wardState of ['BLOCKED',null]){
+  const wardPath=path.join(root,'studio','ward-adoption.current.json');
+  if(wardState===null)fs.rmSync(wardPath,{force:true});
+  else write(['studio','ward-adoption.current.json'],{
+    schema:'xiio.ward.native-adoption-readback/v1',state:wardState});
+  const result=await executePneuma({root:'local',aries:'root',
+    bus:`ws://127.0.0.1:${port}/aries/bus`,exec_rotfl:true,state_root:root,
+    output_path:pulsePath,probe_timeout_ms:1000});
+  assert.equal(result.source_checks_pass,false);
+  assert.equal(result.checks.find(row=>row.id==='WARD_ADOPTION').state,'TRUE_WAIT');
+  assert.equal(result.first_red,wardState===null?'WARD_ADOPTION_MISSING':'WARD_NATIVE_ADOPTION_NOT_PASS');
+  assert.equal(result.authority_granted,false);
+  assert.equal(result.claims.rotfl_loop_closed,false);
+}
+
 await new Promise(resolve=>server.close(resolve));
 
 await assert.rejects(()=>executePneuma({root:'cloud',aries:'root',state_root:root}),/PNEUMA_ROOT_MUST_BE_LOCAL/);
@@ -202,6 +247,9 @@ console.log(JSON.stringify({
   loopback_exec_pulse:true,
   synthetic_fixture_cannot_claim_physical_loop_closure:true,
   source_checks_can_pass_without_runtime_elevation:true,
+  legacy_provider_variants_do_not_gate_native:legacyVariants.length,
+  legacy_provider_fallback:false,
+  native_ward_denial_preserved:true,
   exact_command_shape_supported:true,
   effect_authority:0
 },null,2));
