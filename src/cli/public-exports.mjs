@@ -12,6 +12,7 @@ import * as Adoption from '../adoption/primitive-plan.mjs';
 import * as Callables from '../callables/resolve.mjs';
 import * as OrderOfOperations from '../preflight/order-of-operations.mjs';
 import * as Flatpack from '../flatpack/primitives.mjs';
+import * as HallbergSnap55 from '../evaluation/hallbergmaths-snap55.mjs';
 
 const MAX_BYTES = 1_048_576;
 const modules = [
@@ -26,8 +27,10 @@ const modules = [
   ['@xi-io/sdk/callables', Callables],
   ['@xi-io/sdk/preflight/order-of-operations', OrderOfOperations],
   ['@xi-io/sdk/flatpack', Flatpack],
+  ['@xi-io/sdk/evaluation/hallbergmaths-snap55', HallbergSnap55],
 ];
 const arity = {
+  snap55: [1, 1],
   compileFlatplaneCube: [1, 1],
   compileFlatpackPatch: [1, 1],
   compileSpinSet: [1, 1],
