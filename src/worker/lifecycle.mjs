@@ -272,7 +272,10 @@ export function workerLifecyclePrimitiveCatalog(){
 
 export function compileWorkerLifecycleKit(input={}){
   const generation=text(input.generation,'generation');
-  const requested=Array.isArray(input.applicable_ids)&&input.applicable_ids.length
+  if(input.applicable_ids!==undefined&&!Array.isArray(input.applicable_ids)){
+    throw new TypeError('applicable_ids_INVALID');
+  }
+  const requested=Array.isArray(input.applicable_ids)
     ? [...new Set(input.applicable_ids.map((id)=>text(id,'applicable_id')))]
     : ALL.map((row)=>row.id);
   const byId=new Map(ALL.map((row)=>[row.id,row]));

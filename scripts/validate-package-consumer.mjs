@@ -32,6 +32,17 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
+import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
+import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
+
+const blank = compileBlankTestBed({ artifact_id: 'bed:clean-package', generation: 'g1' });
+assert.deepEqual(parseTestArtifact(serializeTestArtifact(blank)), blank);
+assert.equal(blank.authority.live_runtime, false);
+
+const yar = compileYar({ schema: YAR_SCHEMA, ack_ref: 'ack:package-only' });
+assert.equal(yar.complete, false);
+assert.equal(yar.state, 'FAIL_CLOSED');
+assert.equal(yar.effect_authority, 0);
 
 const routeRecord = catalog.primitives.find((item) => item.id === 'progressive-route-card');
 assert(routeRecord, 'catalog route primitive missing');
@@ -89,7 +100,17 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.match(output, /XIIO_SDK_CLEAN_CONSUMER PASS/);
   const cli = path.join(consumer, 'node_modules', '.bin', 'xi-io');
   const discovery = JSON.parse(execFileSync(cli, ['sdk', 'commands'], { cwd: consumer, encoding: 'utf8' }));
-  assert.equal(discovery.commands.length, 17);
+  assert.equal(discovery.commands.length, 27);
+  for (const command of ['compileFlatplaneCube','compileFlatpackPatch','compileSpinSet','detonateLogicGates','compileBlastwaveImpact','compileAftercareCard','compileReapDebtMeter','compileOwnerCogLedger','compileProjectionRebaseGate','compileCubeCoordinate']) {
+    assert(discovery.commands.some((entry) => entry.command === command && entry.specifier === '@xi-io/sdk/flatpack'), `packaged Flatpack registry missing ${command}`);
+  }
+  const reapMeter = JSON.parse(execFileSync(cli, ['sdk', 'call', 'compileReapDebtMeter'], {
+    cwd: consumer, encoding: 'utf8', input: JSON.stringify({ args: [{ opened_units: 1, reaped_stew: 10, ratio: 10 }] }),
+  }));
+  assert.equal(reapMeter.status, 'COMPUTED');
+  assert.equal(reapMeter.result.admitted, true);
+  assert.equal(reapMeter.authority_granted, false);
+  assert.equal(reapMeter.provider_effect, false);
   assert(discovery.commands.some((entry) => entry.command === 'compileImpactFormation'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationCycle'));
   assert(discovery.commands.some((entry) => entry.command === 'compileContinuationDirective'));

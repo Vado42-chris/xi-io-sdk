@@ -28,6 +28,39 @@ assert.deepEqual(compiled.tool_projection,[]);
 assert.equal(compiled.authority_granted,false);
 assert.equal(compiled.provider_effect,false);
 
+// An explicit applicable subset is not a request for the whole catalog.
+// Omitted/undefined retains the existing catalog-default contract.
+const selectionCases=[
+  {id:'empty',ids:[],expected:[]},
+  {id:'singleton',ids:['distributed_ack'],expected:['distributed_ack']},
+  {id:'duplicate',ids:['distributed_ack','distributed_ack'],expected:['distributed_ack']},
+  {id:'ordered-subset',ids:['consumer_receipt','distributed_ack'],expected:['consumer_receipt','distributed_ack']},
+  {id:'undefined-default',ids:undefined,expected:compiled.selected.map(row=>row.id)},
+  {id:'string',ids:'distributed_ack',error:/applicable_ids_INVALID/},
+  {id:'null',ids:null,error:/applicable_ids_INVALID/},
+  {id:'boolean',ids:false,error:/applicable_ids_INVALID/},
+  {id:'number',ids:0,error:/applicable_ids_INVALID/},
+  {id:'object',ids:{},error:/applicable_ids_INVALID/},
+  {id:'invalid-member',ids:[null],error:/applicable_id_INVALID/},
+  {id:'unknown-member',ids:['not-a-worker-primitive'],error:/applicable_id_UNKNOWN/},
+  {id:'blank-member',ids:[''],error:/applicable_id_INVALID/},
+];
+for(const row of selectionCases){
+  const run=()=>compileWorkerLifecycleKit({generation:'sdk:test-generation',applicable_ids:row.ids});
+  if(row.error){
+    assert.throws(run,row.error,row.id);
+    continue;
+  }
+  const result=run();
+  assert.deepEqual(result.selected.map(item=>item.id),row.expected,row.id);
+  assert.equal(result.selected_count,row.expected.length,row.id);
+  assert.equal(result.available_count+result.gap_count,result.selected_count,row.id);
+  assert.equal(result.denominator,compiled.denominator,row.id);
+  assert.deepEqual(result.tool_projection,[],row.id);
+  assert.equal(result.authority_granted,false,row.id);
+  assert.equal(result.provider_effect,false,row.id);
+}
+
 const atomic=compiled.selected.find((row)=>row.id==='atomic_protected_read');
 assert.equal(atomic?.state,'GAP_FAIL_CLOSED');
 assert.equal(atomic?.owner_ref,'xi-io.net#351+xi-io.net#302');
@@ -293,6 +326,7 @@ console.log(JSON.stringify({
   schema:catalog.schema,
   registered_primitive:'worker-lifecycle-kit',
   denominator:compiled.denominator,
+  bounded_selection_cases:selectionCases.length,
   available:compiled.available_count,
   gaps:compiled.gap_count,
   tool_projection:compiled.tool_projection.length,
