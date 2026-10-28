@@ -182,17 +182,39 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
         run_ref:started.run_ref,request_digest:request.request_digest});
     });
   });
-  const canary=async(binding,scope)=>protectedOperation(binding,'worker.canary',scope,async({trusted,proof,request})=>{
-    assert(typeof trusted.executeCanary==='function'&&typeof trusted.readPreservedVersion==='function',
-      'WARD_CANARY_PORTS_UNBOUND');
-    const seen=currentLiveness(await ports.observeWorker({worker_ref:binding.worker_ref,device_ref:binding.device_ref}),binding,clock);
-    assert(seen.state==='LIVENESS_OBSERVED','WORKER_CANARY_REQUIRES_LIVENESS');
-    const record=returnRecord(await trusted.executeCanary({request,admission_ref:proof.admission_ref,
-      canary_text:WORKER_CANARY_TEXT,canary_sha256:WORKER_CANARY_SHA256}),request);
-    const custody=await trusted.readPreservedVersion({resource_ref:record.resource_ref,
-      version_ref:record.version_ref,max_bytes:MAX_WORKER_CANARY_BYTES,
-      requester_principal_ref:request.owner_principal_ref,admission_ref:proof.admission_ref});
-    return preservedBytes(custody,record);
+  // The trusted attempt reader is a preflight; the executing Ward/Switchboard
+  // owner must still atomically claim the same request_digest/idempotency_key.
+  // A lost ACK, completed canary or unknown attempt is NEVER redispatched.
+  const canary=async(binding,scope)=>attempt(async()=>{
+    await rebind(binding);
+    const pinned=makeRequest(binding,'worker.canary',scope);
+    const previous=await ports.readAttempt({worker_ref:pinned.worker_ref,
+      device_ref:pinned.device_ref,work_ref:pinned.work_ref,
+      operation:'worker.canary',request_digest:pinned.request_digest});
+    assert(previous?.schema==='xiio.sdk.worker-attempt/v1'&&
+      previous.worker_ref===pinned.worker_ref&&previous.work_ref===pinned.work_ref&&
+      (previous.device_ref===undefined||previous.device_ref===pinned.device_ref)&&
+      (previous.operation===undefined||previous.operation==='worker.canary')&&
+      (previous.request_digest===undefined||previous.request_digest===pinned.request_digest),
+      'WORKER_CANARY_ATTEMPT_UNVERIFIED');
+    if(previous.state!=='NO_ATTEMPT'){
+      return denied('WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+    }
+    return protectedOperation(binding,'worker.canary',scope,async({trusted,proof,request})=>{
+      assert(typeof trusted.executeCanary==='function'&&typeof trusted.readPreservedVersion==='function',
+        'WARD_CANARY_PORTS_UNBOUND');
+      const seen=currentLiveness(await ports.observeWorker({worker_ref:binding.worker_ref,device_ref:binding.device_ref}),binding,clock);
+      assert(seen.state==='LIVENESS_OBSERVED','WORKER_CANARY_REQUIRES_LIVENESS');
+      // This is the exact atomic/idempotent claim coordinate the owning
+      // executor must enforce. Request data never creates Ward authority.
+      const record=returnRecord(await trusted.executeCanary({request,admission_ref:proof.admission_ref,
+        idempotency_key:request.request_digest,
+        canary_text:WORKER_CANARY_TEXT,canary_sha256:WORKER_CANARY_SHA256}),request);
+      const custody=await trusted.readPreservedVersion({resource_ref:record.resource_ref,
+        version_ref:record.version_ref,max_bytes:MAX_WORKER_CANARY_BYTES,
+        requester_principal_ref:request.owner_principal_ref,admission_ref:proof.admission_ref});
+      return preservedBytes(custody,record);
+    });
   });
   const recover=async (binding,scope)=>attempt(async()=>{
     await rebind(binding);
