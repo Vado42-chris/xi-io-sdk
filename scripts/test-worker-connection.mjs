@@ -14,8 +14,8 @@ const base={worker_ref:'worker:loki',device_ref:'device:loki',source_generation:
 let calls;
 let behavior;
 function make(){
- calls={readAccount:0,readInstalledWorker:0,observeWorker:0,withCurrentAuthority:0,admit:0,start:0,
-   execute:0,readPreserved:0,readAttempt:0,recover:0};
+ calls={readAccount:0,readInstalledWorker:0,observeWorker:0,inspectDisk:0,verifyDisk:0,withCurrentAuthority:0,admit:0,start:0,
+   execute:0,readPreserved:0,readRequester:0,readAttempt:0,recover:0};
  behavior={account:{...identity},worker:{schema:'xiio.sdk.installed-worker/v1',state:'INSTALLED_READBACK_VERIFIED',
   worker_ref:base.worker_ref,device_ref:base.device_ref,owner_principal_ref:base.account_principal_ref,
   source_generation:base.source_generation,installed_generation:base.source_generation,
@@ -23,11 +23,18 @@ function make(){
   liveness:{schema:'xiio.sdk.worker-liveness/v1',state:'READY',worker_ref:base.worker_ref,
     device_ref:base.device_ref,installed_generation:base.source_generation,installation_sha256:sha,
     observation_ref:'observation:live-1',observed_at:epoch,service_active:true,installed_process_observed:true},
-  admission:null,returnOverride:null,attempt:{schema:'xiio.sdk.worker-attempt/v1',state:'STOPPED_VERIFIED',
+  admission:null,diskOverride:null,verifiedDiskOverride:null,returnOverride:null,brokerReturnOverride:null,attempt:{schema:'xiio.sdk.worker-attempt/v1',state:'STOPPED_VERIFIED',
     worker_ref:base.worker_ref,work_ref:'work:1',evidence_ref:'evidence:stopped'},
   runCanary:null};
  const trusted={
-  admit:async request=>{calls.admit++;return behavior.admission||{
+  verifyDiskInspection:async({request,inspection})=>{calls.verifyDisk++;return behavior.verifiedDiskOverride||{
+    schema:'xiio.ward.worker-disk-verification/v1',state:'CURRENT_NATIVE_BYTES_VERIFIED',
+    inspection_ref:inspection.inspection_ref,request_digest:request.request_digest,
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    installed_generation:request.installed_generation,
+    installation_sha256:request.installation_sha256,
+    verification_ref:'verify:disk:1',verified_against_current_store:true};},
+  admit:async request=>{calls.admit++;return (typeof behavior.admission==='function'?behavior.admission(request):behavior.admission)||{
     schema:'xiio.ward.worker-operation-admission/v1',state:'ADMITTED',
     operation:request.operation,request_digest:request.request_digest,
     worker_ref:request.worker_ref,device_ref:request.device_ref,
@@ -36,14 +43,21 @@ function make(){
     expires_at:'2026-10-28T14:40:00.000Z'};},
   startWorker:async({request})=>{calls.start++;return {state:'STARTED',run_ref:'run:1',worker_ref:request.worker_ref,request_digest:request.request_digest};},
   observeWorker:async()=>{calls.observeWorker++;return behavior.liveness;},
-  executeCanary:async({request,canary_text,canary_sha256})=>{calls.execute++;
+  executeCanary:async({request,canary_text,canary_sha256,idempotency_key})=>{calls.execute++;
+    assert.equal(idempotency_key,request.request_digest,'Ward executor receives stable atomic claim key');
     assert.equal(canary_text,WORKER_CANARY_TEXT); assert.equal(canary_sha256,WORKER_CANARY_SHA256);
     return behavior.runCanary||{schema:'xiio.switchboard.worker-canary-result/v1',state:'RESULT_PRESERVED',
       worker_ref:request.worker_ref,work_ref:request.work_ref,request_digest:request.request_digest,
       result_ref:'result:1',return_ref:'return:1',resource_ref:'bins:1',version_ref:'version:1',sha256:WORKER_CANARY_SHA256};},
-  readPreservedVersion:async()=>{calls.readPreserved++;return behavior.returnOverride||{
+  readPreservedVersion:async request=>{calls.readPreserved++;
+    const override=typeof behavior.returnOverride==='function'?behavior.returnOverride(request):behavior.returnOverride;
+    return override||{
     schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',
     bytes:Buffer.from(WORKER_CANARY_TEXT),sha256:WORKER_CANARY_SHA256};},
+  readRequesterReturnBytes:async({request,return_ref})=>{calls.readRequester++;
+    return typeof behavior.brokerReturnOverride==='function'
+      ?behavior.brokerReturnOverride({request,return_ref})
+      :behavior.brokerReturnOverride;},
   recoverWorker:async({request})=>{calls.recover++;return {state:'RECOVERED',recovery_ref:'recovery:1',
     worker_ref:request.worker_ref,request_digest:request.request_digest};}
  };
@@ -51,7 +65,18 @@ function make(){
   readAccount:async()=>{calls.readAccount++;return behavior.account;},
   readInstalledWorker:async()=>{calls.readInstalledWorker++;return behavior.worker;},
   observeWorker:async()=>{calls.observeWorker++;return behavior.liveness;},
-  readAttempt:async({operation})=>{calls.readAttempt++;return operation==='worker.start' ? (behavior.startAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'}) : behavior.attempt;},
+  inspectInstalledFramework:async({request})=>{calls.inspectDisk++;
+    return (typeof behavior.diskOverride==='function'?behavior.diskOverride(request):behavior.diskOverride)||{
+    schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    source_generation:request.source_generation,installed_generation:request.installed_generation,
+    installation_sha256:request.installation_sha256,
+    request_digest:request.request_digest,
+    inspection_ref:'inspection:1',observed_at:epoch};},
+  readAttempt:async({operation})=>{calls.readAttempt++;
+    if(operation==='worker.start')return behavior.startAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'};
+    if(operation==='worker.canary')return behavior.canaryAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'};
+    return behavior.attempt;},
   withCurrentAuthority:async(_envelope,callback)=>{calls.withCurrentAuthority++;return callback(trusted);}
  };
  return createSharedWorkerConnection({ports,clock:()=>epoch});
@@ -196,6 +221,12 @@ test('withCurrentAuthority must actually call its checked callback',async()=>{
     source_generation:base.source_generation,installed_generation:base.source_generation,
     installation_ref:'installation:loki',binding_ref:'binding:loki',installation_sha256:sha}),
   observeWorker:async()=>behavior.liveness,
+  inspectInstalledFramework:async({request})=>({
+    schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    source_generation:request.source_generation,installed_generation:request.installed_generation,
+    installation_sha256:request.installation_sha256,request_digest:request.request_digest,
+    inspection_ref:'inspection:1',observed_at:epoch}),
   readAttempt:async()=>({schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'}),
   withCurrentAuthority:async()=>({schema:WORKER_CONNECTION_SCHEMA,authority_granted:false,state:'STARTED_OBSERVED'})},clock:()=>epoch});
  const b=await bound(o),r=await o.start(b,scope);
@@ -206,4 +237,297 @@ test('SDK preview message gate refuses oversized and empty payloads',()=>{
  assert.equal(normalizeLocalAgentMessage('').first_red,'MESSAGE_INVALID_OR_OVERSIZE');
  assert.equal(normalizeLocalAgentMessage('x'.repeat(16_385)).first_red,'MESSAGE_INVALID_OR_OVERSIZE');
  assert.equal(normalizeLocalAgentMessage(' ping ').message,'ping');
+});
+
+test('lost ACK returns exact original Work and existing attempt-reconciliation owner',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'UNKNOWN',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const x=await o.canary(b,scope);
+  assert.equal(x.state,'BLOCKED');
+  assert.equal(x.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(x.blocked_operation.operation,'worker.canary');
+  assert.equal(x.blocked_operation.work_ref,'work:1');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_SWITCHBOARD_ATTEMPT_OWNER');
+  assert.equal(x.required_repair.action,'RECONCILE_EXISTING_ATTEMPT_WITHOUT_REEXECUTION');
+  assert.equal(x.required_repair.owner_approval_needed,false);
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.execute,0);
+});
+test('stale bound worker returns native runtime owner repair without retry',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.worker.installed_generation='gen:stale';
+  const x=await o.start(b,scope);
+  assert.equal(x.first_red,'WORKER_BINDING_NOT_CURRENT');
+  assert.equal(x.blocked_operation.operation,'worker.start');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_LOCAL_RUNTIME_OWNER');
+  assert.equal(x.next_action,'RETURN_BLOCKED_ACK_TO_ORIGINAL_WORK_OWNER');
+  assert.equal(calls.start,0);
+});
+test('file-reader missing return capability reports exact existing broker repair owner',async()=>{
+  const o=make(),b=await bound(o);
+  const bytes=Buffer.from('public test');
+  const digest=createHash('sha256').update(bytes).digest('hex');
+  const x=await o.readFile(b,{
+    work_ref:'work:1',approval_ref:'approval:1',return_ref:'return:1',
+    work_generation:'g1',resource_ref:'bins:1',version_ref:'version:1',
+    storage_binding_ref:'binding:1',expected_sha256:digest,expected_bytes:bytes.length});
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+  assert.equal(x.blocked_operation.operation,'worker.file-read');
+  assert.equal(x.blocked_operation.return_ref,'return:1');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.equal(calls.readRequester,1);
+});
+test('canary lost ACK blocks redispatch before Ward or worker effects',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'UNKNOWN',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+  assert.equal(calls.readPreserved,0);
+});
+test('canary preserved result requires recovery rather than rerunning',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'RESULT_PRESERVED',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('canary completed return cannot launch a second canary',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'COMPLETE_VERIFIED',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(calls.execute,0);
+});
+test('canary attempt bound to another Work is refused before Ward admission',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',
+    worker_ref:base.worker_ref,work_ref:'work:foreign'};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_ATTEMPT_UNVERIFIED');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('canary with mismatched attempt digest is refused before any effect',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',
+    worker_ref:base.worker_ref,work_ref:'work:1',operation:'worker.canary',
+    request_digest:'f'.repeat(64)};
+  const result=await o.canary(b,scope);
+  assert.equal(result.first_red,'WORKER_CANARY_ATTEMPT_UNVERIFIED');
+  assert.equal(calls.execute,0);assert.equal(calls.withCurrentAuthority,0);
+});
+
+test('disk inspection is a mandatory runtime port, not a claimed status',()=>{
+  assert.throws(()=>createSharedWorkerConnection({ports:{
+    readAccount:async()=>identity,readInstalledWorker:async()=>null,
+    observeWorker:async()=>null,readAttempt:async()=>null,withCurrentAuthority:async()=>null,
+  }}),/SDK_WORKER_PORTS_UNBOUND/);
+});
+test('forged on-disk binary hash denies worker start before Ward/executor',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.diskOverride=request=>({
+    schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    source_generation:request.source_generation,installed_generation:request.installed_generation,
+    installation_sha256:'f'.repeat(64),request_digest:request.request_digest,
+    inspection_ref:'inspection:forged',observed_at:epoch});
+  const x=await o.start(b,scope);
+  assert.equal(x.first_red,'WORKER_DISK_INSPECTION_UNVERIFIED');
+  assert.equal(x.blocked_operation.operation,'worker.start');
+  assert.equal(x.required_repair.action,'REOPEN_INSTALLED_FRAMEWORK_BYTES');
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.start,0);
+});
+test('stale native disk observation rejects before Ward/executor',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.diskOverride=request=>({
+    schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    source_generation:request.source_generation,installed_generation:request.installed_generation,
+    installation_sha256:request.installation_sha256,request_digest:request.request_digest,
+    inspection_ref:'inspection:stale',observed_at:'2026-10-28T14:29:00.000Z'});
+  const x=await o.start(b,scope);
+  assert.equal(x.first_red,'WORKER_DISK_INSPECTION_STALE');
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.start,0);
+});
+test('Ward must independently verify installed bytes before admission',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.verifiedDiskOverride={schema:'xiio.ward.worker-disk-verification/v1',
+    state:'CURRENT_NATIVE_BYTES_VERIFIED',verification_ref:'verify:fake',
+    inspection_ref:'inspection:wrong',verified_against_current_store:true};
+  const x=await o.start(b,scope);
+  assert.equal(x.first_red,'WARD_DISK_INSPECTION_NOT_VERIFIED');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_WARD_RUNTIME_OWNER');
+  assert.equal(calls.verifyDisk,1);assert.equal(calls.admit,0);assert.equal(calls.start,0);
+});
+test('no approval reference is needed to request exact Ward approval challenge',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.admission=request=>({
+    schema:'xiio.ward.worker-operation-admission/v1',state:'APPROVAL_REQUIRED',
+    operation:request.operation,worker_ref:request.worker_ref,device_ref:request.device_ref,
+    work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+    request_digest:request.request_digest,intent_digest:request.intent_digest,
+    approval_ref:null,challenge_ref:'challenge:1',expires_at:'2026-10-28T14:40:00.000Z'});
+  const x=await o.start(b,{work_ref:'work:1'});
+  assert.equal(x.state,'OWNER_APPROVAL_REQUIRED');
+  assert.equal(x.blocked_operation.operation,'worker.start');
+  assert.equal(x.blocked_operation.work_ref,'work:1');
+  assert.equal(x.challenge_ref,'challenge:1');
+  assert.equal(x.authority_granted,false);assert.equal(x.provider_effect,false);
+  assert.equal(calls.inspectDisk,1);assert.equal(calls.verifyDisk,1);
+  assert.equal(calls.admit,1);assert.equal(calls.start,0);
+});
+test('foreign or model-forged Ward approval challenge is never accepted',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.admission=request=>({
+    schema:'xiio.ward.worker-operation-admission/v1',state:'APPROVAL_REQUIRED',
+    operation:request.operation,worker_ref:request.worker_ref,device_ref:request.device_ref,
+    work_ref:'work:foreign',owner_principal_ref:request.owner_principal_ref,
+    request_digest:request.request_digest,intent_digest:request.intent_digest,
+    approval_ref:null,challenge_ref:'challenge:fake',expires_at:'2026-10-28T14:40:00.000Z'});
+  const x=await o.start(b,{work_ref:'work:1'});
+  assert.equal(x.first_red,'WARD_APPROVAL_CHALLENGE_UNVERIFIED');
+  assert.equal(calls.start,0);
+});
+test('intent is stable before and after approval; the existing Ward API still controls effect',async()=>{
+  const o=make(),b=await bound(o),intents=[];
+  behavior.admission=request=>{
+    intents.push(request.intent_digest);
+    if(request.approval_ref===null)return {
+      schema:'xiio.ward.worker-operation-admission/v1',state:'APPROVAL_REQUIRED',
+      operation:request.operation,worker_ref:request.worker_ref,device_ref:request.device_ref,
+      work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+      request_digest:request.request_digest,intent_digest:request.intent_digest,
+      approval_ref:null,challenge_ref:'challenge:1',expires_at:'2026-10-28T14:40:00.000Z'};
+    return {schema:'xiio.ward.worker-operation-admission/v1',state:'ADMITTED',
+      operation:request.operation,request_digest:request.request_digest,
+      worker_ref:request.worker_ref,device_ref:request.device_ref,
+      work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+      approval_ref:request.approval_ref,admission_ref:'admission:1',
+      lease_ref:'lease:1',expires_at:'2026-10-28T14:40:00.000Z'};
+  };
+  const waiting=await o.start(b,{work_ref:'work:1'});
+  assert.equal(waiting.state,'OWNER_APPROVAL_REQUIRED');assert.equal(calls.start,0);
+  const admitted=await o.start(b,scope);
+  assert.equal(admitted.state,'STARTED_OBSERVED');assert.equal(calls.start,1);
+  assert.equal(intents[0],intents[1]);
+});
+
+
+
+const FILE_BYTES=Buffer.from('XIIO_SDK_PUBLIC_SYNTHETIC_FILE_V1\\n');
+const FILE_SHA=createHash('sha256').update(FILE_BYTES).digest('hex');
+const selectedFile={
+  work_ref:'work:1',approval_ref:'approval:1',return_ref:'return:job:1',
+  work_generation:'workgen:1',resource_ref:'bins:record:1',
+  version_ref:'bins:version:1',storage_binding_ref:'binding:source:1',
+  expected_sha256:FILE_SHA,expected_bytes:FILE_BYTES.length
+};
+function nativeBrokerFixture(){
+  behavior.brokerReturnOverride=({request})=>({
+    schema:'xiio.switchboard.device-return-bytes/v1',state:'BYTES_READBACK',
+    returnRef:selectedFile.return_ref,jobRef:'job:1',workRef:'work:1',
+    occurrenceId:'occurrence:1',generation:selectedFile.work_generation,
+    resourceRef:selectedFile.resource_ref,versionRef:selectedFile.version_ref,
+    storageBindingRef:selectedFile.storage_binding_ref,
+    readbackRef:'bins:readback:1',sha256:FILE_SHA,bytes:FILE_BYTES.length,
+    encoding:'base64',contentBase64:FILE_BYTES.toString('base64'),
+    resultDigest:'a'.repeat(64),returnCertified:false,applyReturn:false
+  });
+}
+test('existing requester-only Switchboard byte return yields real contents, not BINS bypass',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.state,'REQUESTER_FILE_BYTES_MATCHED');
+  assert.equal(Buffer.from(x.contentBase64,'base64').toString('utf8'),FILE_BYTES.toString('utf8'));
+  assert.equal(x.return_ref,selectedFile.return_ref);
+  assert.equal(x.version_ref,selectedFile.version_ref);
+  assert.equal(x.sha256,FILE_SHA);assert.equal(x.apply_return_verified,false);
+  assert.equal(calls.verifyDisk,1);assert.equal(calls.admit,1);
+  assert.equal(calls.execute,0);assert.equal(calls.readRequester,1);
+  assert.equal(calls.readPreserved,0,'SDK must NOT call BINS direct for remote content');
+});
+test('no approval yields exact Ward challenge scoped to the broker return and Work generation',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.admission=request=>({
+    schema:'xiio.ward.worker-operation-admission/v1',state:'APPROVAL_REQUIRED',
+    operation:request.operation,worker_ref:request.worker_ref,device_ref:request.device_ref,
+    work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+    request_digest:request.request_digest,intent_digest:request.intent_digest,
+    approval_ref:null,challenge_ref:'challenge:file:1',expires_at:'2026-10-28T14:40:00.000Z'
+  });
+  const x=await o.readFile(b,{...selectedFile,approval_ref:null});
+  assert.equal(x.state,'OWNER_APPROVAL_REQUIRED');
+  assert.equal(x.blocked_operation.return_ref,selectedFile.return_ref);
+  assert.equal(x.blocked_operation.work_generation,selectedFile.work_generation);
+  assert.equal(x.blocked_operation.resource_ref,selectedFile.resource_ref);
+  assert.equal(x.blocked_operation.storage_binding_ref,selectedFile.storage_binding_ref);
+  assert.equal(x.blocked_operation.expected_sha256,FILE_SHA);
+  assert.equal(calls.readRequester,0);assert.equal(x.authority_granted,false);
+});
+test('arbitrary direct file paths or embedded payloads refuse before any admission',async()=>{
+  const o=make(),b=await bound(o);
+  for(const payload of [{path:'/home/private/secret'},{raw_bytes:'secret'},
+    {credential:'secret'}, {callback:'bypass'}]){
+    const x=await o.readFile(b,{...selectedFile,...payload});
+    assert.equal(x.first_red,'WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN');
+  }
+  assert.equal(calls.inspectDisk,0);assert.equal(calls.withCurrentAuthority,0);
+  assert.equal(calls.readRequester,0);
+});
+test('missing return/work generation/digest/binding and over-limit bytes deny without disclosure',async()=>{
+  const o=make(),b=await bound(o);
+  const variants=[{return_ref:null},{work_generation:null},{storage_binding_ref:null},
+    {expected_sha256:'invalid'},{expected_bytes:16385},{expected_bytes:-1}];
+  for(const patch of variants){
+    const x=await o.readFile(b,{...selectedFile,...patch});assert.equal(x.state,'BLOCKED');
+  }
+  assert.equal(calls.inspectDisk,0);assert.equal(calls.readRequester,0);
+});
+test('metadata-only broker return cannot masquerade as requester bytes',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.brokerReturnOverride={schema:'xiio.switchboard.device-return-bytes/v1',
+    state:'BYTES_READBACK',returnRef:selectedFile.return_ref,workRef:'work:1',
+    resourceRef:selectedFile.resource_ref,versionRef:selectedFile.version_ref};
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+  assert.equal(calls.readRequester,1);assert.equal(calls.readPreserved,0);
+});
+test('foreign Work return cannot be credited even with matching bytes and digest',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const f=behavior.brokerReturnOverride;
+  behavior.brokerReturnOverride=payload=>({...f(payload),workRef:'work:foreign'});
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+});
+test('tampered or noncanonical base64 payload fails after requester readback',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const f=behavior.brokerReturnOverride;
+  for(const contentBase64 of ['@@',Buffer.from('tampered').toString('base64')]){
+    behavior.brokerReturnOverride=payload=>({...f(payload),contentBase64});
+    const x=await o.readFile(b,selectedFile);
+    assert.equal(x.state,'BLOCKED');
+    assert.equal(x.authority_granted,false);
+  }
+  assert.equal(calls.readPreserved,0);
+});
+test('changed ResourceVersion cannot be read with a stale approval intent',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const x=await o.readFile(b,{...selectedFile,version_ref:'bins:version:foreign'});
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+});
+test('forged local disk inspection blocks requester content before broker read',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  behavior.diskOverride=request=>({
+    schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    source_generation:request.source_generation,installed_generation:request.installed_generation,
+    installation_sha256:'f'.repeat(64),request_digest:request.request_digest,
+    inspection_ref:'inspection:forged',observed_at:epoch
+  });
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'WORKER_DISK_INSPECTION_UNVERIFIED');
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.readRequester,0);
 });
