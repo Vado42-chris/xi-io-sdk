@@ -14,15 +14,15 @@ export const WORKER_CANARY_SHA256=createHash('sha256').update(WORKER_CANARY_BYTE
 export const MAX_WORKER_CANARY_BYTES=16*1024;
 const SHA=/^[a-f0-9]{64}$/;
 const REF=/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,191}$/;
-const PORTS=['readAccount','readInstalledWorker','observeWorker','readAttempt','withCurrentAuthority'];
+const PORTS=['readAccount','readInstalledWorker','observeWorker','readAttempt','inspectInstalledFramework','withCurrentAuthority'];
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const sorted=x=>Array.isArray(x)?x.map(sorted):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,sorted(x[k])])):x;
 const digest=x=>sha(JSON.stringify(sorted(x)));
 const ref=(x,k)=>{if(typeof x!=='string'||!REF.test(x))throw Error(k+'_INVALID');return x;};
 const assert=(ok,k)=>{if(!ok)throw Error(k);};
 const nowMs=s=>{const t=Date.parse(s);assert(typeof s==='string'&&Number.isFinite(t),'CLOCK_INVALID');return t;};
-const denied=(code,extra={})=>Object.freeze({schema:WORKER_CONNECTION_SCHEMA,state:'BLOCKED',first_red:code,
-  authority_granted:false,provider_effect:false,apply_return_verified:false,...extra});
+const denied=(code,extra={})=>Object.freeze({...extra,schema:WORKER_CONNECTION_SCHEMA,state:'BLOCKED',first_red:code,
+  authority_granted:false,provider_effect:false,apply_return_verified:false});
 const allowedCode=e=>typeof e?.message==='string'&&/^[A-Z][A-Z0-9_]{4,90}$/.test(e.message)?e.message:'WORKER_CONNECTION_UNAVAILABLE';
 const attempt=async work=>{try{return await work();}catch(error){return denied(allowedCode(error));}};
 
@@ -52,12 +52,20 @@ function currentLiveness(x,binding,clock){
     installed_generation:binding.installed_generation,observation_ref:x.observation_ref,
     authority_granted:false,provider_effect:false};
 }
-function makeRequest(binding,operation,{work_ref,approval_ref}){
-  const base={operation,work_ref:ref(work_ref,'WORK_REF'),approval_ref:ref(approval_ref,'APPROVAL_REF'),
-    worker_ref:binding.worker_ref,device_ref:binding.device_ref,owner_principal_ref:binding.owner_principal_ref,
+function makeRequest(binding,operation,{work_ref,approval_ref=null}={}){
+  // Never require approval *before* a request can ask Ward for approval.
+  const intent={operation,work_ref:ref(work_ref,'WORK_REF'),
+    worker_ref:binding.worker_ref,device_ref:binding.device_ref,
+    owner_principal_ref:binding.owner_principal_ref,
     source_generation:binding.source_generation,installed_generation:binding.installed_generation,
     binding_digest:binding.binding_digest};
-  return Object.freeze({...base,request_digest:digest(base)});
+  const approved=approval_ref==null?null:ref(approval_ref,'APPROVAL_REF');
+  // The original request_digest for already approved callers is unchanged.
+  // Only intent_digest must survive challenge -> owner approval -> resume.
+  return Object.freeze({...intent,approval_ref:approved,
+    installation_sha256:binding.installation_sha256,
+    intent_digest:digest({...intent,installation_sha256:binding.installation_sha256}),
+    request_digest:digest({...intent,approval_ref:approved})});
 }
 function admit(proof,request,clock){
   assert(proof?.schema==='xiio.ward.worker-operation-admission/v1'&&proof.state==='ADMITTED'&&
@@ -69,6 +77,61 @@ function admit(proof,request,clock){
   ref(proof.admission_ref,'ADMISSION_REF');ref(proof.lease_ref,'LEASE_REF');
   assert(nowMs(proof.expires_at)>nowMs(clock()),'WARD_ADMISSION_EXPIRED');
   return proof;
+}
+// The local device adapter is obliged to reopen the actual installation.
+// This observation is *not* an authority grant until verified by the Ward owner.
+function checkOnDisk(inspection,request,clock){
+  assert(inspection?.schema==='xiio.sdk.worker-disk-inspection/v1'&&
+    inspection.state==='ON_DISK_BYTES_REOPENED'&&
+    inspection.worker_ref===request.worker_ref&&inspection.device_ref===request.device_ref&&
+    inspection.source_generation===request.source_generation&&
+    inspection.installed_generation===request.installed_generation&&
+    inspection.installation_sha256===request.installation_sha256&&
+    inspection.request_digest===request.request_digest,'WORKER_DISK_INSPECTION_UNVERIFIED');
+  ref(inspection.inspection_ref,'INSPECTION_REF');
+  const age=nowMs(clock())-nowMs(inspection.observed_at);
+  assert(age>=0&&age<=30_000,'WORKER_DISK_INSPECTION_STALE');
+  return Object.freeze({schema:inspection.schema,inspection_ref:inspection.inspection_ref,
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    installed_generation:request.installed_generation,
+    installation_sha256:request.installation_sha256,
+    request_digest:request.request_digest,observed_at:inspection.observed_at});
+}
+function checkWardDisk(verified,inspection,request){
+  assert(verified?.schema==='xiio.ward.worker-disk-verification/v1'&&
+    verified.state==='CURRENT_NATIVE_BYTES_VERIFIED'&&
+    verified.inspection_ref===inspection.inspection_ref&&
+    verified.request_digest===request.request_digest&&
+    verified.worker_ref===request.worker_ref&&verified.device_ref===request.device_ref&&
+    verified.installed_generation===request.installed_generation&&
+    verified.installation_sha256===request.installation_sha256&&
+    verified.verified_against_current_store===true,
+    'WARD_DISK_INSPECTION_NOT_VERIFIED');
+  ref(verified.verification_ref,'VERIFICATION_REF');
+}
+function approvalChallenge(decision,request,clock){
+  assert(request.approval_ref===null&&
+    decision?.schema==='xiio.ward.worker-operation-admission/v1'&&
+    decision.state==='APPROVAL_REQUIRED'&&
+    decision.operation===request.operation&&
+    decision.worker_ref===request.worker_ref&&decision.device_ref===request.device_ref&&
+    decision.work_ref===request.work_ref&&decision.owner_principal_ref===request.owner_principal_ref&&
+    decision.request_digest===request.request_digest&&
+    decision.intent_digest===request.intent_digest&&
+    decision.approval_ref==null,
+    'WARD_APPROVAL_CHALLENGE_UNVERIFIED');
+  ref(decision.challenge_ref,'CHALLENGE_REF');
+  assert(nowMs(decision.expires_at)>nowMs(clock()),'WARD_APPROVAL_CHALLENGE_EXPIRED');
+  // A Ward challenge is an invitation to review the exact operation, not a grant.
+  return Object.freeze({schema:WORKER_CONNECTION_SCHEMA,state:'OWNER_APPROVAL_REQUIRED',
+    first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',
+    next_action:'REVIEW_EXISTING_WARD_CHALLENGE',challenge_ref:decision.challenge_ref,
+    expires_at:decision.expires_at,
+    blocked_operation:Object.freeze({operation:request.operation,work_ref:request.work_ref,
+      worker_ref:request.worker_ref,device_ref:request.device_ref,
+      owner_principal_ref:request.owner_principal_ref,
+      intent_digest:request.intent_digest,request_digest:request.request_digest}),
+    authority_granted:false,provider_effect:false,apply_return_verified:false});
 }
 function preservedBytes(custody,record){
   assert(custody?.schema==='xiio.bins.verified-preserved-version/v1'&&
@@ -142,20 +205,40 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
     return currentLiveness(observation,binding,clock);
   });
   async function protectedOperation(binding,operation,scope,perform){
-    return attempt(async()=>{
+    let pinned=null;
+    const result=await attempt(async()=>{
       await rebind(binding);
       const request=makeRequest(binding,operation,scope);
+      pinned=request;
+      const inspection=checkOnDisk(await ports.inspectInstalledFramework({request}),request,clock);
       let callbackCalled=false;
-      const value=await ports.withCurrentAuthority({request,now:clock()},async trusted=>{
+      const value=await ports.withCurrentAuthority({
+        request,now:clock(),inspection_ref:inspection.inspection_ref},async trusted=>{
         callbackCalled=true;
         assert(trusted&&typeof trusted.admit==='function','WARD_TRANSACTION_PORTS_UNBOUND');
-        const proof=admit(await trusted.admit(request),request,clock);
+        assert(typeof trusted.verifyDiskInspection==='function','WARD_DISK_VERIFIER_UNBOUND');
+        checkWardDisk(await trusted.verifyDiskInspection({request,inspection}),inspection,request);
+        const decision=await trusted.admit(request);
+        if(decision?.state==='APPROVAL_REQUIRED')return approvalChallenge(decision,request,clock);
+        const proof=admit(decision,request,clock);
         return perform({trusted,proof,request});
       });
-      assert(callbackCalled&&value && value.schema===WORKER_CONNECTION_SCHEMA && value.authority_granted===false,
-        'WORKER_RETURN_UNQUALIFIED');
+      assert(callbackCalled&&value&&value.schema===WORKER_CONNECTION_SCHEMA&&
+        value.authority_granted===false,'WORKER_RETURN_UNQUALIFIED');
       return value;
     });
+    if(result?.state!=='BLOCKED')return result;
+    const repair=result.first_red.startsWith('WORKER_DISK_INSPECTION')
+      ?{owner_ref:'EXISTING_LOCAL_RUNTIME_OWNER',action:'REOPEN_INSTALLED_FRAMEWORK_BYTES'}
+      :result.first_red.startsWith('WARD_DISK')
+      ?{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'BIND_CURRENT_NATIVE_DISK_VERIFIER'}
+      :{owner_ref:'CURRENT_WORK_RUNTIME_OWNER',action:'REPAIR_REQUEST_BOUND_AUTHORITY'};
+    return denied(result.first_red,{
+      blocked_operation:Object.freeze({operation,work_ref:pinned?.work_ref||null,
+        worker_ref:pinned?.worker_ref||null,device_ref:pinned?.device_ref||null,
+        intent_digest:pinned?.intent_digest||null,request_digest:pinned?.request_digest||null}),
+      required_repair:Object.freeze({...repair,owner_approval_needed:false}),
+      next_action:'REPAIR_AND_RESUME_ORIGINAL_WORK'});
   }
   const start=async (binding,scope)=>attempt(async()=>{
     await rebind(binding);
