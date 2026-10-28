@@ -107,7 +107,9 @@ const baseAck = {
 
 let checks = 0;
 assert.equal(validateRotflAckContext(rotfl).ok, true); checks += 1;
-assert.equal(validateRotflAckContext(rotfl).template_runtime_complete, true); checks += 1;
+assert.equal(validateRotflAckContext(rotfl).template_runtime_complete, false); checks += 1;
+assert.equal(validateRotflAckContext(rotfl).template_supplied_complete, true); checks += 1;
+assert.equal(validateRotflAckContext(rotfl).complete, false); checks += 1;
 assert.equal(validateDistributedAck(baseAck).ok, true); checks += 1;
 assert.equal(validateDistributedAck({...baseAck,effect_policy:null}).ok,false); checks += 1;
 const currentEffect={...universalEffectPolicy,effect_scope:'API',consequential:true,occurrence_ref:'occ:api:1',requested_effect_ref:'api:write:1',current_instruction_ref:'instruction:current:1',authorizing_instruction_ref:'instruction:current:1',authorized_effect_refs:['api:write:1'],user_effect_instruction_bound:true,effect_attempt_eligible:true};
@@ -120,6 +122,11 @@ assert.equal(wrongEffectVerdict.ok,false); checks += 1;
 assert(wrongEffectVerdict.errors.some(x=>x.includes('CURRENT_INSTRUCTION_NOT_BOUND_TO_REQUESTED_EFFECT'))); checks += 1;
 assert.equal(validateRotflDistributedAck(baseAck).ok, false); checks += 1;
 assert.equal(validateRotflDistributedAck({ ...baseAck, rotfl }).ok, true); checks += 1;
+const forgedTerminal=validateRotflDistributedAck({...baseAck,ack_state:'RESULT',attempt:1,rotfl});
+assert.equal(forgedTerminal.ok,false); checks += 1;
+assert(forgedTerminal.errors.includes('ROTFL_TEMPLATE_RUNTIME_REQUIRED_BEFORE_TERMINAL_ACK_STATE')); checks += 1;
+assert.equal(forgedTerminal.template_supplied_complete,true); checks += 1;
+assert.equal(forgedTerminal.template_runtime_complete,false); checks += 1;
 const earlyOrder = compileRotflOrderOfOperations({
   source_generation:'fixture:g1',
   managed_current:managedCurrent,
@@ -137,6 +144,26 @@ assert.equal(validateRotflAckContext(incompleteRotfl).template_runtime_complete,
 const terminalIncomplete=validateRotflDistributedAck({...baseAck,ack_state:'RESULT',attempt:1,rotfl:incompleteRotfl});
 assert.equal(terminalIncomplete.ok,false); checks += 1;
 assert(terminalIncomplete.errors.includes('ROTFL_TEMPLATE_RUNTIME_REQUIRED_BEFORE_TERMINAL_ACK_STATE')); checks += 1;
+
+// False-success hostiles: no self-certified flag, reused receipt, or stale
+// submitted generation may promote a structurally sound ACK into a RESULT.
+const selfCertified=structuredClone(rotfl);
+selfCertified.template_runs[0].authenticated=true;
+selfCertified.template_runs[0].runtime_complete=true;
+selfCertified.runtime_complete=true;
+const selfCertifiedResult=validateRotflDistributedAck({...baseAck,ack_state:'RESULT',attempt:1,rotfl:selfCertified});
+assert.equal(selfCertifiedResult.ok,false); checks += 1;
+assert.equal(selfCertifiedResult.template_runtime_complete,false); checks += 1;
+const staleClaim=structuredClone(rotfl);
+staleClaim.template_runs[0].runtime_generation='runtime:obsolete';
+const staleResult=validateRotflDistributedAck({...baseAck,ack_state:'RESULT',attempt:1,rotfl:staleClaim});
+assert.equal(staleResult.ok,false); checks += 1;
+const reusedClaim=structuredClone(rotfl);
+reusedClaim.reusable_template_refs.push('template:second');
+reusedClaim.template_runs.push({...reusedClaim.template_runs[0],template_ref:'template:second'});
+const reusedResult=validateRotflDistributedAck({...baseAck,ack_state:'RESULT',attempt:1,rotfl:reusedClaim});
+assert.equal(reusedResult.ok,false); checks += 1;
+assert.equal(reusedResult.template_supplied_complete,true); checks += 1;
 
 for (const field of Object.keys(rotfl)) {
   const sample = structuredClone(rotfl);

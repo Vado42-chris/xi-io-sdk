@@ -163,8 +163,8 @@ function compileOne(item, rotflContext) {
   if (applicable) {
     checklistRows.unshift({
       id:'ROTFL_TEMPLATE_RUNTIME',
-      state:templateRoute.runtime_complete ? 'SUPPLIED_UNVERIFIED' : 'WAIT',
-      reason:templateRoute.runtime_complete ? 'TEMPLATE_RUNTIME_RECEIPTS_SUPPLIED_NOT_AUTHENTICATED' : 'TEMPLATE_RUNTIME_INCOMPLETE',
+      state:templateRoute.supplied_runtime_complete ? 'SUPPLIED_UNVERIFIED' : 'WAIT',
+      reason:templateRoute.supplied_runtime_complete ? 'TEMPLATE_RUNTIME_RECEIPTS_SUPPLIED_NOT_AUTHENTICATED' : 'TEMPLATE_RUNTIME_INCOMPLETE',
     });
   } else {
     checklistRows.unshift({id:'ROTFL_TEMPLATE_RUNTIME',state:'N_A',reason:'ITEM_NOT_APPLICABLE'});
@@ -187,7 +187,7 @@ function compileOne(item, rotflContext) {
       obligation_state:!applicable ? 'N_A' : item.required_bit === 1 ? 'REQUIRED' : 'OPTIONAL',
       material:item.material_bit === 1,
       next:!applicable ? null
-        : !templateRoute.runtime_complete ? 'EXECUTE_ROTFL_TEMPLATE'
+        : !templateRoute.supplied_runtime_complete ? 'EXECUTE_ROTFL_TEMPLATE'
         : score.state === 'SUPPLIED_UNVERIFIED' ? 'VERIFY_SUPPLIED_STATE' : 'RESOLVE_ACK_ITEM',
       rotfl_template_route_ref:templateRoute.route_id,
       authority_granted:false,
@@ -206,6 +206,7 @@ function compileOne(item, rotflContext) {
       currentness_state:item.currentness.state,
       closure_credit:false,
       rotfl_template_runtime_complete:templateRoute.runtime_complete,
+      rotfl_template_supplied_complete:templateRoute.supplied_runtime_complete,
       rotfl_template_route_ref:templateRoute.route_id,
       authority_granted:false,
       provider_effect:false,
@@ -291,6 +292,7 @@ export function compileAckItemTrinity(input) {
     rotfl_required:true,
     rotfl_context:structuredClone(input.rotfl_context),
     rotfl_template_runtime_complete:rotflVerdict.template_runtime_complete,
+    rotfl_template_supplied_complete:rotflVerdict.template_supplied_complete,
     rotfl_template_run_count:rotflVerdict.template_run_count,
     trinity,
     authority_granted:false,

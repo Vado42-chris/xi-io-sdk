@@ -113,7 +113,8 @@ assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 assert.equal(out.external_communication,false);
 assert.equal(out.rotfl_required,true);
-assert.equal(out.rotfl_template_runtime_complete,true);
+assert.equal(out.rotfl_template_runtime_complete,false);
+assert.equal(out.rotfl_template_supplied_complete,true);
 assert.equal(out.rotfl_template_run_count,3);
 checks+=15;
 
@@ -122,8 +123,10 @@ for(const entry of out.trinity){
   assert.equal(entry.score_card.item_ref,entry.item_ref);
   assert.equal(entry.checklist.item_ref,entry.item_ref);
   assert.equal(entry.template_route.item_ref,entry.item_ref);
-  assert.equal(entry.template_route.runtime_complete,true);
-  assert.equal(entry.template_route.template_pass,3);
+  assert.equal(entry.template_route.runtime_complete,false);
+  assert.equal(entry.template_route.supplied_runtime_complete,true);
+  assert.equal(entry.template_route.template_pass,0);
+  assert.equal(entry.template_route.template_supplied_pass,3);
   assert.equal(entry.punch_card.rotfl_template_route_ref,entry.template_route.route_id);
   assert.equal(entry.score_card.rotfl_template_route_ref,entry.template_route.route_id);
   assert.equal(entry.checklist.rotfl_template_route_ref,entry.template_route.route_id);
@@ -220,7 +223,8 @@ assert.equal(templateWaitOut.rotfl_template_runtime_complete,false);
 const templateWaitItem=templateWaitOut.trinity.find(x=>x.item_ref==='ack:ward#effect-policy');
 assert.equal(templateWaitItem.punch_card.next,'EXECUTE_ROTFL_TEMPLATE');
 assert.equal(templateWaitItem.checklist.first_open.id,'ROTFL_TEMPLATE_RUNTIME');
-assert.equal(templateWaitItem.template_route.template_zero,1);
+assert.equal(templateWaitItem.template_route.template_zero,3);
+assert.equal(templateWaitItem.template_route.template_supplied_zero,1);
 checks+=5;
 
 const hostile = (mutate, pattern) => {

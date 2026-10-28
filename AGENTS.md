@@ -53,6 +53,29 @@ Current public runtime owners:
 
 A terminal ACK state, `RESULT`, `RETURN`, or `APPLY_RETURN`, is invalid when its reusable template denominator has not completed the ROTFL runtime route.
 
+### Structural claims are not runtime proof (2026-10-28 SDK kernel correction)
+
+The public SDK accepts submitted template refs, receipt refs, readback refs and
+binary bits as **untrusted structural input**. None of those strings authenticates
+execution, even when `state=EXECUTED` and all claimed bits are one.
+
+- `supplied_complete` and `template_supplied_pass` count claimed template coverage.
+- `runtime_complete` and `template_pass` remain false/zero in the
+  structural-only SDK path until a separately authenticated and generation-bound
+  runtime verifier is integrated. Payload-provided `authenticated`, `verified`
+  or `runtime_complete` flags are never authority.
+- `route_id` identifies the template plan, while `submission_digest`
+  distinguishes different supplied receipts/readbacks for that plan.
+- Item Trinity preserves the useful `SUPPLIED_UNVERIFIED` UX state and never
+  grants closure credit. Distributed ACK `RESULT`, `RETURN`, and
+  `APPLY_RETURN` fail closed without authenticated runtime proof.
+- This SDK change **does not** claim provider-effect verification. The connection
+  builder owns authenticated execution and physical readback; an authorized
+  adopter must wire and qualify that evidence before verified terminal ACKs work.
+
+Hard: `SUBMITTED_RECEIPT_REF != AUTHENTICATED_RUNTIME_READBACK` and
+`SDK_STRUCTURAL_OK != QUALIFIED_OPERATIONAL_COMPLETION`.
+
 ## Runtime test economy
 
 `npm run check` routes the complete SDK validation denominator through `scripts/run-runtime-rotfl-sdk-check.mjs`.
