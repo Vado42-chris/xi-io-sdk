@@ -381,13 +381,16 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
     async({trusted,proof,request})=>{
       assert(typeof trusted.readRequesterReturnBytes==='function',
         'WARD_REQUESTER_RETURN_PORT_UNBOUND');
+      // The worker's device is the EXECUTION TARGET, not the original
+      // requester's device. The native broker binds requester identity to
+      // its independently authenticated current session and stored requester row.
       const result=await trusted.readRequesterReturnBytes({
         request,return_ref:request.return_ref,admission_ref:proof.admission_ref,
-        requester_principal_ref:request.owner_principal_ref,
-        requester_device_ref:request.device_ref,max_bytes:request.expected_bytes});
+        max_bytes:request.expected_bytes});
       assert(result?.schema==='xiio.switchboard.device-return-bytes/v1'&&
         result.state==='BYTES_READBACK'&&
         result.returnRef===request.return_ref&&
+        result.deviceRef===request.device_ref&&
         result.workRef===request.work_ref&&
         result.generation===request.work_generation&&
         result.resourceRef===request.resource_ref&&

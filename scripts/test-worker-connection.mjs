@@ -54,7 +54,9 @@ function make(){
     return override||{
     schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',
     bytes:Buffer.from(WORKER_CANARY_TEXT),sha256:WORKER_CANARY_SHA256};},
-  readRequesterReturnBytes:async({request,return_ref})=>{calls.readRequester++;
+  readRequesterReturnBytes:async(payload)=>{calls.readRequester++;
+    behavior.requesterPortArgs=payload;
+    const {request,return_ref}=payload;
     return typeof behavior.brokerReturnOverride==='function'
       ?behavior.brokerReturnOverride({request,return_ref})
       :behavior.brokerReturnOverride;},
@@ -428,7 +430,7 @@ const selectedFile={
 function nativeBrokerFixture(){
   behavior.brokerReturnOverride=({request})=>({
     schema:'xiio.switchboard.device-return-bytes/v1',state:'BYTES_READBACK',
-    returnRef:selectedFile.return_ref,jobRef:'job:1',workRef:'work:1',
+    returnRef:selectedFile.return_ref,jobRef:'job:1',deviceRef:base.device_ref,workRef:'work:1',
     occurrenceId:'occurrence:1',generation:selectedFile.work_generation,
     resourceRef:selectedFile.resource_ref,versionRef:selectedFile.version_ref,
     storageBindingRef:selectedFile.storage_binding_ref,
@@ -530,4 +532,24 @@ test('forged local disk inspection blocks requester content before broker read',
   const x=await o.readFile(b,selectedFile);
   assert.equal(x.first_red,'WORKER_DISK_INSPECTION_UNVERIFIED');
   assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.readRequester,0);
+});
+
+test('original requester is resolved by native broker, not the target-device metadata',async()=>{
+  const o=make(),binding=await bound(o);nativeBrokerFixture();
+  const actual=await o.readFile(binding,selectedFile);
+  assert.equal(actual.state,'REQUESTER_FILE_BYTES_MATCHED');
+  assert.equal(behavior.requesterPortArgs.request.device_ref,'device:loki');
+  assert.equal(Object.hasOwn(behavior.requesterPortArgs,'requester_device_ref'),false);
+  assert.equal(Object.hasOwn(behavior.requesterPortArgs,'requester_principal_ref'),false);
+  assert.equal(behavior.requesterPortArgs.return_ref,selectedFile.return_ref);
+});
+test('foreign execution target cannot return bytes despite matching Work and digest',async()=>{
+  const o=make(),binding=await bound(o);nativeBrokerFixture();
+  const original=behavior.brokerReturnOverride;
+  behavior.brokerReturnOverride=payload=>({...original(payload),deviceRef:'device:foreign'});
+  const result=await o.readFile(binding,selectedFile);
+  assert.equal(result.state,'BLOCKED');
+  assert.equal(result.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+  assert.equal(calls.readRequester,1);
+  assert.equal(result.provider_effect,false);
 });
