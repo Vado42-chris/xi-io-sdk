@@ -87,10 +87,11 @@
     "./preflight/order-runtime": "./src/preflight/order-runtime.mjs",
     "./flatpack/universal-primitive": "./src/flatpack/universal-primitive.mjs",
     "./mutation/addressable": "./src/mutation/addressable.mjs",
-    "./worker/lifecycle": "./src/worker/lifecycle.mjs"
+    "./worker/lifecycle": "./src/worker/lifecycle.mjs",
+    "./worker/connection": "./src/worker/connection.mjs"
   },
   "scripts": {
-    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit",
+    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:worker-connection",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -157,6 +158,7 @@
     "check:account-binding": "node scripts/validate-account-binding.mjs",
     "check:launch-session": "node scripts/validate-launch-session.mjs",
     "check:zed-inbox-mcp": "node scripts/check-zed-inbox-mcp.mjs",
-    "check:worker-lifecycle-kit": "node scripts/validate-worker-lifecycle-kit.mjs"
+    "check:worker-lifecycle-kit": "node scripts/validate-worker-lifecycle-kit.mjs",
+    "check:worker-connection": "node --test scripts/test-worker-connection.mjs"
   }
 }
