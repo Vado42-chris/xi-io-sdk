@@ -116,6 +116,14 @@ conversation occurrence
 
 MCP/A2A capability visibility never grants effect authority. Runtime execution and readback remain separately qualified.
 
+## Shared worker connection: one owner for every agent (2026-10-28)
+
+Provider/account selection, installed-worker startup, liveness, canary execution, BINS-verified bytes and recovery share ONE SDK implementation. Before any agent starts another adapter, resolve `@xi-io/sdk/worker/connection` / `src/worker/connection.mjs` through the existing `@xi-io/sdk/worker/lifecycle` boundary. Reuse the existing SDK account-binding functions; adapters own only provider-specific transport and data mapping. A missing installed SDK is typed WAIT, never a shadow implementation. Existing Ward and Switchboard remain the only effect authorities.
+
+Runtime proof is not a source unit test. The shared worker conformance retains 14 required bindings, three qualification domains (`recovery_wake`, `admission`, `affected_return`) and independent executor/hostile/reviewer principals; no single agent self-ACKs that quorum. Source candidate [SDK #205](https://github.com/Vado42-chris/xi-io-sdk/pull/205) and plugin consumer [Plugins #50](https://github.com/Vado42-chris/xi-io-plugins/pull/50) are NOT yet installed or authority-qualified. Refuse account fabrications, new grants, duplicate enrollment, fake liveness, unverified BINS bytes, blind retries and provider fallback.
+
+Hard: `ONE_SHARED_SDK_WORKER_LIFECYCLE | PROVIDER_ADAPTER!=WORKER_OWNER | STATUS!=LIVENESS | SHA!=EXECUTION | RESULT!=RETURN!=APPLY_RETURN | THREE_ROLE_REVIEW_REQUIRED`.
+
 ## Live connection recovery catch-up (SDK notebook and paused agents)
 
 NotebookLM, a resurrected SDK notebook agent, or any agent absent from the
