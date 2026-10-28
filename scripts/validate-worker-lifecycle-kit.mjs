@@ -4,6 +4,7 @@ import {
   compileWorkerLifecycleKit,
   workerLifecyclePrimitiveCatalog,
   compileWorkerAdapterConformance,
+  runWorkerLifecycleAttempt,
   WORKER_ADAPTER_REQUIRED_BINDINGS,
   WORKER_RESTART_BOUNDARIES,
   WORKER_QUALIFICATION_DOMAINS,
@@ -91,7 +92,11 @@ assert.equal(adapter.schema,'xiio.sdk.worker-adapter-lifecycle-conformance/v1');
 assert.equal(adapter.denominator,WORKER_ADAPTER_REQUIRED_BINDINGS.length);
 assert.equal(adapter.pass,WORKER_ADAPTER_REQUIRED_BINDINGS.length);
 assert.equal(adapter.fail,0);
-assert.equal(adapter.release_eligible,true);
+assert.equal(adapter.release_eligible,false);
+assert.equal(adapter.structural_eligible,true);
+assert.equal(adapter.supplied_complete,true);
+assert.equal(adapter.runtime_complete,false);
+assert.equal(adapter.verification_state,'SUPPLIED_UNVERIFIED');
 assert.equal(adapter.first_red,null);
 assert.equal(adapter.authority_granted,false);
 assert.equal(adapter.provider_effect,false);
@@ -179,7 +184,8 @@ for(const adapter_kind of ['BASE44_CLOUD','HEX_NATIVE','OLLAMA_LOCAL','CLI_MCP',
   const input=conforming();
   input.adapter_kind=adapter_kind;
   const pass=compileWorkerAdapterConformance(input);
-  assert.equal(pass.release_eligible,true,adapter_kind);
+  assert.equal(pass.release_eligible,false,adapter_kind);
+  assert.equal(pass.structural_eligible,true,adapter_kind);
   delete input.bindings.ack;
   const fail=compileWorkerAdapterConformance(input);
   assert.equal(fail.release_eligible,false,adapter_kind);
@@ -203,7 +209,8 @@ const gamified=compileWorkerAdapterConformance({
   ...conforming(),
   gamification:{level:999,score:1000000,rank:'META_ARCHITECT',effect_authority:true},
 });
-assert.equal(gamified.release_eligible,true);
+assert.equal(gamified.release_eligible,false);
+assert.equal(gamified.structural_eligible,true);
 assert.equal(gamified.authority_granted,false);
 assert.equal(gamified.provider_effect,false);
 assert.ok(gamified.hard.includes('GAMIFICATION!=AUTHORITY'));
@@ -212,6 +219,74 @@ assert.ok(gamified.hard.includes('MISSING_ADAPTER_BINDING=>RELEASE_FAIL'));
 const source=fs.readFileSync(new URL('../src/worker/lifecycle.mjs',import.meta.url),'utf8');
 assert.doesNotMatch(source,/effect_authority\s*:\s*true/);
 assert.doesNotMatch(source,/provider_effect\s*:\s*true/);
+
+
+
+// Payload-authentication, agent labels and historical STARTED are never proof.
+for (const claims of [
+  {authenticated:true,verified:true,runtime_complete:true,release_eligible:true},
+  {state:'STARTED',agent_label:'Ibal',process_pid:1,heartbeat:'current'},
+  {provider_ref:'provider:claimed',account_ref:'account:claimed',capability_ref:'capability:claimed'},
+]) {
+  const supplied=conforming();
+  Object.assign(supplied,claims);
+  for (const row of Object.values(supplied.bindings)) Object.assign(row,claims);
+  const observed=compileWorkerAdapterConformance(supplied);
+  assert.equal(observed.structural_eligible,true);
+  assert.equal(observed.supplied_complete,true);
+  assert.equal(observed.runtime_complete,false);
+  assert.equal(observed.release_eligible,false);
+  assert.equal(observed.runtime_first_red,'AUTHENTICATED_GENERATION_BOUND_WORKER_PROOF_REQUIRED');
+}
+
+// Public shared phase engine refuses unbound owners before any execution.
+await assert.rejects(runWorkerLifecycleAttempt(),{code:'WORKER_BINDING_REQUIRED'});
+await assert.rejects(runWorkerLifecycleAttempt({
+  binding:Object.fromEntries(['project_id','work_id','assignment_ref','attempt_id','agent_id','source_generation','return_ref','operation_ref'].map(key=>[key,'fixture:'+key])),
+  jobId:'fixture:job',
+}),{code:'WORKER_OWNERS_UNBOUND'});
+
+// Cached phase evidence must bind to this Work/attempt, even on duplicate return.
+{
+  const binding=Object.fromEntries(['project_id','work_id','assignment_ref','attempt_id','agent_id','source_generation','return_ref','operation_ref'].map(key=>[key,'fixture:'+key]));
+  const result={...binding,state:'COMPLETE',result_ref:'fixture:result'};
+  const journal=[
+    {type:'CLAIM',data:{...binding}},
+    {type:'EXECUTION_STARTED',data:{...binding,admission_ref:'fixture:admission'}},
+    {type:'RESULT',data:{...result,result_digest:JSON.stringify(result)}},
+    {type:'RETURN',data:{...binding,result_ref:result.result_ref}},
+    {type:'APPLY_RETURN_STARTED',data:{...binding}},
+    {type:'APPLY_RETURN',data:{...binding,state:'APPLIED',result_ref:result.result_ref,receipt_ref:'fixture:receipt'}},
+    {type:'WAKE_ACK',data:{...binding,receipt_ref:'fixture:receipt'}},
+  ];
+  let effects=0;
+  const forbidden=async()=>{effects++;throw new Error('CACHED_REPLAY_EXECUTED_EFFECT');};
+  const run=history=>runWorkerLifecycleAttempt({binding,jobId:'fixture:job',history:async()=>history,
+    current:async()=>{},dependenciesDone:async()=>true,append:forbidden,checkpoint:forbidden,
+    qualifiedHost:{qualify:forbidden,request:forbidden},applyReturn:{apply:forbidden},
+    publishReturn:forbidden,wakeConsumer:forbidden,digest:JSON.stringify});
+  assert.equal((await run(journal)).duplicate,true);
+  for(let i=0;i<journal.length;i++) for(const key of Object.keys(binding)) {
+    const invalid=structuredClone(journal);invalid[i].data[key]='fixture:foreign';
+    await assert.rejects(run(invalid),{code:'PERSISTED_PHASE_BINDING_INVALID'});
+  }
+  for(const invalid of [[journal.at(-1)],[...journal,journal.at(-1)],journal.slice(1),[journal[1],journal[0]]]) {
+    await assert.rejects(run(invalid),{code:'PERSISTED_PHASE_ORDER_INVALID'});
+  }
+  for(const [index,key,code] of [
+    [1,'admission_ref','PERSISTED_ADMISSION_INVALID'],
+    [2,'result_ref','PERSISTED_RESULT_INVALID'],
+    [2,'result_digest','PERSISTED_RESULT_DIGEST_INVALID'],
+    [3,'result_ref','PERSISTED_RETURN_LINK_INVALID'],
+    [5,'receipt_ref','PERSISTED_APPLY_RETURN_LINK_INVALID'],
+    [5,'result_ref','PERSISTED_APPLY_RETURN_LINK_INVALID'],
+    [6,'receipt_ref','PERSISTED_WAKE_LINK_INVALID'],
+  ]) {
+    const invalid=structuredClone(journal);invalid[index].data[key]='';
+    await assert.rejects(run(invalid),{code});
+  }
+  assert.equal(effects,0);
+}
 
 console.log(JSON.stringify({
   state:'PASS',

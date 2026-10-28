@@ -580,7 +580,7 @@
       "callable_uuid": "d6d64d79-8e38-53a1-ad28-13e68f817b66",
       "family": "worker",
       "kind": "compiler",
-      "export": "compileWorkerLifecycleKit|workerLifecyclePrimitiveCatalog|compileWorkerAdapterConformance",
+      "export": "compileWorkerLifecycleKit|workerLifecyclePrimitiveCatalog|compileWorkerAdapterConformance|runWorkerLifecycleAttempt",
       "source": "src/worker/lifecycle.mjs",
       "specifier": "@xi-io/sdk/worker/lifecycle",
       "styles": [],
