@@ -93,6 +93,39 @@ conversation occurrence
 
 MCP/A2A capability visibility never grants effect authority. Runtime execution and readback remain separately qualified.
 
+## Live connection recovery catch-up (SDK notebook and paused agents)
+
+NotebookLM, a resurrected SDK notebook agent, or any agent absent from the
+October 27–28 XI-IO connectivity repair must **not** reuse its old connection
+status as current. After the Studio CURRENT front door above, resolve the
+framework owner's provider-current
+`docs/ops/CHATGPT-PRIVATE-MCP-TUNNEL-20261028.md`
+and framework [#1366](https://github.com/Vado42-chris/xi-io.net/issues/1366)
+as observed connection receipts and pending gates. Refresh the referenced
+GitHub commits **and** physical installed-generation evidence; neither a
+GitHub comment nor this SDK paragraph is the canonical runtime authority.
+
+Owner's most recent externally returned Loki receipt:
+`MCP_STDIO_INSTALLED_PROTOCOL_VERIFIED` for
+`private-mcp-stdio-f743a92fe4fb`. Previous Loki HEX MCP host source
+was physically read back; the broad HEX auto-install run `40670506512`
+was cancelled; the current framework main workflow validates source on
+hosted runners, and broad install is manual dispatch only. These are
+not proof of a running Secure MCP Tunnel, ChatGPT plugin attachment,
+first-party device-session issuance, Ward admission, network/share
+discovery, protected host execution, or BINS/Work RETURN.
+
+Preserve the existing Loki server, Aries client, identities, tunnels,
+records and installed HEX generation. Never re-run the HEX installer,
+create duplicate enrollment/authority, silently expose private host data,
+or substitute Desktop Commander. A paused agent must classify old
+statements `HISTORICAL_REVIEW_NOT_CURRENT`, and refresh from the current
+owner and physical returns before contributing a proposed correction.
+If no connector is available to send the correction to a private notebook,
+record `NOTEBOOK_DIRECT_DELIVERY_UNVERIFIED` rather than claiming
+the notebook was updated. One mutation custodian, affected source
+readback, explicit Ward consent and physical runtime proof still apply.
+
 ## Mutation boundary
 
 Use the smallest shared-owner patch that fixes the root contract. During hostile explosion, do not repair each failing path independently. Preserve all reds, reduce them to shared root causes, patch the semantic owner once, replay the affected denominator, then return/reap.
