@@ -46,8 +46,11 @@ export function snap55({questions=[],responses={},journal=[],nowMs=Date.now(),de
     return [p,{sum:numerator,max:denominator,known_count:cs.length-missing.filter(id=>cs.some(c=>c.id===id)).length,required_count:cs.length,
       percent:cs.length && cs.every(c=>c.response.bit.KNOWN_BIT===1)&&denominator>0 ?100*numerator/denominator:null}];
   }));
-  const recent=journal.map((entry,i)=>({index:i,entropy:entry?.sensoryEntropy,ageHours:(nowMs-entry?.timestamp)/3600000,
-    time:temporalWeight((nowMs-entry?.timestamp)/3600000,decayMode)}));
+  const recent=journal.map((entry,i)=>{
+    // Do not silently coerce null/string/missing timestamps into valid old observations.
+    const ageHours=entry&&finite(entry.timestamp)?(nowMs-entry.timestamp)/3600000:NaN;
+    return {index:i,entropy:entry?.sensoryEntropy,ageHours,time:temporalWeight(ageHours,decayMode)};
+  });
   const invalidJournal=recent.some(r=>r.time.bit.KNOWN_BIT===0||
     (r.time.bit.VALUE_BIT===1&&(!finite(r.entropy)||r.entropy<0||r.entropy>100)));
   const included=recent.filter(r=>r.time.bit.KNOWN_BIT===1&&r.time.bit.VALUE_BIT===1&&finite(r.entropy)&&r.entropy>=0&&r.entropy<=100);
