@@ -49,7 +49,9 @@ function make(){
     return behavior.runCanary||{schema:'xiio.switchboard.worker-canary-result/v1',state:'RESULT_PRESERVED',
       worker_ref:request.worker_ref,work_ref:request.work_ref,request_digest:request.request_digest,
       result_ref:'result:1',return_ref:'return:1',resource_ref:'bins:1',version_ref:'version:1',sha256:WORKER_CANARY_SHA256};},
-  readPreservedVersion:async()=>{calls.readPreserved++;return behavior.returnOverride||{
+  readPreservedVersion:async request=>{calls.readPreserved++;
+    const override=typeof behavior.returnOverride==='function'?behavior.returnOverride(request):behavior.returnOverride;
+    return override||{
     schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',
     bytes:Buffer.from(WORKER_CANARY_TEXT),sha256:WORKER_CANARY_SHA256};},
   recoverWorker:async({request})=>{calls.recover++;return {state:'RECOVERED',recovery_ref:'recovery:1',
@@ -369,4 +371,109 @@ test('intent is stable before and after approval; the existing Ward API still co
   const admitted=await o.start(b,scope);
   assert.equal(admitted.state,'STARTED_OBSERVED');assert.equal(calls.start,1);
   assert.equal(intents[0],intents[1]);
+});
+
+
+const FILE_BYTES=Buffer.from('XIIO_SDK_PUBLIC_SYNTHETIC_FILE_V1\\n');
+const FILE_SHA=createHash('sha256').update(FILE_BYTES).digest('hex');
+const selectedFile={
+  work_ref:'work:1',approval_ref:'approval:1',
+  resource_ref:'bins:record:1',version_ref:'bins:version:1',
+  expected_sha256:FILE_SHA,expected_bytes:FILE_BYTES.length
+};
+function nativeFileFixture(){
+  behavior.returnOverride=request=>({
+    schema:'xiio.bins.verified-preserved-version/v1',
+    resource_ref:selectedFile.resource_ref,version_ref:selectedFile.version_ref,
+    requester_principal_ref:request.requester_principal_ref,
+    request_digest:request.request_digest,
+    readback_ref:'bins:readback:1',bytes:FILE_BYTES,sha256:FILE_SHA
+  });
+}
+test('file read through existing Ward/BINS ports returns exact bytes, never mere metadata',async()=>{
+  const o=make(),b=await bound(o);nativeFileFixture();
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.state,'FILE_BYTES_MATCHED_TRUSTED_PORT');
+  assert.equal(Buffer.from(x.data_base64,'base64').toString('utf8'),FILE_BYTES.toString('utf8'));
+  assert.equal(x.resource_ref,selectedFile.resource_ref);
+  assert.equal(x.version_ref,selectedFile.version_ref);
+  assert.equal(x.sha256,FILE_SHA);
+  assert.equal(x.apply_return_verified,false);
+  assert.equal(calls.verifyDisk,1);assert.equal(calls.admit,1);
+  assert.equal(calls.execute,0);assert.equal(calls.readPreserved,1);
+});
+test('file read without approval yields Ward challenge for that exact file version',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.admission=request=>({
+    schema:'xiio.ward.worker-operation-admission/v1',state:'APPROVAL_REQUIRED',
+    operation:request.operation,worker_ref:request.worker_ref,device_ref:request.device_ref,
+    work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+    request_digest:request.request_digest,intent_digest:request.intent_digest,
+    approval_ref:null,challenge_ref:'challenge:file:1',expires_at:'2026-10-28T14:40:00.000Z'
+  });
+  const x=await o.readFile(b,{...selectedFile,approval_ref:null});
+  assert.equal(x.state,'OWNER_APPROVAL_REQUIRED');
+  assert.equal(x.blocked_operation.operation,'worker.file-read');
+  assert.equal(x.blocked_operation.resource_ref,selectedFile.resource_ref);
+  assert.equal(x.blocked_operation.version_ref,selectedFile.version_ref);
+  assert.equal(x.blocked_operation.expected_sha256,FILE_SHA);
+  assert.equal(x.blocked_operation.expected_bytes,FILE_BYTES.length);
+  assert.equal(x.authority_granted,false);assert.equal(calls.readPreserved,0);
+});
+test('model-supplied direct file path cannot cross the existing approved resource boundary',async()=>{
+  const o=make(),b=await bound(o);
+  const x=await o.readFile(b,{...selectedFile,path:'/home/private/owner-secret.txt'});
+  assert.equal(x.first_red,'WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN');
+  assert.equal(calls.inspectDisk,0);assert.equal(calls.withCurrentAuthority,0);
+  assert.equal(calls.readPreserved,0);
+});
+test('unbounded or fabricated digest/size cannot authorize file read',async()=>{
+  const o=make(),b=await bound(o);
+  for(const patch of [{expected_sha256:'xyz'},
+    {expected_bytes:65537},{expected_bytes:-1},{resource_ref:null},{version_ref:null}]){
+    const x=await o.readFile(b,{...selectedFile,...patch});
+    assert.equal(x.state,'BLOCKED');
+  }
+  assert.equal(calls.inspectDisk,0);assert.equal(calls.readPreserved,0);
+});
+test('BINS return without independent readback ref and exact request scope is refused',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.returnOverride={schema:'xiio.bins.verified-preserved-version/v1',
+    resource_ref:selectedFile.resource_ref,version_ref:selectedFile.version_ref,
+    bytes:FILE_BYTES,sha256:FILE_SHA};
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'BINS_FILE_READBACK_SCOPE_UNVERIFIED');
+  assert.equal(calls.readPreserved,1);
+});
+test('BINS version content drift is refused even if receipt metadata appears correct',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.returnOverride=request=>({
+    schema:'xiio.bins.verified-preserved-version/v1',
+    resource_ref:selectedFile.resource_ref,version_ref:selectedFile.version_ref,
+    requester_principal_ref:request.requester_principal_ref,
+    request_digest:request.request_digest,readback_ref:'bins:readback:1',
+    bytes:Buffer.from('tampered file'),sha256:FILE_SHA
+  });
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.state,'BLOCKED');
+  assert.equal(x.first_red,'BINS_FILE_BYTES_NOT_REOPENED');
+});
+test('same Work and approval cannot authorize a different resource silently',async()=>{
+  const o=make(),b=await bound(o);nativeFileFixture();
+  const x=await o.readFile(b,{...selectedFile,version_ref:'bins:foreign'});
+  assert.equal(x.first_red,'BINS_FILE_READBACK_SCOPE_UNVERIFIED');
+  assert.equal(calls.readPreserved,1);
+});
+test('untrusted on-disk inspection prevents all BINS content access',async()=>{
+  const o=make(),b=await bound(o);nativeFileFixture();
+  behavior.diskOverride=request=>({
+    schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    source_generation:request.source_generation,installed_generation:request.installed_generation,
+    installation_sha256:'f'.repeat(64),request_digest:request.request_digest,
+    inspection_ref:'inspection:forged',observed_at:epoch
+  });
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'WORKER_DISK_INSPECTION_UNVERIFIED');
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.readPreserved,0);
 });

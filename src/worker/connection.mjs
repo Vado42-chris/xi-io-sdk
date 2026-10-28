@@ -12,6 +12,7 @@ export const WORKER_CANARY_TEXT='XIIO_SDK_WORKER_CANARY_V1\n';
 export const WORKER_CANARY_BYTES=Buffer.from(WORKER_CANARY_TEXT,'utf8');
 export const WORKER_CANARY_SHA256=createHash('sha256').update(WORKER_CANARY_BYTES).digest('hex');
 export const MAX_WORKER_CANARY_BYTES=16*1024;
+export const MAX_WORKER_FILE_BYTES=64*1024;
 const SHA=/^[a-f0-9]{64}$/;
 const REF=/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,191}$/;
 const PORTS=['readAccount','readInstalledWorker','observeWorker','readAttempt','inspectInstalledFramework','withCurrentAuthority'];
@@ -52,16 +53,31 @@ function currentLiveness(x,binding,clock){
     installed_generation:binding.installed_generation,observation_ref:x.observation_ref,
     authority_granted:false,provider_effect:false};
 }
-function makeRequest(binding,operation,{work_ref,approval_ref=null}={}){
-  // Never require approval *before* a request can ask Ward for approval.
+function makeRequest(binding,operation,scope={}){
+  const {work_ref,approval_ref=null}=scope||{};
+  // A file read always names one already preserved BINS version. Arbitrary
+  // user paths, embedded bytes, credentials and broad read scopes are refused.
+  let target={};
+  if(operation==='worker.file-read'){
+    const allowed=new Set(['work_ref','approval_ref','resource_ref','version_ref',
+      'expected_sha256','expected_bytes']);
+    assert(Object.keys(scope||{}).every(k=>allowed.has(k)),
+      'WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN');
+    const hash=scope.expected_sha256;
+    assert(typeof hash==='string'&&SHA.test(hash),'WORKER_FILE_DIGEST_INVALID');
+    assert(Number.isSafeInteger(scope.expected_bytes)&&scope.expected_bytes>=0&&
+      scope.expected_bytes<=MAX_WORKER_FILE_BYTES,'WORKER_FILE_SIZE_UNADMITTED');
+    target={capability_ref:'bins.resource.version.read',
+      resource_ref:ref(scope.resource_ref,'RESOURCE_REF'),
+      version_ref:ref(scope.version_ref,'VERSION_REF'),
+      expected_sha256:hash,expected_bytes:scope.expected_bytes};
+  }
   const intent={operation,work_ref:ref(work_ref,'WORK_REF'),
     worker_ref:binding.worker_ref,device_ref:binding.device_ref,
     owner_principal_ref:binding.owner_principal_ref,
     source_generation:binding.source_generation,installed_generation:binding.installed_generation,
-    binding_digest:binding.binding_digest};
+    binding_digest:binding.binding_digest,...target};
   const approved=approval_ref==null?null:ref(approval_ref,'APPROVAL_REF');
-  // The original request_digest for already approved callers is unchanged.
-  // Only intent_digest must survive challenge -> owner approval -> resume.
   return Object.freeze({...intent,approval_ref:approved,
     installation_sha256:binding.installation_sha256,
     intent_digest:digest({...intent,installation_sha256:binding.installation_sha256}),
@@ -130,6 +146,10 @@ function approvalChallenge(decision,request,clock){
     blocked_operation:Object.freeze({operation:request.operation,work_ref:request.work_ref,
       worker_ref:request.worker_ref,device_ref:request.device_ref,
       owner_principal_ref:request.owner_principal_ref,
+      capability_ref:request.capability_ref||null,
+      resource_ref:request.resource_ref||null,version_ref:request.version_ref||null,
+      expected_sha256:request.expected_sha256||null,
+      expected_bytes:request.expected_bytes??null,
       intent_digest:request.intent_digest,request_digest:request.request_digest}),
     authority_granted:false,provider_effect:false,apply_return_verified:false});
 }
@@ -232,10 +252,16 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
       ?{owner_ref:'EXISTING_LOCAL_RUNTIME_OWNER',action:'REOPEN_INSTALLED_FRAMEWORK_BYTES'}
       :result.first_red.startsWith('WARD_DISK')
       ?{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'BIND_CURRENT_NATIVE_DISK_VERIFIER'}
+      :result.first_red.startsWith('BINS_FILE')||result.first_red.startsWith('WARD_PRESERVED')
+      ?{owner_ref:'EXISTING_BINS_RUNTIME_OWNER',action:'REOPEN_CURRENT_BINS_RESOURCE_VERSION'}
       :{owner_ref:'CURRENT_WORK_RUNTIME_OWNER',action:'REPAIR_REQUEST_BOUND_AUTHORITY'};
     return denied(result.first_red,{
       blocked_operation:Object.freeze({operation,work_ref:pinned?.work_ref||null,
         worker_ref:pinned?.worker_ref||null,device_ref:pinned?.device_ref||null,
+        capability_ref:pinned?.capability_ref||null,
+        resource_ref:pinned?.resource_ref||null,version_ref:pinned?.version_ref||null,
+        expected_sha256:pinned?.expected_sha256||null,
+        expected_bytes:pinned?.expected_bytes??null,
         intent_digest:pinned?.intent_digest||null,request_digest:pinned?.request_digest||null}),
       required_repair:Object.freeze({...repair,owner_approval_needed:false}),
       next_action:'REPAIR_AND_RESUME_ORIGINAL_WORK'});
@@ -338,7 +364,46 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
         request_digest:request.request_digest});
     });
   });
-  return Object.freeze({bind,observeLiveness,start,canary,recover});
+  /**
+   * Authorized file *contents*, not filesystem metadata. Read only an existing
+   * immutable BINS ResourceVersion by exact Work and expected bytes/digest.
+   * The installed native owner must bind the existing BINS reader to this Ward
+   * transaction; the SDK does not inspect arbitrary user paths or mint grants.
+   */
+  const readFile=async(binding,scope)=>protectedOperation(binding,'worker.file-read',scope,
+    async({trusted,proof,request})=>{
+      assert(typeof trusted.readPreservedVersion==='function',
+        'WARD_PRESERVED_VERSION_READER_UNBOUND');
+      const result=await trusted.readPreservedVersion({
+        resource_ref:request.resource_ref,version_ref:request.version_ref,
+        max_bytes:request.expected_bytes,
+        requester_principal_ref:request.owner_principal_ref,
+        work_ref:request.work_ref,request_digest:request.request_digest,
+        admission_ref:proof.admission_ref});
+      assert(result?.schema==='xiio.bins.verified-preserved-version/v1'&&
+        result.resource_ref===request.resource_ref&&
+        result.version_ref===request.version_ref&&
+        result.request_digest===request.request_digest&&
+        result.requester_principal_ref===request.owner_principal_ref,
+        'BINS_FILE_READBACK_SCOPE_UNVERIFIED');
+      const bytes=result.bytes;
+      assert((Buffer.isBuffer(bytes)||bytes instanceof Uint8Array)&&
+        bytes.byteLength===request.expected_bytes&&
+        bytes.byteLength<=MAX_WORKER_FILE_BYTES,'BINS_FILE_BYTES_NOT_REOPENED');
+      assert(result.sha256===request.expected_sha256&&
+        sha(bytes)===request.expected_sha256,'BINS_FILE_DIGEST_MISMATCH');
+      const readback_ref=ref(result.readback_ref,'BINS_READBACK_REF');
+      return Object.freeze({
+        schema:WORKER_CONNECTION_SCHEMA,state:'FILE_BYTES_MATCHED_TRUSTED_PORT',
+        work_ref:request.work_ref,worker_ref:request.worker_ref,
+        resource_ref:request.resource_ref,version_ref:request.version_ref,
+        readback_ref,request_digest:request.request_digest,
+        bytes:bytes.byteLength,sha256:request.expected_sha256,
+        data_base64:Buffer.from(bytes).toString('base64'),
+        source_generation:request.source_generation,
+        authority_granted:false,provider_effect:false,apply_return_verified:false});
+    });
+  return Object.freeze({bind,observeLiveness,start,canary,recover,readFile});
 }
 
 /** Shared preview-only SDK HTTP consumer for Zed and other plugins. */
