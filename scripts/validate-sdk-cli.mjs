@@ -9,6 +9,7 @@ import { compileImpactFormation } from '../src/ibal/impact-formation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileContinuationDirective, compileContinuationLoop, compileRejoinSeams } from '../src/cadence/self-drive.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
+import { snap55 } from '../src/evaluation/hallbergmaths-snap55.mjs';
 
 const binary = fileURLToPath(new URL('../bin/xi.mjs', import.meta.url));
 function invoke(command, input) {
@@ -25,10 +26,10 @@ function invoke(command, input) {
 
 const discovery = invoke(['--commands'], '');
 assert.equal(discovery.code, 0);
-assert.equal(discovery.value.commands.length, 27);
+assert.equal(discovery.value.commands.length, 28);
 assert.equal(discovery.value.semantic_aliases, 'RESOLVABLE_THROUGH_COMMAND_LEXICON');
 assert.equal(discovery.value.vocabulary, 'EXACT_PUBLIC_EXPORT_NAMES');
-assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 27);
+assert.equal(new Set(discovery.value.commands.map(x => x.command)).size, 28);
 assert(discovery.value.commands.some(x => x.command === 'compileImpactFormation' && x.specifier === '@xi-io/sdk/ibal/impact-formation'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationCycle' && x.specifier === '@xi-io/sdk/cadence'));
 assert(discovery.value.commands.some(x => x.command === 'compileContinuationDirective' && x.specifier === '@xi-io/sdk/cadence/self-drive'));
@@ -45,7 +46,44 @@ assert(discovery.value.commands.some(x => x.command === 'compileReapDebtMeter' &
 assert(discovery.value.commands.some(x => x.command === 'compileOwnerCogLedger' && x.specifier === '@xi-io/sdk/flatpack'));
 assert(discovery.value.commands.some(x => x.command === 'compileProjectionRebaseGate' && x.specifier === '@xi-io/sdk/flatpack'));
 assert(discovery.value.commands.some(x => x.command === 'compileCubeCoordinate' && x.specifier === '@xi-io/sdk/flatpack'));
+assert(discovery.value.commands.some(x => x.command === 'snap55' && x.specifier === '@xi-io/sdk/evaluation/hallbergmaths-snap55'));
 assert.equal(discovery.output, invoke(['--commands'], '').output);
+
+// Read-only historical 5.5 computation through the real installed CLI entrypoint.
+// This is not KM1–KM16 proof, provider authority, or native HEX window acceptance.
+const snapNow = Date.UTC(2026, 9, 13);
+const snapQuestions = [{id:'a',pillar:'autism'},{id:'b',pillar:'adhd'}];
+const snapPacket = {questions:snapQuestions, responses:{a:0,b:4}, nowMs:snapNow,
+  journal:[{timestamp:snapNow-3_600_000,sensoryEntropy:20}]};
+const snapComputed = invoke(['snap55'], {args:[snapPacket]});
+assert.equal(snapComputed.code,0);
+assert.equal(snapComputed.value.status,'COMPUTED');
+assert.equal(snapComputed.value.callable,'@xi-io/sdk/evaluation/hallbergmaths-snap55#snap55');
+assert.equal(snapComputed.value.provider_effect,false);
+assert.equal(snapComputed.value.authority_granted,false);
+assert.deepEqual(snapComputed.value.result,snap55(snapPacket));
+assert.equal(snapComputed.value.result.state,'SOURCE_BOUND_NUMERIC');
+assert.equal(snapComputed.value.result.effect_authority,0);
+assert(Number.isFinite(snapComputed.value.result.R));
+const snapUnknown = invoke(['snap55'], {args:[{...snapPacket,responses:{a:0}}]});
+assert.equal(snapUnknown.code,0);
+assert.equal(snapUnknown.value.result.state,'UNKNOWN_REQUIRED_RESPONSES');
+assert.equal(snapUnknown.value.result.R,null);
+assert.equal(snapUnknown.value.authority_granted,false);
+const snapDuplicated = invoke(['snap55'], {args:[{...snapPacket,
+ questions:[snapQuestions[0],{id:'a',pillar:'adhd'}]}]});
+assert.equal(snapDuplicated.code,2);
+assert.equal(snapDuplicated.value.status,'REJECTED');
+assert.equal(snapDuplicated.value.reason,'INVALID_INPUT');
+const snapInvalidTime = invoke(['snap55'], {args:[{...snapPacket,nowMs:null}]});
+assert.equal(snapInvalidTime.code,2);
+assert.equal(snapInvalidTime.value.status,'REJECTED');
+const snapInvalidJournal = invoke(['snap55'], {args:[{...snapPacket,
+ journal:[{timestamp:'not-a-timestamp',sensoryEntropy:20}]}]});
+assert.equal(snapInvalidJournal.code,0);
+assert.equal(snapInvalidJournal.value.result.state,'UNKNOWN_JOURNAL_DATA');
+assert.equal(snapInvalidJournal.value.result.R,null);
+
 
 const failure = { provider: 'External provider', http_status: 429, provider_status: 'RESOURCE_EXHAUSTED' };
 const computed = invoke(['normalizeProviderFailure'], { args: [failure] });
@@ -247,4 +285,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 27, positive_cases: 19, hostile_cases: 12, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 28, positive_cases: 20, hostile_cases: 15, provider_effects: 0, authenticated_registry_claims: 0 }));
