@@ -61,4 +61,20 @@ for(let i=0;i<200;i++){
  }
  pass++;cases.push({n:i+1,family,state:"PASS"});
 }
-console.log(JSON.stringify({schema:"xiio.rotfl.snap55.sim200/v1",passed:pass,denominator:200,classes:families.length,false_green:0,scope:"DETERMINISTIC_LOCAL_NOT_RUNTIME_ROTFL",effect:0}));
+// Timestamp precision is part of reproducible local desktop calculation.
+// JSON.parse silently rounds integers above Number.MAX_SAFE_INTEGER.
+const replayPacket={questions:q,responses:{a:4,b:4},nowMs:now};
+for(const invalidNowMs of [Number.MAX_SAFE_INTEGER+1, now+0.5]){
+  assert.throws(()=>snap55({...replayPacket,nowMs:invalidNowMs}),/SNAP_INPUT_INVALID/);
+}
+for(const invalidJournalMs of [Number.MAX_SAFE_INTEGER+1,now-0.5]){
+  const row=snap55({...replayPacket,journal:[{timestamp:invalidJournalMs,sensoryEntropy:50}]});
+  assert.equal(row.state,"UNKNOWN_JOURNAL_DATA");
+  assert.equal(row.R,null);
+  assert.equal(row.excluded_future,0,"invalid timestamp must not masquerade as an excluded future observation");
+}
+const exactLimit=snap55({...replayPacket,nowMs:Number.MAX_SAFE_INTEGER,
+  journal:[{timestamp:Number.MAX_SAFE_INTEGER,sensoryEntropy:50}]});
+assert.equal(exactLimit.state,"SOURCE_BOUND_NUMERIC");
+assert.equal(exactLimit.recent_entropy,0.5);
+console.log(JSON.stringify({schema:"xiio.rotfl.snap55.sim200/v1",passed:pass,denominator:200,classes:families.length,timestamp_precision_hostiles:4,boundary_positive:1,false_green:0,scope:"DETERMINISTIC_LOCAL_NOT_RUNTIME_ROTFL",effect:0}));
