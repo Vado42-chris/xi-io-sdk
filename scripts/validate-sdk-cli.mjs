@@ -96,6 +96,23 @@ assert.equal(snapDuplicated.value.reason,'INVALID_INPUT');
 const snapInvalidTime = invoke(['snap55'], {args:[{...snapPacket,nowMs:null}]});
 assert.equal(snapInvalidTime.code,2);
 assert.equal(snapInvalidTime.value.status,'REJECTED');
+// Exact millisecond JSON round-trip: no silent float/unsafe-integer time drift.
+for(const nowMs of [Number.MAX_SAFE_INTEGER+1,snapNow+0.5]){
+  const denied=invoke(['snap55'],{args:[{...snapPacket,nowMs}]});
+  assert.equal(denied.code,2);
+  assert.equal(denied.value.status,'REJECTED');
+  assert.equal(denied.value.reason,'INVALID_INPUT');
+  assert.equal(denied.value.provider_effect,false);
+}
+for(const timestamp of [Number.MAX_SAFE_INTEGER+1,snapNow-0.5]){
+  const unknown=invoke(['snap55'],{args:[{...snapPacket,
+    journal:[{timestamp,sensoryEntropy:20}]}]});
+  assert.equal(unknown.code,0);
+  assert.equal(unknown.value.result.state,'UNKNOWN_JOURNAL_DATA');
+  assert.equal(unknown.value.result.R,null);
+  assert.equal(unknown.value.result.excluded_future,0);
+  assert.equal(unknown.value.authority_granted,false);
+}
 const snapInvalidJournal = invoke(['snap55'], {args:[{...snapPacket,
  journal:[{timestamp:'not-a-timestamp',sensoryEntropy:20}]}]});
 assert.equal(snapInvalidJournal.code,0);
@@ -303,4 +320,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 28, positive_cases: 20, hostile_cases: 15, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 28, positive_cases: 20, hostile_cases: 19, provider_effects: 0, authenticated_registry_claims: 0 }));
