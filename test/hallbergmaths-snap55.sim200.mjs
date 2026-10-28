@@ -4,7 +4,7 @@ assert.equal(FIBONACCI_WEIGHTS.reduce((a,b)=>a+b,0),33);
 assert.ok(Math.abs(ACTUAL_LEGACY_HALF_LIFE_HOURS-12.476649250079015)<1e-10);
 const now=Date.UTC(2026,9,13);
 const q=[{id:"a",pillar:"autism"},{id:"b",pillar:"adhd"}];
-const families=["MISSING_RESPONSE","EXPLICIT_ZERO","FUTURE_DATE","EMPTY_QUESTIONS","HALF_LIFE_MODE","LEGACY_MODE","INVALID_RESPONSE","REORDER_FLAG","TIME_OUTSIDE","NUMERIC_KNOWN"];
+const families=["MISSING_RESPONSE","EXPLICIT_ZERO","FUTURE_DATE","EMPTY_QUESTIONS","HALF_LIFE_MODE","LEGACY_MODE","INVALID_RESPONSE","REORDER_FLAG","TIME_OUTSIDE","NUMERIC_KNOWN","UNKNOWN_DECAY_MODE","DUPLICATE_ID","UNKNOWN_PILLAR","INVALID_JOURNAL_TIME","INVALID_JOURNAL_ENTROPY","QUESTION_ID_REQUIRED"];
 let pass=0; const cases=[];
 for(let i=0;i<200;i++){
  const family=families[i%families.length];
@@ -35,6 +35,22 @@ for(let i=0;i<200;i++){
  case "NUMERIC_KNOWN":
   row=snap55({questions:q,responses:{a:4,b:1},nowMs:now});
   assert.ok(Number.isFinite(row.R));assert.equal(row.confidence,100);break;
+ case "UNKNOWN_DECAY_MODE":
+  row=snap55({questions:q,responses:{a:4,b:4},nowMs:now,decayMode:"unregistered",journal:[{timestamp:now-3600000,sensoryEntropy:50}]});
+  assert.equal(row.state,"UNKNOWN_DECAY_MODE");assert.equal(row.R,null);assert.equal(row.recent_entropy,null);break;
+ case "DUPLICATE_ID":
+  assert.throws(()=>snap55({questions:[q[0],{id:"a",pillar:"adhd"}],responses:{a:4},nowMs:now}),/SNAP_DUPLICATE_QUESTION_ID/);break;
+ case "UNKNOWN_PILLAR":
+  assert.throws(()=>snap55({questions:[{id:"z",pillar:"unmapped"}],responses:{z:4},nowMs:now}),/SNAP_QUESTION_INVALID/);break;
+ case "INVALID_JOURNAL_TIME":
+  row=snap55({questions:q,responses:{a:4,b:4},nowMs:now,journal:[{timestamp:"invalid",sensoryEntropy:50}]});
+  assert.equal(row.state,"UNKNOWN_JOURNAL_DATA");assert.equal(row.R,null);
+  assert.equal(temporalWeight(NaN).bit.KNOWN_BIT,0);break;
+ case "INVALID_JOURNAL_ENTROPY":
+  row=snap55({questions:q,responses:{a:4,b:4},nowMs:now,journal:[{timestamp:now-3600000,sensoryEntropy:"50"}]});
+  assert.equal(row.state,"UNKNOWN_JOURNAL_DATA");assert.equal(row.R,null);break;
+ case "QUESTION_ID_REQUIRED":
+  assert.throws(()=>snap55({questions:[{id:"",pillar:"autism"}],nowMs:now}),/SNAP_QUESTION_INVALID/);break;
  }
  pass++;cases.push({n:i+1,family,state:"PASS"});
 }
