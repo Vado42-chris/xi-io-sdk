@@ -14,6 +14,8 @@ import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 import { commandLexicon } from '../src/cli/public-exports.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 import { requireRotflMutationAdmission, defaultRotflOrderStatePath } from '../src/preflight/order-runtime.mjs';
+import { defaultGrantDir, findGrant, checkGrant, audit } from '../src/worker/owner-grant.mjs';
+import { runIsolated } from '../src/worker/isolated-executor.mjs';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
@@ -45,12 +47,29 @@ function sdkSourceGeneration() {
   const version = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
   return `sdk-package:${version}`;
 }
-export function effectGate() {
+function oorGate() {
   if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
   const admission = requireRotflMutationAdmission({ current_source_generation: sdkSourceGeneration() });
   if (admission.admitted) return null;
   return { ok:false, state:'BLOCKED', reason:'ROTFL_LIFECYCLE_ADMISSION_REQUIRED', first_red:admission.first_red, provider_effect:false, authority_granted:false };
 }
+/* One bounded effect (`edit` or `test`) in THIS project. Admitted by the full
+   lifecycle admission, or by a live owner grant whose applicable checks pass.
+   Rechecked from disk before every effect, so a revoke stops the next one. */
+export function effectGate(operation = 'edit') {
+  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+  const lifecycle = oorGate(); if (!lifecycle) return null;
+  const now = new Date().toISOString();
+  const dir = defaultGrantDir();
+  const { grant, revoked } = findGrant(dir, { workspace: cwd, now });
+  const decision = checkGrant(grant, { operation, workspace: cwd, now, source_generation: sdkSourceGeneration(), revoked });
+  // Audit is part of the admission: if it cannot be written, nothing is admitted.
+  try { audit(dir, { event: decision.ok ? 'EFFECT_ADMITTED' : 'EFFECT_REFUSED', operation, project: cwd, grant_id: grant?.grant_id || null, first_red: decision.first_red || null }); }
+  catch { return { ok:false, state:'BLOCKED', reason:'OWNER_GRANT_AUDIT_UNAVAILABLE', provider_effect:false, authority_granted:false }; }
+  if (decision.ok) return null;
+  return { ok:false, state:'BLOCKED', reason:'OWNER_GRANT_REQUIRED', first_red:decision.first_red, lifecycle_first_red:lifecycle.first_red||lifecycle.reason, next:'run `xi grant` yourself in a terminal for this project', provider_effect:false, authority_granted:false };
+}
+const authorityDirs = () => [path.dirname(path.resolve(defaultRotflOrderStatePath())), path.resolve(defaultGrantDir())];
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -68,32 +87,35 @@ function target(raw) {
   const resolved = path.resolve(cwd, raw);
   if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) throw new Error('PATH_DENIED');
   // Never let a workspace tool touch the admission state, even when it sits under the workspace or behind a symlink.
-  const stateDir = path.dirname(path.resolve(defaultRotflOrderStatePath()));
   let real = resolved;
   for (let probe = resolved; ; probe = path.dirname(probe)) {
     try { real = path.join(fs.realpathSync(probe), path.relative(probe, resolved)); break; } catch {}
     if (probe === path.dirname(probe)) break;
   }
-  for (const candidate of [resolved, real]) {
-    if (candidate === stateDir || candidate.startsWith(stateDir + path.sep)) throw new Error('PATH_DENIED_ADMISSION_STATE');
+  // Containment is decided on the real path: a symlink inside the project must not lead out of it.
+  if (real !== cwd && !real.startsWith(cwd + path.sep)) throw new Error('PATH_DENIED_SYMLINK_ESCAPE');
+  // Persistence guard: never write your home's dot-files/dirs (shell rc, ~/.local/bin launchers,
+  // the sdk.path pointer, ~/.config/systemd) unless the project itself lives inside that dot-dir.
+  const home = fs.realpathSync(os.homedir());
+  if (real === home || real.startsWith(home + path.sep)) {
+    const top = path.relative(home, real).split(path.sep)[0];
+    const cwdTop = (cwd === home || !cwd.startsWith(home + path.sep)) ? null : path.relative(home, cwd).split(path.sep)[0];
+    if (top.startsWith('.') && top !== cwdTop) throw new Error('PATH_DENIED_HOME_PERSISTENCE');
+  }
+  for (const candidate of [resolved, real]) for (const dir of authorityDirs()) {
+    if (candidate === dir || candidate.startsWith(dir + path.sep)) throw new Error('PATH_DENIED_ADMISSION_STATE');
   }
   return resolved;
 }
 
 async function run(command, args = []) {
-  const gate = effectGate(); if (gate) return gate;
+  const gate = effectGate('test'); if (gate) return gate;
   if (!commands.has(command) || !Array.isArray(args) || args.length > 32) throw new Error('COMMAND_DENIED');
   if (args.some(a => typeof a !== 'string' || a.includes('\0') || path.isAbsolute(a) || a.split(/[\\/]+/).includes('..'))) throw new Error('COMMAND_DENIED');
   if (command === 'git' && !gitCommands.has(args[0])) throw new Error('GIT_COMMAND_DENIED');
   if (command === 'bash' && (args[0] === '-c' || args[0] === '-lc')) throw new Error('SHELL_STRING_DENIED');
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, env: process.env, stdio:['ignore','pipe','pipe'] });
-    let output=''; let timer=setTimeout(()=>child.kill('SIGTERM'),120000);
-    const add = b => { if (Buffer.byteLength(output) < 98304) output += b.toString(); };
-    child.stdout.on('data',add); child.stderr.on('data',add);
-    child.on('error',reject);
-    child.on('close',code=>{ clearTimeout(timer); resolve({ok:code===0,exitCode:code,output:output.slice(0,98304)}); });
-  });
+  // Never on the host: tests and scripts are arbitrary code.
+  return runIsolated({ workspace: cwd, command, args, hide: authorityDirs() });
 }
 
 const tools=[
@@ -338,13 +360,16 @@ function readXiioRegistry(kind) {
   throw new Error('REGISTRY_KIND_DENIED');
 }
 
-export function validateXiioCliArgs(rawArgv,{executionEnabled=execute,admissionGate=effectGate}={}) {
+export function validateXiioCliArgs(rawArgv,{executionEnabled=execute,admissionGate=oorGate,writeGate=()=>effectGate('edit')}={}) {
   if(!Array.isArray(rawArgv) || rawArgv.length<1 || rawArgv.length>64) throw new Error('XIIO_ARGS_INVALID');
   if(rawArgv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
   // --flag=value is the same flag: split it so no check can be skipped by spelling.
   const argv=rawArgv.flatMap((value)=>/^--[a-z][a-z0-9-]*=/.test(value)?[value.slice(0,value.indexOf('=')),value.slice(value.indexOf('=')+1)]:[value]);
   // The acting model must never write or advance its own admission state.
-  if(argv[0]==='ack' && argv[1]==='order' && argv[2]!=='status' && argv[2]!=='catalog') throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
+  // Position-independent: flags placed between command words must not hide an admission writer.
+  const words=new Set(argv.filter((v)=>!v.startsWith('-')));
+  if(words.has('order') && ['init','advance','reset','write'].some((w)=>words.has(w))) throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
+  if(words.has('grant')) throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
   if(argv.includes('--state')) throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
   if(!xiioFamilies.has(argv[0])) throw new Error('XIIO_COMMAND_FAMILY_DENIED');
   if(argv[0]==='recover'){
@@ -360,7 +385,7 @@ export function validateXiioCliArgs(rawArgv,{executionEnabled=execute,admissionG
     if(flag==='--out' && value==='-'){i+=1;continue;}
     target(value);
     if(flag==='--out' && !execute) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_EXECUTE');
-    if(flag==='--out' && admissionGate()) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_LIFECYCLE_ADMISSION');
+    if(flag==='--out' && writeGate()) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_LIFECYCLE_ADMISSION');
     i+=1;
   }
   return argv;
@@ -373,7 +398,7 @@ async function runXiioCliCommand(a={}) {
   return new Promise((resolveRun,reject)=>{
     const child=spawn(process.execPath,[xiCli,...argv],{
       cwd,
-      env:process.env,
+      env:{...process.env,XIIO_LOCAL_AGENT_CHILD:'1'},
       stdio:['pipe','pipe','pipe'],
     });
     let stdout='';let stderr='';
@@ -411,7 +436,7 @@ async function tool(name,a={}) {
   if(name==='resolve_xiio_command') return resolveLexiconCommand(String(a.token||''));
   if(name==='run_xiio_cli_command') return runXiioCliCommand(a);
   if(name==='edit_workspace_text_file') {
-    const gate=effectGate(); if(gate) return gate;
+    const gate=effectGate('edit'); if(gate) return gate;
     const p=target(a.path), next=String(a.new_text??''); if(Buffer.byteLength(next)>262144) throw new Error('EDIT_TOO_LARGE');
     if(a.operation==='create') await fsp.writeFile(p,next,{flag:'wx'});
     else { const old=String(a.old_text??''), cur=await fsp.readFile(p,'utf8'); if(!old||cur.indexOf(old)<0||cur.indexOf(old)!==cur.lastIndexOf(old)) throw new Error('EDIT_STALE_OR_AMBIGUOUS'); await fsp.writeFile(p,cur.replace(old,next)); }

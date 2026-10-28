@@ -1464,6 +1464,12 @@ if (process.argv.length === 3 && process.argv[2] === '--version') { process.stdo
 const top = process.argv[2] || null;
 const topArgs = process.argv.slice(2);
 
+if (top === 'grant') {
+  const { runGrantCli } = await import('../src/worker/owner-grant-cli.mjs');
+  try { await runGrantCli(process.argv.slice(3), { sourceGeneration: resolveSdkGeneration() }); }
+  catch (error) { process.stderr.write(`xi grant: ${error.message}\n`); process.exitCode = 2; }
+  process.exit(process.exitCode || 0);
+}
 enforceRuntimeOor(process.argv.slice(2));
 
 if (
