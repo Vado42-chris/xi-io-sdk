@@ -208,7 +208,14 @@ export function compileWorkerAdapterConformance(input={}){
     cells,
     pass:cells.filter((row)=>row.state==='PASS').length,
     fail:failures.length,
-    release_eligible:failures.length===0&&installed_generation===source_generation,
+    // Compatibility: cells/pass/fail describe supplied contract coverage only.
+    // Like ACK ROTFL, serialized refs/verified flags cannot authenticate execution.
+    supplied_complete:failures.length===0,
+    structural_eligible:failures.length===0&&installed_generation===source_generation,
+    verification_state:'SUPPLIED_UNVERIFIED',
+    runtime_complete:false,
+    release_eligible:false,
+    runtime_first_red:'AUTHENTICATED_GENERATION_BOUND_WORKER_PROOF_REQUIRED',
     first_red:failures[0]||null,
     authority_granted:false,
     provider_effect:false,
@@ -235,6 +242,9 @@ export function compileWorkerAdapterConformance(input={}){
       'GAMIFICATION!=AUTHORITY',
       'CHECK_THEN_FETCH!=ATOMIC_AUTHORIZED_READ',
       'SDK_CONFORMANCE!=PROVIDER_EFFECT_AUTHORITY',
+      'SUPPLIED_WORKER_BINDINGS!=AUTHENTICATED_RUNTIME_READBACK',
+      'HISTORICAL_STARTED!=CURRENT_PROCESS_LIVENESS',
+      'STRUCTURAL_ELIGIBILITY!=RELEASE_ELIGIBILITY',
     ],
   }));
 }
@@ -262,7 +272,10 @@ export function workerLifecyclePrimitiveCatalog(){
 
 export function compileWorkerLifecycleKit(input={}){
   const generation=text(input.generation,'generation');
-  const requested=Array.isArray(input.applicable_ids)&&input.applicable_ids.length
+  if(input.applicable_ids!==undefined&&!Array.isArray(input.applicable_ids)){
+    throw new TypeError('applicable_ids_INVALID');
+  }
+  const requested=Array.isArray(input.applicable_ids)
     ? [...new Set(input.applicable_ids.map((id)=>text(id,'applicable_id')))]
     : ALL.map((row)=>row.id);
   const byId=new Map(ALL.map((row)=>[row.id,row]));
@@ -293,3 +306,135 @@ export function compileWorkerLifecycleKit(input={}){
     ],
   }));
 }
+
+
+/** Existing Ibal durable attempt phase engine, shared without moving ownership.
+ * Caller MUST hold the existing job, worker and capacity leases for this entire
+ * call. history/append/publishReturn are the caller's durable private transport;
+ * qualifiedHost and applyReturn remain admitted effect owners. This routine
+ * creates no worker, account, grant, lease, executor, store or liveness proof.
+ * EXECUTION_STARTED is uncertainty after restart, never a current process claim.
+ */
+export async function runWorkerLifecycleAttempt({
+  binding,jobId,history,current,dependenciesDone,append,checkpoint,
+  qualifiedHost,applyReturn,publishReturn,wakeConsumer,digest,
+}={}) {
+  const fail=code=>Object.assign(new Error(code),{code,status:409});
+  const fields=['project_id','work_id','assignment_ref','attempt_id','agent_id','source_generation','return_ref','operation_ref'];
+  const bound=b=>Object.fromEntries(fields.map(key=>[key,b[key]]));
+  const same=(a,b)=>fields.every(key=>a?.[key]===b?.[key]);
+  const clone=value=>structuredClone(value);
+  if(!binding||fields.some(key=>typeof binding[key]!=='string'||!binding[key])) throw fail('WORKER_BINDING_REQUIRED');
+  if(typeof jobId!=='string'||!jobId) throw fail('JOB_ID_INVALID');
+  if([history,current,dependenciesDone,append,checkpoint,publishReturn,wakeConsumer,digest,
+    qualifiedHost?.qualify,qualifiedHost?.request,applyReturn?.apply].some(fn=>typeof fn!=='function')) throw fail('WORKER_OWNERS_UNBOUND');
+  // The public shared engine cannot assume the caller prevalidated its journal.
+  // Validate structural chain identity on every read, including duplicate/restart.
+  // This is consistency checking, NOT authentication of the caller's store.
+  const phaseOrder=['CLAIM','EXECUTION_STARTED','RESULT','RETURN','APPLY_RETURN_STARTED','APPLY_RETURN','WAKE_ACK'];
+  const diagnostics=new Set(['EXECUTION_UNKNOWN','APPLY_RETURN_UNKNOWN','BLOCKED']);
+  async function readHistory() {
+    const rows=await history(jobId);
+    if(!Array.isArray(rows)) throw fail('PERSISTED_HISTORY_INVALID');
+    let next=0,result=null,applied=null;
+    for(const event of rows) {
+      if(diagnostics.has(event?.type)) continue;
+      if(event?.type!==phaseOrder[next]) throw fail('PERSISTED_PHASE_ORDER_INVALID');
+      const data=event.data;
+      if(!same(data,binding)) throw fail('PERSISTED_PHASE_BINDING_INVALID');
+      if(event.type==='EXECUTION_STARTED'&&!data.admission_ref) throw fail('PERSISTED_ADMISSION_INVALID');
+      if(event.type==='RESULT') {
+        if(data.state!=='COMPLETE'||!data.result_ref) throw fail('PERSISTED_RESULT_INVALID');
+        const {result_digest,...value}=data;
+        if(result_digest!==digest(value)) throw fail('PERSISTED_RESULT_DIGEST_INVALID');
+        result=data;
+      }
+      if(event.type==='RETURN'&&data.result_ref!==result?.result_ref) throw fail('PERSISTED_RETURN_LINK_INVALID');
+      if(event.type==='APPLY_RETURN') {
+        if(data.state!=='APPLIED'||!data.receipt_ref||data.result_ref!==result?.result_ref) throw fail('PERSISTED_APPLY_RETURN_LINK_INVALID');
+        applied=data;
+      }
+      if(event.type==='WAKE_ACK'&&data.receipt_ref!==applied?.receipt_ref) throw fail('PERSISTED_WAKE_LINK_INVALID');
+      next++;
+    }
+    return rows;
+  }
+  let events=await readHistory();
+  await current(binding);
+  if(events.some(e=>e.type==='WAKE_ACK')) return {state:'COMPLETE',job_id:jobId,duplicate:true};
+  if(!await dependenciesDone(binding)) return {state:'WAIT_PREDECESSOR_RETURN',job_id:jobId};
+  if(!events.some(e=>e.type==='CLAIM')) { await append(jobId,'CLAIM',{...bound(binding)}); await checkpoint('CLAIM',binding); }
+  if(!events.some(e=>e.type==='RESULT')) {
+    const admission=await qualifiedHost.qualify({binding:clone(binding)});
+    if(admission?.state!=='ALLOWED' || !same(admission,binding) || !admission.admission_ref) throw fail('WORKER_ADMISSION_DENIED');
+    await current(binding); // Revalidate after asynchronous admission, before any effect.
+    if(!await dependenciesDone(binding)) return {state:'WAIT_PREDECESSOR_RETURN',job_id:jobId};
+    const started=events.some(e=>e.type==='EXECUTION_STARTED');
+    let result;
+    if(started) {
+      if(typeof qualifiedHost.reconcile!=='function') {
+        if(events.at(-1)?.type!=='EXECUTION_UNKNOWN') await append(jobId,'EXECUTION_UNKNOWN',{reason:'HOST_RECONCILIATION_UNBOUND'});
+        return {state:'UNKNOWN_EXECUTION',job_id:jobId};
+      }
+      result=await qualifiedHost.reconcile({binding:clone(binding),idempotencyKey:jobId});
+      // Only a durable host receipt may resolve an unknown attempt. Never blind replay.
+      if(result?.state!=='COMPLETE') {
+        if(events.at(-1)?.type!=='EXECUTION_UNKNOWN') await append(jobId,'EXECUTION_UNKNOWN',{reason:'HOST_EFFECT_READBACK_UNKNOWN'});
+        return {state:'UNKNOWN_EXECUTION',job_id:jobId};
+      }
+    } else {
+      await append(jobId,'EXECUTION_STARTED',{...bound(binding),admission_ref:admission.admission_ref});
+      await checkpoint('EXECUTION_STARTED',binding);
+      result=await qualifiedHost.request({binding:clone(binding),idempotencyKey:jobId});
+      await checkpoint('HOST_RESULT_RECEIVED',binding);
+    }
+    if(result?.state!=='COMPLETE' || !same(result,binding) || !result.result_ref) throw fail('RESULT_BINDING_INVALID');
+    if(new TextEncoder().encode(JSON.stringify(result)).byteLength>1048576) throw fail('RESULT_TOO_LARGE');
+    await append(jobId,'RESULT',{...clone(result),result_digest:digest(result)}); await checkpoint('RESULT',binding);
+  }
+  events=await readHistory();
+  const result=events.find(e=>e.type==='RESULT').data;
+  if(!events.some(e=>e.type==='RETURN')) await append(jobId,'RETURN',{...bound(binding),result_ref:result.result_ref});
+  if(!events.some(e=>e.type==='APPLY_RETURN')) {
+    await current(binding);
+    const started=events.some(e=>e.type==='APPLY_RETURN_STARTED');
+    let applied;
+    if(started) {
+      if(typeof applyReturn.reconcile!=='function') {
+        if(events.at(-1)?.type!=='APPLY_RETURN_UNKNOWN') await append(jobId,'APPLY_RETURN_UNKNOWN',{reason:'RETURN_RECONCILIATION_UNBOUND'});
+        return {state:'UNKNOWN_APPLY_RETURN',job_id:jobId};
+      }
+      applied=await applyReturn.reconcile({binding:clone(binding),result:clone(result),idempotencyKey:jobId});
+      if(applied?.state!=='APPLIED') {
+        if(events.at(-1)?.type!=='APPLY_RETURN_UNKNOWN') await append(jobId,'APPLY_RETURN_UNKNOWN',{reason:'RETURN_EFFECT_READBACK_UNKNOWN'});
+        return {state:'UNKNOWN_APPLY_RETURN',job_id:jobId};
+      }
+    } else {
+      await append(jobId,'APPLY_RETURN_STARTED',bound(binding)); await checkpoint('APPLY_RETURN_STARTED',binding);
+      applied=await applyReturn.apply({binding:clone(binding),result:clone(result),idempotencyKey:jobId});
+      await checkpoint('OWNER_RETURN_RECEIVED',binding);
+    }
+    await current(binding);
+    if(applied?.state!=='APPLIED' || !same(applied,binding) || !applied.receipt_ref || applied.result_ref!==result.result_ref) throw fail('RETURN_BINDING_INVALID');
+    await append(jobId,'APPLY_RETURN',clone(applied)); await checkpoint('APPLY_RETURN',binding);
+  }
+  events=await readHistory();
+  const applied=events.find(e=>e.type==='APPLY_RETURN').data;
+  await current(binding);
+  const wake={schema:'xiio.hotfolder.ready.v1',wake_id:`return-${jobId}`,semantics:'WAKE_ONLY',authority_granted:false,...bound(binding),result_ref:result.result_ref,receipt_ref:applied.receipt_ref};
+  await publishReturn(jobId,wake);
+  await checkpoint('RETURN_WAKE_READY',binding);
+  // The owner consumer must dedupe this wake_id. A repeated notification grants no execution.
+  const ack=await wakeConsumer(clone(wake));
+  await current(binding);
+  if(ack?.state!=='CONSUMED' || !same(ack,binding) || ack.receipt_ref!==applied.receipt_ref) throw fail('CONSUMER_WAKE_UNVERIFIED');
+  await append(jobId,'WAKE_ACK',{...bound(binding),receipt_ref:ack.receipt_ref});
+  return {state:'COMPLETE',job_id:jobId,result_ref:result.result_ref,return_ref:binding.return_ref};
+}
+
+// Executable lifecycle kernel is owned here; provider plugins import it, never clone it.
+export {
+  WORKER_CONNECTION_SCHEMA, WORKER_CANARY_TEXT, WORKER_CANARY_SHA256,
+  createSharedWorkerConnection, inspectLocalAgentStatus,
+  normalizeLocalAgentMessage, validateLocalAgentTurnReply,
+} from './connection.mjs';

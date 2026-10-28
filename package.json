@@ -92,10 +92,11 @@
     "./mutation/addressable": "./src/mutation/addressable.mjs",
     "./worker/lifecycle": "./src/worker/lifecycle.mjs",
     "./evaluation/api-blackhole-proof-envelope": "./src/evaluation/api-blackhole-proof-envelope.mjs",
-    "./transport/flap-harvest": "./src/transport/flap-harvest.mjs"
+    "./transport/flap-harvest": "./src/transport/flap-harvest.mjs",
+    "./worker/connection": "./src/worker/connection.mjs"
   },
   "scripts": {
-    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit",
+    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:worker-connection",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -167,6 +168,7 @@
     "check:zed-inbox-mcp": "node scripts/check-zed-inbox-mcp.mjs",
     "check:worker-lifecycle-kit": "node scripts/validate-worker-lifecycle-kit.mjs",
     "check:api-blackhole-proof-envelope": "node scripts/validate-api-blackhole-proof-envelope.mjs",
-    "check:flap-harvest": "node scripts/validate-flap-harvest.mjs"
+    "check:flap-harvest": "node scripts/validate-flap-harvest.mjs",
+    "check:worker-connection": "node --test scripts/test-worker-connection.mjs"
   }
 }

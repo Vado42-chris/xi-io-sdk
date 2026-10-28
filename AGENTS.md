@@ -2,6 +2,38 @@
 
 This repository owns the public reusable SDK substrate. It does not own Studio user intent, framework governance, Ward policy, Switchboard effect admission, or product-domain truth.
 
+## October 28 shared onboarding consumption gate (SDK client)
+
+Every SDK adopter that initiates or resumes an XI-IO connection must consume
+the **framework-owned**, versioned `xiio.owner.connection-onboarding/v1`
+contract and its current authoritative API result; see framework
+`docs/ops/CHATGPT-PRIVATE-MCP-TUNNEL-20261028.md`, section
+"cross-client acceptance". Do not implement a separate SDK onboarding state
+machine, login or tunnel provisioner in this repository.
+
+Current `src/identity/account-binding.mjs` and
+`src/identity/launch-session.mjs` are provider/account and launch-ticket
+projections with `authority_granted:false`. They cannot turn a saved choice
+into a sovereign UserPrincipal, current consent, Ward grant or delegated
+Platform permission. `src/worker/connection.mjs` and its existing owner
+PR #205 must consume the authorized API response at the real client entry,
+not only import a helper or pass synthetic tests.
+
+**Order:** allow local-first install; verify current XI-IO sign-in; present
+saved (possibly multiple) ChatGPT/@ibal choices, or ask on first use; require
+only missing/changed consent; discover/reuse existing approved services;
+provision via the owner API/Ward; verify independently and return to original
+requester. Cross-principal saved choices, revoked/expired authorization,
+changed scope, unknown outcome and incomplete resume must fail closed with
+typed continuation, without prompting for tunnel IDs/keys. Saved intent is
+not permission.
+
+Owner acceptance requires **executed SDK consumption** of framework cells
+C01–C14, with actual API generation, principal/workspace, installed HEX and
+physical Work/BINS return refs. No SDK-only report, mock or green unit test
+can claim a live ChatGPT/XI-IO connection. Until then:
+`CROSS_CLIENT_CONSUMPTION_UNVERIFIED`.
+
 ## Managed cold start
 
 When work is entered from the xi-io managed suite, start from Studio current before selecting SDK work:
@@ -76,6 +108,45 @@ execution, even when `state=EXECUTED` and all claimed bits are one.
 Hard: `SUBMITTED_RECEIPT_REF != AUTHENTICATED_RUNTIME_READBACK` and
 `SDK_STRUCTURAL_OK != QUALIFIED_OPERATIONAL_COMPLETION`.
 
+## Worker lifecycle evidence boundary
+
+`src/worker/lifecycle.mjs:compileWorkerAdapterConformance` compiles supplied
+contract coverage, not authenticated provider execution. Existing `cells`, `pass`,
+`fail`, and `first_red` remain structural diagnostics. `supplied_complete` and
+`structural_eligible` make that scope explicit; `runtime_complete` and
+`release_eligible` remain false. Payload `verified`, `authenticated`, process IDs,
+worker/model labels and historical `STARTED` events cannot change that boundary.
+`runtime_first_red` names the missing authenticated generation-bound proof.
+
+The existing owner join must be supplied by the connection/Work runtime, not a
+new SDK observer, credential store or authority:
+
+- Plugins' unmerged PR45 work-api-handshake donor contract binds `root_ref`, `work_ref`, `work_generation`,
+  `consumer_id`, `canonical_provider_id`, `connection_instance_ref`, `account_ref`,
+  `capability_ref`, `host_surface_generation` and `adapter_generation`.
+- Ibal's hotfolder worker binding preserves `project_id`, `work_id`,
+  `assignment_ref`, `attempt_id`, `agent_id`, `source_generation`, `return_ref`
+  and `operation_ref`. These must join the same current provider/Work tuple;
+  matching labels or independently supplied references do not establish that join.
+- Current process-instance/attempt liveness must be observed by the execution
+  owner; historical start records are not liveness. Durable RESULT, RETURN,
+  APPLY_RETURN and consumer readback must refer to the same attempt and target.
+- Recovery must re-read those owners; it must not blindly repeat an uncertain
+  effect or promote a cached receipt to current authentication.
+
+`runWorkerLifecycleAttempt` shares the existing Ibal durable phase engine. Its
+adopter must retain the same job/worker/capacity leases across the entire call,
+private insert-only history, current-owner checks and qualified effect owners.
+The SDK owns phase ordering and same-binding result/return validation only;
+it does not own transport, process creation, account admission or credentials.
+Restarted EXECUTION_STARTED/APPLY_RETURN_STARTED requires owner reconciliation,
+never blind effect replay. The Ibal consumer adoption is separately qualified.
+
+The authenticated production join remains unimplemented in this SDK path.
+A disposable Ibal process/return canary is test evidence only, never provider
+account, native-installation, Ward admission or Switchboard effect proof.
+`time_money_bound_bit` retains its metering meaning, not a timeout or lease.
+
 ## Runtime test economy
 
 `npm run check` routes the complete SDK validation denominator through `scripts/run-runtime-rotfl-sdk-check.mjs`.
@@ -115,6 +186,14 @@ conversation occurrence
 ```
 
 MCP/A2A capability visibility never grants effect authority. Runtime execution and readback remain separately qualified.
+
+## Shared worker connection: one owner for every agent (2026-10-28)
+
+Provider/account selection, installed-worker startup, liveness, canary execution, BINS-verified bytes and recovery share ONE SDK implementation. Before any agent starts another adapter, resolve `@xi-io/sdk/worker/connection` / `src/worker/connection.mjs` through the existing `@xi-io/sdk/worker/lifecycle` boundary. Reuse the existing SDK account-binding functions; adapters own only provider-specific transport and data mapping. A missing installed SDK is typed WAIT, never a shadow implementation. Existing Ward and Switchboard remain the only effect authorities.
+
+Runtime proof is not a source unit test. The shared worker conformance retains 14 required bindings, three qualification domains (`recovery_wake`, `admission`, `affected_return`) and independent executor/hostile/reviewer principals; no single agent self-ACKs that quorum. Source candidate [SDK #205](https://github.com/Vado42-chris/xi-io-sdk/pull/205) and plugin consumer [Plugins #50](https://github.com/Vado42-chris/xi-io-plugins/pull/50) are NOT yet installed or authority-qualified. Refuse account fabrications, new grants, duplicate enrollment, fake liveness, unverified BINS bytes, blind retries and provider fallback.
+
+Hard: `ONE_SHARED_SDK_WORKER_LIFECYCLE | PROVIDER_ADAPTER!=WORKER_OWNER | STATUS!=LIVENESS | SHA!=EXECUTION | RESULT!=RETURN!=APPLY_RETURN | THREE_ROLE_REVIEW_REQUIRED`.
 
 ## Live connection recovery catch-up (SDK notebook and paused agents)
 
