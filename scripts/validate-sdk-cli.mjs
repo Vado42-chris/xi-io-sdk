@@ -113,6 +113,28 @@ for(const timestamp of [Number.MAX_SAFE_INTEGER+1,snapNow-0.5]){
   assert.equal(unknown.value.result.excluded_future,0);
   assert.equal(unknown.value.authority_granted,false);
 }
+// Raw JSON precision hostile: the parsed JS Number rounds back to an apparently safe integer.
+// Test the actual CLI's raw input boundary rather than passing a pre-rounded JS object.
+const snapWire=JSON.stringify({args:[snapPacket]});
+const roundedNowWire=snapWire.replace(`"nowMs":${snapNow}`,`"nowMs":${snapNow}.0001`);
+assert.notEqual(roundedNowWire,snapWire);
+const roundedParsed=JSON.parse(roundedNowWire);
+assert.equal(roundedParsed.args[0].nowMs,snapNow,'hostile must round silently without the CLI source guard');
+const roundedNowDenied=invoke(['snap55'],roundedNowWire);
+assert.equal(roundedNowDenied.code,2);
+assert.equal(roundedNowDenied.value.status,'REJECTED');
+assert.equal(roundedNowDenied.value.provider_effect,false);
+
+const journalMs=snapNow-3_600_000;
+const roundedJournalWire=snapWire.replace(`"timestamp":${journalMs}`,`"timestamp":${journalMs}.0001`);
+assert.notEqual(roundedJournalWire,snapWire);
+assert.equal(JSON.parse(roundedJournalWire).args[0].journal[0].timestamp,journalMs);
+const roundedJournalUnknown=invoke(['snap55'],roundedJournalWire);
+assert.equal(roundedJournalUnknown.code,0);
+assert.equal(roundedJournalUnknown.value.result.state,'UNKNOWN_JOURNAL_DATA');
+assert.equal(roundedJournalUnknown.value.result.R,null);
+assert.equal(roundedJournalUnknown.value.provider_effect,false);
+
 const snapInvalidJournal = invoke(['snap55'], {args:[{...snapPacket,
  journal:[{timestamp:'not-a-timestamp',sensoryEntropy:20}]}]});
 assert.equal(snapInvalidJournal.code,0);
@@ -320,4 +342,4 @@ for (const [command, input] of [
   assert(!denied.output.includes('sensitive-marker'));
 }
 
-console.log(JSON.stringify({ status: 'PASS', public_commands: 28, positive_cases: 20, hostile_cases: 19, provider_effects: 0, authenticated_registry_claims: 0 }));
+console.log(JSON.stringify({ status: 'PASS', public_commands: 28, positive_cases: 20, hostile_cases: 21, provider_effects: 0, authenticated_registry_claims: 0 }));
