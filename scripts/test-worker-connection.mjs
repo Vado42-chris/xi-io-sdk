@@ -1,0 +1,209 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {
+  createSharedWorkerConnection, inspectLocalAgentStatus, validateLocalAgentTurnReply, normalizeLocalAgentMessage,
+  WORKER_CONNECTION_SCHEMA,WORKER_CANARY_TEXT,WORKER_CANARY_SHA256,MAX_WORKER_CANARY_BYTES,
+} from '../src/worker/connection.mjs';
+
+const epoch='2026-10-28T14:30:00.000Z';
+const identity={provider:'xiio',subject_id:'user-1',login:'owner',observed_via:'provider_api_readback',observed_at:epoch};
+const sha='a'.repeat(64);
+const base={worker_ref:'worker:loki',device_ref:'device:loki',source_generation:'gen:1',
+ account_principal_ref:'xiio:user-1',chosen_by:'person:owner'};
+let calls;
+let behavior;
+function make(){
+ calls={readAccount:0,readInstalledWorker:0,observeWorker:0,withCurrentAuthority:0,admit:0,start:0,
+   execute:0,readPreserved:0,readAttempt:0,recover:0};
+ behavior={account:{...identity},worker:{schema:'xiio.sdk.installed-worker/v1',state:'INSTALLED_READBACK_VERIFIED',
+  worker_ref:base.worker_ref,device_ref:base.device_ref,owner_principal_ref:base.account_principal_ref,
+  source_generation:base.source_generation,installed_generation:base.source_generation,
+  installation_ref:'installation:loki',binding_ref:'binding:loki',installation_sha256:sha},
+  liveness:{schema:'xiio.sdk.worker-liveness/v1',state:'READY',worker_ref:base.worker_ref,
+    device_ref:base.device_ref,installed_generation:base.source_generation,installation_sha256:sha,
+    observation_ref:'observation:live-1',observed_at:epoch,service_active:true,installed_process_observed:true},
+  admission:null,returnOverride:null,attempt:{schema:'xiio.sdk.worker-attempt/v1',state:'STOPPED_VERIFIED',
+    worker_ref:base.worker_ref,work_ref:'work:1',evidence_ref:'evidence:stopped'},
+  runCanary:null};
+ const trusted={
+  admit:async request=>{calls.admit++;return behavior.admission||{
+    schema:'xiio.ward.worker-operation-admission/v1',state:'ADMITTED',
+    operation:request.operation,request_digest:request.request_digest,
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+    approval_ref:request.approval_ref,admission_ref:'admission:1',lease_ref:'lease:1',
+    expires_at:'2026-10-28T14:40:00.000Z'};},
+  startWorker:async({request})=>{calls.start++;return {state:'STARTED',run_ref:'run:1',worker_ref:request.worker_ref,request_digest:request.request_digest};},
+  observeWorker:async()=>{calls.observeWorker++;return behavior.liveness;},
+  executeCanary:async({request,canary_text,canary_sha256})=>{calls.execute++;
+    assert.equal(canary_text,WORKER_CANARY_TEXT); assert.equal(canary_sha256,WORKER_CANARY_SHA256);
+    return behavior.runCanary||{schema:'xiio.switchboard.worker-canary-result/v1',state:'RESULT_PRESERVED',
+      worker_ref:request.worker_ref,work_ref:request.work_ref,request_digest:request.request_digest,
+      result_ref:'result:1',return_ref:'return:1',resource_ref:'bins:1',version_ref:'version:1',sha256:WORKER_CANARY_SHA256};},
+  readPreservedVersion:async()=>{calls.readPreserved++;return behavior.returnOverride||{
+    schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',
+    bytes:Buffer.from(WORKER_CANARY_TEXT),sha256:WORKER_CANARY_SHA256};},
+  recoverWorker:async({request})=>{calls.recover++;return {state:'RECOVERED',recovery_ref:'recovery:1',
+    worker_ref:request.worker_ref,request_digest:request.request_digest};}
+ };
+ const ports={
+  readAccount:async()=>{calls.readAccount++;return behavior.account;},
+  readInstalledWorker:async()=>{calls.readInstalledWorker++;return behavior.worker;},
+  observeWorker:async()=>{calls.observeWorker++;return behavior.liveness;},
+  readAttempt:async({operation})=>{calls.readAttempt++;return operation==='worker.start' ? (behavior.startAttempt||{schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'}) : behavior.attempt;},
+  withCurrentAuthority:async(_envelope,callback)=>{calls.withCurrentAuthority++;return callback(trusted);}
+ };
+ return createSharedWorkerConnection({ports,clock:()=>epoch});
+}
+async function bound(o){const result=await o.bind(base);assert.equal(result.state,'BINDING_OBSERVED');return result;}
+const scope={work_ref:'work:1',approval_ref:'approval:1'};
+
+test('constructor requires all trustworthy ports, no permissive defaults',()=>{
+ assert.throws(()=>createSharedWorkerConnection({}),/SDK_WORKER_PORTS_UNBOUND/);
+});
+test('observed provider/account uses SDK stable subject, not provider login or token',async()=>{
+ const o=make(),b=await bound(o);
+ assert.equal(b.owner_principal_ref,'xiio:user-1');
+ assert.equal(b.authority_granted,false);
+ assert.equal(b.provider_effect,false);
+ assert.match(b.binding_digest,/^[a-f0-9]{64}$/);
+});
+test('unobserved provider account fails without startup',async()=>{
+ const o=make();behavior.account.observed_via='typed_login';
+ const b=await o.bind(base);assert.equal(b.state,'BLOCKED');assert.equal(calls.start,0);
+});
+test('wrong selected account fails rather than relabeling owner',async()=>{
+ const o=make(),b=await o.bind({...base,account_principal_ref:'xiio:other'});
+ assert.equal(b.state,'BLOCKED');assert.equal(calls.start,0);
+});
+test('installed generation mismatch fails before any effects',async()=>{
+ const o=make();behavior.worker.installed_generation='gen:old';
+ const b=await o.bind(base);assert.equal(b.first_red,'WORKER_INSTALLED_IDENTITY_MISMATCH');
+ assert.equal(calls.start,0);
+});
+test('fresh liveness observed without granting authority',async()=>{
+ const o=make(),b=await bound(o);const r=await o.observeLiveness(b);
+ assert.equal(r.state,'LIVENESS_OBSERVED');assert.equal(r.authority_granted,false);
+ assert.equal(calls.withCurrentAuthority,0);
+});
+test('stale liveness is not live proof',async()=>{
+ const o=make(),b=await bound(o);behavior.liveness.observed_at='2026-10-28T14:29:00.000Z';
+ const r=await o.observeLiveness(b);assert.equal(r.first_red,'WORKER_LIVENESS_STALE');
+});
+test('Ward-admitted startup and physical liveness compose once',async()=>{
+ const o=make(),b=await bound(o),r=await o.start(b,scope);
+ assert.equal(r.state,'STARTED_OBSERVED');assert.equal(calls.start,1);
+ assert.equal(calls.withCurrentAuthority,1);assert.equal(calls.admit,1);
+ assert.equal(r.authority_granted,false);
+});
+test('Ward missing/incorrect proof rejects before startup',async()=>{
+ const o=make(),b=await bound(o);behavior.admission={state:'ADMITTED',operation:'worker.start'};
+ const r=await o.start(b,scope);assert.equal(r.first_red,'WARD_ADMISSION_REQUEST_MISMATCH');
+ assert.equal(calls.start,0);
+});
+test('stale worker source blocks startup despite old binding',async()=>{
+ const o=make(),b=await bound(o);behavior.worker.installed_generation='gen:old';
+ const r=await o.start(b,scope);assert.equal(r.first_red,'WORKER_BINDING_NOT_CURRENT');
+ assert.equal(calls.start,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('approved canary uses independently reopened BINS bytes',async()=>{
+ const o=make(),b=await bound(o),r=await o.canary(b,scope);
+ assert.equal(r.state,'CANARY_RETURN_VERIFIED');assert.equal(calls.execute,1);
+ assert.equal(calls.readPreserved,1);assert.equal(r.sha256,WORKER_CANARY_SHA256);
+ assert.equal(Buffer.from(r.data_base64,'base64').toString(),WORKER_CANARY_TEXT);
+ assert.equal(r.apply_return_verified,false);
+});
+test('returned worker receipt alone cannot prove bytes',async()=>{
+ const o=make(),b=await bound(o);
+ behavior.returnOverride={schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',sha256:WORKER_CANARY_SHA256};
+ const r=await o.canary(b,scope);
+ assert.equal(r.first_red,'BINS_PRESERVED_BYTES_NOT_REOPENED');
+});
+test('BINS tampered bytes must not be promoted',async()=>{
+ const o=make(),b=await bound(o);
+ behavior.returnOverride={schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',bytes:Buffer.from('tampered'),sha256:WORKER_CANARY_SHA256};
+ const r=await o.canary(b,scope);assert.equal(r.state,'BLOCKED');
+ assert.ok(/BINS_PRESERVED/.test(r.first_red));
+});
+test('invalid request digest in result cannot reach BINS',async()=>{
+ const o=make(),b=await bound(o);
+ behavior.runCanary={schema:'xiio.switchboard.worker-canary-result/v1',state:'RESULT_PRESERVED',
+   worker_ref:base.worker_ref,work_ref:'work:1',request_digest:'f'.repeat(64)};
+ const r=await o.canary(b,scope);
+ assert.equal(r.first_red,'WORKER_RESULT_IDENTITY_MISMATCH');assert.equal(calls.readPreserved,0);
+});
+test('uncertain interrupted attempt never executes retry or recovery',async()=>{
+ const o=make(),b=await bound(o);behavior.attempt.state='UNKNOWN';
+ const r=await o.recover(b,scope);
+ assert.equal(r.first_red,'WORKER_RECOVERY_UNCERTAIN_DO_NOT_RETRY');
+ assert.equal(calls.recover,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('verified stopped attempt recovers under fresh Ward admission',async()=>{
+ const o=make(),b=await bound(o);const r=await o.recover(b,scope);
+ assert.equal(r.state,'RECOVERED_OBSERVED');assert.equal(calls.recover,1);
+ assert.equal(calls.withCurrentAuthority,1);
+});
+test('attempt with wrong Work never replays or recovers',async()=>{
+ const o=make(),b=await bound(o);behavior.attempt.work_ref='work:foreign';
+ const r=await o.recover(b,scope);assert.equal(r.first_red,'WORKER_RECOVERY_ATTEMPT_UNVERIFIED');
+ assert.equal(calls.recover,0);
+});
+test('SDK preview status returns observations not fabricated independent install proof',()=>{
+ const r=inspectLocalAgentStatus({schema:'xiio.cli.local-agent-http/v1',state:'READY',
+   installed_sdk_generation_verified:true,ollama_model_ready:true,execution:'PREVIEW',model:'ollama:local'});
+ assert.equal(r.state,'STATUS_OBSERVED');assert.equal(r.installed_generation_independently_verified,false);
+ assert.equal(r.authority_granted,false);
+});
+test('SDK preview turn remains fail-closed on non-preview worker',()=>{
+ const s=inspectLocalAgentStatus({schema:'xiio.cli.local-agent-http/v1',state:'READY',
+   installed_sdk_generation_verified:true,ollama_model_ready:true,execution:'BOUNDED'});
+ const r=validateLocalAgentTurnReply(s,{schema:'xiio.cli.local-agent-http/v1',state:'ANSWERED',reply:'bad'});
+ assert.equal(r.first_red,'SDK_EFFECT_CEILING_NOT_PREVIEW');
+});
+test('SDK refuses model result without actual bounded response',()=>{
+ const s=inspectLocalAgentStatus({schema:'xiio.cli.local-agent-http/v1',state:'READY',
+   installed_sdk_generation_verified:true,ollama_model_ready:true,execution:'PREVIEW'});
+ const r=validateLocalAgentTurnReply(s,{schema:'wrong',state:'ANSWERED',reply:'text'});
+ assert.equal(r.first_red,'SDK_TURN_UNVERIFIED');
+});
+
+test('start lost-ACK never launches second copy',async()=>{
+ const o=make(),b=await bound(o);
+ behavior.startAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'UNKNOWN',worker_ref:base.worker_ref,work_ref:'work:1'};
+ const r=await o.start(b,scope);assert.equal(r.first_red,'WORKER_START_UNCERTAIN_DO_NOT_RETRY');
+ assert.equal(calls.start,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('known already-started worker does not repeat startup',async()=>{
+ const o=make(),b=await bound(o);
+ behavior.startAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'STARTED_VERIFIED',worker_ref:base.worker_ref,work_ref:'work:1'};
+ const r=await o.start(b,scope);assert.equal(r.state,'ALREADY_STARTED_OBSERVED');
+ assert.equal(calls.start,0);assert.equal(calls.withCurrentAuthority,0);
+});
+test('recover interrupted BINS return without re-running canary',async()=>{
+ const o=make(),b=await bound(o);
+ behavior.attempt={schema:'xiio.sdk.worker-attempt/v1',state:'RESULT_PRESERVED',worker_ref:base.worker_ref,work_ref:'work:1',
+  original_request_digest:'b'.repeat(64),result:{schema:'xiio.switchboard.worker-canary-result/v1',state:'RESULT_PRESERVED',
+  worker_ref:base.worker_ref,work_ref:'work:1',request_digest:'b'.repeat(64),result_ref:'result:old',
+  return_ref:'return:old',resource_ref:'bins:1',version_ref:'version:1',sha256:WORKER_CANARY_SHA256}};
+ const r=await o.recover(b,scope);assert.equal(r.state,'CANARY_RETURN_RECONCILED');
+ assert.equal(calls.execute,0);assert.equal(calls.recover,0);assert.equal(calls.readPreserved,1);
+});
+test('withCurrentAuthority must actually call its checked callback',async()=>{
+ const o=createSharedWorkerConnection({ports:{readAccount:async()=>identity,
+  readInstalledWorker:async()=>({schema:'xiio.sdk.installed-worker/v1',state:'INSTALLED_READBACK_VERIFIED',
+    worker_ref:base.worker_ref,device_ref:base.device_ref,owner_principal_ref:base.account_principal_ref,
+    source_generation:base.source_generation,installed_generation:base.source_generation,
+    installation_ref:'installation:loki',binding_ref:'binding:loki',installation_sha256:sha}),
+  observeWorker:async()=>behavior.liveness,
+  readAttempt:async()=>({schema:'xiio.sdk.worker-attempt/v1',state:'NO_ATTEMPT',worker_ref:base.worker_ref,work_ref:'work:1'}),
+  withCurrentAuthority:async()=>({schema:WORKER_CONNECTION_SCHEMA,authority_granted:false,state:'STARTED_OBSERVED'})},clock:()=>epoch});
+ const b=await bound(o),r=await o.start(b,scope);
+ assert.equal(r.first_red,'WORKER_RETURN_UNQUALIFIED');
+});
+
+test('SDK preview message gate refuses oversized and empty payloads',()=>{
+ assert.equal(normalizeLocalAgentMessage('').first_red,'MESSAGE_INVALID_OR_OVERSIZE');
+ assert.equal(normalizeLocalAgentMessage('x'.repeat(16_385)).first_red,'MESSAGE_INVALID_OR_OVERSIZE');
+ assert.equal(normalizeLocalAgentMessage(' ping ').message,'ping');
+});
