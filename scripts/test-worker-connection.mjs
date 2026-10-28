@@ -377,6 +377,11 @@ test('no approval reference is needed to request exact Ward approval challenge',
   assert.equal(x.blocked_operation.operation,'worker.start');
   assert.equal(x.blocked_operation.work_ref,'work:1');
   assert.equal(x.challenge_ref,'challenge:1');
+  assert.equal(x.owner_approval_needed,true);
+  assert.equal(x.required_approval.challenge_ref,'challenge:1');
+  assert.equal(x.required_approval.action,'REVIEW_EXISTING_WARD_CHALLENGE');
+  assert.equal(x.required_approval.owner_ref,'EXISTING_WARD_RUNTIME_OWNER');
+  assert.equal(x.required_approval.approval_granted,false);
   assert.equal(x.authority_granted,false);assert.equal(x.provider_effect,false);
   assert.equal(calls.inspectDisk,1);assert.equal(calls.verifyDisk,1);
   assert.equal(calls.admit,1);assert.equal(calls.start,0);
@@ -552,4 +557,45 @@ test('foreign execution target cannot return bytes despite matching Work and dig
   assert.equal(result.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
   assert.equal(calls.readRequester,1);
   assert.equal(result.provider_effect,false);
+});
+
+test('invalid path cannot become an approved file, but routes exact safe Work back to BINS',async()=>{
+  const o=make(),b=await bound(o),path='/private/must-not-echo';
+  const r=await o.readFile(b,{...selectedFile,path});
+  assert.equal(r.state,'BLOCKED');
+  assert.equal(r.first_red,'WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN');
+  assert.equal(r.blocked_operation.work_ref,selectedFile.work_ref);
+  assert.equal(r.blocked_operation.resource_ref,selectedFile.resource_ref);
+  assert.equal(r.required_repair.owner_ref,'EXISTING_BINS_RESOURCE_OWNER');
+  assert.equal(r.required_repair.action,'RESOLVE_PATH_TO_AUTHORIZED_RESOURCE_VERSION');
+  assert.equal(JSON.stringify(r).includes(path),false);
+  assert.equal(calls.withCurrentAuthority,0);
+});
+test('unadmitted file size requires bounded return repair without permission bypass',async()=>{
+  const o=make(),b=await bound(o);
+  const r=await o.readFile(b,{...selectedFile,expected_bytes:32768});
+  assert.equal(r.state,'BLOCKED');
+  assert.equal(r.first_red,'WORKER_FILE_SIZE_UNADMITTED');
+  assert.equal(r.blocked_operation.expected_bytes,32768);
+  assert.equal(r.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.equal(r.required_repair.action,'QUALIFY_BOUNDED_FILE_READ_OR_CHUNKED_RETURN');
+  assert.equal(r.required_repair.owner_approval_needed,false);
+  assert.equal(calls.withCurrentAuthority,0);
+});
+test('Ward admission mismatch returns the current Ward owner, not a generic unknown repair',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.admission=request=>({
+    schema:'xiio.ward.worker-operation-admission/v1',state:'ADMITTED',
+    operation:request.operation,request_digest:'bad-digest',
+    worker_ref:request.worker_ref,device_ref:request.device_ref,
+    work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+    approval_ref:request.approval_ref,admission_ref:'admission:1',
+    lease_ref:'lease:1',expires_at:'2026-10-28T14:40:00.000Z'
+  });
+  const r=await o.start(b,scope);
+  assert.equal(r.state,'BLOCKED');
+  assert.equal(r.first_red,'WARD_ADMISSION_REQUEST_MISMATCH');
+  assert.equal(r.required_repair.owner_ref,'EXISTING_WARD_RUNTIME_OWNER');
+  assert.equal(r.required_repair.action,'REVALIDATE_CURRENT_WARD_SESSION_AND_ADMISSION');
+  assert.equal(calls.start,0);
 });

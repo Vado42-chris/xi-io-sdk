@@ -145,7 +145,15 @@ function approvalChallenge(decision,request,clock){
   return Object.freeze({schema:WORKER_CONNECTION_SCHEMA,state:'OWNER_APPROVAL_REQUIRED',
     first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',
     next_action:'REVIEW_EXISTING_WARD_CHALLENGE',challenge_ref:decision.challenge_ref,
-    expires_at:decision.expires_at,
+    expires_at:decision.expires_at,owner_approval_needed:true,
+    // This is an existing Ward-owned challenge, not a newly minted approval.
+    required_approval:Object.freeze({
+      owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'REVIEW_EXISTING_WARD_CHALLENGE',
+      challenge_ref:decision.challenge_ref,operation:request.operation,
+      work_ref:request.work_ref,intent_digest:request.intent_digest,
+      request_digest:request.request_digest,expires_at:decision.expires_at,
+      approval_granted:false,
+    }),
     blocked_operation:Object.freeze({operation:request.operation,work_ref:request.work_ref,
       worker_ref:request.worker_ref,device_ref:request.device_ref,
       owner_principal_ref:request.owner_principal_ref,
@@ -259,16 +267,30 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
       ?{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'BIND_CURRENT_NATIVE_DISK_VERIFIER'}
       :result.first_red.startsWith('SWITCHBOARD_RETURN')||result.first_red.startsWith('WARD_REQUESTER')
       ?{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'BIND_OR_REPAIR_REQUESTER_ONLY_RETURN_BYTES'}
+      :result.first_red==='WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN'
+      ?{owner_ref:'EXISTING_BINS_RESOURCE_OWNER',action:'RESOLVE_PATH_TO_AUTHORIZED_RESOURCE_VERSION'}
+      :result.first_red==='WORKER_FILE_SIZE_UNADMITTED'
+      ?{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'QUALIFY_BOUNDED_FILE_READ_OR_CHUNKED_RETURN'}
+      :result.first_red.startsWith('WARD_')
+      ?{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'REVALIDATE_CURRENT_WARD_SESSION_AND_ADMISSION'}
       :{owner_ref:'CURRENT_WORK_RUNTIME_OWNER',action:'REPAIR_REQUEST_BOUND_AUTHORITY'};
+    // Schema failures may happen before pinning the request. Retain only
+    // bounded identifier coordinates, never raw paths or private payload.
+    const safe=x=>typeof x==='string'&&REF.test(x)?x:null;
     return denied(result.first_red,{
-      blocked_operation:Object.freeze({operation,work_ref:pinned?.work_ref||null,
-        worker_ref:pinned?.worker_ref||null,device_ref:pinned?.device_ref||null,
+      blocked_operation:Object.freeze({operation,
+        work_ref:pinned?.work_ref||safe(scope?.work_ref),
+        worker_ref:pinned?.worker_ref||safe(binding?.worker_ref),
+        device_ref:pinned?.device_ref||safe(binding?.device_ref),
         capability_ref:pinned?.capability_ref||null,
-        return_ref:pinned?.return_ref||null,work_generation:pinned?.work_generation||null,
-        resource_ref:pinned?.resource_ref||null,version_ref:pinned?.version_ref||null,
-        storage_binding_ref:pinned?.storage_binding_ref||null,
-        expected_sha256:pinned?.expected_sha256||null,
-        expected_bytes:pinned?.expected_bytes??null,
+        return_ref:pinned?.return_ref||safe(scope?.return_ref),
+        work_generation:pinned?.work_generation||safe(scope?.work_generation),
+        resource_ref:pinned?.resource_ref||safe(scope?.resource_ref),
+        version_ref:pinned?.version_ref||safe(scope?.version_ref),
+        storage_binding_ref:pinned?.storage_binding_ref||safe(scope?.storage_binding_ref),
+        expected_sha256:pinned?.expected_sha256||(SHA.test(scope?.expected_sha256)?scope.expected_sha256:null),
+        expected_bytes:pinned?.expected_bytes??(Number.isSafeInteger(scope?.expected_bytes)&&
+          scope.expected_bytes>=0?scope.expected_bytes:null),
         intent_digest:pinned?.intent_digest||null,request_digest:pinned?.request_digest||null}),
       required_repair:Object.freeze({...repair,owner_approval_needed:false}),
       next_action:'REPAIR_AND_RESUME_ORIGINAL_WORK'});
