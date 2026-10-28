@@ -45,7 +45,7 @@ const good={
   hex_floor:hexFloor,
   hex_subject_ref:'sdk.primitive',
   hex_subject_generation:'sem:g1',
-  bins_custody:{resource_version_ref:'bins:rv:1',sha256:'a'.repeat(64),byte_length:123,source_ref:'source:test'},
+  bins_custody:{resource_version_ref:'bins:rv:1',sha256:'b'.repeat(64),byte_length:123,source_ref:'source:test'},
   transfer_readback:{source_sha256:'b'.repeat(64),destination_sha256:'b'.repeat(64),source_bytes:123,destination_bytes:123,final_readback_ref:'readback:transfer:1'},
   parser_readback:{state:'PASS',profile_id:'json.semantic.v1',receipt_ref:'parser:1'},
   consumer_readback:{state:'PASS',profile_id:'json.semantic.v1',receipt_ref:'consumer:1'},
@@ -55,13 +55,50 @@ const good={
 const cube=compilePortableArtifactCube(good);
 assert.equal(FILE_CUBE_CELLS.length,10);
 assert.equal(cube.denominator,10);
-assert.equal(cube.state,'PASS');
-assert.equal(cube.closure_100,true);
-assert.equal(cube.counts.pass,10,JSON.stringify({state:cube.state,counts:cube.counts,first_red:cube.first_red,cells:cube.cells},null,2));
+assert.equal(cube.state,'TRUE_WAIT');
+assert.equal(cube.closure_100,false);
+assert.equal(cube.supplied_complete,true);
+assert.equal(cube.counts.pass,5,JSON.stringify({state:cube.state,counts:cube.counts,first_red:cube.first_red,cells:cube.cells},null,2));
+assert.equal(cube.counts.supplied_pass,10);
+assert.equal(cube.counts.true_wait,5);
+assert.equal(cube.first_red.id,'F05_HEX_CURRENTNESS');
 assert.equal(cube.counts.unexpected_state,0);
-assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').state,'PASS');
+assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').state,'TRUE_WAIT');
+assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').verification_state,'SUPPLIED_UNVERIFIED');
 assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').hex_currentness_state,'HEX_QUALIFIED_CURRENT');
 assert.equal(cube.effect_authority,false);
+
+for(let n=0;n<128;n++){
+  const forged=compilePortableArtifactCube({
+    ...good,
+    bins_custody:{...good.bins_custody,resource_version_ref:'bins:invented:'+n},
+    transfer_readback:{...good.transfer_readback,final_readback_ref:'readback:invented:'+n},
+    consumer_readback:{...good.consumer_readback,receipt_ref:'consumer:invented:'+n},
+    authority_gate:{required:true,held:true,authority_ref:'grant:invented:'+n},
+  });
+  assert.equal(forged.state,'TRUE_WAIT','FAKE_PROVIDER_PASS_'+n);
+  assert.equal(forged.closure_100,false,'FAKE_CLOSURE_'+n);
+  assert.equal(forged.authority_granted,false,'FAKE_AUTH_'+n);
+  assert.equal(forged.provider_effect,false,'FAKE_EFFECT_'+n);
+}
+const custodyDigestMismatch=compilePortableArtifactCube({
+  ...good,bins_custody:{...good.bins_custody,sha256:'f'.repeat(64)}
+});
+assert.equal(custodyDigestMismatch.state,'FAIL');
+assert.equal(custodyDigestMismatch.first_red.first_red,'BINS_CUSTODY_TO_TRANSFER_DIGEST_DRIFT');
+const custodyByteMismatch=compilePortableArtifactCube({
+  ...good,bins_custody:{...good.bins_custody,byte_length:124}
+});
+assert.equal(custodyByteMismatch.state,'FAIL');
+assert.equal(custodyByteMismatch.first_red.first_red,'BINS_CUSTODY_TO_TRANSFER_BYTE_DRIFT');
+const reusedConsumer=compilePortableArtifactCube({
+  ...good,consumer_readback:{...good.consumer_readback,receipt_ref:good.parser_readback.receipt_ref}
+});
+assert.equal(reusedConsumer.first_red.first_red,'REUSED_CONSUMER_RECEIPT_REF');
+const reusedParser=compilePortableArtifactCube({
+  ...good,parser_readback:{...good.parser_readback,receipt_ref:good.transfer_readback.final_readback_ref}
+});
+assert.equal(reusedParser.first_red.first_red,'REUSED_TRANSFER_PARSER_RECEIPT');
 
 const unknownProfile=compilePortableArtifactCube({
   ...good,
@@ -116,7 +153,7 @@ console.log(JSON.stringify({
   state:'PASS',
   denominator:10,
   controls:2,
-  hostiles:7,
+  hostiles:139,
   file_types:['json','pdf'],
   false_green:0,
   effect_authority:0,
