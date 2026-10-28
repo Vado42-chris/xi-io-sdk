@@ -4,7 +4,7 @@ assert.equal(FIBONACCI_WEIGHTS.reduce((a,b)=>a+b,0),33);
 assert.ok(Math.abs(ACTUAL_LEGACY_HALF_LIFE_HOURS-12.476649250079015)<1e-10);
 const now=Date.UTC(2026,9,13);
 const q=[{id:"a",pillar:"autism"},{id:"b",pillar:"adhd"}];
-const families=["MISSING_RESPONSE","EXPLICIT_ZERO","FUTURE_DATE","EMPTY_QUESTIONS","HALF_LIFE_MODE","LEGACY_MODE","INVALID_RESPONSE","REORDER_FLAG","TIME_OUTSIDE","NUMERIC_KNOWN","UNKNOWN_DECAY_MODE","DUPLICATE_ID","UNKNOWN_PILLAR","INVALID_JOURNAL_TIME","INVALID_JOURNAL_ENTROPY","QUESTION_ID_REQUIRED"];
+const families=["MISSING_RESPONSE","EXPLICIT_ZERO","FUTURE_DATE","EMPTY_QUESTIONS","HALF_LIFE_MODE","LEGACY_MODE","INVALID_RESPONSE","REORDER_FLAG","TIME_OUTSIDE","NUMERIC_KNOWN","UNKNOWN_DECAY_MODE","DUPLICATE_ID","UNKNOWN_PILLAR","INVALID_JOURNAL_TIME","INVALID_JOURNAL_ENTROPY","INVALID_TIMESTAMP_TYPE","QUESTION_ID_REQUIRED"];
 let pass=0; const cases=[];
 for(let i=0;i<200;i++){
  const family=families[i%families.length];
@@ -48,6 +48,11 @@ for(let i=0;i<200;i++){
   assert.equal(temporalWeight(NaN).bit.KNOWN_BIT,0);break;
  case "INVALID_JOURNAL_ENTROPY":
   row=snap55({questions:q,responses:{a:4,b:4},nowMs:now,journal:[{timestamp:now-3600000,sensoryEntropy:"50"}]});
+  assert.equal(row.state,"UNKNOWN_JOURNAL_DATA");assert.equal(row.R,null);break;
+ case "INVALID_TIMESTAMP_TYPE":
+  row=snap55({questions:q,responses:{a:4,b:4},nowMs:now,journal:[{timestamp:null,sensoryEntropy:50}]});
+  assert.equal(row.state,"UNKNOWN_JOURNAL_DATA");assert.equal(row.R,null);
+  row=snap55({questions:q,responses:{a:4,b:4},nowMs:now,journal:[{timestamp:String(now-3600000),sensoryEntropy:50}]});
   assert.equal(row.state,"UNKNOWN_JOURNAL_DATA");assert.equal(row.R,null);break;
  case "QUESTION_ID_REQUIRED":
   assert.throws(()=>snap55({questions:[{id:"",pillar:"autism"}],nowMs:now}),/SNAP_QUESTION_INVALID/);break;
