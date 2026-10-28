@@ -6,6 +6,8 @@ export const ACTUAL_LEGACY_HALF_LIFE_HOURS = LEGACY_DECAY_HOURS * Math.LN2;
 const known = (value) => ({KNOWN_BIT: 1, VALUE_BIT: value ? 1 : 0});
 const unknown = () => ({KNOWN_BIT: 0, VALUE_BIT: 0});
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
+// JSON round-trips fractional or unsafe millisecond epochs without preserving the claimed instant.
+const exactEpochMs = (x) => Number.isSafeInteger(x);
 const PILLAR_IDS = Object.freeze(["autism","adhd","masking","burnout"]);
 const DECAY_MODES = Object.freeze(["legacy_efold18","half_life18"]);
 export function maskedResponse(responses, id) {
@@ -22,7 +24,7 @@ export function temporalWeight(ageHours, mode="legacy_efold18") {
   return {bit:unknown(),weight:null,reason:"UNKNOWN_DECAY_MODE"};
 }
 export function snap55({questions=[],responses={},journal=[],nowMs=Date.now(),decayMode="legacy_efold18"}={}) {
-  if(!Array.isArray(questions)||!Array.isArray(journal)||!finite(nowMs)||
+  if(!Array.isArray(questions)||!Array.isArray(journal)||!exactEpochMs(nowMs)||
     !responses||typeof responses!=="object"||Array.isArray(responses)) throw new TypeError("SNAP_INPUT_INVALID");
   // Source identity and denominator must be unambiguous before assigning coordinates.
   // A duplicated question must not inflate the known-response score.
@@ -48,7 +50,7 @@ export function snap55({questions=[],responses={},journal=[],nowMs=Date.now(),de
   }));
   const recent=journal.map((entry,i)=>{
     // Do not silently coerce null/string/missing timestamps into valid old observations.
-    const ageHours=entry&&finite(entry.timestamp)?(nowMs-entry.timestamp)/3600000:NaN;
+    const ageHours=entry&&exactEpochMs(entry.timestamp)?(nowMs-entry.timestamp)/3600000:NaN;
     return {index:i,entropy:entry?.sensoryEntropy,ageHours,time:temporalWeight(ageHours,decayMode)};
   });
   const invalidJournal=recent.some(r=>r.time.bit.KNOWN_BIT===0||
