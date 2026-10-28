@@ -2,6 +2,38 @@
 
 This repository owns the public reusable SDK substrate. It does not own Studio user intent, framework governance, Ward policy, Switchboard effect admission, or product-domain truth.
 
+## October 28 shared onboarding consumption gate (SDK client)
+
+Every SDK adopter that initiates or resumes an XI-IO connection must consume
+the **framework-owned**, versioned `xiio.owner.connection-onboarding/v1`
+contract and its current authoritative API result; see framework
+`docs/ops/CHATGPT-PRIVATE-MCP-TUNNEL-20261028.md`, section
+"cross-client acceptance". Do not implement a separate SDK onboarding state
+machine, login or tunnel provisioner in this repository.
+
+Current `src/identity/account-binding.mjs` and
+`src/identity/launch-session.mjs` are provider/account and launch-ticket
+projections with `authority_granted:false`. They cannot turn a saved choice
+into a sovereign UserPrincipal, current consent, Ward grant or delegated
+Platform permission. `src/worker/connection.mjs` and its existing owner
+PR #205 must consume the authorized API response at the real client entry,
+not only import a helper or pass synthetic tests.
+
+**Order:** allow local-first install; verify current XI-IO sign-in; present
+saved (possibly multiple) ChatGPT/@ibal choices, or ask on first use; require
+only missing/changed consent; discover/reuse existing approved services;
+provision via the owner API/Ward; verify independently and return to original
+requester. Cross-principal saved choices, revoked/expired authorization,
+changed scope, unknown outcome and incomplete resume must fail closed with
+typed continuation, without prompting for tunnel IDs/keys. Saved intent is
+not permission.
+
+Owner acceptance requires **executed SDK consumption** of framework cells
+C01–C14, with actual API generation, principal/workspace, installed HEX and
+physical Work/BINS return refs. No SDK-only report, mock or green unit test
+can claim a live ChatGPT/XI-IO connection. Until then:
+`CROSS_CLIENT_CONSUMPTION_UNVERIFIED`.
+
 ## Managed cold start
 
 When work is entered from the xi-io managed suite, start from Studio current before selecting SDK work:
