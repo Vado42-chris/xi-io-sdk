@@ -15,7 +15,7 @@ let calls;
 let behavior;
 function make(){
  calls={readAccount:0,readInstalledWorker:0,observeWorker:0,inspectDisk:0,verifyDisk:0,withCurrentAuthority:0,admit:0,start:0,
-   execute:0,readPreserved:0,readAttempt:0,recover:0};
+   execute:0,readPreserved:0,readRequester:0,readAttempt:0,recover:0};
  behavior={account:{...identity},worker:{schema:'xiio.sdk.installed-worker/v1',state:'INSTALLED_READBACK_VERIFIED',
   worker_ref:base.worker_ref,device_ref:base.device_ref,owner_principal_ref:base.account_principal_ref,
   source_generation:base.source_generation,installed_generation:base.source_generation,
@@ -23,7 +23,7 @@ function make(){
   liveness:{schema:'xiio.sdk.worker-liveness/v1',state:'READY',worker_ref:base.worker_ref,
     device_ref:base.device_ref,installed_generation:base.source_generation,installation_sha256:sha,
     observation_ref:'observation:live-1',observed_at:epoch,service_active:true,installed_process_observed:true},
-  admission:null,diskOverride:null,verifiedDiskOverride:null,returnOverride:null,attempt:{schema:'xiio.sdk.worker-attempt/v1',state:'STOPPED_VERIFIED',
+  admission:null,diskOverride:null,verifiedDiskOverride:null,returnOverride:null,brokerReturnOverride:null,attempt:{schema:'xiio.sdk.worker-attempt/v1',state:'STOPPED_VERIFIED',
     worker_ref:base.worker_ref,work_ref:'work:1',evidence_ref:'evidence:stopped'},
   runCanary:null};
  const trusted={
@@ -54,6 +54,10 @@ function make(){
     return override||{
     schema:'xiio.bins.verified-preserved-version/v1',resource_ref:'bins:1',version_ref:'version:1',
     bytes:Buffer.from(WORKER_CANARY_TEXT),sha256:WORKER_CANARY_SHA256};},
+  readRequesterReturnBytes:async({request,return_ref})=>{calls.readRequester++;
+    return typeof behavior.brokerReturnOverride==='function'
+      ?behavior.brokerReturnOverride({request,return_ref})
+      :behavior.brokerReturnOverride;},
   recoverWorker:async({request})=>{calls.recover++;return {state:'RECOVERED',recovery_ref:'recovery:1',
     worker_ref:request.worker_ref,request_digest:request.request_digest};}
  };
@@ -374,35 +378,40 @@ test('intent is stable before and after approval; the existing Ward API still co
 });
 
 
+
 const FILE_BYTES=Buffer.from('XIIO_SDK_PUBLIC_SYNTHETIC_FILE_V1\\n');
 const FILE_SHA=createHash('sha256').update(FILE_BYTES).digest('hex');
 const selectedFile={
-  work_ref:'work:1',approval_ref:'approval:1',
-  resource_ref:'bins:record:1',version_ref:'bins:version:1',
+  work_ref:'work:1',approval_ref:'approval:1',return_ref:'return:job:1',
+  work_generation:'workgen:1',resource_ref:'bins:record:1',
+  version_ref:'bins:version:1',storage_binding_ref:'binding:source:1',
   expected_sha256:FILE_SHA,expected_bytes:FILE_BYTES.length
 };
-function nativeFileFixture(){
-  behavior.returnOverride=request=>({
-    schema:'xiio.bins.verified-preserved-version/v1',
-    resource_ref:selectedFile.resource_ref,version_ref:selectedFile.version_ref,
-    requester_principal_ref:request.requester_principal_ref,
-    request_digest:request.request_digest,
-    readback_ref:'bins:readback:1',bytes:FILE_BYTES,sha256:FILE_SHA
+function nativeBrokerFixture(){
+  behavior.brokerReturnOverride=({request})=>({
+    schema:'xiio.switchboard.device-return-bytes/v1',state:'BYTES_READBACK',
+    returnRef:selectedFile.return_ref,jobRef:'job:1',workRef:'work:1',
+    occurrenceId:'occurrence:1',generation:selectedFile.work_generation,
+    resourceRef:selectedFile.resource_ref,versionRef:selectedFile.version_ref,
+    storageBindingRef:selectedFile.storage_binding_ref,
+    readbackRef:'bins:readback:1',sha256:FILE_SHA,bytes:FILE_BYTES.length,
+    encoding:'base64',contentBase64:FILE_BYTES.toString('base64'),
+    resultDigest:'a'.repeat(64),returnCertified:false,applyReturn:false
   });
 }
-test('file read through existing Ward/BINS ports returns exact bytes, never mere metadata',async()=>{
-  const o=make(),b=await bound(o);nativeFileFixture();
+test('existing requester-only Switchboard byte return yields real contents, not BINS bypass',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
   const x=await o.readFile(b,selectedFile);
-  assert.equal(x.state,'FILE_BYTES_MATCHED_TRUSTED_PORT');
-  assert.equal(Buffer.from(x.data_base64,'base64').toString('utf8'),FILE_BYTES.toString('utf8'));
-  assert.equal(x.resource_ref,selectedFile.resource_ref);
+  assert.equal(x.state,'REQUESTER_FILE_BYTES_MATCHED');
+  assert.equal(Buffer.from(x.contentBase64,'base64').toString('utf8'),FILE_BYTES.toString('utf8'));
+  assert.equal(x.return_ref,selectedFile.return_ref);
   assert.equal(x.version_ref,selectedFile.version_ref);
-  assert.equal(x.sha256,FILE_SHA);
-  assert.equal(x.apply_return_verified,false);
+  assert.equal(x.sha256,FILE_SHA);assert.equal(x.apply_return_verified,false);
   assert.equal(calls.verifyDisk,1);assert.equal(calls.admit,1);
-  assert.equal(calls.execute,0);assert.equal(calls.readPreserved,1);
+  assert.equal(calls.execute,0);assert.equal(calls.readRequester,1);
+  assert.equal(calls.readPreserved,0,'SDK must NOT call BINS direct for remote content');
 });
-test('file read without approval yields Ward challenge for that exact file version',async()=>{
+test('no approval yields exact Ward challenge scoped to the broker return and Work generation',async()=>{
   const o=make(),b=await bound(o);
   behavior.admission=request=>({
     schema:'xiio.ward.worker-operation-admission/v1',state:'APPROVAL_REQUIRED',
@@ -413,59 +422,66 @@ test('file read without approval yields Ward challenge for that exact file versi
   });
   const x=await o.readFile(b,{...selectedFile,approval_ref:null});
   assert.equal(x.state,'OWNER_APPROVAL_REQUIRED');
-  assert.equal(x.blocked_operation.operation,'worker.file-read');
+  assert.equal(x.blocked_operation.return_ref,selectedFile.return_ref);
+  assert.equal(x.blocked_operation.work_generation,selectedFile.work_generation);
   assert.equal(x.blocked_operation.resource_ref,selectedFile.resource_ref);
-  assert.equal(x.blocked_operation.version_ref,selectedFile.version_ref);
+  assert.equal(x.blocked_operation.storage_binding_ref,selectedFile.storage_binding_ref);
   assert.equal(x.blocked_operation.expected_sha256,FILE_SHA);
-  assert.equal(x.blocked_operation.expected_bytes,FILE_BYTES.length);
-  assert.equal(x.authority_granted,false);assert.equal(calls.readPreserved,0);
+  assert.equal(calls.readRequester,0);assert.equal(x.authority_granted,false);
 });
-test('model-supplied direct file path cannot cross the existing approved resource boundary',async()=>{
+test('arbitrary direct file paths or embedded payloads refuse before any admission',async()=>{
   const o=make(),b=await bound(o);
-  const x=await o.readFile(b,{...selectedFile,path:'/home/private/owner-secret.txt'});
-  assert.equal(x.first_red,'WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN');
+  for(const payload of [{path:'/home/private/secret'},{raw_bytes:'secret'},
+    {credential:'secret'}, {callback:'bypass'}]){
+    const x=await o.readFile(b,{...selectedFile,...payload});
+    assert.equal(x.first_red,'WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN');
+  }
   assert.equal(calls.inspectDisk,0);assert.equal(calls.withCurrentAuthority,0);
+  assert.equal(calls.readRequester,0);
+});
+test('missing return/work generation/digest/binding and over-limit bytes deny without disclosure',async()=>{
+  const o=make(),b=await bound(o);
+  const variants=[{return_ref:null},{work_generation:null},{storage_binding_ref:null},
+    {expected_sha256:'invalid'},{expected_bytes:16385},{expected_bytes:-1}];
+  for(const patch of variants){
+    const x=await o.readFile(b,{...selectedFile,...patch});assert.equal(x.state,'BLOCKED');
+  }
+  assert.equal(calls.inspectDisk,0);assert.equal(calls.readRequester,0);
+});
+test('metadata-only broker return cannot masquerade as requester bytes',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.brokerReturnOverride={schema:'xiio.switchboard.device-return-bytes/v1',
+    state:'BYTES_READBACK',returnRef:selectedFile.return_ref,workRef:'work:1',
+    resourceRef:selectedFile.resource_ref,versionRef:selectedFile.version_ref};
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+  assert.equal(calls.readRequester,1);assert.equal(calls.readPreserved,0);
+});
+test('foreign Work return cannot be credited even with matching bytes and digest',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const f=behavior.brokerReturnOverride;
+  behavior.brokerReturnOverride=payload=>({...f(payload),workRef:'work:foreign'});
+  const x=await o.readFile(b,selectedFile);
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+});
+test('tampered or noncanonical base64 payload fails after requester readback',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const f=behavior.brokerReturnOverride;
+  for(const contentBase64 of ['@@',Buffer.from('tampered').toString('base64')]){
+    behavior.brokerReturnOverride=payload=>({...f(payload),contentBase64});
+    const x=await o.readFile(b,selectedFile);
+    assert.equal(x.state,'BLOCKED');
+    assert.equal(x.authority_granted,false);
+  }
   assert.equal(calls.readPreserved,0);
 });
-test('unbounded or fabricated digest/size cannot authorize file read',async()=>{
-  const o=make(),b=await bound(o);
-  for(const patch of [{expected_sha256:'xyz'},
-    {expected_bytes:65537},{expected_bytes:-1},{resource_ref:null},{version_ref:null}]){
-    const x=await o.readFile(b,{...selectedFile,...patch});
-    assert.equal(x.state,'BLOCKED');
-  }
-  assert.equal(calls.inspectDisk,0);assert.equal(calls.readPreserved,0);
+test('changed ResourceVersion cannot be read with a stale approval intent',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
+  const x=await o.readFile(b,{...selectedFile,version_ref:'bins:version:foreign'});
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
 });
-test('BINS return without independent readback ref and exact request scope is refused',async()=>{
-  const o=make(),b=await bound(o);
-  behavior.returnOverride={schema:'xiio.bins.verified-preserved-version/v1',
-    resource_ref:selectedFile.resource_ref,version_ref:selectedFile.version_ref,
-    bytes:FILE_BYTES,sha256:FILE_SHA};
-  const x=await o.readFile(b,selectedFile);
-  assert.equal(x.first_red,'BINS_FILE_READBACK_SCOPE_UNVERIFIED');
-  assert.equal(calls.readPreserved,1);
-});
-test('BINS version content drift is refused even if receipt metadata appears correct',async()=>{
-  const o=make(),b=await bound(o);
-  behavior.returnOverride=request=>({
-    schema:'xiio.bins.verified-preserved-version/v1',
-    resource_ref:selectedFile.resource_ref,version_ref:selectedFile.version_ref,
-    requester_principal_ref:request.requester_principal_ref,
-    request_digest:request.request_digest,readback_ref:'bins:readback:1',
-    bytes:Buffer.from('tampered file'),sha256:FILE_SHA
-  });
-  const x=await o.readFile(b,selectedFile);
-  assert.equal(x.state,'BLOCKED');
-  assert.equal(x.first_red,'BINS_FILE_BYTES_NOT_REOPENED');
-});
-test('same Work and approval cannot authorize a different resource silently',async()=>{
-  const o=make(),b=await bound(o);nativeFileFixture();
-  const x=await o.readFile(b,{...selectedFile,version_ref:'bins:foreign'});
-  assert.equal(x.first_red,'BINS_FILE_READBACK_SCOPE_UNVERIFIED');
-  assert.equal(calls.readPreserved,1);
-});
-test('untrusted on-disk inspection prevents all BINS content access',async()=>{
-  const o=make(),b=await bound(o);nativeFileFixture();
+test('forged local disk inspection blocks requester content before broker read',async()=>{
+  const o=make(),b=await bound(o);nativeBrokerFixture();
   behavior.diskOverride=request=>({
     schema:'xiio.sdk.worker-disk-inspection/v1',state:'ON_DISK_BYTES_REOPENED',
     worker_ref:request.worker_ref,device_ref:request.device_ref,
@@ -475,5 +491,5 @@ test('untrusted on-disk inspection prevents all BINS content access',async()=>{
   });
   const x=await o.readFile(b,selectedFile);
   assert.equal(x.first_red,'WORKER_DISK_INSPECTION_UNVERIFIED');
-  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.readPreserved,0);
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.readRequester,0);
 });
