@@ -420,7 +420,47 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
         source_generation:request.source_generation,
         authority_granted:false,provider_effect:false,apply_return_verified:false});
     });
-  return Object.freeze({bind,observeLiveness,start,canary,recover,readFile});
+
+  // Normalize preflight/lost-ACK failures as exact, non-authorizing Work returns.
+  // A blocking ACK is a repair/wake, never a license to bypass the security gate.
+  function continuation(operation,binding,scope,outcome){
+    if(!outcome||outcome.state!=='BLOCKED'||outcome.blocked_operation)return outcome;
+    const red=outcome.first_red;
+    const reconciliation=/RECONCILE|UNCERTAIN|IN_FLIGHT|RESULT_PRESERVED|DO_NOT_RETRY/.test(red);
+    const local=/WORKER_BINDING|WORKER_LIVENESS|WORKER_INSTALLED|WORKER_DISK/.test(red);
+    const ward=red.startsWith('WARD_');
+    const broker=red.startsWith('SWITCHBOARD_')||red.startsWith('BINS_');
+    const owner_ref=reconciliation?'EXISTING_SWITCHBOARD_ATTEMPT_OWNER'
+      :local?'EXISTING_LOCAL_RUNTIME_OWNER'
+      :ward?'EXISTING_WARD_RUNTIME_OWNER'
+      :broker?'EXISTING_SWITCHBOARD_RETURN_OWNER':'CURRENT_WORK_RUNTIME_OWNER';
+    const repair=reconciliation?'RECONCILE_EXISTING_ATTEMPT_WITHOUT_REEXECUTION'
+      :local?'REINSPECT_AND_REPAIR_EXISTING_INSTALLED_RUNTIME'
+      :ward?'REVALIDATE_CURRENT_WARD_SESSION_GRANT_LEASE'
+      :broker?'REPAIR_EXISTING_REQUESTER_RETURN_BYTES'
+      :'CLASSIFY_AND_REPAIR_CURRENT_ACK';
+    const safe=value=>typeof value==='string'&&REF.test(value)?value:null;
+    return denied(red,{
+      blocked_operation:Object.freeze({operation,
+        work_ref:safe(scope?.work_ref),worker_ref:safe(binding?.worker_ref),
+        device_ref:safe(binding?.device_ref),
+        return_ref:safe(scope?.return_ref),resource_ref:safe(scope?.resource_ref),
+        version_ref:safe(scope?.version_ref),
+        source_generation:safe(binding?.source_generation),
+        intent_digest:null,request_digest:null}),
+      required_repair:Object.freeze({owner_ref,action:repair,owner_approval_needed:false}),
+      next_action:'RETURN_BLOCKED_ACK_TO_ORIGINAL_WORK_OWNER'});
+  }
+  const withContinuation=(operation,method)=>async(binding,scope)=>
+    continuation(operation,binding,scope,await method(binding,scope));
+  return Object.freeze({
+    bind,observeLiveness,
+    start:withContinuation('worker.start',start),
+    canary:withContinuation('worker.canary',canary),
+    recover:withContinuation('worker.recover',recover),
+    readFile:withContinuation('worker.file-read',readFile),
+  });
+
 }
 
 /** Shared preview-only SDK HTTP consumer for Zed and other plugins. */

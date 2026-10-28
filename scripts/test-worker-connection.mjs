@@ -239,6 +239,44 @@ test('SDK preview message gate refuses oversized and empty payloads',()=>{
  assert.equal(normalizeLocalAgentMessage(' ping ').message,'ping');
 });
 
+test('lost ACK returns exact original Work and existing attempt-reconciliation owner',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'UNKNOWN',
+    worker_ref:base.worker_ref,work_ref:'work:1'};
+  const x=await o.canary(b,scope);
+  assert.equal(x.state,'BLOCKED');
+  assert.equal(x.first_red,'WORKER_CANARY_RECONCILE_FIRST_DO_NOT_RETRY');
+  assert.equal(x.blocked_operation.operation,'worker.canary');
+  assert.equal(x.blocked_operation.work_ref,'work:1');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_SWITCHBOARD_ATTEMPT_OWNER');
+  assert.equal(x.required_repair.action,'RECONCILE_EXISTING_ATTEMPT_WITHOUT_REEXECUTION');
+  assert.equal(x.required_repair.owner_approval_needed,false);
+  assert.equal(calls.withCurrentAuthority,0);assert.equal(calls.execute,0);
+});
+test('stale bound worker returns native runtime owner repair without retry',async()=>{
+  const o=make(),b=await bound(o);
+  behavior.worker.installed_generation='gen:stale';
+  const x=await o.start(b,scope);
+  assert.equal(x.first_red,'WORKER_BINDING_NOT_CURRENT');
+  assert.equal(x.blocked_operation.operation,'worker.start');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_LOCAL_RUNTIME_OWNER');
+  assert.equal(x.next_action,'RETURN_BLOCKED_ACK_TO_ORIGINAL_WORK_OWNER');
+  assert.equal(calls.start,0);
+});
+test('file-reader missing return capability reports exact existing broker repair owner',async()=>{
+  const o=make(),b=await bound(o);
+  const bytes=Buffer.from('public test');
+  const digest=createHash('sha256').update(bytes).digest('hex');
+  const x=await o.readFile(b,{
+    work_ref:'work:1',approval_ref:'approval:1',return_ref:'return:1',
+    work_generation:'g1',resource_ref:'bins:1',version_ref:'version:1',
+    storage_binding_ref:'binding:1',expected_sha256:digest,expected_bytes:bytes.length});
+  assert.equal(x.first_red,'SWITCHBOARD_RETURN_SCOPE_UNVERIFIED');
+  assert.equal(x.blocked_operation.operation,'worker.file-read');
+  assert.equal(x.blocked_operation.return_ref,'return:1');
+  assert.equal(x.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.equal(calls.readRequester,1);
+});
 test('canary lost ACK blocks redispatch before Ward or worker effects',async()=>{
   const o=make(),b=await bound(o);
   behavior.canaryAttempt={schema:'xiio.sdk.worker-attempt/v1',state:'UNKNOWN',
