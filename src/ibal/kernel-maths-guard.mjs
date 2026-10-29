@@ -11,7 +11,7 @@ const MAX_DIGITS = 64;
 const ZERO_SHA = '0'.repeat(64);
 const isSafe = x => typeof x === 'number' && Number.isSafeInteger(x) && x >= 0;
 const id = x => typeof x === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(x);
-const sha = x => typeof x === 'string' && /^[0-9a-f]{64}$/.test(x);
+const sha = x => typeof x === 'string' && /^[0-9a-f]{64}$/.test(x) && x !== ZERO_SHA;
 const reject = reason => Object.freeze({schema, status:'REFUSED', reason, authority_granted:false, provider_effect:false, verified:false});
 const computed = (op,result,extra={}) => Object.freeze({
   schema,status:'COMPUTED',operation:op,result,provider_effect:false,authority_granted:false,verified:false,...extra,
