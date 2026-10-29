@@ -66,6 +66,7 @@ for(const bad of [
  {...evidence,gen:'41'},
  {...evidence,digest:'fake'},
  {...evidence,digest:'A'.repeat(64)},
+ {...evidence,digest:'0'.repeat(64)},
  {...evidence,boundary:1},
  {...evidence,cube:'a|b'},
  {...evidence,cube:''},
@@ -79,6 +80,9 @@ for(const bad of [
 for(const t of [1,0.5,-1,'0','1',null]){
   refuse(compileKmCrossing(evidence,evidence,{tolerance:t}),'KM13 tolerance fixed zero');
 }
+// The all-zero placeholder is not evidence, even when both submissions agree.
+const zero={...evidence,digest:'0'.repeat(64)};
+refuse(compileKmCrossing(zero,zero),'KM13 zero digest cannot self-confirm a crossing');
 const stale=compileKmCrossing(evidence,{...evidence,gen:40});
 compute(stale);
 yes(stale.result.predicate==='NO_EFFECT_MISFIRE');
