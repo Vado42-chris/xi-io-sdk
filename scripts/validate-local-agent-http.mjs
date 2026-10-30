@@ -27,6 +27,7 @@ let release;
 const server = await startLocalAgentServer({
   port: 0,
   uiDir: ui,
+  observeInstalledGeneration: () => ({ ok: true, first_red: null, sdk_root: '/fixture/sdk', agent: '/fixture/sdk/bin/xi-local-agent.mjs' }),
   status: async () => ({ model: 'fixture', execution: 'PREVIEW', ollama_state: 'NOT_CALLED' }),
   handleTurn: async (message) => {
     turns.push(message);
@@ -84,15 +85,9 @@ try {
   const status = await request({ url: '/v1/status' });
   assert.equal(status.json.state, 'DEGRADED', 'fixture without local Ollama / not xi-local-agent process must not claim READY');
   assert.equal(status.json.runtime_verified, false);
-  assert.equal(status.json.installed_sdk_generation_verified, false, 'validator process is not the installed agent');
-  assert.equal(status.json.native_receipt_state, 'INSTALLED_GENERATION_READBACK_REQUIRED');
-  assert.ok(
-    status.json.first_red === 'PROCESS_NOT_FROM_INSTALLED_SDK'
-      || status.json.first_red === 'OLLAMA_MODEL_NOT_READY'
-      || status.json.first_red === 'SDK_PATH_MISSING'
-      || status.json.first_red === 'INSTALLED_SDK_NO_HTTP_DOOR',
-    `unexpected first_red=${status.json.first_red}`,
-  );
+  assert.equal(status.json.installed_sdk_generation_verified, true, 'verified fixture process is admitted at the runtime-identity boundary');
+  assert.equal(status.json.native_receipt_state, 'INSTALLED_GENERATION_OK_MODEL_NOT_READY');
+  assert.equal(status.json.first_red, 'OLLAMA_MODEL_NOT_READY');
   assert.equal(status.json.service_listener_observed, true);
   assert.equal(typeof status.json.service_process_pid, 'number');
   const page = await request({ url: '/' });
@@ -107,6 +102,91 @@ try {
   fs.rmSync(ui, { recursive: true, force: true });
 }
 
+/* Installed-generation boundary: status/UI stay diagnostic, but a stale or
+   uninstalled process cannot send a turn into the agent at all. */
+let unverifiedTurns = 0;
+const unverifiedUi = fs.mkdtempSync(path.join(os.tmpdir(), 'xiio-door-unverified-ui-'));
+fs.writeFileSync(path.join(unverifiedUi, 'index.html'), '<!doctype html><title>recovery</title>');
+const unverified = await startLocalAgentServer({
+  port: 0,
+  uiDir: unverifiedUi,
+  observeInstalledGeneration: () => ({ ok: false, first_red: 'PROCESS_NOT_FROM_INSTALLED_SDK' }),
+  status: async () => ({ model: 'fixture', execution: 'BOUNDED', ollama_state: 'READY_MODEL_PRESENT' }),
+  handleTurn: async (message) => { unverifiedTurns += 1; return `echo:${message}`; },
+});
+const unverifiedPort = unverified.address().port;
+const unverifiedRequest = ({ method = 'GET', url = '/', body = null, headers = {} }) => new Promise((resolve, reject) => {
+  const req = http.request({
+    host: '127.0.0.1',
+    port: unverifiedPort,
+    method,
+    path: url,
+    headers: { host: `127.0.0.1:${unverifiedPort}`, ...headers, ...(body ? { 'content-type': 'application/json' } : {}) },
+  }, (res) => {
+    let data = '';
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => resolve({ status: res.statusCode, text: data, json: (() => { try { return JSON.parse(data); } catch { return null; } })() }));
+  });
+  req.on('error', reject);
+  if (body) req.write(body);
+  req.end();
+});
+try {
+  const status = await unverifiedRequest({ url: '/v1/status' });
+  assert.equal(status.status, 200, 'status remains available for diagnosis');
+  assert.equal(status.json.state, 'DEGRADED');
+  assert.equal(status.json.installed_sdk_generation_verified, false);
+  assert.equal(status.json.first_red, 'PROCESS_NOT_FROM_INSTALLED_SDK');
+
+  const page = await unverifiedRequest({ url: '/' });
+  assert.equal(page.status, 200, 'static UI remains available for recovery');
+
+  const blocked = await unverifiedRequest({ method: 'POST', url: '/v1/turn', body: JSON.stringify({ message: 'read workspace' }) });
+  assert.equal(blocked.status, 503);
+  assert.equal(blocked.json.state, 'BLOCKED');
+  assert.equal(blocked.json.reason, 'INSTALLED_GENERATION_REQUIRED');
+  assert.equal(blocked.json.first_red, 'PROCESS_NOT_FROM_INSTALLED_SDK');
+  assert.equal(blocked.json.provider_effect, false);
+  assert.equal(blocked.json.authority_granted, false);
+  assert.equal(unverifiedTurns, 0, 'unverified runtime never reaches handleTurn');
+} finally {
+  unverified.close();
+  fs.rmSync(unverifiedUi, { recursive: true, force: true });
+}
+
+let observerFailureTurns = 0;
+const observerFailure = await startLocalAgentServer({
+  port: 0,
+  observeInstalledGeneration: () => { throw new Error('fixture observer fault'); },
+  status: async () => ({ model: 'fixture', execution: 'BOUNDED', ollama_state: 'READY_MODEL_PRESENT' }),
+  handleTurn: async () => { observerFailureTurns += 1; return 'unexpected'; },
+});
+const observerFailurePort = observerFailure.address().port;
+try {
+  const denied = await new Promise((resolve, reject) => {
+    const body = JSON.stringify({ message: 'hello' });
+    const req = http.request({
+      host: '127.0.0.1',
+      port: observerFailurePort,
+      method: 'POST',
+      path: '/v1/turn',
+      headers: { host: `127.0.0.1:${observerFailurePort}`, 'content-type': 'application/json' },
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(data) }));
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+  assert.equal(denied.status, 503, 'observer failure fails closed');
+  assert.equal(denied.json.first_red, 'INSTALLED_GENERATION_OBSERVER_FAILED');
+  assert.equal(observerFailureTurns, 0);
+} finally {
+  observerFailure.close();
+}
+
 /* Bounded time: a stuck turn is answered 504 and aborted, and the door stays
    busy until that turn has really stopped, so two turns never run at once. */
 let sawAbort = false;
@@ -114,6 +194,7 @@ let settle;
 const slow = await startLocalAgentServer({
   port: 0,
   turnTimeoutMs: 100,
+  observeInstalledGeneration: () => ({ ok: true, first_red: null, sdk_root: '/fixture/sdk', agent: '/fixture/sdk/bin/xi-local-agent.mjs' }),
   status: async () => ({ model: 'fixture' }),
   handleTurn: async (message, { signal } = {}) => {
     if (message !== 'stuck') return `echo:${message}`;
@@ -160,5 +241,6 @@ console.log(JSON.stringify({
   admission_cases: 8,
   live_cases: 13,
   timeout_cases: 7,
-  hard: ['LOOPBACK_ONLY', 'HOST != FOREIGN', 'ORIGIN != FOREIGN', 'JSON_ONLY_TURNS', 'NO_CORS_HEADERS', 'ONE_TURN_AT_A_TIME', 'UI_CONTAINED', 'TURN_TIME_BOUNDED', 'TIMEOUT != SECOND_TURN'],
+  installed_generation_cases: 9,
+  hard: ['LOOPBACK_ONLY', 'HOST != FOREIGN', 'ORIGIN != FOREIGN', 'JSON_ONLY_TURNS', 'NO_CORS_HEADERS', 'ONE_TURN_AT_A_TIME', 'UI_CONTAINED', 'TURN_TIME_BOUNDED', 'TIMEOUT != SECOND_TURN', 'LOOPBACK != INSTALLED_GENERATION', 'UNVERIFIED_RUNTIME != AGENT_TURN'],
 }, null, 2));
