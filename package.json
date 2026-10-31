@@ -96,7 +96,7 @@
     "./evaluation/hallbergmaths-snap55": "./src/evaluation/hallbergmaths-snap55.mjs"
   },
   "scripts": {
-    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit",
+    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -169,6 +169,7 @@
     "check:worker-lifecycle-kit": "node scripts/validate-worker-lifecycle-kit.mjs",
     "check:api-blackhole-proof-envelope": "node scripts/validate-api-blackhole-proof-envelope.mjs",
     "check:flap-harvest": "node scripts/validate-flap-harvest.mjs",
-    "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs"
+    "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs",
+    "check:self-drive-continuation": "node scripts/validate-self-drive-continuation.mjs"
   }
 }

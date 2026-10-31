@@ -106,6 +106,81 @@ test('OWNER_HEARTBEAT_FOR_RUNNABLE_NEXT_IS_FAIL_CURRENT', () => {
   assert.equal(result.yield_allowed, false);
 });
 
+test('PROVIDER_READBACK_WITHOUT_RETURN_DOES_NOT_MARK_REQUIRED_WORK_DONE', () => {
+  const input = base();
+  input.backlog = [{ id: 'artifact:draft', state: 'RUNNABLE', priority: 1 }];
+  input.seams = [{ seam_ref: 'artifact:draft', kind: 'ARTIFACT', state: 'OPEN', machine_resolvable: true }];
+  input.seam_receipts = [{
+    receipt_ref: 'receipt:read',
+    seam_ref: 'artifact:draft',
+    root_ref: input.root_ref,
+    subject_generation: input.subject_generation,
+    current_generation: input.current_generation,
+    authenticated: true,
+    verified: true,
+    provider_readback: true,
+    return_ref: null,
+    return_applied: false,
+    consumer_readback: false,
+  }];
+  const result = compileContinuationDirective(input);
+  assert.equal(result.rejoin.next_action.action, 'COMPILE_RETURN');
+  assert.equal(result.stop_class, 'CONTINUE');
+  assert.equal(result.yield_allowed, false);
+  assert.equal(result.cycle.backlog.runnable.some((x) => x.id === 'artifact:draft'), true);
+  assert.equal(result.cycle.backlog.done.some((x) => x.id === 'artifact:draft'), false);
+});
+
+test('APPLIED_RETURN_WITHOUT_CONSUMER_READBACK_DOES_NOT_MARK_REQUIRED_WORK_DONE', () => {
+  const input = base();
+  input.backlog = [{ id: 'artifact:draft', state: 'RUNNABLE', priority: 1 }];
+  input.seams = [{ seam_ref: 'artifact:draft', kind: 'ARTIFACT', state: 'RETURN_READY', machine_resolvable: true }];
+  input.seam_receipts = [{
+    receipt_ref: 'receipt:read',
+    seam_ref: 'artifact:draft',
+    root_ref: input.root_ref,
+    subject_generation: input.subject_generation,
+    current_generation: input.current_generation,
+    authenticated: true,
+    verified: true,
+    provider_readback: true,
+    return_ref: 'return:draft',
+    return_applied: true,
+    consumer_readback: false,
+  }];
+  const result = compileContinuationDirective(input);
+  assert.equal(result.rejoin.next_action.action, 'VERIFY_CONSUMER_READBACK');
+  assert.equal(result.stop_class, 'CONTINUE');
+  assert.equal(result.cycle.backlog.runnable.some((x) => x.id === 'artifact:draft'), true);
+  assert.equal(result.cycle.backlog.done.some((x) => x.id === 'artifact:draft'), false);
+});
+
+test('ONLY_FULLY_CONSUMED_CURRENT_SEAM_CAN_MARK_REQUIRED_WORK_DONE', () => {
+  const input = base();
+  input.backlog = [{ id: 'artifact:draft', state: 'RUNNABLE', priority: 1 }];
+  input.seams = [{ seam_ref: 'artifact:draft', kind: 'ARTIFACT', state: 'APPLIED', machine_resolvable: true }];
+  input.seam_receipts = [{
+    receipt_ref: 'receipt:read',
+    seam_ref: 'artifact:draft',
+    root_ref: input.root_ref,
+    subject_generation: input.subject_generation,
+    current_generation: input.current_generation,
+    authenticated: true,
+    verified: true,
+    provider_readback: true,
+    return_ref: 'return:draft',
+    return_applied: true,
+    consumer_readback: true,
+  }];
+  const result = compileContinuationDirective(input);
+  assert.equal(result.rejoin.next_action, null);
+  assert.equal(result.rejoin.current_seam_refs.includes('artifact:draft'), true);
+  assert.equal(result.cycle.backlog.done.some((x) => x.id === 'artifact:draft'), true);
+  assert.equal(result.cycle.backlog.runnable.some((x) => x.id === 'artifact:draft'), false);
+  assert.equal(result.stop_class, 'TERMINAL');
+  assert.equal(result.yield_allowed, true);
+});
+
 test('TERMINAL_FIXED_POINT_IS_ALLOWED_STOP', () => {
   const result = compileContinuationDirective(base());
   assert.equal(result.stop_class, 'TERMINAL');
@@ -152,7 +227,7 @@ test('LOOP_REJECTS_EVENTS_AFTER_ALLOWED_STOP', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 12,
+  cases: 15,
   effects: 0,
   owner_heartbeat_for_machine_next: 'FAIL_CURRENT',
   allowed_stops: ['TRUE_WAIT', 'OWNER_ONLY', 'TERMINAL'],

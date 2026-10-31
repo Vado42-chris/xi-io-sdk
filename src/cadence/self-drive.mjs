@@ -297,13 +297,16 @@ export function compileRejoinSeams(input) {
 }
 
 function applySatisfiedSeams(input, rejoin) {
-  if (!rejoin.satisfied_seam_refs.length) return input;
-  const satisfied = new Set(rejoin.satisfied_seam_refs);
+  // A verified provider readback wakes a seam, but it does not finish the work.
+  // Required work becomes DONE only after RETURN, APPLY_RETURN and consumer
+  // readback have all completed for the exact current seam generation.
+  if (!rejoin.current_seam_refs.length) return input;
+  const consumed = new Set(rejoin.current_seam_refs);
   return {
     ...input,
     backlog: rows(input.backlog).map((item) => {
       const id = clean(item.id) ?? clean(item.work_ref);
-      return id && satisfied.has(id) ? { ...item, state: 'DONE' } : item;
+      return id && consumed.has(id) ? { ...item, state: 'DONE' } : item;
     }),
   };
 }
