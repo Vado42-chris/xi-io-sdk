@@ -407,6 +407,23 @@ async function registry(kind = 'all') {
   }
 }
 
+function cliWrapperConflict(destination, wrapper) {
+  let stat;
+  try {stat=fs.lstatSync(destination);}
+  catch(error){
+    if(error?.code==='ENOENT') return null;
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+  try {
+    if(!stat.isFile() || stat.isSymbolicLink() || stat.nlink!==1) return {path:destination,reason:'DESTINATION_NOT_SINGLE_REGULAR_FILE'};
+    const expected=Buffer.from(wrapper,'utf8');
+    if(stat.size!==expected.length || !fs.readFileSync(destination).equals(expected)) return {path:destination,reason:'WRAPPER_BYTES_UNRECOGNIZED'};
+    return null;
+  } catch(error) {
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+}
+
 function installLocalCli() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const home=os.homedir();
@@ -414,11 +431,6 @@ function installLocalCli() {
   const shareDir=path.join(home,'.local','share','xi-io','cli');
   const stateDir=path.join(process.env.XDG_STATE_HOME || path.join(home,'.local','state'),'xi-io','cli');
   const rootFile=path.join(shareDir,'sdk.path');
-  fs.mkdirSync(binDir,{recursive:true});
-  fs.mkdirSync(shareDir,{recursive:true});
-  fs.mkdirSync(stateDir,{recursive:true});
-  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
-
   const wrapper=[
     '#!/usr/bin/env bash',
     'set -euo pipefail',
@@ -438,6 +450,18 @@ function installLocalCli() {
   ].join('\n');
 
   const bins=['xi-io','xiio','xi'];
+  // Preflight every alias before this local install phase writes any state or wrapper.
+  // Exact bytes recognize the current wrapper format, not provenance or authority.
+  const conflicts=bins.map(name=>cliWrapperConflict(path.join(binDir,name),wrapper)).filter(Boolean);
+  if(conflicts.length){
+    process.stdout.write(JSON.stringify({schema:'xiio.cli.install/v1',installed:false,state:'BLOCKED',first_red:'CLI_WRAPPER_OWNERSHIP_CONFLICT',conflicts,authority_granted:false,provider_effect:false},null,2)+'\n');
+    process.exitCode=2;
+    return;
+  }
+  fs.mkdirSync(binDir,{recursive:true});
+  fs.mkdirSync(shareDir,{recursive:true});
+  fs.mkdirSync(stateDir,{recursive:true});
+  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
