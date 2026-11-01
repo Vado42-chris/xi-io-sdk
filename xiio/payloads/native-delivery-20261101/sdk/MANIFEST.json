@@ -1,0 +1,85 @@
+{
+  "schema": "xiio.portable-source-files/v1",
+  "files": {
+    "README.md": {
+      "bytes": 4361,
+      "sha256": "edb7e969f9ba3cec9ccb32239ac906b25cb8b3c581bfba7408808d6c9a5e4e4c",
+      "git_blob": "3b97cc9a72f437e10f511810ca1bad1f5ed7d5b7"
+    },
+    "RECEIPT.json": {
+      "bytes": 2410,
+      "sha256": "8188e8883c4d98b18af7a5574ab3189a5749c77c9fb295d958cebeb5ca2826a6",
+      "git_blob": "82bf14a0929c15c10da057c744d81b7bf6ce5c35"
+    },
+    "SOURCE.json": {
+      "bytes": 6357,
+      "sha256": "c952c65d237228712bbf3e289bc285a8a25fca6050051c241b490bf896a0d917",
+      "git_blob": "eb3d5f35dc6229690c6883eccb4601d0c2c4ffa6"
+    },
+    "base/package.json": {
+      "bytes": 17313,
+      "sha256": "63c71e62eb65c92e7aa743301b0c6f1e7be8e00b1c499293a5a3a497854b288d",
+      "git_blob": "26c886f47d1057f66031968c72eba8866970f94f"
+    },
+    "base/scripts/validate-babysit-host.mjs": {
+      "bytes": 8054,
+      "sha256": "94dbdb4ee41208cf2ba1160e0feb00d16d91a89615ccb2c334c4d0923080f6c5",
+      "git_blob": "c50550d73db392708edfd66a3b7bfdd6061b5249"
+    },
+    "base/scripts/validate-self-drive-continuation.mjs": {
+      "bytes": 9585,
+      "sha256": "08f02c665ab7e1f0a259abb7df4f002767f53b7ab3c83de56ebb0d86f50c5d8c",
+      "git_blob": "20720ccf676cd282b2d72cda1f14418177bd6c15"
+    },
+    "base/scripts/validate-worker-lifecycle-kit.mjs": {
+      "bytes": 17572,
+      "sha256": "e57ec5d76141f31bd990d3995c08a2c07832ce8a9950b3d534598d4e18d75735",
+      "git_blob": "c30c4bfeb53816113ea09e70047622641ab82c5f"
+    },
+    "base/src/cadence/babysit-host.mjs": {
+      "bytes": 8650,
+      "sha256": "caa42e77cedeeac1c2b34c9f7bbc99a0dc65fa77b27be446414034614e9911cf",
+      "git_blob": "29a9736c175b5e1086e90c280cddf4f56a761088"
+    },
+    "base/src/cadence/continuation.mjs": {
+      "bytes": 8336,
+      "sha256": "88b52c78ea10aa42e22c5e20c85637b7d86c984ce0b3c3c0a4996ea3f5489745",
+      "git_blob": "8b98d5c053d43a2564510e983678018b1335a47d"
+    },
+    "base/src/cadence/self-drive.mjs": {
+      "bytes": 21149,
+      "sha256": "899d741e39ed4dfeba8a4fc3f789d45b7e84b8f732121cad27d21d2b00d86668",
+      "git_blob": "d81c1e65f474cecf18f8fc6700f08ff71038c17e"
+    },
+    "base/src/catalog/primitives.json": {
+      "bytes": 18955,
+      "sha256": "bfce147a281aeb892815312939c823504cc881a1a2abe3b648927740754b206c",
+      "git_blob": "f0254b2ac74359d797caa27065fdb6e5a5169dd7"
+    },
+    "base/src/identity/account-binding.mjs": {
+      "bytes": 5479,
+      "sha256": "2454de47e9546835702495eb7b4bf76452bd7771f90431e787f1bcb5a794309b",
+      "git_blob": "30b3af73739af194eccae4733a06d9840c024ba2"
+    },
+    "base/src/worker/lifecycle.mjs": {
+      "bytes": 24332,
+      "sha256": "832d7138478d43e72a055cab917bf828a4589984bac0a59d2f94787032fadc40",
+      "git_blob": "fc5dbbcc72dabd36904759cf6d910714a4bbac99"
+    },
+    "patches/sdk205-current-main-join.patch": {
+      "bytes": 72968,
+      "sha256": "2243ab508253a1010c7e4c8d1ace0a7e0bafb346dd9862bca10aa797290c0351",
+      "git_blob": "d906903b79b958c64a889251e024990a2c76d87e"
+    },
+    "qualification/common-exports.mjs": {
+      "bytes": 1343,
+      "sha256": "7a1181b6d076ee0c321b45a081777acbd6c1a07baa316ad31c8dedb4abb4b25f",
+      "git_blob": "14c63e6f26ff963ab056ef795b3ea779c30fe319"
+    },
+    "replay.mjs": {
+      "bytes": 7059,
+      "sha256": "47266d70f4d4ed29d744c9d57f9513f836b22e670ed2b2560e56d07357ab9f9d",
+      "git_blob": "a0ecf3149337ef025dacd75ceef23c0b50a591cc"
+    }
+  }
+}
