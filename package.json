@@ -93,10 +93,14 @@
     "./worker/lifecycle": "./src/worker/lifecycle.mjs",
     "./evaluation/api-blackhole-proof-envelope": "./src/evaluation/api-blackhole-proof-envelope.mjs",
     "./transport/flap-harvest": "./src/transport/flap-harvest.mjs",
-    "./worker/connection": "./src/worker/connection.mjs"
+    "./evaluation/hallbergmaths-snap55": "./src/evaluation/hallbergmaths-snap55.mjs",
+    "./worker/connection": "./src/worker/connection.mjs",
+    "./window/product-session": "./src/window/black-product-window-session.mjs",
+    "./window/product-adapter": "./src/window/product-window-adapter.mjs",
+    "./window/settings": "./src/window/black-window-settings.mjs"
   },
   "scripts": {
-    "check": "node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:worker-connection",
+    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:worker-connection && npm run check:product-window-runtime",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -169,6 +173,9 @@
     "check:worker-lifecycle-kit": "node scripts/validate-worker-lifecycle-kit.mjs",
     "check:api-blackhole-proof-envelope": "node scripts/validate-api-blackhole-proof-envelope.mjs",
     "check:flap-harvest": "node scripts/validate-flap-harvest.mjs",
-    "check:worker-connection": "node --test scripts/test-worker-connection.mjs"
+    "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs",
+    "check:self-drive-continuation": "node scripts/validate-self-drive-continuation.mjs",
+    "check:worker-connection": "node --test scripts/test-worker-connection.mjs",
+    "check:product-window-runtime": "node scripts/validate-product-window-runtime.mjs"
   }
 }
