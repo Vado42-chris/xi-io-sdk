@@ -5,7 +5,8 @@ import {
   createProductWindowAdapter, composeProductWindow, mountExecutableProductBody,
   performExecutableProductOperation, persistExecutableProductOperation,
   reopenExecutableProduct, returnExecutableProductToStudio, assertProductSwitchIsolation
-} from '../src/window/product-window-adapter.mjs';
+ } from '../src/window/product-window-adapter.mjs';
+import {createProductWindowHost,PRODUCT_WINDOW_HOST_SCHEMA} from '../src/window/product-window-host.mjs';
 import {
   defaultBlackWindowSettings, saveBlackWindowSettings, validateBlackWindowSettings
 } from '../src/window/black-window-settings.mjs';
@@ -16,7 +17,7 @@ const make=(product='office.document',resource='resource:office:doc')=>createPro
   product_id:product,
   body_id:product,
   body_ref:'Vado42-chris/xi-io-node:src/components/studio/editors/DocumentEditor.jsx',
-  body_generation:'b5b95d75f4f4865e6f116abe6da9d3d0c56ed36c',
+  body_generation:'d28be843d45dd32b9eee5c85e050bf69b1d67788',
   branding:{family:'document',chroma:'office-blue',variant_ref:'window-variant:'+product},
   settings_scope:'settings:'+product,
   domain_actions:['document.open','document.edit','document.save','document.reopen'],
@@ -31,7 +32,7 @@ const composition=composeProductWindow(make(),{session_ref:'session:office',wind
 let sequence=7;
 const bodyPort={
   entry_ref:'src/components/studio/editors/DocumentEditor.jsx',
-  generation:'b5b95d75f4f4865e6f116abe6da9d3d0c56ed36c',
+  generation:'d28be843d45dd32b9eee5c85e050bf69b1d67788',
   async mount({session,context,resource}){
     assert.equal(session.resource.current_version_ref,resource.current_version_ref);
     assert.equal(context.workspace_ref,'workspace:office.document');
@@ -99,6 +100,35 @@ pass('mismatched independent readback stays red');
 const other=composeProductWindow(make('bins.config','resource:bins:config'),{session_ref:'session:bins',window_ref:'window:bins'});
 assert.deepEqual(assertProductSwitchIsolation(composition,other).ok,true); pass('different product composition is context-isolated');
 
+const receiverComposition=composeProductWindow(make('office.receiver','resource:office:receiver'),{session_ref:'session:receiver',window_ref:'window:receiver'});
+let receiverVersion=7;
+const receiverHost=createProductWindowHost({mountTarget:'target:receiver'});
+assert.equal(receiverHost.schema,PRODUCT_WINDOW_HOST_SCHEMA);
+await receiverHost.openComposition({
+  composition:receiverComposition,
+  bodyPort:{
+    entry_ref:'src/components/studio/editors/DocumentEditor.jsx',
+    generation:'d28be843d45dd32b9eee5c85e050bf69b1d67788',
+    async mount(){return {component_ref:this.entry_ref,component_generation:this.generation,mounted:true};},
+    async perform({operation}){receiverVersion+=1;return {operation_ref:'receiver:'+operation+':'+receiverVersion,attempt_ref:'receiver-attempt:'+receiverVersion,working_version_ref:'office:v'+receiverVersion,content_digest:'digest:v'+receiverVersion,kind:'document',name:'Receiver proof',payload:{html:'<p>'+receiverVersion+'</p>'}};}
+  },
+  hostPort:{
+    async save({body_result}){return {outcome:'written_unverified',version_ref:body_result.working_version_ref,content_digest:body_result.content_digest};},
+    async readback({resource_ref}){return {resource_ref,version_ref:'office:v'+receiverVersion,content_digest:'digest:v'+receiverVersion};},
+    async close(){return {closed:true};},
+    async reopen({resource_ref}){return {resource_ref,version_ref:'office:v'+receiverVersion,content_digest:'digest:v'+receiverVersion};},
+    async returnToStudio({session,studio_return_ref}){return {returned:true,product_id:session.product_id,resource_ref:session.resource.resource_ref,workspace_ref:session.context.workspace_ref,principal_ref:session.authority.principal_ref,studio_return_ref};}
+  }
+});
+const receiverSave=await receiverHost.performAndSave({operation:'edit'});
+assert.equal(receiverSave.snapshot.active.session.state,'VERIFIED');
+assert.equal(receiverSave.snapshot.active.session.resource.current_version_ref,'office:v8');
+const receiverOpen=await receiverHost.reopen();
+assert.equal(receiverOpen.reopened.version_ref,'office:v8');
+const receiverReturn=await receiverHost.returnToStudio();
+assert.equal(receiverReturn.result.returned,true);
+pass('canonical product host executes mount save readback reopen and Studio return');
+
 const mem=new Map();
 const storage={getItem:k=>mem.has(k)?mem.get(k):null,setItem:(k,v)=>mem.set(k,v)};
 const base=defaultBlackWindowSettings();
@@ -107,10 +137,10 @@ assert.equal(validateBlackWindowSettings(changed).ok,true);assert.equal(changed.
 pass('window settings persist with exact local readback and authority zero');
 
 const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
-for(const key of ['./window/product-session','./window/settings','./window/product-adapter']) assert.ok(pkg.exports[key],key+' export missing');
+for(const key of ['./window/product-session','./window/settings','./window/product-adapter','./window/product-host']) assert.ok(pkg.exports[key],key+' export missing');
 pass('package exports canonical session settings and product adapter');
 
-assert.equal(passed,10);
+assert.equal(passed,11);
 console.log(JSON.stringify({status:'PASS',denominator:passed,source_studio_pr246:'927045b5682bb5ef17389a990fd164d2c12c8fca',
- source_blobs:{session:'720a4869c92d15c7b78b6ad4b8b519dd9bcd54e7',settings:'97ab9f81610228f04939844ad199ca15dd140247',adapter:'a7ca706e4e14efc51102f4af0da9ad4767903ac6'},
+ source_blobs:{session:'720a4869c92d15c7b78b6ad4b8b519dd9bcd54e7',settings:'97ab9f81610228f04939844ad199ca15dd140247',adapter:'a7ca706e4e14efc51102f4af0da9ad4767903ac6',host:'d4ac5e105a6098369deaf7895b82e536a46df64f',node_document:'d28be843d45dd32b9eee5c85e050bf69b1d67788'},
  authority_granted:false,installed_credit:false}));
