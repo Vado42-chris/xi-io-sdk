@@ -39,6 +39,7 @@ import {
 } from '@xi-io/sdk/worker/connection';
 import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
 import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
+import { PRODUCT_WINDOW_HOST_SCHEMA, createProductWindowHost } from '@xi-io/sdk/window/product-host';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
 
 // External consumer must use the packed public SDK worker, not a private
@@ -47,6 +48,8 @@ assert.equal(WORKER_CONNECTION_SCHEMA, 'xiio.sdk.worker-connection/v1');
 assert.equal(MAX_WORKER_FILE_BYTES, 16384);
 assert.equal(normalizeLocalAgentMessage(' source-only ').state, 'PREVIEW_MESSAGE_VALID');
 assert.equal(normalizeLocalAgentMessage('').state, 'BLOCKED');
+assert.equal(PRODUCT_WINDOW_HOST_SCHEMA, 'xiio.studio.product-window-host/v1');
+assert.equal(typeof createProductWindowHost, 'function');
 assert.throws(() => createSharedWorkerConnection({ ports: {} }), /SDK_WORKER_PORTS_UNBOUND/);
 const inert = createSharedWorkerConnection({ports:{
   readAccount:async()=>null, readInstalledWorker:async()=>null,
