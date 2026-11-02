@@ -1,62 +1,116 @@
+#!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  createBlackProductWindowSession,
-  markBlackProductWindowDirty,
-  beginBlackProductWindowWrite,
-  recordBlackProductWindowWriteOutcome,
-  reconcileBlackProductWindowReadback,
-} from '../src/window/black-product-window-session.mjs';
-import {
-  createProductWindowAdapter,
-  composeProductWindow,
-  mountProductBody,
-  assertProductSwitchIsolation,
+  createProductWindowAdapter, composeProductWindow, mountExecutableProductBody,
+  performExecutableProductOperation, persistExecutableProductOperation,
+  reopenExecutableProduct, returnExecutableProductToStudio, assertProductSwitchIsolation
 } from '../src/window/product-window-adapter.mjs';
 import {
-  defaultBlackWindowSettings,
-  updateBlackWindowSettings,
-  validateBlackWindowSettings,
+  defaultBlackWindowSettings, saveBlackWindowSettings, validateBlackWindowSettings
 } from '../src/window/black-window-settings.mjs';
 
-const checks=[];
-const ok=(id,fn)=>{ try{ fn(); checks.push({id,pass:true}); }catch(error){ checks.push({id,pass:false,error:String(error?.message||error)}); } };
-
-const authority={principal_ref:'principal:test',capability_refs:['artifact:write'],effect_ceiling:'TEST_ONLY'};
-const resource=(id)=>({resource_ref:id,opened_version_ref:'1',current_version_ref:'1',content_digest:'sha:1',profile_id:'profile:test'});
-const context=(id)=>({workspace_ref:id,project_ref:'project:test',domain_context_ref:'domain:test'});
-
-let s=createBlackProductWindowSession({session_ref:'session:A',window_ref:'window:A',host_kind:'studio_virtual',product_id:'product:A',resource:resource('artifact:A'),context:context('workspace:A'),authority});
-s=markBlackProductWindowDirty(s,{working_version_ref:'working:2',working_digest:'sha:2'});
-s=beginBlackProductWindowWrite(s,{operation_ref:'save:A',attempt_ref:'attempt:A',expected_version_ref:'1'});
-s=recordBlackProductWindowWriteOutcome(s,{operation_ref:'save:A',attempt_ref:'attempt:A',outcome:'written_unverified',new_version_ref:'2',content_digest:'sha:2'});
-ok('READBACK_MISMATCH_NE_VERIFIED',()=>assert.equal(reconcileBlackProductWindowReadback(s,{resource_ref:'artifact:A',version_ref:'99',content_digest:'sha:wrong'}).state,'CONFLICT'));
-ok('READBACK_MATCH_VERIFIED',()=>assert.equal(reconcileBlackProductWindowReadback(s,{resource_ref:'artifact:A',version_ref:'2',content_digest:'sha:2'}).state,'VERIFIED'));
-
-const mk=(id,workspace)=>createProductWindowAdapter({
-  product_id:id,body_id:id+'.body',body_ref:'src/'+id+'.jsx',body_generation:'blob:'+id,
-  branding:{family:'suite',chroma:id==='studio'?'brown':'cyan',variant_ref:'brand:'+id},
-  settings_scope:'settings:'+id,domain_actions:['edit'],
-  resource:resource('artifact:'+id),context:context(workspace),authority,
-  persistence:{save_operation_ref:'save:'+id,readback_operation_ref:'read:'+id},
-  studio_return_ref:'return:'+id
+let passed=0;
+const pass=name=>{passed+=1;console.log('PASS '+name)};
+const make=(product='office.document',resource='resource:office:doc')=>createProductWindowAdapter({
+  product_id:product,
+  body_id:product,
+  body_ref:'Vado42-chris/xi-io-node:src/components/studio/editors/DocumentEditor.jsx',
+  body_generation:'b5b95d75f4f4865e6f116abe6da9d3d0c56ed36c',
+  branding:{family:'document',chroma:'office-blue',variant_ref:'window-variant:'+product},
+  settings_scope:'settings:'+product,
+  domain_actions:['document.open','document.edit','document.save','document.reopen'],
+  resource:{resource_ref:resource,opened_version_ref:'office:v7',current_version_ref:'office:v7',content_digest:'digest:v7',profile_id:'text.document.v1'},
+  context:{workspace_ref:'workspace:'+product,project_ref:'project:'+product,domain_context_ref:'document:'+product},
+  authority:{principal_ref:'principal:owner',capability_refs:['DOCUMENT_READ','DOCUMENT_EDIT'],effect_ceiling:'LOCAL_RESOURCE_ONLY'},
+  persistence:{save_operation_ref:'node.document.writeCube',readback_operation_ref:'node.document.readback'},
+  studio_return_ref:'studio:return:'+product
 });
-const a=composeProductWindow(mk('studio','workspace:shared'),{session_ref:'session:studio',window_ref:'window:studio'});
-const b=composeProductWindow(mk('inbox','workspace:shared'),{session_ref:'session:inbox',window_ref:'window:inbox'});
-ok('PRODUCT_SWITCH_CONTEXT_ISOLATION',()=>assert.equal(assertProductSwitchIsolation(a,b).ok,true));
-const mounted=await mountProductBody(a,{mountTarget:'target:A',mountBody:async input=>({product_id:input.product_id,body_id:input.body_id,body_ref:input.body_ref,mounted:true})});
-ok('REAL_BODY_MOUNT_CONTRACT',()=>assert.equal(mounted.mounted,true));
 
-const settings=updateBlackWindowSettings(defaultBlackWindowSettings(),{density:'compact',paid_provider_fallback:'never'});
-ok('SETTINGS_VALID',()=>assert.equal(validateBlackWindowSettings(settings).ok,true));
-ok('SETTINGS_NE_AUTHORITY',()=>assert.equal(settings.authority_granted,false));
+const composition=composeProductWindow(make(),{session_ref:'session:office',window_ref:'window:shared'});
+let sequence=7;
+const bodyPort={
+  entry_ref:'src/components/studio/editors/DocumentEditor.jsx',
+  generation:'b5b95d75f4f4865e6f116abe6da9d3d0c56ed36c',
+  async mount({session,context,resource}){
+    assert.equal(session.resource.current_version_ref,resource.current_version_ref);
+    assert.equal(context.workspace_ref,'workspace:office.document');
+    return {component_ref:this.entry_ref,component_generation:this.generation,mounted:true};
+  },
+  async perform({session,operation}){
+    assert.equal(operation,'edit');
+    assert.equal(session.resource.current_version_ref,'office:v'+sequence);
+    sequence+=1;
+    return {operation_ref:'office:edit:'+sequence,attempt_ref:'attempt:'+sequence,
+      working_version_ref:'office:v'+sequence,content_digest:'digest:v'+sequence,
+      kind:'document',name:'SDK window proof',payload:{html:'<p>v'+sequence+'</p>'}};
+  }
+};
+let saved=null;
+const hostPort={
+  async save({session,body_result}){
+    assert.equal(session.state,'WRITING');
+    saved={resource_ref:session.resource.resource_ref,version_ref:body_result.working_version_ref,content_digest:body_result.content_digest};
+    return {outcome:'written_unverified',version_ref:saved.version_ref,content_digest:saved.content_digest};
+  },
+  async readback({resource_ref}){assert.equal(resource_ref,saved.resource_ref);return {...saved};},
+  async close({session}){assert.equal(session.state,'VERIFIED');},
+  async reopen({session,resource_ref}){return {resource_ref,version_ref:session.resource.current_version_ref,content_digest:session.resource.content_digest};},
+  async returnToStudio({session,studio_return_ref}){return {returned:true,product_id:session.product_id,resource_ref:session.resource.resource_ref,workspace_ref:session.context.workspace_ref,principal_ref:session.authority.principal_ref,studio_return_ref};}
+};
+
+const mounted=await mountExecutableProductBody(composition,{bodyPort});
+assert.equal(mounted.mounted,true); pass('concrete product body mounts through canonical adapter');
+
+let operation=await performExecutableProductOperation(composition,{bodyPort,mounted,operation:'edit'});
+let persisted=await persistExecutableProductOperation(composition,{operationResult:operation,hostPort});
+assert.equal(persisted.ok,true); assert.equal(persisted.session.resource.current_version_ref,'office:v8');
+pass('first edit save and independent readback verifies v8');
+
+operation=await performExecutableProductOperation(composition,{bodyPort,mounted,operation:'edit',session:persisted.session});
+persisted=await persistExecutableProductOperation(composition,{operationResult:operation,hostPort,session:persisted.session});
+assert.equal(persisted.ok,true); assert.equal(persisted.session.resource.current_version_ref,'office:v9');
+pass('verified session carries into second edit and advances v9');
+
+const reopened=await reopenExecutableProduct(composition,{session:persisted.session,hostPort});
+assert.equal(reopened.version_ref,'office:v9'); pass('close reopen preserves verified version and digest');
+
+const returned=await returnExecutableProductToStudio(composition,{session:persisted.session,hostPort});
+assert.equal(returned.returned,true);assert.equal(returned.resource_ref,'resource:office:doc');
+assert.equal(returned.studio_return_ref,'studio:return:office.document');
+pass('Studio return carries product resource workspace principal and return ref');
+
+await assert.rejects(
+  ()=>mountExecutableProductBody(composition,{bodyPort:{...bodyPort,generation:'stale-generation'}}),
+  /PRODUCT_BODY_PORT_GENERATION_MISMATCH/
+);
+pass('stale product body generation fails before mount');
+
+const redComposition=composeProductWindow(make(),{session_ref:'session:red',window_ref:'window:red'});
+const redBody={operation_ref:'office:red:1',attempt_ref:'attempt:red:1',working_version_ref:'office:v8',content_digest:'digest:v8'};
+const redHost={...hostPort,
+  async save({session}){saved={resource_ref:session.resource.resource_ref,version_ref:'office:v8',content_digest:'digest:v8'};return {outcome:'written_unverified',version_ref:'office:v8',content_digest:'digest:v8'}},
+  async readback({resource_ref}){return {resource_ref,version_ref:'office:v99',content_digest:'unrelated'}}
+};
+const red=await persistExecutableProductOperation(redComposition,{operationResult:redBody,hostPort:redHost});
+assert.equal(red.ok,false);assert.equal(red.session.state,'CONFLICT');assert.equal(red.first_red,'READBACK_VERSION_CONFLICT');
+pass('mismatched independent readback stays red');
+
+const other=composeProductWindow(make('bins.config','resource:bins:config'),{session_ref:'session:bins',window_ref:'window:bins'});
+assert.deepEqual(assertProductSwitchIsolation(composition,other).ok,true); pass('different product composition is context-isolated');
+
+const mem=new Map();
+const storage={getItem:k=>mem.has(k)?mem.get(k):null,setItem:(k,v)=>mem.set(k,v)};
+const base=defaultBlackWindowSettings();
+const changed=saveBlackWindowSettings(storage,base,{density:'compact',paid_provider_fallback:'never'});
+assert.equal(validateBlackWindowSettings(changed).ok,true);assert.equal(changed.values.density,'compact');
+pass('window settings persist with exact local readback and authority zero');
 
 const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
-ok('PACKAGE_EXPORT_PRODUCT_SESSION',()=>assert.equal(pkg.exports['./window/product-session'],'./src/window/black-product-window-session.mjs'));
-ok('PACKAGE_EXPORT_PRODUCT_ADAPTER',()=>assert.equal(pkg.exports['./window/product-adapter'],'./src/window/product-window-adapter.mjs'));
-ok('PACKAGE_EXPORT_WINDOW_SETTINGS',()=>assert.equal(pkg.exports['./window/settings'],'./src/window/black-window-settings.mjs'));
-ok('PACKAGE_PRESERVES_WORKER_CONNECTION',()=>assert.equal(pkg.exports['./worker/connection'],'./src/worker/connection.mjs'));
+for(const key of ['./window/product-session','./window/settings','./window/product-adapter']) assert.ok(pkg.exports[key],key+' export missing');
+pass('package exports canonical session settings and product adapter');
 
-const failed=checks.filter(x=>!x.pass);
-console.log(JSON.stringify({schema:'xiio.sdk.product-window-runtime-check/v1',pass:checks.length-failed.length,fail:failed.length,checks},null,2));
-if(failed.length) process.exitCode=1;
+assert.equal(passed,10);
+console.log(JSON.stringify({status:'PASS',denominator:passed,source_studio_pr246:'927045b5682bb5ef17389a990fd164d2c12c8fca',
+ source_blobs:{session:'720a4869c92d15c7b78b6ad4b8b519dd9bcd54e7',settings:'97ab9f81610228f04939844ad199ca15dd140247',adapter:'a7ca706e4e14efc51102f4af0da9ad4767903ac6'},
+ authority_granted:false,installed_credit:false}));

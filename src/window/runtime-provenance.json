@@ -1,0 +1,16 @@
+{
+  "schema": "xiio.sdk.black-product-window-runtime-provenance/v1",
+  "writer_pr": 205,
+  "source_repo": "Vado42-chris/xi-io-studio",
+  "source_pr": 246,
+  "source_head": "86105cd69e9787770aca7d2ffe5f7c372ca2b583",
+  "source_adapter_blob": "a7ca706e4e14efc51102f4af0da9ad4767903ac6",
+  "source_session_blob": "720a4869c92d15c7b78b6ad4b8b519dd9bcd54e7",
+  "source_settings_blob": "97ab9f81610228f04939844ad199ca15dd140247",
+  "supersedes_sdk_adapter_blob": "6b1133fca2af5150b5b3f940c01da298d884b81b",
+  "hard": [
+    "SDK_SOURCE_PASS != NODE_CONSUMPTION",
+    "NODE_CONSUMPTION != INSTALLED_ALPHA",
+    "UI_SAVE_REQUIRES_REAL_WARD_CONTEXT"
+  ]
+}

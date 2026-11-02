@@ -1,4 +1,4 @@
-import {createBlackProductWindowSession,projectBlackProductWindowHost} from './black-product-window-session.mjs';
+import {createBlackProductWindowSession,projectBlackProductWindowHost,markBlackProductWindowDirty,beginBlackProductWindowWrite,recordBlackProductWindowWriteOutcome,reconcileBlackProductWindowReadback} from './black-product-window-session.mjs';
 
 export const PRODUCT_WINDOW_ADAPTER_SCHEMA='xiio.studio.product-window-adapter/v1';
 export const PRODUCT_WINDOW_COMPOSITION_SCHEMA='xiio.studio.product-window-composition/v1';
@@ -6,6 +6,33 @@ export const PRODUCT_WINDOW_COMPOSITION_SCHEMA='xiio.studio.product-window-compo
 const nonempty=(v,k)=>{if(typeof v!=='string'||!v.trim())throw new TypeError(k+'_REQUIRED');return v.trim()};
 const array=(v,k)=>{if(!Array.isArray(v)||v.length===0)throw new TypeError(k+'_REQUIRED');return Object.freeze(v.map(x=>nonempty(String(x),k)))};
 const clone=v=>JSON.parse(JSON.stringify(v));
+const bodyPort=(composition,port)=>{
+  if(composition?.schema!==PRODUCT_WINDOW_COMPOSITION_SCHEMA)throw new TypeError('PRODUCT_WINDOW_COMPOSITION_INVALID');
+  if(!port||typeof port!=='object')throw new TypeError('PRODUCT_BODY_PORT_REQUIRED');
+  if(typeof port.mount!=='function')throw new TypeError('PRODUCT_BODY_MOUNT_PORT_REQUIRED');
+  if(typeof port.perform!=='function')throw new TypeError('PRODUCT_BODY_PERFORM_PORT_REQUIRED');
+  const entry=nonempty(port.entry_ref,'body_port.entry_ref');
+  const generation=nonempty(port.generation,'body_port.generation');
+  if(!composition.body.ref.endsWith(entry))throw new Error('PRODUCT_BODY_PORT_REF_MISMATCH');
+  if(composition.body.generation!==generation)throw new Error('PRODUCT_BODY_PORT_GENERATION_MISMATCH');
+  return port;
+};
+const hostPort=port=>{
+  if(!port||typeof port!=='object')throw new TypeError('PRODUCT_HOST_PORT_REQUIRED');
+  for(const name of ['save','readback','close','reopen','returnToStudio'])if(typeof port[name]!=='function')throw new TypeError('PRODUCT_HOST_'+name.toUpperCase()+'_PORT_REQUIRED');
+  return port;
+};
+const activeSession=(composition,session)=>{
+  const value=session||composition?.session;
+  if(!value||value.product_id!==composition?.adapter?.product_id)throw new Error('PRODUCT_SESSION_IDENTITY_MISMATCH');
+  if(value.context?.workspace_ref!==composition.session.context.workspace_ref)throw new Error('PRODUCT_SESSION_WORKSPACE_MISMATCH');
+  if(value.resource?.resource_ref!==composition.session.resource.resource_ref)throw new Error('PRODUCT_SESSION_RESOURCE_MISMATCH');
+  return value;
+};
+const mountedIdentity=(composition,mounted)=>{
+  if(!mounted||mounted.product_id!==composition.adapter.product_id||mounted.body_id!==composition.body.id||mounted.body_ref!==composition.body.ref||mounted.mounted!==true)throw new Error('PRODUCT_BODY_MOUNT_IDENTITY_REQUIRED');
+  return mounted;
+};
 
 export function createProductWindowAdapter(input={}){
   const resource=input.resource||{},context=input.context||{},authority=input.authority||{},persistence=input.persistence||{},branding=input.branding||{};
@@ -75,6 +102,93 @@ export async function mountProductBody(composition,{mountBody,mountTarget}){
   }));
   if(!result||result.product_id!==composition.adapter.product_id||result.body_id!==composition.body.id||result.body_ref!==composition.body.ref)throw new Error('PRODUCT_BODY_MOUNT_READBACK_MISMATCH');
   return Object.freeze(result);
+}
+
+export async function mountExecutableProductBody(composition,{bodyPort:port,mountTarget=null,shell=null,session=null}={}){
+  const executable=bodyPort(composition,port);
+  const current=activeSession(composition,session);
+  const mounted=await executable.mount(Object.freeze({
+    shell,mountTarget,session:current,context:current.context,resource:current.resource,
+    permissions:current.authority,
+    tokens:Object.freeze({branding:composition.adapter.branding,settings_scope:composition.settings_scope,domain_actions:composition.adapter.domain_actions})
+  }));
+  if(!mounted||mounted.component_ref!==executable.entry_ref)throw new Error('PRODUCT_BODY_EXECUTABLE_MOUNT_READBACK_MISMATCH');
+  if(mounted.component_generation!=null&&mounted.component_generation!==executable.generation)throw new Error('PRODUCT_BODY_EXECUTABLE_GENERATION_READBACK_MISMATCH');
+  return Object.freeze({
+    product_id:composition.adapter.product_id,body_id:composition.body.id,body_ref:composition.body.ref,
+    component_ref:executable.entry_ref,component_generation:executable.generation,mounted:true,readback:mounted
+  });
+}
+
+export async function performExecutableProductOperation(composition,{bodyPort:port,mounted,operation,args={},mapping=null,session=null}={}){
+  const executable=bodyPort(composition,port);
+  mountedIdentity(composition,mounted);
+  const current=activeSession(composition,session);
+  const result=await executable.perform(Object.freeze({
+    operation:nonempty(operation,'operation'),args,mapping,session:current,resource:current.resource
+  }));
+  if(!result||typeof result.operation_ref!=='string'||!result.operation_ref.trim())throw new Error('PRODUCT_OPERATION_REF_REQUIRED');
+  if(typeof result.attempt_ref!=='string'||!result.attempt_ref.trim())throw new Error('PRODUCT_ATTEMPT_REF_REQUIRED');
+  if(result.working_version_ref==null)throw new Error('PRODUCT_WORKING_VERSION_REQUIRED');
+  if(typeof result.content_digest!=='string'||!result.content_digest.trim())throw new Error('PRODUCT_CONTENT_DIGEST_REQUIRED');
+  return Object.freeze({...result});
+}
+
+export async function persistExecutableProductOperation(composition,{operationResult,hostPort:port,session=null}={}){
+  if(composition?.schema!==PRODUCT_WINDOW_COMPOSITION_SCHEMA)throw new TypeError('PRODUCT_WINDOW_COMPOSITION_INVALID');
+  const host=hostPort(port);
+  const current=activeSession(composition,session);
+  if(!operationResult||typeof operationResult!=='object')throw new TypeError('PRODUCT_OPERATION_RESULT_REQUIRED');
+  const operation_ref=nonempty(operationResult.operation_ref,'operation_ref');
+  const attempt_ref=nonempty(operationResult.attempt_ref,'attempt_ref');
+  const working_version_ref=nonempty(String(operationResult.working_version_ref),'working_version_ref');
+  const content_digest=nonempty(operationResult.content_digest,'content_digest');
+  let nextSession=markBlackProductWindowDirty(current,{working_version_ref,working_digest:content_digest});
+  nextSession=beginBlackProductWindowWrite(nextSession,{operation_ref,attempt_ref,expected_version_ref:current.resource.current_version_ref});
+  if(nextSession.state==='CONFLICT')return Object.freeze({ok:false,session:nextSession,write:null,readback:null,first_red:nextSession.last_error});
+  let write;
+  try{
+    write=await host.save({session:nextSession,body_result:operationResult});
+  }catch(error){
+    nextSession=recordBlackProductWindowWriteOutcome(nextSession,{operation_ref,attempt_ref,outcome:'outcome_unknown',error:String(error?.message||error)});
+    return Object.freeze({ok:false,session:nextSession,write:null,readback:null,first_red:nextSession.last_error});
+  }
+  const outcome=write?.outcome;
+  if(!['verified','written_unverified','failed_no_effect','outcome_unknown'].includes(outcome))throw new Error('PRODUCT_HOST_WRITE_OUTCOME_INVALID');
+  nextSession=recordBlackProductWindowWriteOutcome(nextSession,{
+    operation_ref,attempt_ref,outcome,new_version_ref:write?.version_ref??null,content_digest:write?.content_digest??null,error:write?.error??null
+  });
+  if(nextSession.state!=='WRITTEN_UNVERIFIED')return Object.freeze({ok:false,session:nextSession,write,readback:null,first_red:nextSession.last_error});
+  let readback;
+  try{
+    readback=await host.readback({resource_ref:nextSession.resource.resource_ref});
+  }catch(error){
+    return Object.freeze({ok:false,session:nextSession,write,readback:null,first_red:String(error?.message||error)});
+  }
+  try{
+    nextSession=reconcileBlackProductWindowReadback(nextSession,readback);
+  }catch(error){
+    return Object.freeze({ok:false,session:nextSession,write,readback,first_red:String(error?.message||error)});
+  }
+  return Object.freeze({ok:nextSession.state==='VERIFIED',session:nextSession,write,readback,first_red:nextSession.state==='VERIFIED'?null:nextSession.last_error});
+}
+
+export async function reopenExecutableProduct(composition,{session,hostPort:port}={}){
+  if(composition?.schema!==PRODUCT_WINDOW_COMPOSITION_SCHEMA)throw new TypeError('PRODUCT_WINDOW_COMPOSITION_INVALID');
+  if(session?.state!=='VERIFIED')throw new Error('PRODUCT_REOPEN_REQUIRES_VERIFIED_SESSION');
+  const host=hostPort(port);
+  await host.close({session});
+  const reopened=await host.reopen({session,resource_ref:session.resource.resource_ref});
+  if(!reopened||reopened.resource_ref!==session.resource.resource_ref)throw new Error('PRODUCT_REOPEN_RESOURCE_MISMATCH');
+  if(reopened.version_ref!==session.resource.current_version_ref)throw new Error('PRODUCT_REOPEN_VERSION_MISMATCH');
+  if(reopened.content_digest!==session.resource.content_digest)throw new Error('PRODUCT_REOPEN_DIGEST_MISMATCH');
+  return Object.freeze({...reopened});
+}
+
+export async function returnExecutableProductToStudio(composition,{session,hostPort:port}={}){
+  if(composition?.schema!==PRODUCT_WINDOW_COMPOSITION_SCHEMA)throw new TypeError('PRODUCT_WINDOW_COMPOSITION_INVALID');
+  if(session?.state!=='VERIFIED')throw new Error('PRODUCT_RETURN_REQUIRES_VERIFIED_SESSION');
+  return hostPort(port).returnToStudio({session,studio_return_ref:composition.studio_return_ref});
 }
 
 export function projectProductHost(composition,{host_kind,window_ref}){
