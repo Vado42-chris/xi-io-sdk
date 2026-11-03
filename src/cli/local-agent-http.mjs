@@ -161,8 +161,27 @@ async function serveUi(res, uiDir, pathname) {
  * a timed-out turn may still be talking to the model, and starting a second
  * one beside it would be two turns at once, which this door never allows.
  */
-export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir = null, turnTimeoutMs = TURN_TIMEOUT_MS, requestTimeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+export function startLocalAgentServer({
+  port = 3109,
+  handleTurn,
+  status,
+  uiDir = null,
+  turnTimeoutMs = TURN_TIMEOUT_MS,
+  requestTimeoutMs = REQUEST_TIMEOUT_MS,
+  observeInstalledGeneration = readInstalledSdkGeneration,
+} = {}) {
   if (typeof handleTurn !== 'function' || typeof status !== 'function') throw new Error('LOCAL_AGENT_HANDLERS_REQUIRED');
+  if (typeof observeInstalledGeneration !== 'function') throw new Error('INSTALLED_GENERATION_OBSERVER_REQUIRED');
+  const installedGeneration = () => {
+    try {
+      const observed = observeInstalledGeneration();
+      return observed && typeof observed === 'object'
+        ? observed
+        : { ok: false, first_red: 'INSTALLED_GENERATION_OBSERVER_INVALID' };
+    } catch {
+      return { ok: false, first_red: 'INSTALLED_GENERATION_OBSERVER_FAILED' };
+    }
+  };
   let busy = false;
   const server = http.createServer(async (req, res) => {
     const bound = server.address()?.port ?? port;
@@ -172,7 +191,7 @@ export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir =
       if (admission.route === 'status') {
         const observed = await status();
         const modelReady = observed?.ollama_state === 'READY_MODEL_PRESENT';
-        const generation = readInstalledSdkGeneration();
+        const generation = installedGeneration();
         const installedOk = generation.ok === true;
         const runtimeOk = modelReady && installedOk;
         const firstRed = !installedOk
@@ -196,6 +215,21 @@ export function startLocalAgentServer({ port = 3109, handleTurn, status, uiDir =
         });
       }
       if (admission.route === 'ui') return serveUi(res, uiDir, admission.pathname);
+      /* A loopback socket is not an installed-runtime proof. Status and static UI
+         stay readable for diagnosis, but a turn must not reach the agent from a
+         stale/uninstalled checkout. Tool-level lifecycle admission still gates
+         individual effects after this runtime-identity boundary passes. */
+      const generation = installedGeneration();
+      if (!generation.ok) {
+        return send(res, 503, {
+          schema: LOCAL_AGENT_HTTP_SCHEMA,
+          state: 'BLOCKED',
+          reason: 'INSTALLED_GENERATION_REQUIRED',
+          first_red: generation.first_red || 'INSTALLED_GENERATION_UNVERIFIED',
+          provider_effect: false,
+          authority_granted: false,
+        });
+      }
       if (busy) return send(res, 409, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BUSY', reason: 'ONE_TURN_AT_A_TIME' });
       const raw = await readBody(req);
       let message;
