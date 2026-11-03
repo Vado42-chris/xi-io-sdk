@@ -321,6 +321,18 @@ await assert.rejects(runWorkerLifecycleAttempt({
   assert.equal(effects,0);
 }
 
+
+const sharedConnection=await import('../src/worker/connection.mjs');
+const lifecycleModule=await import('../src/worker/lifecycle.mjs');
+assert.equal(lifecycleModule.createSharedWorkerConnection,sharedConnection.createSharedWorkerConnection,
+  'SDK205_CONNECTION_MUST_REUSE_ONE_WORKER_OWNER');
+assert.equal(lifecycleModule.runWorkerLifecycleAttempt,runWorkerLifecycleAttempt,
+  'SDK204_PHASE_ENGINE_MUST_USE_ONE_SDK_EXPORT');
+assert.equal(pkg.exports['./worker/lifecycle'],'./src/worker/lifecycle.mjs');
+assert.equal(pkg.exports['./worker/connection'],'./src/worker/connection.mjs');
+assert.equal(compileWorkerAdapterConformance(conforming()).runtime_complete,false);
+assert.equal(compileWorkerAdapterConformance(conforming()).release_eligible,false);
+
 console.log(JSON.stringify({
   state:'PASS',
   schema:catalog.schema,

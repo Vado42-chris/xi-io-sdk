@@ -1,0 +1,32 @@
+name: SDK shared worker connection source qualification
+on:
+  pull_request:
+    paths:
+      - 'src/worker/connection.mjs'
+      - 'src/worker/lifecycle.mjs'
+      - 'src/identity/account-binding.mjs'
+      - 'scripts/test-worker-connection.mjs'
+      - 'package.json'
+      - '.github/workflows/shared-worker-connection.yml'
+permissions:
+  contents: read
+jobs:
+  source-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: SDK exact shared module and contract
+        run: |
+          node --check src/worker/connection.mjs
+          node --check src/worker/lifecycle.mjs
+          node --test scripts/test-worker-connection.mjs
+          node scripts/validate-worker-lifecycle-kit.mjs
+      - name: State physical authority boundary
+        run: |
+          echo 'SDK_SOURCE_QUALIFIED_ONLY'
+          echo 'WARD_PRODUCTION_PORTS_NOT_BOUND'
+          echo 'NO_HOST_EFFECT'
