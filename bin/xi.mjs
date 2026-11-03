@@ -20,6 +20,7 @@ import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileFlatpackContinuationPlan } from '../src/cadence/flatpack-continuation.mjs';
 import { compileMiniPromptStack, applyMiniPromptReceipt } from '../src/cadence/mini-prompt-stack.mjs';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
+import { compileLocalAgentServiceUnit } from '../src/install/local-agent-service.mjs';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
@@ -456,24 +457,12 @@ function installLocalCli() {
   let localAgentStatus=null;
   if(process.platform==='linux'){
     fs.mkdirSync(serviceDir,{recursive:true});
-    const systemdQuote=value=>'"'+String(value).replaceAll('\\','\\\\').replaceAll('"','\\"')+'"';
-    const service=[
-      '[Unit]',
-      'Description=XI-IO local CLI agent API',
-      'After=network.target',
-      '',
-      '[Service]',
-      'Type=simple',
-      'WorkingDirectory='+systemdQuote(workspaceDir),
-      'ExecStart='+systemdQuote(process.execPath)+' '+systemdQuote(path.join(root,'bin','xi-local-agent.mjs'))+' --serve --execute',
-      'Restart=on-failure',
-      'RestartSec=2',
-      '',
-      '[Install]',
-      'WantedBy=default.target',
-      '',
-    ].join('\n');
-    fs.writeFileSync(serviceFile,service,{encoding:'utf8',mode:0o600});
+    const serviceSpec=compileLocalAgentServiceUnit({
+      node_path:process.execPath,
+      sdk_root:root,
+      workspace_dir:workspaceDir,
+    });
+    fs.writeFileSync(serviceFile,serviceSpec.content,{encoding:'utf8',mode:0o600});
     localAgentServiceState='UNIT_WRITTEN';
     const reload=spawnSync('systemctl',['--user','daemon-reload'],{encoding:'utf8',timeout:10000});
     if(reload.status===0){
