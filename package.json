@@ -7,7 +7,8 @@
     "xi": "./bin/xi.mjs",
     "xi-io": "./bin/xi.mjs",
     "xiio": "./bin/xi.mjs",
-    "xi-zed-mcp": "./bin/xi-zed-mcp.mjs"
+    "xi-zed-mcp": "./bin/xi-zed-mcp.mjs",
+    "xi-zed-mcp-products": "./bin/xi-zed-mcp-products.mjs"
   },
   "exports": {
     "./components": "./src/components/core.mjs",

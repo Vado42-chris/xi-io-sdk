@@ -50,6 +50,41 @@ Zed UI: Settings → AI → MCP Servers must show `xiio-inbox` active. Use Zed's
 - `xiio_agent_mail_list`: metadata-only read of an `agent+...@xi-io.net` mailbox. Message subject/body/card are explicitly not returned.
 - `xiio_agent_mail_qualify`: forward exact consumer/generation/observer to existing Inbox qualification API. **No execution, delivery, Ward admission or Level 9 credit**.
 
+## Desktop / Articles / Publisher MCP (separate server)
+
+Inbox MCP is **not** the estate product surface. After the Desktop / Articles / Publisher product split, Zed also needs a **separate** MCP server so models stop treating missing product tools as silence or inventing aliases.
+
+```sh
+node scripts/check-zed-products-mcp.mjs
+xi-zed-mcp-products
+```
+
+Register alongside Inbox (do not fold product tools into `xiio-inbox-zed`):
+
+```json
+{
+  "context_servers": {
+    "xiio-products": {
+      "command": "xi-zed-mcp-products",
+      "args": [],
+      "env": {
+        "XIIO_DESKTOP_LOOPBACK_URL": "http://127.0.0.1:5174/Console",
+        "XIIO_ARTICLES_LOOPBACK_URL": "http://127.0.0.1:8870/estate/v1/catalog",
+        "XIIO_PUBLISHER_LOOPBACK_URL": "http://127.0.0.1:8870/estate/v1/runtime"
+      }
+    }
+  }
+}
+```
+
+Tools (read-only, effect ceiling zero):
+- `xiio_product_split_status`
+- `xiio_desktop_health`
+- `xiio_articles_health`
+- `xiio_publisher_health`
+
+Hard: `THREE_INBOX_TOOLS!=ESTATE_MCP_SURFACE` · `HTTP_200!=PRODUCT_LIVE` · `ASSISTANT_CONFORMANCE_BLOCKED!=ALWAYS_THIS_GAP` · ACP external agents may still not forward MCP — prove forwarding separately. Bound loopback ≠ Empire OS cloud-desktop PASS.
+
 ## Four upstream force multiplier qualifications
 
 | Source | Actual contract | Zed path | XI-IO owner | First hostile |
