@@ -1,0 +1,233 @@
+{
+  "schema": "xiio.product-window-lineup-stamp/v1",
+  "recorded_at": "2026-11-03",
+  "owner": "@xi-io/sdk",
+  "status": "SOURCE_STAMPED",
+  "source_contract": "xiio.product-window-contract/v1",
+  "template": "SAM_LAW_WHITE_LABEL_INTERMEDIARY",
+  "native_host": "HEX",
+  "common_frame": {
+    "frame_owner": "Vado42-chris/xi-io-node:src/components/desktop/WindowFrame.jsx",
+    "settings": [
+      "BLACK_LEVEL"
+    ],
+    "controls": [
+      "MINIMIZE",
+      "MAXIMIZE_RESTORE",
+      "CLOSE"
+    ],
+    "app_settings": "INSIDE_PRODUCT_BODY"
+  },
+  "intermediary": {
+    "required": [
+      "PRODUCT_IDENTITY",
+      "PROJECT_MANAGER",
+      "CHAT",
+      "RECENT_OR_CURRENT_PROJECT",
+      "PRODUCT_LAUNCH_STATE"
+    ],
+    "next": "MOUNT_PRODUCT_BODY"
+  },
+  "surfaces": [
+    "LOCAL_LINUX",
+    "EMPIRE_OS"
+  ],
+  "products": [
+    {
+      "product_ref": "xi-io:desktop",
+      "label": "xi-io: desktop",
+      "family": "SYSTEM",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:ibal",
+      "label": "xi-io: ibal",
+      "family": "AI_CONDUCTOR",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:switchboard",
+      "label": "xi-io: Switchboard",
+      "family": "CONTROL_PLANE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:movie-time",
+      "label": "xi-io: movie time",
+      "family": "MEDIA",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:hex",
+      "label": "xi-io: hex",
+      "family": "SYSTEM",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:repo-reaper",
+      "label": "xi-io: repo reaper",
+      "family": "DEVELOPER_TOOL",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:wordpress",
+      "label": "xi-io: wordpress",
+      "family": "PUBLISHING",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:ward",
+      "label": "xi-io: Ward",
+      "family": "SECURITY",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:inbox",
+      "label": "xi-io: inbox",
+      "family": "COMMUNICATIONS",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:bins",
+      "label": "xi-io: bins",
+      "family": "KNOWLEDGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:cadence",
+      "label": "xi-io: Cadence",
+      "family": "WORK",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:benchmark",
+      "label": "xi-io: benchmark",
+      "family": "QUALITY",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:publisher",
+      "label": "xi-io: publisher",
+      "family": "PUBLISHING",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:dataforge",
+      "label": "xi-io: dataforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:photoforge",
+      "label": "xi-io: photoforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:vectorforge",
+      "label": "xi-io: vectorforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:filmforge",
+      "label": "xi-io: filmforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:lightforge",
+      "label": "xi-io: lightforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:pdfforge",
+      "label": "xi-io: pdfforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:effectforge",
+      "label": "xi-io: effectforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:designeforge",
+      "label": "xi-io: designeforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:wordforge",
+      "label": "xi-io: wordforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:soundforge",
+      "label": "xi-io: soundforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:gridforge",
+      "label": "xi-io: gridforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:deckforge",
+      "label": "xi-io: deckforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:cadforge",
+      "label": "xi-io: cadforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:txtureforge",
+      "label": "xi-io: txtureforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:solidforge",
+      "label": "xi-io: solidforge",
+      "family": "FORGE",
+      "lifecycle": "EXISTING_PRODUCT"
+    },
+    {
+      "product_ref": "xi-io:dev_forge",
+      "label": "xi-io: Dev_forge",
+      "family": "FORGE_SYSTEM",
+      "lifecycle": "STARTED_NOT_FINISHED"
+    }
+  ],
+  "dev_forge": {
+    "forge_anything": "ABSORBED_INTO_DEV_FORGE",
+    "combines": [
+      "xi-io:Dev_forge",
+      "xi-io:ibal",
+      "@xi-io/sdk",
+      "xi-io:cli"
+    ],
+    "purpose": "TROUBLESHOOT_BUILD_INSPECT_REPAIR_PRODUCT_LINE"
+  },
+  "hard": [
+    "ONE_PRODUCT_IDENTITY_PER_PRODUCT",
+    "ONE_SHARED_WINDOW_CONTRACT",
+    "BLACK_LEVEL_IS_FRAME_SETTING",
+    "PRODUCT_SETTINGS_STAY_IN_PRODUCT_BODY",
+    "PROJECT_MANAGEMENT_REQUIRED",
+    "CHAT_REQUIRED",
+    "INTERMEDIARY_REQUIRED_BEFORE_PRODUCT_BODY",
+    "LOCAL_LINUX_AND_EMPIRE_OS_SHARE_PRODUCT_IDENTITY",
+    "SURFACE_SWITCH_DOES_NOT_MINT_NEW_PRODUCT",
+    "DEV_FORGE_IS_COMBINED_TROUBLESHOOTING_SURFACE"
+  ]
+}
