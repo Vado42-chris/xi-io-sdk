@@ -94,7 +94,11 @@
     "./evaluation/api-blackhole-proof-envelope": "./src/evaluation/api-blackhole-proof-envelope.mjs",
     "./transport/flap-harvest": "./src/transport/flap-harvest.mjs",
     "./evaluation/hallbergmaths-snap55": "./src/evaluation/hallbergmaths-snap55.mjs",
-    "./install/local-agent-service": "./src/install/local-agent-service.mjs"
+    "./install/local-agent-service": "./src/install/local-agent-service.mjs",
+    "./product-window/registry": "./src/product-window/registry.mjs",
+    "./product-window/contract": "./src/product-window/contract.mjs",
+    "./product-window/intermediary": "./src/product-window/intermediary.mjs",
+    "./styles/product-window.css": "./src/styles/product-window.css"
   },
   "scripts": {
     "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit",
@@ -172,6 +176,7 @@
     "check:flap-harvest": "node scripts/validate-flap-harvest.mjs",
     "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs",
     "check:self-drive-continuation": "node scripts/validate-self-drive-continuation.mjs",
-    "check:local-agent-service": "node --test test/local-agent-service.test.mjs"
+    "check:local-agent-service": "node --test test/local-agent-service.test.mjs",
+    "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs"
   }
 }
