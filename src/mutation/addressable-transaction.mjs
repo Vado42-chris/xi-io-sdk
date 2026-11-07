@@ -87,12 +87,16 @@ export function compileAddressableTransaction(input={}){
   const selection=compileImmutableSelection(input.selection||{});
   const expected_revision=required(input.expected_revision??selection.revision,'EXPECTED_REVISION');
   const expected_generation=required(input.expected_generation??selection.source_generation,'EXPECTED_GENERATION');
+  const expected_post_revision=required(input.expected_post_revision,'EXPECTED_POST_REVISION');
+  const expected_post_generation=required(input.expected_post_generation,'EXPECTED_POST_GENERATION');
   return Object.freeze({
     schema:ADDRESSABLE_TRANSACTION_SCHEMA,
     transaction_ref:required(input.transaction_ref,'TRANSACTION_REF'),
     selection,
     expected_revision,
     expected_generation,
+    expected_post_revision,
+    expected_post_generation,
     dirty_buffer_ref:optional(input.dirty_buffer_ref),
     admitted_effect_ref:optional(input.admitted_effect_ref),
     assignment_ref:optional(input.assignment_ref),
@@ -130,7 +134,12 @@ export function reduceAddressableTransaction(plan,observation={}){
   const writeAttempted=observation.write_attempted===true;
   const writeAccepted=observation.write_accepted===true;
   const readbackIndependent=observation.readback_independent===true;
-  const readbackSelection=compareImmutableSelection(plan.selection,observation.readback_selection||{});
+  const expectedPostSelection=Object.freeze({
+    ...plan.selection,
+    revision:plan.expected_post_revision,
+    source_generation:plan.expected_post_generation,
+  });
+  const readbackSelection=compareImmutableSelection(expectedPostSelection,observation.readback_selection||{});
   const readbackMatch=readbackIndependent&&readbackSelection.match&&observation.readback_matches_intended===true;
   const rollbackRequired=writeAccepted&&!readbackMatch;
   const rollbackVerified=rollbackRequired?observation.rollback_verified===true:true;
