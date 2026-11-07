@@ -55,13 +55,15 @@ export function reduceRevisionRead(selection,observation={}){
   const requested=required(selection?.revision,'REQUESTED_REVISION');
   const state=String(observation.state??'').trim().toUpperCase();
   if(state==='UNAVAILABLE'){
+    const identity=compareImmutableSelection(selection,{...observation,revision:requested});
     return Object.freeze({
       schema:'xiio.revision-read-result/v1',
-      state:'UNAVAILABLE',
+      state:identity.match?'UNAVAILABLE':'REFUSED',
       requested_revision:requested,
       returned_revision:null,
       current_substitution:false,
-      first_red:'REQUESTED_REVISION_UNAVAILABLE',
+      selection_match:identity.match,
+      first_red:identity.match?'REQUESTED_REVISION_UNAVAILABLE':identity.first_red,
       authority_granted:false,
       provider_effect:false,
     });
