@@ -28,6 +28,8 @@ const plan=()=>compileAddressableTransaction({
   ward_admission_ref:'ward:one',
   lease_ref:'lease:one',
   typed_ack_ref:'ack:one',
+  expected_post_revision:'3',
+  expected_post_generation:'source:g2',
 });
 const baseObservation=()=>({
   selection:selection(),
@@ -38,7 +40,7 @@ const baseObservation=()=>({
   write_attempted:true,
   write_accepted:true,
   readback_independent:true,
-  readback_selection:selection(),
+  readback_selection:{...selection(),revision:'3',source_generation:'source:g2'},
   readback_matches_intended:true,
   return_ref:'return:one',
   apply_return_ref:'apply:return:one',
@@ -85,7 +87,12 @@ test('CAS rejects revision or generation drift',()=>{
 });
 
 test('missing admitted effect evidence cannot reach write pass',()=>{
-  const p=compileAddressableTransaction({transaction_ref:'tx:no-ack',selection:selection()});
+  const p=compileAddressableTransaction({
+    transaction_ref:'tx:no-ack',
+    selection:selection(),
+    expected_post_revision:'3',
+    expected_post_generation:'source:g2',
+  });
   const result=reduceAddressableTransaction(p,{...baseObservation(),write_attempted:false,write_accepted:false});
   assert.equal(result.first_red,'ADMITTED_EFFECT_EVIDENCE_INCOMPLETE');
 });
@@ -139,4 +146,22 @@ test('exact full lifecycle passes without granting authority',()=>{
   assert.equal(result.effect_authority,0);
   assert.equal(result.authority_granted,false);
   assert.equal(result.provider_effect,false);
+});
+
+test('successful version advance validates expected postimage rather than preimage revision',()=>{
+  const result=reduceAddressableTransaction(plan(),baseObservation());
+  assert.equal(result.state,'PASS');
+  assert.equal(result.readback_match,true);
+});
+
+test('wrong postimage revision or generation is readback drift and requires rollback',()=>{
+  for(const patch of [
+    {readback_selection:{...selection(),revision:'4',source_generation:'source:g2'}},
+    {readback_selection:{...selection(),revision:'3',source_generation:'source:g3'}},
+  ]){
+    const result=reduceAddressableTransaction(plan(),{...baseObservation(),...patch,rollback_verified:false});
+    assert.equal(result.state,'OPEN');
+    assert.equal(result.rollback_required,true);
+    assert.match(result.first_red,/SELECTION_DRIFT_(REVISION|SOURCE_GENERATION)/);
+  }
 });
