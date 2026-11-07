@@ -63,9 +63,12 @@ test('historical read is exact or unavailable, never current substitution',()=>{
   const substituted=reduceRevisionRead(expected,{...selection(),revision:'49',state:'FOUND'});
   assert.equal(substituted.state,'REFUSED');
   assert.equal(substituted.first_red,'CURRENT_REVISION_SUBSTITUTION_FORBIDDEN');
-  const unavailable=reduceRevisionRead(expected,{state:'UNAVAILABLE'});
+  const unavailable=reduceRevisionRead(expected,{...selection(),state:'UNAVAILABLE'});
   assert.equal(unavailable.state,'UNAVAILABLE');
   assert.equal(unavailable.returned_revision,null);
+  const wrongMatterUnavailable=reduceRevisionRead(expected,{...selection(),matter_ref:'matter:other',state:'UNAVAILABLE'});
+  assert.equal(wrongMatterUnavailable.state,'REFUSED');
+  assert.equal(wrongMatterUnavailable.first_red,'SELECTION_DRIFT_MATTER_REF');
 });
 
 test('dirty unsaved buffer blocks mutation before write',()=>{
