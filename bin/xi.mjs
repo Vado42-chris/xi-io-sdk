@@ -472,13 +472,16 @@ function installLocalCli() {
         localAgentServiceActive=active.status===0&&String(active.stdout||'').trim()==='active';
         localAgentServiceState=localAgentServiceActive?'ACTIVE':'START_FAILED';
         if(localAgentServiceActive){
+          const readinessModule=pathToFileURL(path.join(root,'src','install','local-agent-service.mjs')).href;
           const statusProbe=spawnSync(process.execPath,['-e',
-            "fetch('http://127.0.0.1:3109/v1/status',{signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();if(r.status!==200)process.exit(2);process.stdout.write(JSON.stringify(j));}).catch(()=>process.exit(3));"
-          ],{encoding:'utf8',timeout:6000});
+            `import(${JSON.stringify(readinessModule)}).then(m=>m.waitForLocalAgentServiceStatus()).then(r=>process.stdout.write(JSON.stringify(r))).catch(()=>process.exit(3));`
+          ],{encoding:'utf8',timeout:12000});
           if(statusProbe.status===0){
             try{
-              localAgentStatus=JSON.parse(String(statusProbe.stdout||'{}'));
-              localAgentStatusReadback=localAgentStatus?.schema==='xiio.cli.local-agent-http/v1'&&localAgentStatus?.service_listener_observed===true;
+              const readiness=JSON.parse(String(statusProbe.stdout||'{}'));
+              localAgentStatus=readiness.status;
+              localAgentStatusReadback=readiness.status_readback===true
+                &&localAgentStatus?.schema==='xiio.cli.local-agent-http/v1'&&localAgentStatus?.service_listener_observed===true;
             }catch{}
           }
           localAgentServiceState=localAgentStatusReadback?'ACTIVE_STATUS_VERIFIED':'ACTIVE_STATUS_UNVERIFIED';

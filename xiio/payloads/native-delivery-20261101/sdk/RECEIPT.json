@@ -1,0 +1,82 @@
+{
+  "schema": "xiio.portable-sdk-source-replay/v1",
+  "state": "PASS",
+  "repository": "Vado42-chris/xi-io-sdk",
+  "base_ref": "61df653e589422fc626af185f74436a8649bad65",
+  "donor_ref": "07f1ff319e1694057fd8b502d1f96080e90306aa",
+  "node_version": "v24.22.1",
+  "exact_source_and_patch_hashes_verified": true,
+  "clean_patch_apply": true,
+  "accepted_package_fields_and_gates_preserved": true,
+  "fail_first": "Accepted main ERR_PACKAGE_PATH_NOT_EXPORTED: worker/connection",
+  "connection_owner_tests": {
+    "tests": 54,
+    "pass": 54,
+    "fail": 0
+  },
+  "accepted_lifecycle": {
+    "state": "PASS",
+    "schema": "xiio.sdk.worker-lifecycle-kit/v1",
+    "registered_primitive": "worker-lifecycle-kit",
+    "denominator": 15,
+    "bounded_selection_cases": 13,
+    "available": 11,
+    "gaps": 4,
+    "tool_projection": 0,
+    "authority_granted": false,
+    "provider_effect": false
+  },
+  "accepted_babysit": {
+    "status": "PASS",
+    "cases": 13,
+    "ten_consecutive_runs": true,
+    "ten_increment_babysit": true,
+    "host_continue_is_executed": true,
+    "allowed_stops": [
+      "TRUE_WAIT",
+      "OWNER_ONLY",
+      "TERMINAL"
+    ],
+    "effects": 0
+  },
+  "accepted_self_drive": {
+    "status": "PASS",
+    "cases": 15,
+    "effects": 0,
+    "owner_heartbeat_for_machine_next": "FAIL_CURRENT",
+    "allowed_stops": [
+      "TRUE_WAIT",
+      "OWNER_ONLY",
+      "TERMINAL"
+    ],
+    "blocked_provider_root_stop": false,
+    "result_loop_exit": false
+  },
+  "public_export_join": {
+    "schema": "xiio.sdk.current-main-closure-proof/v1",
+    "state": "PASS",
+    "public_exports": [
+      "@xi-io/sdk/worker/connection",
+      "@xi-io/sdk/worker/lifecycle",
+      "@xi-io/sdk/cadence/babysit"
+    ],
+    "no_ports": "SDK_WORKER_PORTS_UNBOUND",
+    "unqualified_status": "SDK_LOCAL_AGENT_NOT_QUALIFIED",
+    "source_only": true,
+    "installed": false,
+    "authority_granted": false,
+    "provider_effect": false
+  },
+  "source_only": true,
+  "full_upstream_tree": false,
+  "accepted_generation": false,
+  "installed": false,
+  "authority_granted": false,
+  "provider_effect": false,
+  "remaining": [
+    "Existing SDK owner adoption and accepted source-generation pin",
+    "Full SDK checks/archive qualification and full CLI/Ibal/Zed affected consumer qualification",
+    "Installed Ward/session/BINS/Switchboard ports and independent real worker readback"
+  ],
+  "fixture_removed": true
+}

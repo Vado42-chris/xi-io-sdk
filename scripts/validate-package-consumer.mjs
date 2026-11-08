@@ -33,8 +33,13 @@ import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
 import { compileFlapHarvest } from '@xi-io/sdk/transport/flap-harvest';
+import {
+  createSharedWorkerConnection, normalizeLocalAgentMessage,
+  MAX_WORKER_FILE_BYTES, WORKER_CONNECTION_SCHEMA
+} from '@xi-io/sdk/worker/connection';
 import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
 import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
+import { PRODUCT_WINDOW_HOST_SCHEMA, createProductWindowHost } from '@xi-io/sdk/window/product-host';
 import { snap55 } from '@xi-io/sdk/evaluation/hallbergmaths-snap55';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
 
@@ -48,6 +53,26 @@ assert.equal(knownSnap.state,'SOURCE_BOUND_NUMERIC');
 assert(Math.abs(knownSnap.baseline-knownBaseline)<1e-14);
 assert(Math.abs(knownSnap.R-knownR)<1e-14);
 assert.equal(knownSnap.effect_authority,0);
+
+// External packed consumer must resolve the incumbent shared worker and product-window host.
+assert.equal(WORKER_CONNECTION_SCHEMA, 'xiio.sdk.worker-connection/v1');
+assert.equal(MAX_WORKER_FILE_BYTES, 16384);
+assert.equal(normalizeLocalAgentMessage(' source-only ').state, 'PREVIEW_MESSAGE_VALID');
+assert.equal(normalizeLocalAgentMessage('').state, 'BLOCKED');
+assert.equal(PRODUCT_WINDOW_HOST_SCHEMA, 'xiio.studio.product-window-host/v1');
+assert.equal(typeof createProductWindowHost, 'function');
+assert.throws(() => createSharedWorkerConnection({ ports: {} }), /SDK_WORKER_PORTS_UNBOUND/);
+const inert = createSharedWorkerConnection({ports:{
+  readAccount:async()=>null, readInstalledWorker:async()=>null,
+  observeWorker:async()=>null, readAttempt:async()=>null,
+  inspectInstalledFramework:async()=>null, withCurrentAuthority:async()=>null
+}});
+assert.equal(typeof inert.readFile, 'function');
+assert.equal(typeof inert.recover, 'function');
+const inertRead = await inert.readFile({}, {work_ref:'work:packaged-only'});
+assert.equal(inertRead.state, 'BLOCKED');
+assert.equal(inertRead.authority_granted, false);
+assert.equal(inertRead.provider_effect, false);
 
 const blank = compileBlankTestBed({ artifact_id: 'bed:clean-package', generation: 'g1' });
 assert.deepEqual(parseTestArtifact(serializeTestArtifact(blank)), blank);

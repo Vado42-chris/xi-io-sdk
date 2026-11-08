@@ -308,7 +308,6 @@ export function compileWorkerLifecycleKit(input={}){
 }
 
 
-
 /** Existing Ibal durable attempt phase engine, shared without moving ownership.
  * Caller MUST hold the existing job, worker and capacity leases for this entire
  * call. history/append/publishReturn are the caller's durable private transport;
@@ -432,3 +431,10 @@ export async function runWorkerLifecycleAttempt({
   await append(jobId,'WAKE_ACK',{...bound(binding),receipt_ref:ack.receipt_ref});
   return {state:'COMPLETE',job_id:jobId,result_ref:result.result_ref,return_ref:binding.return_ref};
 }
+
+// Executable lifecycle kernel is owned here; provider plugins import it, never clone it.
+export {
+  WORKER_CONNECTION_SCHEMA, WORKER_CANARY_TEXT, WORKER_CANARY_SHA256,
+  createSharedWorkerConnection, inspectLocalAgentStatus,
+  normalizeLocalAgentMessage, validateLocalAgentTurnReply,
+} from './connection.mjs';

@@ -1,0 +1,128 @@
+{
+  "schema": "xiio.portable-source-candidate-bundle/v1",
+  "repository": "Vado42-chris/xi-io-sdk",
+  "base_ref": "61df653e589422fc626af185f74436a8649bad65",
+  "base_sources": {
+    "package.json": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "26c886f47d1057f66031968c72eba8866970f94f",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/package.json",
+      "sha256": "63c71e62eb65c92e7aa743301b0c6f1e7be8e00b1c499293a5a3a497854b288d"
+    },
+    "scripts/validate-self-drive-continuation.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "20720ccf676cd282b2d72cda1f14418177bd6c15",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/scripts/validate-self-drive-continuation.mjs",
+      "sha256": "08f02c665ab7e1f0a259abb7df4f002767f53b7ab3c83de56ebb0d86f50c5d8c"
+    },
+    "scripts/validate-babysit-host.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "c50550d73db392708edfd66a3b7bfdd6061b5249",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/scripts/validate-babysit-host.mjs",
+      "sha256": "94dbdb4ee41208cf2ba1160e0feb00d16d91a89615ccb2c334c4d0923080f6c5"
+    },
+    "scripts/validate-worker-lifecycle-kit.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "c30c4bfeb53816113ea09e70047622641ab82c5f",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/scripts/validate-worker-lifecycle-kit.mjs",
+      "sha256": "e57ec5d76141f31bd990d3995c08a2c07832ce8a9950b3d534598d4e18d75735"
+    },
+    "src/identity/account-binding.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "30b3af73739af194eccae4733a06d9840c024ba2",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/src/identity/account-binding.mjs",
+      "sha256": "2454de47e9546835702495eb7b4bf76452bd7771f90431e787f1bcb5a794309b"
+    },
+    "src/catalog/primitives.json": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "f0254b2ac74359d797caa27065fdb6e5a5169dd7",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/src/catalog/primitives.json",
+      "sha256": "bfce147a281aeb892815312939c823504cc881a1a2abe3b648927740754b206c"
+    },
+    "src/worker/lifecycle.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "fc5dbbcc72dabd36904759cf6d910714a4bbac99",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/src/worker/lifecycle.mjs",
+      "sha256": "832d7138478d43e72a055cab917bf828a4589984bac0a59d2f94787032fadc40"
+    },
+    "src/cadence/self-drive.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "d81c1e65f474cecf18f8fc6700f08ff71038c17e",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/src/cadence/self-drive.mjs",
+      "sha256": "899d741e39ed4dfeba8a4fc3f789d45b7e84b8f732121cad27d21d2b00d86668"
+    },
+    "src/cadence/continuation.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "8b98d5c053d43a2564510e983678018b1335a47d",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/src/cadence/continuation.mjs",
+      "sha256": "88b52c78ea10aa42e22c5e20c85637b7d86c984ce0b3c3c0a4996ea3f5489745"
+    },
+    "src/cadence/babysit-host.mjs": {
+      "source": "accepted-main",
+      "ref": "61df653e589422fc626af185f74436a8649bad65",
+      "blob": "29a9736c175b5e1086e90c280cddf4f56a761088",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/61df653e589422fc626af185f74436a8649bad65/src/cadence/babysit-host.mjs",
+      "sha256": "caa42e77cedeeac1c2b34c9f7bbc99a0dc65fa77b27be446414034614e9911cf"
+    }
+  },
+  "patches": {
+    "sdk205-current-main-join.patch": {
+      "sha256": "2243ab508253a1010c7e4c8d1ace0a7e0bafb346dd9862bca10aa797290c0351",
+      "git_blob": "d906903b79b958c64a889251e024990a2c76d87e"
+    }
+  },
+  "candidate_expected": {
+    "package.json": {
+      "sha256": "ebccee8602469d80170cbbcf37421e110396a7054d9c4808ea7a224dd1880fc9",
+      "git_blob": "99399f1b1a2afed207eb47da440667bb68e74c3c"
+    },
+    "src/worker/connection.mjs": {
+      "sha256": "3adc627425d9385c6f875ec189a2687c334c1b1cfe5875ac1082e22a5a6056dc",
+      "git_blob": "80a926a21b0b53fed56d90addf621b026f62330d"
+    },
+    "scripts/test-worker-connection.mjs": {
+      "sha256": "8bf943ad981ad39c961b0e4f84a6e189797dbc6363a0f4fbe441da283afa41f2",
+      "git_blob": "62da5d01a7ab77036a1c04afa272f6bee5ef0b8b"
+    }
+  },
+  "authority_granted": false,
+  "provider_effect": false,
+  "installed": false,
+  "donor_ref": "07f1ff319e1694057fd8b502d1f96080e90306aa",
+  "donor_sources": {
+    "src/worker/connection.mjs": {
+      "source": "existing-pr205",
+      "ref": "07f1ff319e1694057fd8b502d1f96080e90306aa",
+      "blob": "80a926a21b0b53fed56d90addf621b026f62330d",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/07f1ff319e1694057fd8b502d1f96080e90306aa/src/worker/connection.mjs"
+    },
+    "scripts/test-worker-connection.mjs": {
+      "source": "existing-pr205",
+      "ref": "07f1ff319e1694057fd8b502d1f96080e90306aa",
+      "blob": "62da5d01a7ab77036a1c04afa272f6bee5ef0b8b",
+      "url": "https://github.com/Vado42-chris/xi-io-sdk/blob/07f1ff319e1694057fd8b502d1f96080e90306aa/scripts/test-worker-connection.mjs"
+    }
+  },
+  "writer_check": {
+    "at": "2026-11-01T18:33:06Z",
+    "pr205_updated": "2026-10-31T06:36:41Z",
+    "pr205_last_commit": "2026-10-28T21:04:37Z",
+    "current_main_unchanged": true,
+    "targeted_open_worker_prs": [
+      205,
+      193,
+      197
+    ],
+    "exact_main_join_writer_observed": false,
+    "limitations": "GitHub evidence only; not a canonical writer lease or exclusive editing authority. Local candidate only."
+  }
+}
