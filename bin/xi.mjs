@@ -20,6 +20,7 @@ import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileFlatpackContinuationPlan } from '../src/cadence/flatpack-continuation.mjs';
 import { compileMiniPromptStack, applyMiniPromptReceipt } from '../src/cadence/mini-prompt-stack.mjs';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
+import { compileLocalAgentServiceUnit } from '../src/install/local-agent-service.mjs';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
@@ -445,6 +446,47 @@ function installLocalCli() {
     fs.chmodSync(dest,0o755);
   }
 
+  const workspaceDir=path.join(home,'.local','share','xi-io','workspaces','default');
+  fs.mkdirSync(workspaceDir,{recursive:true});
+
+  const serviceDir=path.join(home,'.config','systemd','user');
+  const serviceFile=path.join(serviceDir,'xiio-local-agent.service');
+  let localAgentServiceState=process.platform==='linux'?'UNIT_PENDING':'NOT_APPLICABLE';
+  let localAgentServiceActive=false;
+  let localAgentStatusReadback=false;
+  let localAgentStatus=null;
+  if(process.platform==='linux'){
+    fs.mkdirSync(serviceDir,{recursive:true});
+    const serviceSpec=compileLocalAgentServiceUnit({
+      node_path:process.execPath,
+      sdk_root:root,
+      workspace_dir:workspaceDir,
+    });
+    fs.writeFileSync(serviceFile,serviceSpec.content,{encoding:'utf8',mode:0o600});
+    localAgentServiceState='UNIT_WRITTEN';
+    const reload=spawnSync('systemctl',['--user','daemon-reload'],{encoding:'utf8',timeout:10000});
+    if(reload.status===0){
+      const enable=spawnSync('systemctl',['--user','enable','--now','xiio-local-agent.service'],{encoding:'utf8',timeout:15000});
+      if(enable.status===0){
+        const active=spawnSync('systemctl',['--user','is-active','xiio-local-agent.service'],{encoding:'utf8',timeout:5000});
+        localAgentServiceActive=active.status===0&&String(active.stdout||'').trim()==='active';
+        localAgentServiceState=localAgentServiceActive?'ACTIVE':'START_FAILED';
+        if(localAgentServiceActive){
+          const statusProbe=spawnSync(process.execPath,['-e',
+            "fetch('http://127.0.0.1:3109/v1/status',{signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();if(r.status!==200)process.exit(2);process.stdout.write(JSON.stringify(j));}).catch(()=>process.exit(3));"
+          ],{encoding:'utf8',timeout:6000});
+          if(statusProbe.status===0){
+            try{
+              localAgentStatus=JSON.parse(String(statusProbe.stdout||'{}'));
+              localAgentStatusReadback=localAgentStatus?.schema==='xiio.cli.local-agent-http/v1'&&localAgentStatus?.service_listener_observed===true;
+            }catch{}
+          }
+          localAgentServiceState=localAgentStatusReadback?'ACTIVE_STATUS_VERIFIED':'ACTIVE_STATUS_UNVERIFIED';
+        }
+      }else localAgentServiceState='START_FAILED';
+    }else localAgentServiceState='USER_SYSTEMD_UNAVAILABLE';
+  }
+
   const envFile=path.join(shareDir,'env.sh');
   const envScript=[
     '# xi-io CLI PATH',
@@ -490,6 +532,20 @@ function installLocalCli() {
     human_aliases:['xiio','xi'],
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
+    local_agent_service:{
+      unit:'xiio-local-agent.service',
+      unit_file:serviceFile,
+      endpoint:'http://127.0.0.1:3109',
+      status_endpoint:'http://127.0.0.1:3109/v1/status',
+      state:localAgentServiceState,
+      active:localAgentServiceActive,
+      status_readback:localAgentStatusReadback,
+      runtime_state:localAgentStatus?.state||null,
+      runtime_verified:localAgentStatus?.runtime_verified===true,
+      installed_sdk_generation_verified:localAgentStatus?.installed_sdk_generation_verified===true,
+      provider_effect:false,
+      authority_granted:false,
+    },
     commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io compass','xi-io doctor'],
     activate_current_shell:'export PATH="$HOME/.local/bin:$PATH"',
     authority_granted:false,
