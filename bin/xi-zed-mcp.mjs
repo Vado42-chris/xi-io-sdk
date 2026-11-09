@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // XI-IO SDK Zed MCP front door. Effect ceiling zero; Inbox CRM remains canonical.
-import { createInterface } from 'node:readline';
-const VERSION='2025-03-26';
+import { requireLoopbackUrl, rpcError as err, toolText as text, toolFailed as failed, runStdioToolServer } from '../src/mcp/stdio-tool-server.mjs';
 const SERVER='xiio-inbox-zed';
 const FALLBACK='http://127.0.0.1:8794';
 const configured=process.env.XIIO_INBOX_LOOPBACK_URL||FALLBACK;
@@ -10,9 +9,7 @@ const allowedConsumer=process.env.XIIO_ZED_CONSUMER_REF||'';
 const allowedObserver=process.env.XIIO_ZED_OBSERVER_ID||'';
 let origin;
 try {
-  const url=new URL(configured);
-  if(url.protocol!=='http:'||!['127.0.0.1','[::1]'].includes(url.hostname)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('HOST_NOT_LOOPBACK');
-  origin=url.origin;
+  origin=requireLoopbackUrl(configured).origin;
 } catch(error) {
   process.stderr.write('XIIO_INBOX_ENDPOINT_REJECTED: '+error.message+'\n');
   process.exit(78);
@@ -22,9 +19,6 @@ const declarations=[
   {name:'xiio_agent_mail_list',description:'Inspect an internal agent mailbox metadata projection on Inbox loopback. No message-body disclosure or delivery proof.',inputSchema:{type:'object',properties:{address:{type:'string',description:'Exact internal agent mailbox address'}} ,required:['address'],additionalProperties:false}},
   {name:'xiio_agent_mail_qualify',description:'Ask canonical Inbox CRM whether an exact message generation is eligible for worker ACK. No worker execution or effect authority.',inputSchema:{type:'object',properties:{consumer_ref:{type:'string'},source_generation:{type:'string'},observer_id:{type:'string'}},required:['consumer_ref','source_generation','observer_id'],additionalProperties:false}}
 ];
-const err=(code,message)=>({code,message});
-const text=(x)=>({content:[{type:'text',text:JSON.stringify(x)}],isError:false});
-const failed=(code,detail)=>({content:[{type:'text',text:JSON.stringify({ok:false,code,detail,effect_performed:false})}],isError:true});
 function valid(s,max=256){return typeof s==='string'&&s.trim()===s&&s.length>0&&s.length<=max&&!/[\x00-\x1f\x7f]/.test(s);}
 async function localApi(route,method='GET',body){
   const controller=new AbortController();
@@ -66,23 +60,4 @@ async function call(name,args){
  }
  return failed('UNKNOWN_TOOL',name);
 }
-function send(message){process.stdout.write(JSON.stringify({jsonrpc:'2.0',...message})+'\n');}
-async function receive(line){
- let request;
- try{request=JSON.parse(line);}catch{send({id:null,error:err(-32700,'Parse error')});return;}
- if(!request||request.jsonrpc!=='2.0'||typeof request.method!=='string'){send({id:request?.id??null,error:err(-32600,'Invalid Request')});return;}
- if(request.id===undefined)return; // Notifications are unidirectional.
- const {id,method,params={}}=request;
- try{
-  if(method==='initialize'){send({id,result:{protocolVersion:VERSION,capabilities:{tools:{listChanged:false}},serverInfo:{name:SERVER,version:'0.1.0'}}});return;}
-  if(method==='ping'){send({id,result:{}});return;}
-  if(method==='tools/list'){send({id,result:{tools:declarations}});return;}
-  if(method==='tools/call'){
-    if(!params||typeof params.name!=='string'||(params.arguments!==undefined&&(typeof params.arguments!=='object'||params.arguments===null||Array.isArray(params.arguments)))){send({id,error:err(-32602,'Invalid params')});return;}
-    send({id,result:await call(params.name,params.arguments??{})});return;
-  }
-  send({id,error:err(-32601,'Method not found')});
- }catch(e){send({id,result:failed(e.code||'INTERNAL_FAILURE',e.message||'Unknown failure')});}
-}
-const rl=createInterface({input:process.stdin,crlfDelay:Infinity});
-for await(const line of rl){if(line.trim())await receive(line);}
+await runStdioToolServer({name:SERVER,declarations,call});

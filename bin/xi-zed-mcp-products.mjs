@@ -2,9 +2,8 @@
 // XI-IO SDK Zed MCP — Desktop / Articles / Publisher product-split facade.
 // Separate from xiio-inbox-zed. Effect ceiling zero. Loopback only.
 // Missing product runtimes return honest NOT_BOUND — never invent LIVE.
-import { createInterface } from 'node:readline';
+import { requireLoopbackUrl, toolText as text, toolFailed as failed, runStdioToolServer } from '../src/mcp/stdio-tool-server.mjs';
 
-const VERSION = '2025-03-26';
 const SERVER = 'xiio-products-zed';
 
 const PRODUCTS = Object.freeze({
@@ -32,16 +31,11 @@ const PRODUCTS = Object.freeze({
 });
 
 function loopbackOrigin(raw, label) {
-  const url = new URL(raw);
-  if (
-    url.protocol !== 'http:' ||
-    !['127.0.0.1', '[::1]'].includes(url.hostname) ||
-    url.username ||
-    url.password
-  ) {
+  try {
+    return requireLoopbackUrl(raw, { allowPath: true });
+  } catch {
     throw new Error(`${label}_HOST_NOT_LOOPBACK`);
   }
-  return { origin: url.origin, path: `${url.pathname}${url.search}` || '/' };
 }
 
 const productOrigins = {};
@@ -67,13 +61,6 @@ const declarations = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   })),
 ];
-
-const err = (code, message) => ({ code, message });
-const text = (x) => ({ content: [{ type: 'text', text: JSON.stringify(x) }], isError: false });
-const failed = (code, detail) => ({
-  content: [{ type: 'text', text: JSON.stringify({ ok: false, code, detail, effect_performed: false }) }],
-  isError: true,
-});
 
 async function probe(key) {
   const meta = PRODUCTS[key];
@@ -155,66 +142,4 @@ async function call(name, args) {
   return failed('UNKNOWN_TOOL', name);
 }
 
-function send(message) {
-  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n');
-}
-
-async function receive(line) {
-  let request;
-  try {
-    request = JSON.parse(line);
-  } catch {
-    send({ id: null, error: err(-32700, 'Parse error') });
-    return;
-  }
-  if (!request || request.jsonrpc !== '2.0' || typeof request.method !== 'string') {
-    send({ id: request?.id ?? null, error: err(-32600, 'Invalid Request') });
-    return;
-  }
-  if (request.id === undefined) return;
-  const { id, method, params = {} } = request;
-  try {
-    if (method === 'initialize') {
-      send({
-        id,
-        result: {
-          protocolVersion: VERSION,
-          capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: SERVER, version: '0.1.0' },
-        },
-      });
-      return;
-    }
-    if (method === 'ping') {
-      send({ id, result: {} });
-      return;
-    }
-    if (method === 'tools/list') {
-      send({ id, result: { tools: declarations } });
-      return;
-    }
-    if (method === 'tools/call') {
-      if (
-        !params ||
-        typeof params.name !== 'string' ||
-        (params.arguments !== undefined &&
-          (typeof params.arguments !== 'object' ||
-            params.arguments === null ||
-            Array.isArray(params.arguments)))
-      ) {
-        send({ id, error: err(-32602, 'Invalid params') });
-        return;
-      }
-      send({ id, result: await call(params.name, params.arguments ?? {}) });
-      return;
-    }
-    send({ id, error: err(-32601, 'Method not found') });
-  } catch (e) {
-    send({ id, result: failed(e.code || 'INTERNAL_FAILURE', e.message || 'Unknown failure') });
-  }
-}
-
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of rl) {
-  if (line.trim()) await receive(line);
-}
+await runStdioToolServer({ name: SERVER, declarations, call });
