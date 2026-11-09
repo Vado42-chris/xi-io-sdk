@@ -1,0 +1,92 @@
+name: xi-io repo gate (reusable)
+
+# One gate of record for every xi-io repository.
+# Callers: copy templates/github/xiio-repo-gate.caller.yml into .github/workflows/.
+# Private repos run on the owner's self-hosted xi-io runner (GitHub-hosted minutes
+# are billed and can be refused before a job starts); public repos may pass
+# runner: '"ubuntu-latest"'. The job always writes a receipt, pass or fail.
+#   HOSTED_EMPTY_STEPS != SOURCE_FAIL    QUEUED != PASS    GATE_PASS != LIVE
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'JSON runs-on value, e.g. ["self-hosted","linux","x64"] or "ubuntu-latest"'
+        type: string
+        default: '["self-hosted","linux","x64"]'
+      gate_command:
+        description: 'Gate of record. Empty = first existing package script of: check, verify, test'
+        type: string
+        default: ''
+      node_version:
+        type: string
+        default: '22'
+      working_directory:
+        type: string
+        default: '.'
+      timeout_minutes:
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ inputs.node_version }}
+      - name: Set up Bun when the repo is locked with Bun
+        if: hashFiles(format('{0}/bun.lock', inputs.working_directory), format('{0}/bun.lockb', inputs.working_directory)) != ''
+        uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: |
+          if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
+          elif [ -f package-lock.json ]; then npm ci --no-audit --no-fund
+          elif [ -f package.json ]; then echo "::warning::UNLOCKED_INSTALL no lockfile"; npm install --no-audit --no-fund
+          else echo "NO_PACKAGE_JSON install skipped"; fi
+      - name: Run gate of record
+        id: gate
+        env:
+          GATE: ${{ inputs.gate_command }}
+        run: |
+          cmd="$GATE"
+          if [ -z "$cmd" ] && [ -f package.json ]; then
+            for s in check verify test; do
+              if node -e "process.exit(require('./package.json').scripts?.['$s'] ? 0 : 1)"; then cmd="npm run $s"; break; fi
+            done
+          fi
+          if [ -z "$cmd" ]; then echo "XIIO_GATE=BLOCKED first_red=NO_GATE_COMMAND"; exit 2; fi
+          echo "command=$cmd" >> "$GITHUB_OUTPUT"
+          bash -eo pipefail -c "$cmd"
+      - name: Write gate receipt
+        if: always()
+        env:
+          OUTCOME: ${{ steps.gate.outcome }}
+          COMMAND: ${{ steps.gate.outputs.command }}
+        run: |
+          node -e '
+            const r = { schema: "xiio.repo-gate-receipt/v1", repository: process.env.GITHUB_REPOSITORY,
+              head_sha: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF, event: process.env.GITHUB_EVENT_NAME,
+              run_id: process.env.GITHUB_RUN_ID, runner: process.env.RUNNER_NAME, command: process.env.COMMAND || null,
+              outcome: process.env.OUTCOME || "unknown", written_at: new Date().toISOString(),
+              hard: ["GATE_PASS != LIVE", "RECEIPT != OWNER_ACCEPTANCE"] };
+            require("fs").writeFileSync(process.env.RUNNER_TEMP + "/xiio-gate-receipt.json", JSON.stringify(r, null, 2));
+            console.log(JSON.stringify(r));'
+          echo "### xi-io gate: $OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$COMMAND\` on \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload gate receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: xiio-gate-receipt-${{ github.sha }}
+          path: ${{ runner.temp }}/xiio-gate-receipt.json
+          if-no-files-found: error
