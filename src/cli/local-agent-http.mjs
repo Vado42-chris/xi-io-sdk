@@ -187,6 +187,7 @@ export function startLocalAgentServer({
     const bound = server.address()?.port ?? port;
     const admission = admitLocalRequest(req, { port: bound });
     if (!admission.ok) return send(res, admission.status, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'REFUSED', reason: admission.reason });
+    let requestOwnsSlot = false;
     try {
       if (admission.route === 'status') {
         const observed = await status();
@@ -212,6 +213,7 @@ export function startLocalAgentServer({
             ? (modelReady ? 'INSTALLED_GENERATION_AND_RUNTIME_OK' : 'INSTALLED_GENERATION_OK_MODEL_NOT_READY')
             : 'INSTALLED_GENERATION_READBACK_REQUIRED',
           first_red: firstRed,
+          conversation_context_supported: true,
         });
       }
       if (admission.route === 'ui') return serveUi(res, uiDir, admission.pathname);
@@ -220,7 +222,7 @@ export function startLocalAgentServer({
          stale/uninstalled checkout. Tool-level lifecycle admission still gates
          individual effects after this runtime-identity boundary passes. */
       const generation = installedGeneration();
-      if (!generation.ok) {
+      if (generation.ok !== true) {
         return send(res, 503, {
           schema: LOCAL_AGENT_HTTP_SCHEMA,
           state: 'BLOCKED',
@@ -231,15 +233,28 @@ export function startLocalAgentServer({
         });
       }
       if (busy) return send(res, 409, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BUSY', reason: 'ONE_TURN_AT_A_TIME' });
-      const raw = await readBody(req);
-      let message;
-      try { message = String(JSON.parse(raw)?.message ?? '').trim(); } catch { message = ''; }
-      if (!message) return send(res, 400, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'REFUSED', reason: 'MESSAGE_REQUIRED' });
+      // Reserve before body IO so overlapping partial requests cannot both enter.
       busy = true;
+      requestOwnsSlot = true;
+      const raw = await readBody(req);
+      let message, body;
+      try { body = JSON.parse(raw); message = String(body?.message ?? '').trim(); } catch { message = ''; }
+      if (!message) return send(res, 400, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'REFUSED', reason: 'MESSAGE_REQUIRED' });
+      const conversationRef = body.conversation_ref;
+      if (conversationRef !== undefined && (typeof conversationRef !== 'string' || !/^[A-Za-z0-9:_.-]{1,256}$/.test(conversationRef))) {
+        return send(res, 400, { state: 'REFUSED', reason: 'CONVERSATION_REF_INVALID' });
+      }
+      const context = body.context ?? [];
+      if ((body.context !== undefined && conversationRef === undefined) || !Array.isArray(context) || context.length > 40
+          || context.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 16000)) {
+        return send(res, 400, { state: 'REFUSED', reason: 'CONVERSATION_CONTEXT_INVALID' });
+      }
       const controller = new AbortController();
       const turn = Promise.resolve()
-        .then(() => handleTurn(message, { signal: controller.signal }))
+        .then(() => handleTurn(message, { signal: controller.signal, conversationRef, context }))
         .finally(() => { busy = false; });
+      // The real turn now owns release, including after an HTTP timeout.
+      requestOwnsSlot = false;
       let timer;
       const timedOut = new Promise((resolve) => { timer = setTimeout(() => resolve(TIMED_OUT), turnTimeoutMs); });
       try {
@@ -255,6 +270,9 @@ export function startLocalAgentServer({
       }
     } catch (error) {
       return send(res, error?.status || 500, { schema: LOCAL_AGENT_HTTP_SCHEMA, state: 'BLOCKED', first_red: String(error?.message || error) });
+    } finally {
+      // Refused, malformed, oversized or interrupted bodies never start a turn.
+      if (requestOwnsSlot) busy = false;
     }
   });
   server.requestTimeout = requestTimeoutMs;
