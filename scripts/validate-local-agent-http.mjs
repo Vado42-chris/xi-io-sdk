@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -234,6 +235,21 @@ try {
 } finally {
   slow.close();
 }
+
+// Keep recovered owner regressions in the existing normal check chain.
+const { spawnSync } = await import('node:child_process');
+for (const owner of ['198', '179']) {
+  const result = spawnSync(process.execPath, ['--experimental-vm-modules', '--test',
+    fileURLToPath(new URL('./test-local-agent-http-reservation.mjs', import.meta.url))], {
+    env: { ...process.env, EXPECTED_HTTP_OWNER: owner }, encoding: 'utf8', timeout: 15000,
+  });
+  assert.equal(result.status, 0, `HTTP owner ${owner} reservation regression: ${result.stdout} ${result.stderr}`);
+}
+const consumer = spawnSync(process.execPath, [
+  fileURLToPath(new URL('./test-local-agent-http-consumer.mjs', import.meta.url))], {
+  env: process.env, encoding: 'utf8', timeout: 15000,
+});
+assert.equal(consumer.status, 0, `HTTP consumer regression: ${consumer.stdout} ${consumer.stderr}`);
 
 console.log(JSON.stringify({
   schema: 'xiio.sdk.local-agent-http-check/v1',
