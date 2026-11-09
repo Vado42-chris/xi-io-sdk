@@ -14,7 +14,9 @@ permissions:
 
 jobs:
   gate:
-    uses: Vado42-chris/xi-io-sdk/.github/workflows/xiio-repo-gate.yml@main
+    # Pin a qualified SDK generation (full commit SHA). Consumers do not auto-track SDK main;
+    # bump the pin deliberately after the new generation is qualified for this repo.
+    uses: Vado42-chris/xi-io-sdk/.github/workflows/xiio-repo-gate.yml@<SDK_COMMIT_SHA>
     with:
       # Private repo: the owner's self-hosted xi-io runner (Aries).
       # Public repo: '"ubuntu-latest"' (GitHub-hosted minutes are free for public repos).
