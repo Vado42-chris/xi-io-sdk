@@ -98,7 +98,7 @@
     "./io/byte-reader": "./src/io/byte-reader.mjs"
   },
   "scripts": {
-    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:worker-lifecycle-kit && npm run check:byte-reader && npm run check:interaction-platform-android",
+    "check": "node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:radial-relationship-layout && npm run check:worker-lifecycle-kit && npm run check:byte-reader && npm run check:interaction-platform-android",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
     "check:fullstack-continuity-canary": "node scripts/validate-fullstack-continuity-canary.mjs",
@@ -163,6 +163,7 @@
     "check:pneuma:truth-bench": "node scripts/validate-pneuma-truth-bench.mjs",
     "check:rotfl-order-runtime": "node scripts/validate-rotfl-order-runtime.mjs",
     "check:universal-primitive-executor": "node scripts/validate-universal-primitive-executor.mjs",
+    "check:radial-relationship-layout": "node scripts/validate-universal-radial-relationship-layout.mjs",
     "check:addressable-mutation": "node --test scripts/validate-addressable-mutation.mjs",
     "check:cube-quorum-cli": "node scripts/validate-cube-quorum-cli.mjs",
     "check:account-binding": "node scripts/validate-account-binding.mjs",
