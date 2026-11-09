@@ -140,11 +140,38 @@ assert.equal(out.economy.remainder_ms,500);
 assert.equal(out.economy.exact_cost_microunits,25);
 assert.equal(out.economy.time_money_bound_bit,1);
 assert.equal(out.economy.billing_authorized,false);
+assert.equal(out.economy.exact_cost_rational,'25000/1000');
+assert.equal(out.economy.exact_cost_microunits_numerator_decimal,'25000');
+assert.equal(out.economy.exact_cost_precision,'SAFE_NUMBER');
 assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 assert.equal(out.next,'RUN_SIM_TRIAGE_THEN_REDUCE_AND_PREP_PACKS');
 assert.equal(out.cog_throttle.state,'WITHIN_COG_BUDGET');
 
+// Regression: individually safe integers may multiply beyond binary64's exact range.
+// Never mint whole-unit or cost "exactness" from rounded doubles.
+const largeMeter=base();
+largeMeter.metering.measured_elapsed_ms=999999999;
+largeMeter.metering.rate_card.rate_microunits_per_second=999999999;
+const largeEconomy=compileIbalAckRotfl(largeMeter).economy;
+assert.equal(largeEconomy.exact_cost_rational,'999999998000000001/1000');
+assert.equal(largeEconomy.exact_cost_microunits_numerator_decimal,'999999998000000001');
+assert.equal(largeEconomy.exact_cost_microunits_numerator,null);
+assert.equal(largeEconomy.exact_cost_microunits,null);
+assert.equal(largeEconomy.exact_cost_precision,'DECIMAL_STRING_REQUIRED');
+assert.equal(largeEconomy.time_money_bound_bit,1);
+assert.equal(largeEconomy.billing_authorized,false);
+
+for(let k=0;k<64;k++){
+  largeMeter.metering.measured_elapsed_ms=999999000+k;
+  largeMeter.metering.rate_card.rate_microunits_per_second=999999999-k;
+  const economy=compileIbalAckRotfl(largeMeter).economy;
+  const numerator=BigInt(largeMeter.metering.measured_elapsed_ms)*BigInt(largeMeter.metering.rate_card.rate_microunits_per_second);
+  assert.equal(economy.exact_cost_rational,numerator.toString()+'/1000');
+  assert.equal(economy.exact_cost_microunits_numerator_decimal,numerator.toString());
+  assert.equal(economy.exact_cost_microunits_numerator,null);
+  assert.equal(economy.exact_cost_microunits,numerator%1000n===0n?Number(numerator/1000n):null);
+}
 const overloadedInput=base();
 overloadedInput.cog_pressure={owner_current:4,owner_budget:1,ai_current:5,ai_budget:2,max_active_items:4};
 const overloaded=compileIbalAckRotfl(overloadedInput);

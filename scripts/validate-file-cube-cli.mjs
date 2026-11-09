@@ -38,7 +38,7 @@ fs.writeFileSync(input,JSON.stringify({
   hex_floor:floor,
   hex_subject_ref:'sdk.primitive',
   hex_subject_generation:'sem:g1',
-  bins_custody:{resource_version_ref:'bins:rv:cli',sha256:'a'.repeat(64),byte_length:12,source_ref:'source:cli'},
+  bins_custody:{resource_version_ref:'bins:rv:cli',sha256:'b'.repeat(64),byte_length:12,source_ref:'source:cli'},
   transfer_readback:{source_sha256:'b'.repeat(64),destination_sha256:'b'.repeat(64),source_bytes:12,destination_bytes:12,final_readback_ref:'transfer:cli'},
   parser_readback:{state:'PASS',profile_id:'json.semantic.v1',receipt_ref:'parser:cli'},
   consumer_readback:{state:'PASS',profile_id:'json.semantic.v1',receipt_ref:'consumer:cli'},
@@ -50,8 +50,11 @@ assert.equal(run.status,0,run.stderr);
 const cube=JSON.parse(run.stdout);
 assert.equal(cube.schema,'xiio.sdk.portable-artifact-cube/v1');
 assert.equal(cube.denominator,10);
-assert.equal(cube.state,'PASS');
-assert.equal(cube.closure_100,true);
+assert.equal(cube.state,'TRUE_WAIT');
+assert.equal(cube.closure_100,false);
+assert.equal(cube.supplied_complete,true);
+assert.equal(cube.counts.supplied_pass,10);
+assert.equal(cube.first_red.id,'F05_HEX_CURRENTNESS');
 
 const fileInput=path.join(tmp,'file.json');
 fs.writeFileSync(fileInput,JSON.stringify(file));

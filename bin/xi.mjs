@@ -20,6 +20,7 @@ import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileFlatpackContinuationPlan } from '../src/cadence/flatpack-continuation.mjs';
 import { compileMiniPromptStack, applyMiniPromptReceipt } from '../src/cadence/mini-prompt-stack.mjs';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
+import { compileLocalAgentServiceUnit } from '../src/install/local-agent-service.mjs';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
@@ -407,6 +408,23 @@ async function registry(kind = 'all') {
   }
 }
 
+function cliWrapperConflict(destination, wrapper) {
+  let stat;
+  try {stat=fs.lstatSync(destination);}
+  catch(error){
+    if(error?.code==='ENOENT') return null;
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+  try {
+    if(!stat.isFile() || stat.isSymbolicLink() || stat.nlink!==1) return {path:destination,reason:'DESTINATION_NOT_SINGLE_REGULAR_FILE'};
+    const expected=Buffer.from(wrapper,'utf8');
+    if(stat.size!==expected.length || !fs.readFileSync(destination).equals(expected)) return {path:destination,reason:'WRAPPER_BYTES_UNRECOGNIZED'};
+    return null;
+  } catch(error) {
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+}
+
 function installLocalCli() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const home=os.homedir();
@@ -414,11 +432,6 @@ function installLocalCli() {
   const shareDir=path.join(home,'.local','share','xi-io','cli');
   const stateDir=path.join(process.env.XDG_STATE_HOME || path.join(home,'.local','state'),'xi-io','cli');
   const rootFile=path.join(shareDir,'sdk.path');
-  fs.mkdirSync(binDir,{recursive:true});
-  fs.mkdirSync(shareDir,{recursive:true});
-  fs.mkdirSync(stateDir,{recursive:true});
-  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
-
   const wrapper=[
     '#!/usr/bin/env bash',
     'set -euo pipefail',
@@ -438,11 +451,64 @@ function installLocalCli() {
   ].join('\n');
 
   const bins=['xi-io','xiio','xi'];
+  // Preflight every alias before this local install phase writes any state or wrapper.
+  // Exact bytes recognize the current wrapper format, not provenance or authority.
+  const conflicts=bins.map(name=>cliWrapperConflict(path.join(binDir,name),wrapper)).filter(Boolean);
+  if(conflicts.length){
+    process.stdout.write(JSON.stringify({schema:'xiio.cli.install/v1',installed:false,state:'BLOCKED',first_red:'CLI_WRAPPER_OWNERSHIP_CONFLICT',conflicts,authority_granted:false,provider_effect:false},null,2)+'\n');
+    process.exitCode=2;
+    return;
+  }
+  fs.mkdirSync(binDir,{recursive:true});
+  fs.mkdirSync(shareDir,{recursive:true});
+  fs.mkdirSync(stateDir,{recursive:true});
+  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
     fs.writeFileSync(dest,wrapper,{encoding:'utf8',mode:0o755});
     fs.chmodSync(dest,0o755);
+  }
+
+  const workspaceDir=path.join(home,'.local','share','xi-io','workspaces','default');
+  fs.mkdirSync(workspaceDir,{recursive:true});
+
+  const serviceDir=path.join(home,'.config','systemd','user');
+  const serviceFile=path.join(serviceDir,'xiio-local-agent.service');
+  let localAgentServiceState=process.platform==='linux'?'UNIT_PENDING':'NOT_APPLICABLE';
+  let localAgentServiceActive=false;
+  let localAgentStatusReadback=false;
+  let localAgentStatus=null;
+  if(process.platform==='linux'){
+    fs.mkdirSync(serviceDir,{recursive:true});
+    const serviceSpec=compileLocalAgentServiceUnit({
+      node_path:process.execPath,
+      sdk_root:root,
+      workspace_dir:workspaceDir,
+    });
+    fs.writeFileSync(serviceFile,serviceSpec.content,{encoding:'utf8',mode:0o600});
+    localAgentServiceState='UNIT_WRITTEN';
+    const reload=spawnSync('systemctl',['--user','daemon-reload'],{encoding:'utf8',timeout:10000});
+    if(reload.status===0){
+      const enable=spawnSync('systemctl',['--user','enable','--now','xiio-local-agent.service'],{encoding:'utf8',timeout:15000});
+      if(enable.status===0){
+        const active=spawnSync('systemctl',['--user','is-active','xiio-local-agent.service'],{encoding:'utf8',timeout:5000});
+        localAgentServiceActive=active.status===0&&String(active.stdout||'').trim()==='active';
+        localAgentServiceState=localAgentServiceActive?'ACTIVE':'START_FAILED';
+        if(localAgentServiceActive){
+          const statusProbe=spawnSync(process.execPath,['-e',
+            "fetch('http://127.0.0.1:3109/v1/status',{signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();if(r.status!==200)process.exit(2);process.stdout.write(JSON.stringify(j));}).catch(()=>process.exit(3));"
+          ],{encoding:'utf8',timeout:6000});
+          if(statusProbe.status===0){
+            try{
+              localAgentStatus=JSON.parse(String(statusProbe.stdout||'{}'));
+              localAgentStatusReadback=localAgentStatus?.schema==='xiio.cli.local-agent-http/v1'&&localAgentStatus?.service_listener_observed===true;
+            }catch{}
+          }
+          localAgentServiceState=localAgentStatusReadback?'ACTIVE_STATUS_VERIFIED':'ACTIVE_STATUS_UNVERIFIED';
+        }
+      }else localAgentServiceState='START_FAILED';
+    }else localAgentServiceState='USER_SYSTEMD_UNAVAILABLE';
   }
 
   const envFile=path.join(shareDir,'env.sh');
@@ -490,6 +556,20 @@ function installLocalCli() {
     human_aliases:['xiio','xi'],
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
+    local_agent_service:{
+      unit:'xiio-local-agent.service',
+      unit_file:serviceFile,
+      endpoint:'http://127.0.0.1:3109',
+      status_endpoint:'http://127.0.0.1:3109/v1/status',
+      state:localAgentServiceState,
+      active:localAgentServiceActive,
+      status_readback:localAgentStatusReadback,
+      runtime_state:localAgentStatus?.state||null,
+      runtime_verified:localAgentStatus?.runtime_verified===true,
+      installed_sdk_generation_verified:localAgentStatus?.installed_sdk_generation_verified===true,
+      provider_effect:false,
+      authority_granted:false,
+    },
     commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io compass','xi-io doctor'],
     activate_current_shell:'export PATH="$HOME/.local/bin:$PATH"',
     authority_granted:false,

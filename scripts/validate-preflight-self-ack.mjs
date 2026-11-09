@@ -10,7 +10,8 @@ const ack=validateRotflDistributedAck(fixture.self_ack);
 assert.equal(ack.ok,true,'self ACK must validate before Trinity');
 assert.equal(ack.authority_granted,false);
 assert.equal(ack.effect_attempt_eligible,false);
-assert.equal(ack.template_runtime_complete,true);
+assert.equal(ack.template_runtime_complete,false);
+assert.equal(ack.template_supplied_complete,true);
 
 const out=compileAckItemTrinity(fixture.trinity_input);
 assert.equal(out.ack_item_count,15);
@@ -22,7 +23,8 @@ assert.equal(out.silent_remainder,0);
 assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 assert.equal(out.external_communication,false);
-assert.equal(out.rotfl_template_runtime_complete,true);
+assert.equal(out.rotfl_template_runtime_complete,false);
+assert.equal(out.rotfl_template_supplied_complete,true);
 
 const declared=fixture.trinity_input.ack_sources[0].items;
 assert.equal(declared.filter(x=>x.declared_state==='PASS').length,5);
@@ -36,7 +38,8 @@ for(const entry of out.trinity){
   assert.equal(entry.punch_card.rotfl_template_route_ref,entry.template_route.route_id);
   assert.equal(entry.score_card.rotfl_template_route_ref,entry.template_route.route_id);
   assert.equal(entry.checklist.rotfl_template_route_ref,entry.template_route.route_id);
-  assert.equal(entry.template_route.runtime_complete,true);
+  assert.equal(entry.template_route.runtime_complete,false);
+  assert.equal(entry.template_route.supplied_runtime_complete,true);
   assert.equal(entry.template_route.authority_granted,false);
   assert.equal(entry.template_route.provider_effect,false);
 }
