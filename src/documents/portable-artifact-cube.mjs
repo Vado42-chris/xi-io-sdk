@@ -18,7 +18,11 @@ export const FILE_CUBE_CELLS=Object.freeze([
 
 const SHA=/^[a-f0-9]{64}$/;
 const text=(v)=>typeof v==='string'&&v.trim()?v.trim():null;
-const RESERVED_CELL_FIELDS=new Set(['id','state','evidence_ref','first_red']);
+const RESERVED_CELL_FIELDS=new Set(['id','state','evidence_ref','first_red','verification_state','supplied_state']);
+// Pure SDK structural receipt assertions never certify execution, BINS or runtime.
+const supplied=(id,evidence_ref,detail={})=>({id,state:'TRUE_WAIT',
+  first_red:'INDEPENDENT_NATIVE_READBACK_REQUIRED',verification_state:'SUPPLIED_UNVERIFIED',
+  supplied_state:'PASS',evidence_ref,...safeDetail(detail)});
 function safeDetail(detail={}){
   return Object.fromEntries(Object.entries(detail).filter(([key])=>!RESERVED_CELL_FIELDS.has(key)));
 }
@@ -67,7 +71,7 @@ export function compilePortableArtifactCube(input={}){
     subject_generation:input.hex_subject_generation||file.semantic_generation,
   }):{state:'UNVERIFIED',projection_ref:null,blocker:'FILE_INVALID',missing_punchcards:[]};
   if(hex.state==='HEX_QUALIFIED_CURRENT'){
-    cells.push(pass('F05_HEX_CURRENTNESS',hex.projection_ref,{hex_currentness_state:hex.state,missing_punchcards:[]}));
+    cells.push(supplied('F05_HEX_CURRENTNESS',hex.projection_ref,{hex_currentness_state:hex.state,missing_punchcards:[]}));
   }else{
     cells.push(wait('F05_HEX_CURRENTNESS',hex.blocker||hex.state,{hex_currentness_state:hex.state,projection_ref:hex.projection_ref,missing_punchcards:hex.missing_punchcards}));
   }
@@ -75,7 +79,7 @@ export function compilePortableArtifactCube(input={}){
   const custody=input.bins_custody||{};
   const custodySha=sha(custody.sha256);
   if(text(custody.resource_version_ref)&&custodySha&&bytes(custody.byte_length)!==null&&text(custody.source_ref)){
-    cells.push(pass('F06_BINS_CUSTODY',custody.resource_version_ref,{sha256:custodySha,byte_length:custody.byte_length,source_ref:custody.source_ref}));
+    cells.push(supplied('F06_BINS_CUSTODY',custody.resource_version_ref,{sha256:custodySha,byte_length:custody.byte_length,source_ref:custody.source_ref}));
   }else{
     cells.push(wait('F06_BINS_CUSTODY','BINS_RESOURCEVERSION_SHA_BYTES_SOURCE_REQUIRED'));
   }
@@ -85,17 +89,24 @@ export function compilePortableArtifactCube(input={}){
   const destSha=sha(transfer.destination_sha256);
   const sourceBytes=bytes(transfer.source_bytes);
   const destBytes=bytes(transfer.destination_bytes);
-  if(sourceSha&&destSha&&sourceSha===destSha&&sourceBytes!==null&&sourceBytes===destBytes&&text(transfer.final_readback_ref)){
-    cells.push(pass('F07_TRANSFER_INTEGRITY',transfer.final_readback_ref,{sha256:destSha,bytes:destBytes}));
-  }else if(sourceSha&&destSha&&(sourceSha!==destSha || (sourceBytes!==null&&destBytes!==null&&sourceBytes!==destBytes))){
+  if(sourceSha&&destSha&&(sourceSha!==destSha || (sourceBytes!==null&&destBytes!==null&&sourceBytes!==destBytes))){
     cells.push(fail('F07_TRANSFER_INTEGRITY','TRANSFER_BYTES_OR_HASH_MISMATCH'));
+  }else if(custodySha&&sourceSha&&custodySha!==sourceSha){
+    cells.push(fail('F07_TRANSFER_INTEGRITY','BINS_CUSTODY_TO_TRANSFER_DIGEST_DRIFT'));
+  }else if(bytes(custody.byte_length)!==null&&sourceBytes!==null&&bytes(custody.byte_length)!==sourceBytes){
+    cells.push(fail('F07_TRANSFER_INTEGRITY','BINS_CUSTODY_TO_TRANSFER_BYTE_DRIFT'));
+  }else if(sourceSha&&destSha&&sourceSha===destSha&&sourceBytes!==null&&sourceBytes===destBytes&&
+           custodySha&&custodySha===sourceSha&&bytes(custody.byte_length)===sourceBytes&&text(transfer.final_readback_ref)){
+    cells.push(supplied('F07_TRANSFER_INTEGRITY',transfer.final_readback_ref,{sha256:destSha,bytes:destBytes}));
   }else{
-    cells.push(wait('F07_TRANSFER_INTEGRITY','SOURCE_DEST_HASH_BYTES_FINAL_READBACK_REQUIRED'));
+    cells.push(wait('F07_TRANSFER_INTEGRITY','SOURCE_BINS_DEST_HASH_BYTES_FINAL_READBACK_REQUIRED'));
   }
 
   const parser=input.parser_readback||{};
   if(parser.state==='PASS'&&parser.profile_id===file?.profile_id&&text(parser.receipt_ref)){
-    cells.push(pass('F08_PARSER_VALIDATION',parser.receipt_ref,{profile_id:parser.profile_id}));
+    if(text(parser.receipt_ref)===text(transfer.final_readback_ref))
+      cells.push(fail('F08_PARSER_VALIDATION','REUSED_TRANSFER_PARSER_RECEIPT'));
+    else cells.push(supplied('F08_PARSER_VALIDATION',parser.receipt_ref,{profile_id:parser.profile_id}));
   }else if(parser.state==='FAIL'){
     cells.push(fail('F08_PARSER_VALIDATION','PARSER_REJECTED',{receipt_ref:parser.receipt_ref||null}));
   }else{
@@ -104,7 +115,9 @@ export function compilePortableArtifactCube(input={}){
 
   const consumer=input.consumer_readback||{};
   if(consumer.state==='PASS'&&consumer.profile_id===file?.profile_id&&text(consumer.receipt_ref)){
-    cells.push(pass('F09_CONSUMER_READBACK',consumer.receipt_ref,{profile_id:consumer.profile_id}));
+    if([transfer.final_readback_ref,parser.receipt_ref].some(ref=>text(ref)===text(consumer.receipt_ref)))
+      cells.push(fail('F09_CONSUMER_READBACK','REUSED_CONSUMER_RECEIPT_REF'));
+    else cells.push(supplied('F09_CONSUMER_READBACK',consumer.receipt_ref,{profile_id:consumer.profile_id}));
   }else if(consumer.state==='FAIL'){
     cells.push(fail('F09_CONSUMER_READBACK','CONSUMER_REJECTED',{receipt_ref:consumer.receipt_ref||null}));
   }else{
@@ -112,11 +125,10 @@ export function compilePortableArtifactCube(input={}){
   }
 
   const auth=input.authority_gate||{};
-  if(auth.required===false || (auth.required===true&&auth.held===true&&text(auth.authority_ref))){
-    cells.push(pass('F10_AUTHORITY_BOUNDARY',auth.authority_ref||'NO_EFFECT_DATA_ONLY',{
-      authority_required:auth.required===true,
-      authority_held:auth.held===true,
-    }));
+  if(auth.required===false){
+    cells.push(pass('F10_AUTHORITY_BOUNDARY','NO_EFFECT_DATA_ONLY',{authority_required:false,authority_held:false}));
+  }else if(auth.required===true&&auth.held===true&&text(auth.authority_ref)){
+    cells.push(supplied('F10_AUTHORITY_BOUNDARY',auth.authority_ref,{authority_required:true,authority_held:false}));
   }else{
     cells.push(wait('F10_AUTHORITY_BOUNDARY','REQUIRED_AUTHORITY_GATE_UNSET'));
   }
@@ -124,18 +136,26 @@ export function compilePortableArtifactCube(input={}){
   const failures=cells.filter(x=>x.state==='FAIL');
   const waits=cells.filter(x=>x.state==='TRUE_WAIT');
   const passes=cells.filter(x=>x.state==='PASS');
+  const suppliedPasses=cells.filter(x=>x.state==='PASS'||x.supplied_state==='PASS');
+  const missingWait=waits.find(x=>x.verification_state!=='SUPPLIED_UNVERIFIED');
   const unexpectedStates=cells.filter(x=>!['PASS','FAIL','TRUE_WAIT'].includes(x.state));
-  const state=failures.length?'FAIL':unexpectedStates.length?'FAIL':waits.length?'TRUE_WAIT':passes.length===FILE_CUBE_CELLS.length?'PASS':'FAIL';
+  // No authenticated provider verification is performed in this compiler.
+  const state=failures.length||unexpectedStates.length?'FAIL':'TRUE_WAIT';
   return Object.freeze({
     schema:PORTABLE_ARTIFACT_CUBE_SCHEMA,
     cube_id:text(input.cube_id)||`file-cube:${file?.file_id||'invalid'}`,
     file,
     denominator:FILE_CUBE_CELLS.length,
     cells:Object.freeze(cells),
-    counts:Object.freeze({pass:passes.length,fail:failures.length,true_wait:waits.length,unexpected_state:unexpectedStates.length}),
+    counts:Object.freeze({pass:passes.length,fail:failures.length,true_wait:waits.length,
+      supplied_pass:suppliedPasses.length,unexpected_state:unexpectedStates.length}),
     state,
-    closure_100:state==='PASS'&&cells.length===FILE_CUBE_CELLS.length&&passes.length===FILE_CUBE_CELLS.length,
-    first_red:failures[0]||unexpectedStates[0]||waits[0]||null,
+    supplied_complete:failures.length===0&&unexpectedStates.length===0&&suppliedPasses.length===FILE_CUBE_CELLS.length,
+    closure_100:false,
+    verification_state:'SUPPLIED_UNVERIFIED',
+    first_red:failures[0]||unexpectedStates[0]||missingWait||waits[0]||null,
+    authority_granted:false,
+    provider_effect:false,
     hex_projection_ref:hex.projection_ref,
     missing_punchcards:Object.freeze(hex.missing_punchcards||[]),
     effect_authority:false,
@@ -151,6 +171,10 @@ export function compilePortableArtifactCube(input={}){
       'FILE_CUBE_PASS != PUBLICATION_OR_LEGAL_EFFECT',
       'CELL_STATE_IS_RESERVED_CANNOT_BE_OVERWRITTEN_BY_DETAIL',
       'CUBE_PASS_REQUIRES_PASS_COUNT_EQUALS_DENOMINATOR',
+      'MATCHING_SHA_BYTES != INDEPENDENT_TRANSFER_READBACK',
+      'CALLER_SUPPLIED_BINS_REF != BINS_CUSTODY',
+      'CALLER_SUPPLIED_CONSUMER_REF != CONSUMER_RUNTIME_PROOF',
+      'SDK_STRUCTURAL_10_OF_10 != PHYSICAL_RELEASE',
     ]),
   });
 }

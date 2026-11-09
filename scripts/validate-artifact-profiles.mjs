@@ -3,7 +3,7 @@ import {artifactProfileCatalog,resolveArtifactProfile,resolveArtifactProfileByMe
 
 const catalog=artifactProfileCatalog();
 assert.equal(catalog.schema,'xiio.sdk.artifact-profile-catalog/v1');
-assert(catalog.profiles.length>=9);
+assert(catalog.profiles.length>=11);
 assert(catalog.profiles.every(p=>p.transport==='BYTES'));
 
 const json=resolveArtifactProfile('json.semantic.v1');
@@ -18,6 +18,20 @@ const docx=resolveArtifactProfileByMediaType('application/vnd.openxmlformats-off
 assert.equal(docx.state,'PASS');
 assert.equal(docx.profile.profile_id,'docx.opc.v1');
 
+for(const [mime,profile] of [
+  ['audio/wav','audio.bytes.v1'],['audio/x-wav','audio.bytes.v1'],
+  ['audio/mpeg','audio.bytes.v1'],['audio/mp4','audio.bytes.v1'],
+  ['audio/ogg','audio.bytes.v1'],['audio/flac','audio.bytes.v1'],
+  ['video/mp4','video.bytes.v1'],['video/webm','video.bytes.v1'],
+  ['video/quicktime','video.bytes.v1'],['video/x-matroska','video.bytes.v1']
+]){
+  const found=resolveArtifactProfileByMediaType(mime);
+  assert.equal(found.state,'PASS',mime);
+  assert.equal(found.profile.profile_id,profile,mime);
+  assert.equal(found.profile.transport,'BYTES',mime);
+  assert.equal(found.authority_granted,false,mime);
+  assert.equal(found.provider_effect,false,mime);
+}
 const unknown=resolveArtifactProfileByMediaType('application/x-unknown-xiio-test');
 assert.equal(unknown.state,'UNKNOWN');
 

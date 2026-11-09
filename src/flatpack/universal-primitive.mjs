@@ -203,12 +203,48 @@ export function extractUniversalTemplateRig(doc){
     projection_recipes:list(doc.projection_recipes).map(r=>({projection_ref:r.projection_ref,kind:r.kind,primitive_refs:clone(r.primitive_refs||[])})),effect_ceiling:0};
 }
 
+/**
+ * Public projection carries only structural relationships whose endpoints are
+ * both selected by the recipe and PUBLIC. Source multiplicity is preserved.
+ * Primitive state is projected explicitly so UNKNOWN cannot become omission.
+ *
+ * Hard:
+ * TEMPLATE_GRAPH != PUBLIC_PROJECTION
+ * COPY_ALL_EDGES != SAFE
+ * UNKNOWN != OMITTED
+ */
+function publicRelationshipRefs(doc,recipeRefs,p){
+  const allowed=new Set(list(recipeRefs));
+  const out=[];
+  for(const ref of list(p.relationships)){
+    if(!allowed.has(ref)) continue;
+    const target=list(doc.primitives).find(x=>x.identity===ref);
+    if(!target||target.authority?.visibility!=='PUBLIC') continue;
+    out.push(ref);
+  }
+  return out;
+}
+
 export function compileUniversalProjection(doc,projectionRef){
   const v=validateUniversalArtifact(doc); if(!v.ok) throw new Error(`SOURCE_INVALID:${v.first_red}`);
   const recipe=list(doc.projection_recipes).find(r=>r.projection_ref===projectionRef);
   if(!recipe) throw new Error(`PROJECTION_NOT_FOUND:${projectionRef}`);
   if(doc.authority.visibility!=='PUBLIC') throw new Error('VISIBILITY_NOT_PUBLIC');
-  const blocks=recipe.primitive_refs.map(id=>{const p=primitiveById(doc,id); if(p.authority?.visibility!=='PUBLIC') throw new Error(`PRIMITIVE_VISIBILITY_NOT_PUBLIC:${id}`); return {primitive_ref:p.identity,semantic_type:p.semantic_type,geometry:clone(p.geometry||{}),content:clone(p.content||{}),style:clone(p.style||{}),metadata:clone(p.metadata||{})};});
+  const recipeRefs=list(recipe.primitive_refs);
+  const blocks=recipeRefs.map(id=>{
+    const p=primitiveById(doc,id);
+    if(p.authority?.visibility!=='PUBLIC') throw new Error(`PRIMITIVE_VISIBILITY_NOT_PUBLIC:${id}`);
+    return {
+      primitive_ref:p.identity,
+      semantic_type:p.semantic_type,
+      state:Object.prototype.hasOwnProperty.call(p,'state')?clone(p.state):'UNKNOWN',
+      geometry:clone(p.geometry||{}),
+      content:clone(p.content||{}),
+      style:clone(p.style||{}),
+      metadata:clone(p.metadata||{}),
+      relationship_refs:publicRelationshipRefs(doc,recipeRefs,p),
+    };
+  });
   return {schema:'xiio.sdk.publisher-projection-candidate/v1',projection_ref:recipe.projection_ref,projection_kind:recipe.kind,artifact_ref:doc.artifact.artifact_ref,article_ref:doc.metadata?.article_ref,template_rig_ref:doc.artifact.template_ref,primitive_refs:clone(recipe.primitive_refs),blocks,lineage:{version_ref:doc.artifact.version_ref,source_generation:doc.lineage?.source_generation||null,source_digest_ref:doc.lineage?.digest||null,bins_digest_state:'PENDING_BINS_CUSTODY'},effect_ceiling:0};
 }
 

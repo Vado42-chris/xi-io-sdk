@@ -19,6 +19,8 @@ jobs:
           node-version: '22'
       - name: Run SDK checks
         run: npm run check
+      - name: Verify no third-party remote relay is a core gate
+        run: npm run check:cli-remote-desktop-currentness
       - name: Upload SDK ROTFL heatmap receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
