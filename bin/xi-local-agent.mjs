@@ -25,14 +25,13 @@ const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(),
 const workspaceId = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
 const sessionFile = path.join(stateDir, `session-${workspaceId}.json`);
 const blocked = new Set(['.git', '.ssh', 'node_modules']);
-const commands = new Set(['git', 'node', 'python', 'python3', 'bash']);
+const commands = new Set(['node', 'python', 'python3', 'bash']);
 const xiCli = fileURLToPath(new URL('./xi.mjs', import.meta.url));
 const xiioFamilies = new Set([
   'baseline','product','fleet','100s','preflight','cadence','studio','stack',
   'work','ack','burnmap','lesson','lexicon','sdk','recover',
 ]);
 const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--returns']);
-const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
 const MAX_ONCE_INPUT_BYTES = 65_536;
 
 /* --execute is a request, not authority. Every entrypoint (bin/xi.mjs and this
@@ -83,11 +82,6 @@ function target(raw) {
 export function validateWorkspaceCommand(command, args = []) {
   if (!commands.has(command) || !Array.isArray(args) || args.length > 32) throw new Error('COMMAND_DENIED');
   if (args.some(a => typeof a !== 'string' || a.includes('\0') || path.isAbsolute(a) || a.split(/[\\/]+/).includes('..'))) throw new Error('COMMAND_DENIED');
-
-  if (command === 'git') {
-    if (!gitCommands.has(args[0])) throw new Error('GIT_COMMAND_DENIED');
-    return { command, args };
-  }
 
   if (command === 'bash') {
     if (args[0] === '-c' || args[0] === '-lc') throw new Error('SHELL_STRING_DENIED');
