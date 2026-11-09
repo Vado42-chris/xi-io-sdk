@@ -6,11 +6,33 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { validateXiioCliArgs, validateWorkspaceCommand } from '../bin/xi-local-agent.mjs';
+import { initializeRotflOrderRuntime, advanceRotflOrderRuntime } from '../src/preflight/order-runtime.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const cli=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
 const sandbox=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-cli-wargame-'));
 const receipts=[];
+const oorState=path.join(sandbox,'order.current.json');
+const sdkHead=spawnSync('git',['-C',root,'rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim();
+const managedCurrent={
+  provider_current_ref:'fixture:provider-current',
+  studio_handoff_ref:'fixture:studio-handoff',
+  studio_session_ingress_ref:'fixture:studio-session',
+  current_selector_ref:'fixture:selector',
+  waterfall_ref:'fixture:waterfall',
+  registered_backlog_ref:'fixture:backlog',
+  waterfall_generation:'g1',
+  registered_backlog_generation:'g1',
+  owner_restatement_count:0,
+};
+initializeRotflOrderRuntime({source_generation:sdkHead,managed_current:managedCurrent,state_path:oorState});
+for(let i=0;i<=11;i++) advanceRotflOrderRuntime({
+  step_id:`O${i}`,
+  evidence_ref:`fixture:evidence:O${i}`,
+  preflight_ref:`fixture:preflight:O${i}`,
+  current_source_generation:sdkHead,
+  state_path:oorState,
+});
 let hostileCount=0;
 let rejected=0;
 let falseGreen=0;
@@ -22,7 +44,7 @@ function run(args,{home,cwd=root,input='',env={}}={}){
     encoding:'utf8',
     timeout:15_000,
     maxBuffer:4*1024*1024,
-    env:{...process.env,...(home?{HOME:home}:{}),...env},
+    env:{...process.env,XIIO_OOR_STATE_PATH:oorState,...(home?{HOME:home}:{}),...env},
   });
   assert.equal(result.error,undefined);
   return result;
@@ -80,10 +102,10 @@ function installHome(name,shell='/bin/bash'){
 const golden=installHome('home with spaces');
 const outside=path.join(sandbox,'outside cwd with spaces');
 fs.mkdirSync(outside,{recursive:true});
-let normal=spawnSync(golden.bin,['doctor'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,HOME:golden.home}});
+let normal=spawnSync(golden.bin,['doctor'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,XIIO_OOR_STATE_PATH:oorState,HOME:golden.home}});
 assert.equal(normal.status,0,normal.stderr);
 let doctor=JSON.parse(normal.stdout);
-assert.equal(doctor.schema,'xiio.cli.human-doctor/v1');
+assert.equal(doctor.schema,'xiio.cli.human-doctor/v2');
 assert.equal(doctor.provider_effect,false);
 assert.equal(doctor.automatic_cloud_fallback,false);
 
@@ -104,12 +126,18 @@ for(let i=0;i<10;i++) hostile(`INSTALL_${i}`,()=>{
 });
 
 // 10 stale/corrupt root pointer variants must fail in wrapper, not leak Node stacks.
+const xiioAlias=path.join(golden.home,'.local','bin','xiio');
+assert.ok(fs.existsSync(xiioAlias));
+const xiioVersion=spawnSync(xiioAlias,['--version'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,XIIO_OOR_STATE_PATH:oorState,HOME:golden.home}});
+assert.equal(xiioVersion.status,0,xiioVersion.stderr);
+assert.match(xiioVersion.stdout,/^0\.1\.0-candidate\.1\s*$/);
+
 const rootFile=path.join(golden.home,'.local','share','xi-io','cli','sdk.path');
 const goodRoot=fs.readFileSync(rootFile,'utf8');
 const badRoots=['','/','/tmp','/does/not/exist','relative/path','../escape','\0bad',' /tmp ','/var/empty','missing'];
 for(let i=0;i<10;i++) hostile(`POINTER_${i}`,()=>{
   fs.writeFileSync(rootFile,badRoots[i]+'\n');
-  const r=spawnSync(golden.bin,['doctor'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,HOME:golden.home}});
+  const r=spawnSync(golden.bin,['doctor'],{cwd:outside,encoding:'utf8',timeout:10_000,env:{...process.env,XIIO_OOR_STATE_PATH:oorState,HOME:golden.home}});
   fs.writeFileSync(rootFile,goodRoot);
   return typedWrapperError(r) && !/Error:|at .*\.mjs:/.test(r.stderr);
 });
@@ -118,7 +146,7 @@ for(let i=0;i<10;i++) hostile(`POINTER_${i}`,()=>{
 for(let i=0;i<10;i++) hostile(`NODE_FALLBACK_${i}`,()=>{
   const r=spawnSync(golden.bin,['registry','ack'],{
     cwd:outside,encoding:'utf8',timeout:10_000,
-    env:{...process.env,HOME:golden.home,XIIO_NODE:`/missing/node-${i}`}
+    env:{...process.env,XIIO_OOR_STATE_PATH:oorState,HOME:golden.home,XIIO_NODE:`/missing/node-${i}`}
   });
   return r.status===0 && /ACK command registry/.test(r.stdout);
 });
@@ -182,9 +210,9 @@ for(let i=0;i<10;i++) hostile(`ALIAS_ANYWHERE_${i}`,()=>{
   const bin=i%2?golden.alias:golden.bin;
   const r=spawnSync(bin,[i%2?'registry':'doctor',...(i%2?['commands']:[])],{
     cwd,encoding:'utf8',timeout:10_000,
-    env:{...process.env,HOME:golden.home,XIIO_NODE:`/invalid/node-${i}`}
+    env:{...process.env,XIIO_OOR_STATE_PATH:oorState,HOME:golden.home,XIIO_NODE:`/invalid/node-${i}`}
   });
-  return r.status===0 && (i%2?/Command registry/.test(r.stdout):JSON.parse(r.stdout).schema==='xiio.cli.human-doctor/v1');
+  return r.status===0 && (i%2?/Command registry/.test(r.stdout):JSON.parse(r.stdout).schema==='xiio.cli.human-doctor/v2');
 });
 
 assert.equal(hostileCount,100);
@@ -193,7 +221,7 @@ assert.equal(falseGreen,0);
 
 // Bootstrap + self-test lifecycle proof (separate from frozen hostile-100 denominator).
 const installedSelfTest=spawnSync(golden.bin,['self-test'],{
-  cwd:outside,encoding:'utf8',timeout:15_000,env:{...process.env,HOME:golden.home}
+  cwd:outside,encoding:'utf8',timeout:15_000,env:{...process.env,XIIO_OOR_STATE_PATH:oorState,HOME:golden.home}
 });
 assert.equal(installedSelfTest.status,0,installedSelfTest.stderr);
 const selfTestBody=JSON.parse(installedSelfTest.stdout);
@@ -265,9 +293,12 @@ function timedRun(label,args,{cwd=outside,env={}}={}){
 }
 const latencyRows=[
   timedRun('doctor',['doctor']),
+  timedRun('compass',['compass']),
   timedRun('registry_ack',['registry','ack']),
   timedRun('registry_tools',['registry','tools']),
   timedRun('self_test',['self-test']),
+  timedRun('runner_status',['runner','status']),
+  timedRun('runner_discover',['runner','discover']),
   timedRun('runner_recovery_plan',['recover','aries-runner']),
 ];
 assert.ok(latencyRows.every((row)=>row.ms<5000));
@@ -281,15 +312,19 @@ assert.throws(
   ()=>validateXiioCliArgs(['recover','aries-runner','--execute']),
   /XIIO_RECOVERY_REQUIRES_EXECUTE/
 );
+// --execute alone is a request, not authority: recovery also needs the shared lifecycle admission.
+assert.throws(
+  ()=>validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true,admissionGate:()=>({state:'BLOCKED'})}),
+  /XIIO_RECOVERY_REQUIRES_LIFECYCLE_ADMISSION/
+);
 assert.deepEqual(
-  validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true}),
+  validateXiioCliArgs(['recover','aries-runner','--execute'],{executionEnabled:true,admissionGate:()=>null}),
   ['recover','aries-runner','--execute']
 );
 assert.throws(
   ()=>validateXiioCliArgs(['recover','other-runner'],{executionEnabled:true}),
   /XIIO_RECOVERY_TARGET_DENIED/
 );
-
 // Interpreter boundary: relative script path is not enough to make arbitrary code execution bounded.
 assert.throws(()=>validateWorkspaceCommand('bash',['scripts/install-cli.sh']),/BASH_COMMAND_DENIED/);
 assert.throws(()=>validateWorkspaceCommand('bash',['-c','cat /etc/passwd']),/SHELL_STRING_DENIED/);
@@ -332,8 +367,6 @@ console.log(JSON.stringify({
   bootstrap_repeat:'PASS',
   bootstrap_dirty_checkout_fail_closed:true,
   bootstrap_wrong_target_fail_closed:true,
-  interpreter_execution_fail_closed:true,
-  syntax_check_only:true,
   automatic_cloud_fallback:false,
   provider_effects:0,
   authority_granted:false,

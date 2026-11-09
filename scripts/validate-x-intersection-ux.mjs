@@ -8,11 +8,12 @@ const base=()=>({
   intersection_ref:'x:1',
   deadline_ref:'deadline:1',
   priority_order:['deadline','truth','cost'],
+  expected_project_refs:['studio:p1','studio:p2'],
   golden:{bound_bit:1},
   sub:{bound_bit:1},
   timeline:{bound_bit:1,priority_bound_bit:1,deadline_coordinate_bound_bit:1},
   flatplane:{floor_bound_bit:1,mid_bound_bit:1,top_bound_bit:1,top_derived_symmetrically_bit:1},
-  rotation:{sectors_total:100,sectors_accounted:100,duplicate_sectors:0},
+  rotation:{sectors_total:360,sectors_accounted:360,duplicate_sectors:0},
   projects:[
     {project_ref:'studio:p1',project_generation:'g1',state:'NO_EFFECT',sdk_ack_ref:null,evidence_refs:['e:p1'],help_offered_bit:0,help_disposition_ref:null,result_ref:null,return_ref:null,apply_return_ref:null},
     {project_ref:'studio:p2',project_generation:'g1',state:'AFFECTED',sdk_ack_ref:'ack:p2',evidence_refs:['e:p2'],help_offered_bit:1,help_disposition_ref:'help:p2',result_ref:'result:p2',return_ref:'return:p2',apply_return_ref:'apply:p2'}
@@ -32,7 +33,7 @@ assert(compileXIntersectionUx(missTop).blockers.includes('FLATPLANE_PLANE_MISSIN
 const badTop=base(); badTop.flatplane.top_derived_symmetrically_bit=0;
 assert(compileXIntersectionUx(badTop).blockers.includes('TOP_NOT_DERIVED_SYMMETRICALLY')); pass++;
 
-const missingSector=base(); missingSector.rotation.sectors_accounted=99;
+const missingSector=base(); missingSector.rotation.sectors_accounted=359;
 assert(compileXIntersectionUx(missingSector).blockers.includes('ROTATION_DENOMINATOR_INCOMPLETE')); pass++;
 
 const duplicateSector=base(); duplicateSector.rotation.duplicate_sectors=1;

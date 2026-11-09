@@ -53,6 +53,68 @@ Current public runtime owners:
 
 A terminal ACK state, `RESULT`, `RETURN`, or `APPLY_RETURN`, is invalid when its reusable template denominator has not completed the ROTFL runtime route.
 
+### Structural claims are not runtime proof (2026-10-28 SDK kernel correction)
+
+The public SDK accepts submitted template refs, receipt refs, readback refs and
+binary bits as **untrusted structural input**. None of those strings authenticates
+execution, even when `state=EXECUTED` and all claimed bits are one.
+
+- `supplied_complete` and `template_supplied_pass` count claimed template coverage.
+- `runtime_complete` and `template_pass` remain false/zero in the
+  structural-only SDK path until a separately authenticated and generation-bound
+  runtime verifier is integrated. Payload-provided `authenticated`, `verified`
+  or `runtime_complete` flags are never authority.
+- `route_id` identifies the template plan, while `submission_digest`
+  distinguishes different supplied receipts/readbacks for that plan.
+- Item Trinity preserves the useful `SUPPLIED_UNVERIFIED` UX state and never
+  grants closure credit. Distributed ACK `RESULT`, `RETURN`, and
+  `APPLY_RETURN` fail closed without authenticated runtime proof.
+- This SDK change **does not** claim provider-effect verification. The connection
+  builder owns authenticated execution and physical readback; an authorized
+  adopter must wire and qualify that evidence before verified terminal ACKs work.
+
+Hard: `SUBMITTED_RECEIPT_REF != AUTHENTICATED_RUNTIME_READBACK` and
+`SDK_STRUCTURAL_OK != QUALIFIED_OPERATIONAL_COMPLETION`.
+
+## Worker lifecycle evidence boundary
+
+`src/worker/lifecycle.mjs:compileWorkerAdapterConformance` compiles supplied
+contract coverage, not authenticated provider execution. Existing `cells`, `pass`,
+`fail`, and `first_red` remain structural diagnostics. `supplied_complete` and
+`structural_eligible` make that scope explicit; `runtime_complete` and
+`release_eligible` remain false. Payload `verified`, `authenticated`, process IDs,
+worker/model labels and historical `STARTED` events cannot change that boundary.
+`runtime_first_red` names the missing authenticated generation-bound proof.
+
+The existing owner join must be supplied by the connection/Work runtime, not a
+new SDK observer, credential store or authority:
+
+- Plugins' unmerged PR45 work-api-handshake donor contract binds `root_ref`, `work_ref`, `work_generation`,
+  `consumer_id`, `canonical_provider_id`, `connection_instance_ref`, `account_ref`,
+  `capability_ref`, `host_surface_generation` and `adapter_generation`.
+- Ibal's hotfolder worker binding preserves `project_id`, `work_id`,
+  `assignment_ref`, `attempt_id`, `agent_id`, `source_generation`, `return_ref`
+  and `operation_ref`. These must join the same current provider/Work tuple;
+  matching labels or independently supplied references do not establish that join.
+- Current process-instance/attempt liveness must be observed by the execution
+  owner; historical start records are not liveness. Durable RESULT, RETURN,
+  APPLY_RETURN and consumer readback must refer to the same attempt and target.
+- Recovery must re-read those owners; it must not blindly repeat an uncertain
+  effect or promote a cached receipt to current authentication.
+
+`runWorkerLifecycleAttempt` shares the existing Ibal durable phase engine. Its
+adopter must retain the same job/worker/capacity leases across the entire call,
+private insert-only history, current-owner checks and qualified effect owners.
+The SDK owns phase ordering and same-binding result/return validation only;
+it does not own transport, process creation, account admission or credentials.
+Restarted EXECUTION_STARTED/APPLY_RETURN_STARTED requires owner reconciliation,
+never blind effect replay. The Ibal consumer adoption is separately qualified.
+
+The authenticated production join remains unimplemented in this SDK path.
+A disposable Ibal process/return canary is test evidence only, never provider
+account, native-installation, Ward admission or Switchboard effect proof.
+`time_money_bound_bit` retains its metering meaning, not a timeout or lease.
+
 ## Runtime test economy
 
 `npm run check` routes the complete SDK validation denominator through `scripts/run-runtime-rotfl-sdk-check.mjs`.
@@ -92,6 +154,39 @@ conversation occurrence
 ```
 
 MCP/A2A capability visibility never grants effect authority. Runtime execution and readback remain separately qualified.
+
+## Live connection recovery catch-up (SDK notebook and paused agents)
+
+NotebookLM, a resurrected SDK notebook agent, or any agent absent from the
+October 27–28 XI-IO connectivity repair must **not** reuse its old connection
+status as current. After the Studio CURRENT front door above, resolve the
+framework owner's provider-current
+`docs/ops/CHATGPT-PRIVATE-MCP-TUNNEL-20261028.md`
+and framework [#1366](https://github.com/Vado42-chris/xi-io.net/issues/1366)
+as observed connection receipts and pending gates. Refresh the referenced
+GitHub commits **and** physical installed-generation evidence; neither a
+GitHub comment nor this SDK paragraph is the canonical runtime authority.
+
+Owner's most recent externally returned Loki receipt:
+`MCP_STDIO_INSTALLED_PROTOCOL_VERIFIED` for
+`private-mcp-stdio-f743a92fe4fb`. Previous Loki HEX MCP host source
+was physically read back; the broad HEX auto-install run `40670506512`
+was cancelled; the current framework main workflow validates source on
+hosted runners, and broad install is manual dispatch only. These are
+not proof of a running Secure MCP Tunnel, ChatGPT plugin attachment,
+first-party device-session issuance, Ward admission, network/share
+discovery, protected host execution, or BINS/Work RETURN.
+
+Preserve the existing Loki server, Aries client, identities, tunnels,
+records and installed HEX generation. Never re-run the HEX installer,
+create duplicate enrollment/authority, silently expose private host data,
+or substitute Desktop Commander. A paused agent must classify old
+statements `HISTORICAL_REVIEW_NOT_CURRENT`, and refresh from the current
+owner and physical returns before contributing a proposed correction.
+If no connector is available to send the correction to a private notebook,
+record `NOTEBOOK_DIRECT_DELIVERY_UNVERIFIED` rather than claiming
+the notebook was updated. One mutation custodian, affected source
+readback, explicit Ward consent and physical runtime proof still apply.
 
 ## Mutation boundary
 

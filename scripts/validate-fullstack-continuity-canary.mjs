@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {compileFullstackContinuityCanary,FULLSTACK_CANARY_INPUT_SCHEMA} from '../src/evaluation/fullstack-continuity-canary.mjs';
-const base=()=>({schema:FULLSTACK_CANARY_INPUT_SCHEMA,occurrence_ref:'canary:1',classification:'CORRECTION_DELTA',primitive_patched_bit:1,fresh_session_replay_bit:1,owner_restatement_count:0,silent_remainder_count:0,registered_rows:[{project_ref:'studio',disposition:'APPLICABLE',evidence_refs:['e1'],return_ref:'r1',apply_return_ref:'a1'},{project_ref:'desktop',disposition:'NO_EFFECT_WITH_EVIDENCE',evidence_refs:['e2']}]});
+const base=()=>({schema:FULLSTACK_CANARY_INPUT_SCHEMA,occurrence_ref:'canary:1',classification:'CORRECTION_DELTA',expected_project_refs:['desktop','studio'],primitive_patched_bit:1,fresh_session_replay_bit:1,owner_restatement_count:0,silent_remainder_count:0,registered_rows:[{project_ref:'studio',disposition:'APPLICABLE',evidence_refs:['e1'],return_ref:'r1',apply_return_ref:'a1'},{project_ref:'desktop',disposition:'NO_EFFECT_WITH_EVIDENCE',evidence_refs:['e2']}]});
 let n=0; assert.equal(compileFullstackContinuityCanary(base()).closure,true);n++;
 const c1=base();c1.primitive_patched_bit=0;assert(compileFullstackContinuityCanary(c1).blockers.includes('PRIMITIVE_NOT_PATCHED'));n++;
 const c2=base();c2.fresh_session_replay_bit=0;assert(compileFullstackContinuityCanary(c2).blockers.includes('FRESH_SESSION_REPLAY_OPEN'));n++;

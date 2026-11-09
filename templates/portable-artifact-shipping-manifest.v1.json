@@ -1,0 +1,67 @@
+{
+  "schema": "xiio.sdk.portable-artifact-shipping-manifest-template/v1",
+  "template_only": true,
+  "executable": false,
+  "hard": [
+    "TEMPLATE != ARTIFACT",
+    "PLACEHOLDER != BINDING",
+    "COPY_TEMPLATE_THEN_BIND_EXACT_REFS",
+    "NO_OWNER_RELAY_FOR_MACHINE_RESOLVABLE_FIELDS"
+  ],
+  "cube_id": "REQUIRED",
+  "file": {
+    "file_id": "REQUIRED",
+    "artifact_role": "REQUIRED",
+    "semantic_generation": "REQUIRED",
+    "profile_id": "RESOLVE_WITH_xi-io_file_profile",
+    "payload": {},
+    "source_bindings": [
+      {
+        "ref": "REQUIRED",
+        "generation": "REQUIRED",
+        "role": "primary"
+      }
+    ],
+    "dependency_bindings": [],
+    "projection_refs": [],
+    "provider_projections": []
+  },
+  "dependency_policy": "EXPLICIT_OR_NONE_REQUIRED",
+  "parser_profile": {
+    "profile_id": "REQUIRED_REGISTERED_PROFILE"
+  },
+  "consumer_profile": {
+    "profile_id": "REQUIRED_REGISTERED_PROFILE"
+  },
+  "hex_floor_ref": "~/.local/state/xi-io/hex/floor.current.json",
+  "hex_subject_ref": "REQUIRED",
+  "hex_subject_generation": "REQUIRED",
+  "bins_custody": {
+    "resource_version_ref": "REQUIRED",
+    "sha256": "REQUIRED_64_HEX",
+    "byte_length": "REQUIRED_INTEGER",
+    "source_ref": "REQUIRED"
+  },
+  "transfer_readback": {
+    "source_sha256": "REQUIRED_64_HEX",
+    "destination_sha256": "REQUIRED_64_HEX",
+    "source_bytes": "REQUIRED_INTEGER",
+    "destination_bytes": "REQUIRED_INTEGER",
+    "final_readback_ref": "REQUIRED"
+  },
+  "parser_readback": {
+    "state": "WAIT",
+    "profile_id": "REQUIRED_REGISTERED_PROFILE",
+    "receipt_ref": null
+  },
+  "consumer_readback": {
+    "state": "WAIT",
+    "profile_id": "REQUIRED_REGISTERED_PROFILE",
+    "receipt_ref": null
+  },
+  "authority_gate": {
+    "required": false,
+    "held": false,
+    "authority_ref": null
+  }
+}

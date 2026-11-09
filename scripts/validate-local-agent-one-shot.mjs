@@ -1,12 +1,37 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { initializeRotflOrderRuntime, advanceRotflOrderRuntime } from '../src/preflight/order-runtime.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const bin=fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
 const agent=fs.readFileSync(new URL('../bin/xi-local-agent.mjs',import.meta.url),'utf8');
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-one-shot-oor-'));
+const oorState=path.join(tmp,'order.current.json');
+const sdkHead=spawnSync('git',['-C',root,'rev-parse','HEAD'],{encoding:'utf8'}).stdout.trim();
+const managedCurrent={
+  provider_current_ref:'fixture:provider-current',
+  studio_handoff_ref:'fixture:studio-handoff',
+  studio_session_ingress_ref:'fixture:studio-session',
+  current_selector_ref:'fixture:selector',
+  waterfall_ref:'fixture:waterfall',
+  registered_backlog_ref:'fixture:backlog',
+  waterfall_generation:'g1',
+  registered_backlog_generation:'g1',
+  owner_restatement_count:0,
+};
+initializeRotflOrderRuntime({source_generation:sdkHead,managed_current:managedCurrent,state_path:oorState});
+for(let i=0;i<=11;i++) advanceRotflOrderRuntime({
+  step_id:`O${i}`,
+  evidence_ref:`fixture:evidence:O${i}`,
+  preflight_ref:`fixture:preflight:O${i}`,
+  current_source_generation:sdkHead,
+  state_path:oorState,
+});
 
 function invoke(args,{input=''}={}){
   const run=spawnSync(process.execPath,[bin,'chat',...args],{
@@ -15,7 +40,7 @@ function invoke(args,{input=''}={}){
     encoding:'utf8',
     timeout:10_000,
     maxBuffer:1_048_576,
-    env:{...process.env,XIIO_OLLAMA_MODEL:'validation-model-do-not-call'},
+    env:{...process.env,XIIO_OOR_STATE_PATH:oorState,XIIO_OLLAMA_MODEL:'validation-model-do-not-call'},
   });
   assert.equal(run.error,undefined);
   assert.equal(run.stderr,'');
@@ -63,6 +88,8 @@ assert.equal(bounded.value.first_red,'ONCE_INPUT_EMPTY');
 assert.equal(bounded.value.execution,'BOUNDED');
 assert.equal(bounded.value.provider_effect,false);
 assert.equal(bounded.value.automatic_cloud_fallback,false);
+
+fs.rmSync(tmp,{recursive:true,force:true});
 
 console.log(JSON.stringify({
   status:'PASS',

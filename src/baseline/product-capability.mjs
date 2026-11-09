@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
 
 export const PRODUCT_BASELINE_SCHEMA = 'xiio.sdk.product-capability-baseline/v1';
 export const PRODUCT_BASELINE_CELLS = Object.freeze([
@@ -37,6 +38,7 @@ function normalizeObservation(value = {}) {
 }
 
 export function compileProductCapabilityBaseline(input) {
+  const hexCurrentness = bindHexFloorCurrentness(input?.hex_floor);
   if (!input || typeof input !== 'object' || !Array.isArray(input.products) || !input.products.length) throw new TypeError('products required');
   const seen = new Set();
   const products = input.products.map((product) => {
@@ -87,7 +89,9 @@ export function compileProductCapabilityBaseline(input) {
     authority_granted:false,
     provider_effect:false,
     source_generation_state: bound(input.source_generation.trim()) ? 'SUPPLIED_UNVERIFIED' : 'UNBOUND',
-    source_currentness:'UNVERIFIED',
+    source_currentness:hexCurrentness.state,
+    hex_projection_ref:hexCurrentness.projection_ref,
+    missing_punchcards:hexCurrentness.missing_punchcards,
     live_claim:false,
     products,
     hard: [

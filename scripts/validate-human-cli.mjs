@@ -33,7 +33,25 @@ assert.match(help.stdout,/xi-io registry tools/);
 assert.match(help.stdout,/xi-io --execute/);
 assert.match(help.stdout,/xi-io self-test/);
 assert.match(help.stdout,/xi-io models/);
+assert.match(help.stdout,/xi-io runner status/);
+assert.match(help.stdout,/xi-io runner recover/);
 assert.match(help.stdout,/xi-io recover aries-runner/);
+
+const version=run(['--version']);
+assert.equal(version.status,0);
+assert.match(version.stdout,/^0\.1\.0-candidate\.1\s*$/);
+
+const runnerStatus=run(['runner','status']);
+assert.ok([0,2].includes(runnerStatus.status));
+const runnerStatusJson=JSON.parse(runnerStatus.stdout);
+assert.equal(runnerStatusJson.schema,'xiio.cli.runner-status/v1');
+assert.equal(runnerStatusJson.provider_effect,false);
+
+const runnerDiscover=run(['runner','discover']);
+assert.ok([0,2].includes(runnerDiscover.status));
+const runnerDiscoverJson=JSON.parse(runnerDiscover.stdout);
+assert.equal(runnerDiscoverJson.schema,'xiio.cli.aries-runner-recovery/v2');
+assert.equal(runnerDiscoverJson.provider_effect,false);
 
 const commands=run(['registry','commands']);
 assert.equal(commands.status,0);
@@ -73,10 +91,28 @@ const primitiveJson=JSON.parse(primitives.stdout);
 assert.equal(primitiveJson.schema,'xiio.sdk.primitive-catalog/v2');
 assert.ok(Array.isArray(primitiveJson.primitives) && primitiveJson.primitives.length>0);
 
+const compass=run(['compass']);
+assert.equal(compass.status,0,compass.stderr);
+const compassJson=JSON.parse(compass.stdout);
+assert.equal(compassJson.schema,'xiio.cli.compass/v1');
+assert.equal(compassJson.provider_effect,false);
+assert.equal(compassJson.authority_granted,false);
+assert.ok(['PASS','MAP_WITH_REDS'].includes(compassJson.state));
+assert.ok(compassJson.denominator>=10);
+assert.ok(typeof compassJson.machine.home==='string');
+assert.ok(compassJson.receipt && compassJson.receipt.endsWith('/compass/current.json'));
+
 const doctor=run(['doctor']);
 assert.equal(doctor.status,0);
 const doctorJson=JSON.parse(doctor.stdout);
-assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v1');
+assert.equal(doctorJson.schema,'xiio.cli.human-doctor/v2');
+assert.equal(doctorJson.compass.schema,'xiio.cli.compass/v1');
+assert.equal(doctorJson.compass.provider_effect,false);
+assert.equal(doctorJson.compass.authority_granted,false);
+assert.ok(Array.isArray(doctorJson.compass.cells));
+assert.ok(doctorJson.compass.cells.some((row)=>row.id==='HOME'));
+assert.ok(doctorJson.compass.cells.some((row)=>row.id==='FRAMEWORK'));
+assert.ok(doctorJson.compass.cells.some((row)=>row.id==='RUNNER'));
 assert.ok(['PARTIAL_LOCAL_DEPENDENCY_RUNNING','WAIT_LOCAL_DEPENDENCY'].includes(doctorJson.status));
 assert.equal(doctorJson.state_ladder.installed.state,'PASS');
 assert.equal(doctorJson.state_ladder.dependency_running.scope,'OLLAMA_ONLY');
@@ -102,6 +138,8 @@ for(const hard of [
   'LOCAL_RUNNING != OUTSIDE_ORIGIN_LIVE'
 ]) assert.ok(doctorJson.hard_state_separation.includes(hard),hard);
 assert.equal(doctorJson.provider_effect,false);
+assert.equal(doctorJson.runner.schema,'xiio.cli.runner-status/v1');
+assert.equal(doctorJson.installed_bins.some((row)=>row.bin.endsWith('/xiio')),true);
 assert.equal(doctorJson.automatic_cloud_fallback,false);
 assert.ok(doctorJson.local_tools.length>=10);
 assert.ok(doctorJson.ack_commands.includes('xi-io ack distribute'));
@@ -162,13 +200,23 @@ assert.equal(install.status,0);
 const installReceipt=JSON.parse(install.stdout);
 assert.equal(installReceipt.installed,true);
 assert.equal(installReceipt.default_entry,'xi-io');
+assert.deepEqual(installReceipt.human_aliases,['xiio','xi']);
 const installedBin=path.join(tempHome,'.local','bin','xi-io');
+const xiioAliasBin=path.join(tempHome,'.local','bin','xiio');
 const aliasBin=path.join(tempHome,'.local','bin','xi');
 assert.ok(fs.existsSync(installedBin));
+assert.ok(fs.existsSync(xiioAliasBin));
 assert.ok(fs.existsSync(aliasBin));
+const xiioAliasVersion=spawnSync(xiioAliasBin,['--version'],{cwd:os.tmpdir(),encoding:'utf8',timeout:10_000,env:{...process.env,HOME:tempHome}});
+assert.equal(xiioAliasVersion.status,0,xiioAliasVersion.stderr);
+assert.match(xiioAliasVersion.stdout,/^0\.1\.0-candidate\.1\s*$/);
 assert.ok((fs.statSync(installedBin).mode & 0o111)!==0);
 assert.ok(fs.existsSync(path.join(tempHome,'.local','share','xi-io','cli','env.sh')));
 assert.ok(fs.readFileSync(path.join(tempHome,'.bashrc'),'utf8').includes('xi-io-cli-managed-path'));
+
+const xiioAliasHelp=spawnSync(xiioAliasBin,['--help'],{cwd:os.tmpdir(),encoding:'utf8',timeout:10_000,env:{...process.env,HOME:tempHome}});
+assert.equal(xiioAliasHelp.status,0,xiioAliasHelp.stderr);
+assert.match(xiioAliasHelp.stdout,/xi-io local operator/);
 
 const installedSelfTest=spawnSync(installedBin,['self-test'],{
   cwd:os.tmpdir(),

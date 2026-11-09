@@ -7,7 +7,14 @@
     "callable_uuid_role": "DISCOVERY_AND_CALL_ANCHOR_ONLY",
     "internal_management_surface": "OPAQUE_WARD_PROTECTED",
     "internal_provenance_disclosed": false,
-    "internal_topology_disclosed": false
+    "internal_topology_disclosed": false,
+    "portable_shipping": {
+      "prepare_command": "xi-io file prepare --primitive <id> --generation <sha>",
+      "semantic_file": "@xi-io/sdk/documents/portable-semantic-file",
+      "shipping_cube": "@xi-io/sdk/documents/portable-artifact-cube",
+      "profiles": "@xi-io/sdk/documents/artifact-profiles",
+      "required_for_registered_primitives": true
+    }
   },
   "hard": [
     "CALLABLE_UUID != CANONICAL_IDENTITY",
@@ -19,15 +26,21 @@
     "DISPATCH_COUNTER != BINS_CURRENT",
     "CATALOG_COUNT != LIVE_ADOPTION",
     "TOPOGRAPHY_PROJECTION_LABEL!=CANONICAL_OPERATION",
-    "PATH!=ILLUMINATION"
+    "PATH!=ILLUMINATION",
+    "REGISTERED_PRIMITIVE_MUST_BE_PORTABLE_FILE_CUBE_PREPARABLE",
+    "PRIMITIVE_REGISTRATION_WITHOUT_SHIPPING_PATH = FAIL",
+    "FILE_CUBE_PREPARABLE != SHIPPED",
+    "PLATFORM_REQUIREMENT_RETYPE_BY_PRODUCT = FAIL",
+    "PLATFORM_CONTRACT_MUST_PROJECT_THROUGH_FLATPACK"
   ],
   "dispatch": {
-    "expected": 40,
-    "materialized_primitives": 37,
+    "expected": 42,
+    "materialized_primitives": 42,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
-    "live_claim": false
+    "live_claim": false,
+    "candidate_delta": "FLATPACK_PACKET_REGISTERED_FOR_PORTABLE_SHIPPING_PENDING_HEX_BINS_CONSUMER_READBACK"
   },
   "primitives": [
     {
@@ -519,6 +532,61 @@
       "specifier": "@xi-io/sdk/projections/topography-coordinate",
       "styles": [],
       "maturity": "CANDIDATE"
+    },
+    {
+      "id": "transition-proof-reducer",
+      "callable_uuid": "11111111-1111-5111-8111-111111111112",
+      "family": "evaluation",
+      "kind": "compiler",
+      "export": "reduceMultiplicativeFactors|compileTransitionProofMatrix",
+      "source": "src/evaluation/transition-proof-reducer.mjs",
+      "specifier": "@xi-io/sdk/evaluation/transition-proof-reducer",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "portable-semantic-file",
+      "callable_uuid": "99174ce8-1652-5c32-9a65-364ef58f3c8e",
+      "family": "documents",
+      "kind": "compiler",
+      "export": "PortableSemanticFile|compilePortableSemanticFile|validatePortableSemanticFileRoundtrip",
+      "source": "src/documents/portable-semantic-file.mjs",
+      "specifier": "@xi-io/sdk/documents/portable-semantic-file",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "portable-artifact-cube",
+      "callable_uuid": "ec0c5b6a-7128-577b-bacb-3f556101d906",
+      "family": "documents",
+      "kind": "compiler",
+      "export": "compilePortableArtifactCube",
+      "source": "src/documents/portable-artifact-cube.mjs",
+      "specifier": "@xi-io/sdk/documents/portable-artifact-cube",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "flatpack-packet",
+      "callable_uuid": "f8f2273d-4d43-5c32-8e0a-3b4e0f097241",
+      "family": "flatpack",
+      "kind": "compiler",
+      "export": "compileFlatpackPacket|projectFlatpackQualifiers|validateFlatpackPacketRoundtrip|reduceFlatpackArtifact|expandFlatpackArtifact|validateFlatpackReductionRoundtrip",
+      "source": "src/flatpack/executable-packet.mjs",
+      "specifier": "@xi-io/sdk/flatpack/packet",
+      "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "worker-lifecycle-kit",
+      "callable_uuid": "d6d64d79-8e38-53a1-ad28-13e68f817b66",
+      "family": "worker",
+      "kind": "compiler",
+      "export": "compileWorkerLifecycleKit|workerLifecyclePrimitiveCatalog|compileWorkerAdapterConformance|runWorkerLifecycleAttempt",
+      "source": "src/worker/lifecycle.mjs",
+      "specifier": "@xi-io/sdk/worker/lifecycle",
+      "styles": [],
+      "maturity": "CANDIDATE"
     }
   ],
   "known_gaps": [
@@ -528,5 +596,28 @@
     "popover-menu",
     "choice-group",
     "inline-status"
+  ],
+  "platform_contracts": [
+    {
+      "id": "android-interaction",
+      "family": "interaction-platform",
+      "kind": "flatpack-contract",
+      "source": "standards/interaction-platform.android.v1.json",
+      "validator": "scripts/validate-interaction-platform-android.mjs",
+      "inherited_by": [
+        "inbox",
+        "publisher",
+        "articles",
+        "studio",
+        "dashboards",
+        "widgets",
+        "windows",
+        "websites",
+        "android-webview"
+      ],
+      "maturity": "CANDIDATE",
+      "portable_shipping": true,
+      "owner_retype_required": false
+    }
   ]
 }

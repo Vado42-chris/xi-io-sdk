@@ -5,17 +5,20 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
+import { startLocalAgentServer } from '../src/cli/local-agent-http.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 import { commandLexicon } from '../src/cli/public-exports.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
+import { requireRotflMutationAdmission, defaultRotflOrderStatePath } from '../src/preflight/order-runtime.mjs';
 
 const cwd = fs.realpathSync(process.cwd());
 const execute = process.argv.includes('--execute');
 const once = process.argv.includes('--once');
+const serve = process.argv.includes('--serve');
 const model = process.env.XIIO_OLLAMA_MODEL || 'llama3.1:8b';
 const ollama = 'http://127.0.0.1:11434';
 const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'xi-io', 'cli');
@@ -29,8 +32,25 @@ const xiioFamilies = new Set([
   'work','ack','burnmap','lesson','lexicon','sdk','recover',
 ]);
 const xiioPathFlags = new Set(['--input','--out','--baseline','--rotfl','--returns']);
-const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch']);
+const gitCommands = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'branch', 'fetch', 'pull', 'switch']);
 const MAX_ONCE_INPUT_BYTES = 65_536;
+
+/* --execute is a request, not authority. Every entrypoint (bin/xi.mjs and this
+   direct one) must pass the same shared ROTFL lifecycle admission before any
+   effectful tool runs; otherwise this file is a side door around it. */
+function sdkSourceGeneration() {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const git = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding:'utf8', timeout:5000 });
+  if (git.status === 0 && String(git.stdout || '').trim()) return String(git.stdout).trim();
+  const version = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  return `sdk-package:${version}`;
+}
+export function effectGate() {
+  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+  const admission = requireRotflMutationAdmission({ current_source_generation: sdkSourceGeneration() });
+  if (admission.admitted) return null;
+  return { ok:false, state:'BLOCKED', reason:'ROTFL_LIFECYCLE_ADMISSION_REQUIRED', first_red:admission.first_red, provider_effect:false, authority_granted:false };
+}
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -40,12 +60,23 @@ function argValue(name) {
   return value;
 }
 
+export function resolveWorkspacePath(raw) { return target(raw); }
 function target(raw) {
   if (typeof raw !== 'string' || !raw.trim() || path.isAbsolute(raw)) throw new Error('PATH_DENIED');
   const parts = raw.split(/[\\/]+/);
   if (parts.includes('..') || parts.some(p => blocked.has(p) || /^\.env(?:\.|$)/i.test(p))) throw new Error('PATH_DENIED');
   const resolved = path.resolve(cwd, raw);
   if (resolved !== cwd && !resolved.startsWith(cwd + path.sep)) throw new Error('PATH_DENIED');
+  // Never let a workspace tool touch the admission state, even when it sits under the workspace or behind a symlink.
+  const stateDir = path.dirname(path.resolve(defaultRotflOrderStatePath()));
+  let real = resolved;
+  for (let probe = resolved; ; probe = path.dirname(probe)) {
+    try { real = path.join(fs.realpathSync(probe), path.relative(probe, resolved)); break; } catch {}
+    if (probe === path.dirname(probe)) break;
+  }
+  for (const candidate of [resolved, real]) {
+    if (candidate === stateDir || candidate.startsWith(stateDir + path.sep)) throw new Error('PATH_DENIED_ADMISSION_STATE');
+  }
   return resolved;
 }
 
@@ -81,7 +112,7 @@ export function validateWorkspaceCommand(command, args = []) {
 }
 
 async function run(command, args = []) {
-  if (!execute) return { ok:false, state:'BLOCKED', reason:'START_WITH_XI_CHAT_EXECUTE' };
+  const gate = effectGate(); if (gate) return gate;
   validateWorkspaceCommand(command, args);
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env: process.env, stdio:['ignore','pipe','pipe'] });
@@ -335,13 +366,19 @@ function readXiioRegistry(kind) {
   throw new Error('REGISTRY_KIND_DENIED');
 }
 
-export function validateXiioCliArgs(argv,{executionEnabled=execute}={}) {
-  if(!Array.isArray(argv) || argv.length<1 || argv.length>64) throw new Error('XIIO_ARGS_INVALID');
-  if(argv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
+export function validateXiioCliArgs(rawArgv,{executionEnabled=execute,admissionGate=effectGate}={}) {
+  if(!Array.isArray(rawArgv) || rawArgv.length<1 || rawArgv.length>64) throw new Error('XIIO_ARGS_INVALID');
+  if(rawArgv.some((value)=>typeof value!=='string' || value.includes('\0'))) throw new Error('XIIO_ARGS_INVALID');
+  // --flag=value is the same flag: split it so no check can be skipped by spelling.
+  const argv=rawArgv.flatMap((value)=>/^--[a-z][a-z0-9-]*=/.test(value)?[value.slice(0,value.indexOf('=')),value.slice(value.indexOf('=')+1)]:[value]);
+  // The acting model must never write or advance its own admission state.
+  if(argv[0]==='ack' && argv[1]==='order' && argv[2]!=='status' && argv[2]!=='catalog') throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
+  if(argv.includes('--state')) throw new Error('XIIO_ADMISSION_STATE_OWNER_ONLY');
   if(!xiioFamilies.has(argv[0])) throw new Error('XIIO_COMMAND_FAMILY_DENIED');
   if(argv[0]==='recover'){
     if(argv[1]!=='aries-runner') throw new Error('XIIO_RECOVERY_TARGET_DENIED');
     if(argv.includes('--execute') && !executionEnabled) throw new Error('XIIO_RECOVERY_REQUIRES_EXECUTE');
+    if(argv.includes('--execute') && admissionGate()) throw new Error('XIIO_RECOVERY_REQUIRES_LIFECYCLE_ADMISSION');
   }
   for(let i=0;i<argv.length;i+=1){
     const flag=argv[i];
@@ -351,6 +388,7 @@ export function validateXiioCliArgs(argv,{executionEnabled=execute}={}) {
     if(flag==='--out' && value==='-'){i+=1;continue;}
     target(value);
     if(flag==='--out' && !execute) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_EXECUTE');
+    if(flag==='--out' && admissionGate()) throw new Error('XIIO_LOCAL_WRITE_REQUIRES_LIFECYCLE_ADMISSION');
     i+=1;
   }
   return argv;
@@ -401,7 +439,7 @@ async function tool(name,a={}) {
   if(name==='resolve_xiio_command') return resolveLexiconCommand(String(a.token||''));
   if(name==='run_xiio_cli_command') return runXiioCliCommand(a);
   if(name==='edit_workspace_text_file') {
-    if(!execute) return {ok:false,state:'BLOCKED',reason:'START_WITH_XI_CHAT_EXECUTE'};
+    const gate=effectGate(); if(gate) return gate;
     const p=target(a.path), next=String(a.new_text??''); if(Buffer.byteLength(next)>262144) throw new Error('EDIT_TOO_LARGE');
     if(a.operation==='create') await fsp.writeFile(p,next,{flag:'wx'});
     else { const old=String(a.old_text??''), cur=await fsp.readFile(p,'utf8'); if(!old||cur.indexOf(old)<0||cur.indexOf(old)!==cur.lastIndexOf(old)) throw new Error('EDIT_STALE_OR_AMBIGUOUS'); await fsp.writeFile(p,cur.replace(old,next)); }
@@ -425,14 +463,19 @@ function realizationCorrection(realization) {
       'Workspace file paths must be relative to the current workspace; never use /LUNAR or another absolute path.',
       'If no admitted native tool can perform the requested action, return a typed blocker and exact wake. Do not claim the action ran.',
       'After a native mutation, rely on the tool result/readback before claiming success.',
+      ...(realization.blockers.some((b)=>b.startsWith('INVENTED_POLICY_REFUSAL') || b==='INVENTED_TOOL_DENIAL')
+        ? ['No policy refused tools this turn: the host issued no NO_TOOLS reason, and every listed tool is admitted. Do not cite a refusal the host did not issue. Act with a native call, or name the exact tool error you received.']
+        : []),
     ].join(' '),
   };
 }
 
-async function chat(messages){
+async function chat(messages,{signal}={}){
   const observedToolCalls=[];
   for(let spin=0;spin<6;spin++){
-    const res=await fetch(ollama+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:AbortSignal.timeout(300000)});
+    if(signal?.aborted) throw new Error('TURN_ABORTED');
+    const bound=signal?AbortSignal.any([signal,AbortSignal.timeout(300000)]):AbortSignal.timeout(300000);
+    const res=await fetch(ollama+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:bound});
     if(!res.ok) throw new Error('OLLAMA_HTTP_'+res.status);
     const body=await res.json(), msg=body.message||{}; messages.push(msg);
     if(!msg.tool_calls?.length) {
@@ -441,6 +484,7 @@ async function chat(messages){
         observedToolCalls,
         availableToolNames:toolNames,
         workspacePathMode:'RELATIVE_ONLY',
+        issuedPolicyReasons:[],
       });
       if(realization.pass) return msg.content||'';
       messages.push(realizationCorrection(realization));
@@ -511,6 +555,24 @@ export async function main(){
   messages.unshift(systemMessage());
   if (once) {
     await runOneShot(messages);
+    return;
+  }
+  if (serve) {
+    const port=Number(argValue('--port') ?? 3109);
+    if(!Number.isInteger(port) || port<1024 || port>65535) throw new Error('PORT_INVALID');
+    const uiDir=argValue('--ui') ? target(argValue('--ui')) : null;
+    const server=await startLocalAgentServer({
+      port,
+      uiDir,
+      status: async()=>{ const s=await localRuntimeStatus(); return {model:s.model,execution:s.execution,ollama_state:s.ollama_state,tool_count:s.tools.length}; },
+      handleTurn: async(message,{signal}={})=>{
+        messages.push({role:'user',content:message});
+        const reply=await chat(messages,{signal});
+        await save(messages.filter(m=>m.role!=='system'));
+        return reply;
+      },
+    });
+    process.stdout.write(`xi-io local agent door: http://127.0.0.1:${server.address().port}/ (loopback only, ${execute?'BOUNDED EXECUTION':'PREVIEW / READ-ONLY'})\n`);
     return;
   }
   const runtime=await localRuntimeStatus();
