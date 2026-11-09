@@ -66,6 +66,15 @@ const env={...process.env,XIIO_REMOTE_DESKTOP_STATE_PATH:statePath,XIIO_INVOKED_
 const run=spawnSync(process.execPath,['bin/xi.mjs','status','--json'],{encoding:'utf8',env});
 assert([0,1,2].includes(run.status),`legacy adapter state must not decide core CLI exit, got ${run.status}: ${run.stderr}`);
 const body=JSON.parse(run.stdout);
+assert.equal(body.schema,'xiio.cli.status/v1');
+// Preserve existing v1 field locations without advertising them as active routes.
+for(const evidence of [body.remote_desktop,body.io.remote_desktop]){
+  assert.equal(evidence.compatibility_field,true);
+  assert.equal(evidence.active_capability,false);
+  assert.equal(evidence.routes_native_work,false);
+  assert.equal(evidence.fallback_allowed,false);
+  assert.equal(evidence.gates_native_execution,false);
+}
 assert.equal(body.remote_desktop.plugin_auth_state,'PASS');
 assert.equal(body.remote_desktop.device_registration_state,'PASS');
 assert.equal(body.remote_desktop.live_device_session_state,'FAIL_CURRENT');
@@ -88,12 +97,13 @@ assert.equal(body.io.remote_desktop.plugin_auth_state,'PASS');
 assert.equal(body.io.remote_desktop.live_device_session_state,'FAIL_CURRENT');
 assert.equal(body.io.remote_desktop.cord_free_state,'WAIT_LIVE_SESSION');
 assert.equal(body.io.remote_desktop.home_node_role,'DURABLE_EXECUTION_AND_CUSTODY_EDGE');
-assert.equal(body.io.remote_desktop.adapter_role,'OPTIONAL_LEGACY_TRANSPORT');
+assert.equal(body.io.remote_desktop.adapter_role,'HISTORICAL_NON_ROUTING_EVIDENCE');
 assert.equal(body.io.remote_desktop.gates_native_execution,false);
-assert.equal(body.remote_desktop.adapter_role,'OPTIONAL_LEGACY_TRANSPORT');
+assert.equal(body.remote_desktop.adapter_role,'HISTORICAL_NON_ROUTING_EVIDENCE');
 assert.equal(body.remote_desktop.gates_native_execution,false);
 assert.equal(body.io.device_execute.capability,'device.execute');
 assert.equal(body.io.device_execute.state,'UNKNOWN');
+assert.equal(body.io.device_execute.shared_server_role,'UNKNOWN','target role requires current configured native evidence');
 assert.equal(body.io.device_execute.authority_owner,'Ward');
 assert.equal(body.io.device_execute.routing_owner,'Switchboard');
 assert.equal(body.io.device_execute.receipt_owner,'BINS');
@@ -103,6 +113,13 @@ assert.equal(body.io.remote_desktop.client_access_model,'ANY_AUTHORIZED_CLIENT_A
 
 const gates=spawnSync(process.execPath,['bin/xi.mjs','gates','--check','--json'],{encoding:'utf8',env});
 const gb=JSON.parse(gates.stdout);
+assert.equal(gb.schema,'xiio.cli.gates-check/v1');
+const historical=gb.optional_transport_diagnostics.remote_desktop;
+assert.equal(historical.adapter_role,'HISTORICAL_NON_ROUTING_EVIDENCE');
+assert.equal(historical.compatibility_field,true);
+assert.equal(historical.active_capability,false);
+assert.equal(historical.routes_native_work,false);
+assert.equal(historical.fallback_allowed,false);
 const byId=Object.fromEntries(gb.cells.map(x=>[x.id,x.state]));
 assert.equal('REMOTE_PLUGIN_AUTH' in byId,false);
 assert.equal('REMOTE_DEVICE_REGISTRATION' in byId,false);
@@ -130,7 +147,7 @@ const missingGates=spawnSync(process.execPath,['bin/xi.mjs','gates','--check','-
   env:{...process.env,XIIO_REMOTE_DESKTOP_STATE_PATH:path.join(tmp,'missing.json'),XIIO_INVOKED_AS:'xi-io'}
 });
 const missingGb=JSON.parse(missingGates.stdout);
-assert.equal(missingGb.state,gb.state,'optional provider outage changed unrelated CLI gate');
+assert.equal(missingGb.state,gb.state,'historical provider outage changed unrelated CLI gate');
 assert.equal(missingGb.device_execute_gate.state,'UNKNOWN');
 assert.equal(missingGb.optional_transport_diagnostics.remote_desktop.core_gate,false);
 assert.deepEqual(missingGb.cells,gb.cells,'legacy provider projection contaminated core gates');
@@ -138,7 +155,7 @@ assert.deepEqual(missingGb.cells,gb.cells,'legacy provider projection contaminat
 fs.writeFileSync(statePath,'{malformed-legacy-state','utf8');
 const invalidGates=spawnSync(process.execPath,['bin/xi.mjs','gates','--check','--json'],{encoding:'utf8',env});
 const invalidGb=JSON.parse(invalidGates.stdout);
-assert.deepEqual(invalidGb.cells,gb.cells,'corrupt optional relay changed core gates');
+assert.deepEqual(invalidGb.cells,gb.cells,'corrupt historical projection changed core gates');
 assert.equal(invalidGb.optional_transport_diagnostics.remote_desktop.state,'FAIL_CURRENT');
 assert.equal(invalidGb.device_execute_gate.state,'UNKNOWN','corrupt relay must not produce native pass');
 
@@ -149,7 +166,8 @@ console.log(JSON.stringify({
   auth_pass_preserved:true,
   registration_pass_preserved:true,
   live_session_fail_preserved:true,
-  legacy_provider_optional:true,
+  legacy_provider_nonrouting:true,
+  v1_diagnostic_field_locations_preserved:true,
   unrelated_cli_gates_independent_of_provider:true,
   sovereign_device_execute_fail_closed:true,
   missing_projection_is_wait_not_not_authenticated:true,
