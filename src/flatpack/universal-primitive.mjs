@@ -26,10 +26,16 @@ export function validateUniversalArtifact(doc){
   for(const pair of list(doc.continuity_constraints?.adjacency)){
     if(!Array.isArray(pair)||pair.length!==2||!seamPairs.has([...pair].sort().join('::'))) return fail('SEAM_CONTINUITY','adjacency lacks PASS seam');
   }
-  const ids=new Set();
+  const ids=new Set(),normalizedIds=new Set();
   for(const p of list(doc.primitives)){
-    if(!p?.identity||ids.has(p.identity)) return fail('PRIMITIVE_IDENTITY',`invalid primitive identity:${p?.identity||'missing'}`);
+    const id=String(p?.identity||'').trim();
+    if(!id||normalizedIds.has(id)) return fail('PRIMITIVE_IDENTITY',`invalid primitive identity:${p?.identity||'missing'}`);
+    if(!Object.prototype.hasOwnProperty.call(p,'relationships')) return fail('PRIMITIVE_IDENTITY',`${p.identity} missing relationships`);
+    normalizedIds.add(id);
     ids.add(p.identity);
+  }
+  for(const p of list(doc.primitives)) for(const ref of list(p.relationships)){
+    if(!ids.has(ref)) return fail('PRIMITIVE_IDENTITY',`${p.identity} relationship unresolved: ${ref}`);
   }
   for(const p of patches) for(const id of list(p.primitive_refs)) if(!ids.has(id)) return fail('PRIMITIVE_IDENTITY',`patch ref unresolved:${id}`);
   for(const x of list(doc.extrusions)){
@@ -109,10 +115,81 @@ export function executeUniversalPrimitiveOperation(source,command){
   return {artifact:doc,receipt};
 }
 
+function normalizedToolDescriptor(tool){
+  return {
+    schema:'xiio.sdk.self-describing-tool/v1',
+    tool_ref:String(tool?.tool_ref||''),
+    name:String(tool?.name||tool?.tool_ref||'Unnamed tool'),
+    owner:String(tool?.owner||'UNKNOWN'),
+    category:String(tool?.category||'General'),
+    description:String(tool?.description||''),
+    outcome:String(tool?.outcome||''),
+    admitted:tool?.admitted===true,
+    public_safe:tool?.public_safe===true,
+    when_selection:String(tool?.when_selection||'any'),
+    when_semantic_types:clone(list(tool?.when_semantic_types)),
+    operations:clone(list(tool?.operations)),
+    controls:clone(list(tool?.controls)),
+    settings:clone(list(tool?.settings)),
+    article:{
+      title:String(tool?.article?.title||tool?.name||tool?.tool_ref||'Tool'),
+      summary:String(tool?.article?.summary||tool?.description||''),
+      tags:clone(list(tool?.article?.tags))
+    },
+    publisher:{
+      slug:String(tool?.publisher?.slug||String(tool?.tool_ref||'tool').replace(/^tool:/,'').replace(/[^a-z0-9-]+/gi,'-').toLowerCase()),
+      route:String(tool?.publisher?.route||''),
+      cta_label:String(tool?.publisher?.cta_label||'Explore tool'),
+      service_category:String(tool?.publisher?.service_category||tool?.category||'General')
+    }
+  };
+}
+
 export function resolveUniversalContextualTools(doc,selectionRefs=[]){
   const semantic=new Set(selectionRefs.map(id=>primitiveById(doc,id).semantic_type));
-  const tools=list(doc.metadata?.contextual_tools).filter(t=>t.admitted===true&&(list(t.when_semantic_types).length===0||list(t.when_semantic_types).some(x=>semantic.has(x))));
-  return {schema:'xiio.sdk.contextual-tool-runtime/v1',plane:'Z2',artifact_ref:doc.artifact.artifact_ref,primitive_selection_refs:selectionRefs,tools:clone(tools),effect_ceiling:0};
+  const hasSelection=selectionRefs.length>0;
+  const tools=list(doc.metadata?.contextual_tools)
+    .filter(t=>t.admitted===true)
+    .filter(t=>t.when_selection!=='required'||hasSelection)
+    .filter(t=>t.when_selection!=='none'||!hasSelection)
+    .filter(t=>list(t.when_semantic_types).length===0||list(t.when_semantic_types).some(x=>semantic.has(x)))
+    .map(normalizedToolDescriptor);
+  return {schema:'xiio.sdk.contextual-tool-runtime/v1',plane:'Z2',artifact_ref:doc.artifact.artifact_ref,primitive_selection_refs:selectionRefs,tools,effect_ceiling:0};
+}
+
+export function describeUniversalContextualTools(doc,selectionRefs=[]){
+  const resolved=resolveUniversalContextualTools(doc,selectionRefs);
+  return {
+    schema:'xiio.sdk.contextual-tool-description/v1',
+    artifact_ref:resolved.artifact_ref,
+    article_ref:doc.metadata?.article_ref||null,
+    plane:'Z2',
+    primitive_selection_refs:clone(resolved.primitive_selection_refs),
+    tools:clone(resolved.tools),
+    effect_ceiling:0
+  };
+}
+
+export function compileUniversalToolProjection(doc,toolRef,projectionKind='microsite'){
+  const tool=list(doc.metadata?.contextual_tools).find(t=>t?.tool_ref===toolRef&&t?.admitted===true);
+  if(!tool) throw new Error(`TOOL_NOT_ADMITTED:${toolRef}`);
+  const descriptor=normalizedToolDescriptor(tool);
+  if(descriptor.public_safe!==true) throw new Error(`TOOL_NOT_PUBLIC_SAFE:${toolRef}`);
+  return {
+    schema:'xiio.sdk.publisher-tool-projection/v1',
+    projection_kind:projectionKind,
+    projection_ref:`projection:tool:${descriptor.publisher.slug}:${projectionKind}`,
+    artifact_ref:doc.artifact.artifact_ref,
+    article_ref:doc.metadata?.article_ref||null,
+    tool_ref:descriptor.tool_ref,
+    tool:descriptor,
+    lineage:{
+      version_ref:doc.artifact?.version_ref||null,
+      source_generation:doc.lineage?.source_generation||null,
+      source_digest_ref:doc.lineage?.digest||null
+    },
+    effect_ceiling:0
+  };
 }
 
 export function extractUniversalTemplateRig(doc){
@@ -126,22 +203,98 @@ export function extractUniversalTemplateRig(doc){
     projection_recipes:list(doc.projection_recipes).map(r=>({projection_ref:r.projection_ref,kind:r.kind,primitive_refs:clone(r.primitive_refs||[])})),effect_ceiling:0};
 }
 
+/**
+ * Public projection carries only structural relationships whose endpoints are
+ * both selected by the recipe and PUBLIC. Source multiplicity is preserved.
+ * Primitive state is projected explicitly so UNKNOWN cannot become omission.
+ *
+ * Hard:
+ * TEMPLATE_GRAPH != PUBLIC_PROJECTION
+ * COPY_ALL_EDGES != SAFE
+ * UNKNOWN != OMITTED
+ */
+function publicRelationshipRefs(doc,recipeRefs,p){
+  const allowed=new Set(list(recipeRefs));
+  const out=[];
+  for(const ref of list(p.relationships)){
+    if(!allowed.has(ref)) continue;
+    const target=list(doc.primitives).find(x=>x.identity===ref);
+    if(!target||target.authority?.visibility!=='PUBLIC') continue;
+    out.push(ref);
+  }
+  return out;
+}
+
 export function compileUniversalProjection(doc,projectionRef){
   const v=validateUniversalArtifact(doc); if(!v.ok) throw new Error(`SOURCE_INVALID:${v.first_red}`);
   const recipe=list(doc.projection_recipes).find(r=>r.projection_ref===projectionRef);
   if(!recipe) throw new Error(`PROJECTION_NOT_FOUND:${projectionRef}`);
   if(doc.authority.visibility!=='PUBLIC') throw new Error('VISIBILITY_NOT_PUBLIC');
-  const blocks=recipe.primitive_refs.map(id=>{const p=primitiveById(doc,id); if(p.authority?.visibility!=='PUBLIC') throw new Error(`PRIMITIVE_VISIBILITY_NOT_PUBLIC:${id}`); return {primitive_ref:p.identity,semantic_type:p.semantic_type,geometry:clone(p.geometry||{}),content:clone(p.content||{}),style:clone(p.style||{}),metadata:clone(p.metadata||{})};});
-  return {schema:'xiio.sdk.publisher-projection-candidate/v1',projection_ref:recipe.projection_ref,projection_kind:recipe.kind,artifact_ref:doc.artifact.artifact_ref,article_ref:doc.metadata?.article_ref,template_rig_ref:doc.artifact.template_ref,primitive_refs:clone(recipe.primitive_refs),blocks,lineage:{version_ref:doc.artifact.version_ref,source_digest_ref:doc.lineage?.digest||null,bins_digest_state:'PENDING_BINS_CUSTODY'},effect_ceiling:0};
+  const recipeRefs=list(recipe.primitive_refs);
+  const blocks=recipeRefs.map(id=>{
+    const p=primitiveById(doc,id);
+    if(p.authority?.visibility!=='PUBLIC') throw new Error(`PRIMITIVE_VISIBILITY_NOT_PUBLIC:${id}`);
+    return {
+      primitive_ref:p.identity,
+      semantic_type:p.semantic_type,
+      state:Object.prototype.hasOwnProperty.call(p,'state')?clone(p.state):'UNKNOWN',
+      geometry:clone(p.geometry||{}),
+      content:clone(p.content||{}),
+      style:clone(p.style||{}),
+      metadata:clone(p.metadata||{}),
+      relationship_refs:publicRelationshipRefs(doc,recipeRefs,p),
+    };
+  });
+  return {schema:'xiio.sdk.publisher-projection-candidate/v1',projection_ref:recipe.projection_ref,projection_kind:recipe.kind,artifact_ref:doc.artifact.artifact_ref,article_ref:doc.metadata?.article_ref,template_rig_ref:doc.artifact.template_ref,primitive_refs:clone(recipe.primitive_refs),blocks,lineage:{version_ref:doc.artifact.version_ref,source_generation:doc.lineage?.source_generation||null,source_digest_ref:doc.lineage?.digest||null,bins_digest_state:'PENDING_BINS_CUSTODY'},effect_ceiling:0};
 }
 
 export function reverseUniversalProjectionReadback(source,projection){
-  const ids=new Set(list(source.primitives).map(p=>p.identity));
-  const refs=list(projection.primitive_refs),missing=refs.filter(id=>!ids.has(id));
-  const ok=projection.artifact_ref===source.artifact.artifact_ref&&missing.length===0;
-  return {schema:'xiio.sdk.publisher-reverse-readback/v1',ok,projection_ref:projection.projection_ref,artifact_ref:projection.artifact_ref,article_ref:projection.article_ref,primitive_refs:refs,version_ref:source.artifact.version_ref,missing_primitive_refs:missing,same_source_ids:ok,effect_ceiling:0};
+  const ids=new Set(list(source?.primitives).map(p=>p?.identity));
+  const refs=list(projection?.primitive_refs),missing=refs.filter(id=>!ids.has(id));
+  const ownIndex=(array,index)=>Object.prototype.hasOwnProperty.call(array,index);
+  const sameRefs=(actual,expected)=>Array.isArray(actual)&&Array.isArray(expected)&&
+    actual.length===expected.length&&new Set(actual).size===actual.length&&
+    new Set(expected).size===expected.length&&Array.from(actual).every((id,i)=>ownIndex(actual,i)&&expected.includes(id));
+  // Compare the already-released block payload only. Private source edges must
+  // never be copied to the public projection to satisfy a readback check.
+  const samePublicPayload=(a,b)=>{
+    if(Object.is(a,b))return true;
+    if(Array.isArray(a)||Array.isArray(b))
+      return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&Array.from(a.keys()).every(i=>
+        ownIndex(a,i)===ownIndex(b,i)&&(!ownIndex(a,i)||samePublicPayload(a[i],b[i])));
+    if(a&&b&&typeof a==='object'&&typeof b==='object'){
+      const keys=Object.keys(a);
+      return keys.length===Object.keys(b).length&&keys.every(k=>
+        Object.prototype.hasOwnProperty.call(b,k)&&samePublicPayload(a[k],b[k]));
+    }
+    return false;
+  };
+  let expected,firstRed=null;
+  // Resolve the declared public recipe, not the whole editable/private graph.
+  try { expected=compileUniversalProjection(source,projection?.projection_ref); }
+  catch(error) { firstRed=String(error.message).split(':')[0]; }
+  if(!firstRed){
+    if(list(source.projection_recipes).filter(r=>r.projection_ref===projection.projection_ref).length!==1||
+      projection.schema!==expected.schema||projection.projection_kind!==expected.projection_kind||
+      projection.artifact_ref!==expected.artifact_ref||projection.template_rig_ref!==expected.template_rig_ref||
+      projection.article_ref!==expected.article_ref) firstRed='PROJECTION_IDENTITY';
+    else if(!sameRefs(projection.primitive_refs,expected.primitive_refs)||missing.length) firstRed='PROJECTION_PRIMITIVE_REFS';
+    else if(!Array.isArray(projection.blocks)||!sameRefs(projection.blocks.map(b=>b?.primitive_ref),expected.primitive_refs)) firstRed='PROJECTION_BLOCK_REFS';
+    else if(projection.blocks.some(actual=>{
+      const sourceBlock=expected.blocks.find(b=>b.primitive_ref===actual?.primitive_ref);
+      return !sourceBlock||!samePublicPayload(actual,sourceBlock);
+    })) firstRed='PROJECTION_BLOCK_CONTENT';
+    else if(!expected.lineage.version_ref||!expected.lineage.source_generation||
+      projection.lineage?.version_ref!==expected.lineage.version_ref||
+      projection.lineage?.source_generation!==expected.lineage.source_generation||
+      projection.lineage?.source_digest_ref!==expected.lineage.source_digest_ref) firstRed='PROJECTION_LINEAGE';
+    else if(projection.effect_ceiling!==expected.effect_ceiling||
+      projection.lineage.bins_digest_state!==expected.lineage.bins_digest_state) firstRed='PROJECTION_AUTHORITY';
+  }
+  const ok=firstRed===null;
+  // A failed g1 -> g2 readback must not relabel the candidate as g2.
+  return {schema:'xiio.sdk.publisher-reverse-readback/v1',ok,projection_ref:projection?.projection_ref,artifact_ref:projection?.artifact_ref,article_ref:projection?.article_ref,primitive_refs:refs,version_ref:projection?.lineage?.version_ref??null,source_generation:projection?.lineage?.source_generation??null,missing_primitive_refs:missing,same_source_ids:ok,first_red:firstRed,effect_ceiling:0};
 }
-
 
 export function compileUniversalRadialRelationshipLayout(input={}){
   const centerRef=String(input.center_ref||'').trim();

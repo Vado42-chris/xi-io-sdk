@@ -2,7 +2,7 @@
   "schema": "xiio.universal-primitive-triad-ack/v1",
   "ack_id": "UPT-STUDIO-TEMPLATE-SEAM-20261001-01",
   "project": "xi-io Studio universal primitive / template tier / API seam closure",
-  "recorded_at": "2026-10-01",
+  "recorded_at": "2026-10-04",
   "binary_semantics": {
     "0": "not closed, not proven, or still owed; never infer absence",
     "1": "held by this ACK as source/owner binding or directly observed source fact"
@@ -159,7 +159,11 @@
     "bins_full_estate_census_closed": 0,
     "prelogin_private_surface_exposure_closed": 0,
     "aries_post_power_runtime_reverified": 0,
-    "x_coordinate_provider_source_reverified_here": 0
+    "x_coordinate_provider_source_reverified_here": 0,
+    "self_describing_tool_contract_source_closed": 1,
+    "editable_template_rig_source_closed": 1,
+    "tool_marketing_projection_source_closed": 1,
+    "public_prelogin_deep_link_source_closed": 1
   },
   "urgent_owner_reds": [
     "real Photoshop/Office-class atomic primitive tools are not yet closed",
@@ -190,5 +194,53 @@
     "owner": "SDK",
     "role": "TIER1_ATOMIC_STRUCTURE_AND_EXECUTION",
     "source_head_before_hotpatch": "11c8bf4773eae65e3c938971eda6d5a24468b7ea"
+  },
+  "burn_20261004": {
+    "status": "SOURCE_IMPLEMENTED_WITH_SDK_CI_PASS__STUDIO_AND_PUBLIC_SITE_RUNNERS_ZERO_STEP",
+    "effect_authority": 0,
+    "sdk": {
+      "pr": 167,
+      "head": "5e6d69dc9fa200b8f4ed9e657ecc975114e49643",
+      "ci": "PASS",
+      "changes": [
+        "self-describing contextual tool contract",
+        "selection predicates",
+        "Publisher tool projection",
+        "default CI gate"
+      ]
+    },
+    "studio": {
+      "pr": 152,
+      "head_observed": "a5ba15d5714bcd53d214b93a132bae1e0fdf685a",
+      "ci": "PROVIDER_ZERO_STEP_FAILURE",
+      "changes": [
+        "8 executable contextual tools",
+        "5 editable template rigs",
+        "descriptor-driven Z2 drawer",
+        "high-fidelity visual and typography transforms",
+        "canvas alignment",
+        "template apply via SDK DELETE/CREATE receipts",
+        "generated public tool/template projection"
+      ]
+    },
+    "public_site": {
+      "pr": 1170,
+      "head_observed": "4522bedafb311b59f2b0ba47ee2461ae605e590f",
+      "ci": "PROVIDER_ZERO_STEP_FAILURE",
+      "changes": [
+        "real tool how-we-help sections",
+        "editable template marketing sections",
+        "source-generation binding",
+        "pre-login private deep links removed",
+        "composition and render-safety gates"
+      ]
+    },
+    "counts": {
+      "tools": 8,
+      "templates": 5
+    },
+    "runtime_claim": false,
+    "live_claim": false,
+    "note": "Studio/public CI jobs returned steps=[]; treat as runner/provider admission failure, not executed source failure or green."
   }
 }

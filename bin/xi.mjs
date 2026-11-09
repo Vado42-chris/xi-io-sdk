@@ -20,6 +20,7 @@ import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
 import { compileFlatpackContinuationPlan } from '../src/cadence/flatpack-continuation.mjs';
 import { compileMiniPromptStack, applyMiniPromptReceipt } from '../src/cadence/mini-prompt-stack.mjs';
 import { compileStudioHeadlessTopology, compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
+import { compileLocalAgentServiceUnit } from '../src/install/local-agent-service.mjs';
 import { compileWorkEgressProjection } from '../src/work/egress.mjs';
 import { normalizeBaselineCommand, commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { validateRotflDistributedAck, attachRotflContextToAckSet } from '../src/acks/distributed.mjs';
@@ -44,6 +45,7 @@ import { readLocalCrmCurrent } from '../src/bridges/crm-current.mjs';
 import { compileDependencyCube } from '../src/graphs/dependency-cube.mjs';
 import { compileIbalAckRotfl } from '../src/ibal/ack-rotfl-compiler.mjs';
 import { reduceMultiplicativeFactors, compileTransitionProofMatrix } from '../src/evaluation/transition-proof-reducer.mjs';
+import { runQuorumCli } from '../src/quorum/cube-quorum-cli.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 
 const SDK_VERSION=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
@@ -203,6 +205,14 @@ Product runtime:
   xi-io studio start                      Start installed Studio shell and require :3099 readback
   xi-io studio open                       Open local Studio
   xi-io studio inbox                      Recover Inbox and open Studio Inbox wrapper
+
+Cube quorum (afg-19; read-only / dry-run; effect_authority 0):
+  xi-io quorum status [--project NAME] [--cube PATH]
+  xi-io quorum bugs [--project NAME] [--cube PATH]
+  xi-io quorum review <bug-uuid> --local [--assessment FILE] [--write]
+  xi-io quorum votes <bug-uuid> [--cube PATH]
+  xi-io quorum dispatch <bug-uuid> --dry-run
+  xi-io quorum return <work-uuid>
 
 Provider-neutral Ibal envelopes:
   xi-io baseline census|classify|hydrate|qualify|main|destew|sdk|score|burn|return|ratchet [--subject <ref>]
@@ -398,6 +408,23 @@ async function registry(kind = 'all') {
   }
 }
 
+function cliWrapperConflict(destination, wrapper) {
+  let stat;
+  try {stat=fs.lstatSync(destination);}
+  catch(error){
+    if(error?.code==='ENOENT') return null;
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+  try {
+    if(!stat.isFile() || stat.isSymbolicLink() || stat.nlink!==1) return {path:destination,reason:'DESTINATION_NOT_SINGLE_REGULAR_FILE'};
+    const expected=Buffer.from(wrapper,'utf8');
+    if(stat.size!==expected.length || !fs.readFileSync(destination).equals(expected)) return {path:destination,reason:'WRAPPER_BYTES_UNRECOGNIZED'};
+    return null;
+  } catch(error) {
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+}
+
 function installLocalCli() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const home=os.homedir();
@@ -405,11 +432,6 @@ function installLocalCli() {
   const shareDir=path.join(home,'.local','share','xi-io','cli');
   const stateDir=path.join(process.env.XDG_STATE_HOME || path.join(home,'.local','state'),'xi-io','cli');
   const rootFile=path.join(shareDir,'sdk.path');
-  fs.mkdirSync(binDir,{recursive:true});
-  fs.mkdirSync(shareDir,{recursive:true});
-  fs.mkdirSync(stateDir,{recursive:true});
-  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
-
   const wrapper=[
     '#!/usr/bin/env bash',
     'set -euo pipefail',
@@ -429,11 +451,64 @@ function installLocalCli() {
   ].join('\n');
 
   const bins=['xi-io','xiio','xi'];
+  // Preflight every alias before this local install phase writes any state or wrapper.
+  // Exact bytes recognize the current wrapper format, not provenance or authority.
+  const conflicts=bins.map(name=>cliWrapperConflict(path.join(binDir,name),wrapper)).filter(Boolean);
+  if(conflicts.length){
+    process.stdout.write(JSON.stringify({schema:'xiio.cli.install/v1',installed:false,state:'BLOCKED',first_red:'CLI_WRAPPER_OWNERSHIP_CONFLICT',conflicts,authority_granted:false,provider_effect:false},null,2)+'\n');
+    process.exitCode=2;
+    return;
+  }
+  fs.mkdirSync(binDir,{recursive:true});
+  fs.mkdirSync(shareDir,{recursive:true});
+  fs.mkdirSync(stateDir,{recursive:true});
+  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
     fs.writeFileSync(dest,wrapper,{encoding:'utf8',mode:0o755});
     fs.chmodSync(dest,0o755);
+  }
+
+  const workspaceDir=path.join(home,'.local','share','xi-io','workspaces','default');
+  fs.mkdirSync(workspaceDir,{recursive:true});
+
+  const serviceDir=path.join(home,'.config','systemd','user');
+  const serviceFile=path.join(serviceDir,'xiio-local-agent.service');
+  let localAgentServiceState=process.platform==='linux'?'UNIT_PENDING':'NOT_APPLICABLE';
+  let localAgentServiceActive=false;
+  let localAgentStatusReadback=false;
+  let localAgentStatus=null;
+  if(process.platform==='linux'){
+    fs.mkdirSync(serviceDir,{recursive:true});
+    const serviceSpec=compileLocalAgentServiceUnit({
+      node_path:process.execPath,
+      sdk_root:root,
+      workspace_dir:workspaceDir,
+    });
+    fs.writeFileSync(serviceFile,serviceSpec.content,{encoding:'utf8',mode:0o600});
+    localAgentServiceState='UNIT_WRITTEN';
+    const reload=spawnSync('systemctl',['--user','daemon-reload'],{encoding:'utf8',timeout:10000});
+    if(reload.status===0){
+      const enable=spawnSync('systemctl',['--user','enable','--now','xiio-local-agent.service'],{encoding:'utf8',timeout:15000});
+      if(enable.status===0){
+        const active=spawnSync('systemctl',['--user','is-active','xiio-local-agent.service'],{encoding:'utf8',timeout:5000});
+        localAgentServiceActive=active.status===0&&String(active.stdout||'').trim()==='active';
+        localAgentServiceState=localAgentServiceActive?'ACTIVE':'START_FAILED';
+        if(localAgentServiceActive){
+          const statusProbe=spawnSync(process.execPath,['-e',
+            "fetch('http://127.0.0.1:3109/v1/status',{signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();if(r.status!==200)process.exit(2);process.stdout.write(JSON.stringify(j));}).catch(()=>process.exit(3));"
+          ],{encoding:'utf8',timeout:6000});
+          if(statusProbe.status===0){
+            try{
+              localAgentStatus=JSON.parse(String(statusProbe.stdout||'{}'));
+              localAgentStatusReadback=localAgentStatus?.schema==='xiio.cli.local-agent-http/v1'&&localAgentStatus?.service_listener_observed===true;
+            }catch{}
+          }
+          localAgentServiceState=localAgentStatusReadback?'ACTIVE_STATUS_VERIFIED':'ACTIVE_STATUS_UNVERIFIED';
+        }
+      }else localAgentServiceState='START_FAILED';
+    }else localAgentServiceState='USER_SYSTEMD_UNAVAILABLE';
   }
 
   const envFile=path.join(shareDir,'env.sh');
@@ -481,6 +556,20 @@ function installLocalCli() {
     human_aliases:['xiio','xi'],
     workspace_semantics:'CURRENT_DIRECTORY_OR_EXPLICIT_DIRECTORY',
     ollama_semantics:'LOCAL_ONLY_NO_AUTOMATIC_CLOUD_FALLBACK',
+    local_agent_service:{
+      unit:'xiio-local-agent.service',
+      unit_file:serviceFile,
+      endpoint:'http://127.0.0.1:3109',
+      status_endpoint:'http://127.0.0.1:3109/v1/status',
+      state:localAgentServiceState,
+      active:localAgentServiceActive,
+      status_readback:localAgentStatusReadback,
+      runtime_state:localAgentStatus?.state||null,
+      runtime_verified:localAgentStatus?.runtime_verified===true,
+      installed_sdk_generation_verified:localAgentStatus?.installed_sdk_generation_verified===true,
+      provider_effect:false,
+      authority_granted:false,
+    },
     commands:['xi-io','xi-io --execute','xi-io <directory>','xi-io registry','xi-io compass','xi-io doctor'],
     activate_current_shell:'export PATH="$HOME/.local/bin:$PATH"',
     authority_granted:false,
@@ -696,7 +785,27 @@ async function statusSnapshot() {
     productRuntime('studio','status'),
     productRuntime('inbox','status'),
   ]);
+  // Keep v1 diagnostic field locations for existing readers. Their historical
+  // evidence is never an active native capability, required provider, or fallback.
+  // Native device.execute requires a separately verified Ward + Switchboard + BINS
+  // consumer receipt; do not turn absence of that receipt into a provider outage.
   const remoteDesktop=remoteDesktopStatus();
+  const deviceExecute={
+    schema:'xiio.cli.sovereign-device-execute/v1',
+    capability:'device.execute',
+    state:'UNKNOWN',
+    first_red:'XIIO_NATIVE_DEVICE_EXECUTE_READBACK_UNVERIFIED',
+    authority_owner:'Ward',
+    routing_owner:'Switchboard',
+    receipt_owner:'BINS',
+    shared_server_role:'UNKNOWN',
+    device_session_transport:'OUTBOUND_SCOPED_REVOCABLE',
+    authenticated_session_verified:false,
+    native_effect_verified:false,
+    peer_ack_verified:false,
+    provider_effect:false,
+    authority_granted:false,
+  };
   const map=stableStatusProjection(rawMap);
   const hex=stableStatusProjection(rawHex);
   const studio=stableStatusProjection(rawStudio);
@@ -728,7 +837,11 @@ async function statusSnapshot() {
       products:{hex:hex.state,studio:studio.state,inbox:inbox.state},
       provider_ingress_state:'OBSERVED_LOCAL_ONLY',
       provider_egress_state:'NOT_EVALUATED',
+      device_execute:deviceExecute,
       remote_desktop:{
+        adapter_role:'HISTORICAL_NON_ROUTING_EVIDENCE',
+        compatibility_field:true,active_capability:false,routes_native_work:false,fallback_allowed:false,
+        gates_native_execution:false,
         plugin_auth_state:remoteDesktop.plugin_auth_state,
         device_registration_state:remoteDesktop.device_registration_state,
         live_device_session_state:remoteDesktop.live_device_session_state,
@@ -742,7 +855,9 @@ async function statusSnapshot() {
     compass:map,
     machine_topology:topology,
     runner,
-    remote_desktop:remoteDesktop,
+    remote_desktop:{...remoteDesktop,adapter_role:'HISTORICAL_NON_ROUTING_EVIDENCE',
+        compatibility_field:true,active_capability:false,routes_native_work:false,fallback_allowed:false,gates_native_execution:false},
+    device_execute:deviceExecute,
     products:{hex,studio,inbox},
     local_effect:true,
     provider_effect:false,
@@ -755,8 +870,9 @@ async function statusSnapshot() {
       'PORT_BOUND != QUALIFIED_RUNTIME',
       'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
       'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
-      'REMOTE_DESKTOP_AUTH_OK != LIVE_DEVICE_SESSION',
-      'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE',
+      'HISTORICAL_PROVIDER_EVIDENCE != NATIVE_ROUTE',
+      'HISTORICAL_PROVIDER_UNAVAILABLE != CORE_CLI_FAILURE',
+      'NATIVE_DEVICE_EXECUTE_NOT_VERIFIED != AVAILABLE',
     ],
   };
 }
@@ -772,13 +888,34 @@ async function gatesCheck(){
     {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
     {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
     {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
-    {id:'REMOTE_PLUGIN_AUTH',state:status.remote_desktop?.plugin_auth_state||'UNKNOWN',evidence_ref:'remote_desktop:auth'},
-    {id:'REMOTE_DEVICE_REGISTRATION',state:status.remote_desktop?.device_registration_state||'UNKNOWN',evidence_ref:'remote_desktop:device'},
-    {id:'REMOTE_LIVE_SESSION',state:status.remote_desktop?.live_device_session_state||'UNKNOWN',evidence_ref:'remote_desktop:session'},
+    // Historical provider evidence is not a native route or CLI prerequisite.
+    // Use device_execute_gate for remote capability checks; it cannot PASS
+    // before an independent XI-IO-native readback exists.
   ];
   const hardFail=cells.some(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID'].includes(c.state));
   const waits=cells.filter(c=>['WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED','OBSERVED_LOCAL_ONLY'].includes(c.state));
-  return {schema:'xiio.cli.gates-check/v1',state:hardFail?'FAIL_CURRENT':waits.length?'PASS_WITH_WAITS':'PASS',cells,first_red:cells.find(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID','WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED'].includes(c.state))?.id||null,silent_remainder:0,hard:['XI_SOURCE_STATUS != IO_PROVIDER_STATUS','PORT_BOUND != QUALIFIED_RUNTIME','UNKNOWN != PASS','PROVIDER_INGRESS != PROVIDER_EGRESS','STATUS != EFFECT_AUTHORITY']};
+  const device_execute_gate={
+    id:'XIIO_DEVICE_EXECUTE',
+    state:status.device_execute.state,
+    first_red:status.device_execute.first_red,
+    evidence_ref:null,
+    blocks_device_execution:true,
+    blocks_unrelated_local_work:false,
+  };
+  // The v1 key is retained only for wire compatibility, not transport selection.
+  const optional_transport_diagnostics={
+    remote_desktop:{
+      state:status.remote_desktop.state,
+      adapter_role:'HISTORICAL_NON_ROUTING_EVIDENCE',
+        compatibility_field:true,active_capability:false,routes_native_work:false,fallback_allowed:false,
+      core_gate:false,
+      first_red:status.remote_desktop.first_red||null,
+    }
+  };
+  return {schema:'xiio.cli.gates-check/v1',state:hardFail?'FAIL_CURRENT':waits.length?'PASS_WITH_WAITS':'PASS',cells,
+    device_execute_gate,optional_transport_diagnostics,
+    first_red:cells.find(c=>['FAIL','FAIL_CURRENT','BLOCKED','REJECTED','INVALID','WAIT','TRUE_WAIT','PARTIAL','PASS_WITH_WAITS','UNKNOWN','NOT_EVALUATED'].includes(c.state))?.id||null,
+    silent_remainder:0,hard:['XI_SOURCE_STATUS != IO_PROVIDER_STATUS','PORT_BOUND != QUALIFIED_RUNTIME','UNKNOWN != PASS','PROVIDER_INGRESS != PROVIDER_EGRESS','STATUS != EFFECT_AUTHORITY','LEGACY_PROVIDER_MUST_NOT_GATE_XIIO_LOCAL_CLI','DEVICE_EXECUTE_REQUIRES_NATIVE_EVIDENCE']};
 }
 
 function verifyArtifact(value,{source_ref='stdin'}={}){
@@ -998,6 +1135,37 @@ function processCount(pattern){
   const n=Number(String(r.stdout||'0').trim()||0);
   return Number.isFinite(n)?n:0;
 }
+// Status-only observation. A failed process query is UNKNOWN, never absence.
+// Recovery retains its existing process/admission behavior below.
+function observeProcessCount(pattern){
+  const r=spawnSync('pgrep',['-fc',pattern],{encoding:'utf8'});
+  const raw=String(r.stdout??'').trim();
+  if(r.error || r.signal || ![0,1].includes(r.status) || !/^\d+$/.test(raw)) return null;
+  const n=Number(raw);
+  if(!Number.isSafeInteger(n) || (r.status===0 && n===0) || (r.status===1 && n!==0)) return null;
+  return n;
+}
+function zedIbalStatusBindingReady(source){
+  const zed=source?.zed;
+  const acp=source?.acp;
+  const entry=acp?.runtime_entrypoint || acp?.agent;
+  // Accepted framework launcher uses Node + the operator runtime directly.
+  // Keep legacy wrapper readiness, but do not require it for this exact binding.
+  const direct=typeof entry==='string' && /(?:^|\/)agent-runtime-operator\.mjs$/.test(entry)
+    && zed?.agent_servers_ibal_command===acp?.node
+    && Array.isArray(zed?.agent_servers_ibal_args)
+    && zed.agent_servers_ibal_args.length===1 && zed.agent_servers_ibal_args[0]===entry;
+  return Boolean(zed?.agent_servers_ok && acp?.agent_ok && acp?.node_ok && source?.ollama?.ok
+    && (acp?.wrapper_ok || direct));
+}
+function zedIbalStatusFirstRed(bindingApplied,baseline){
+  if(!bindingApplied) return 'BINDING_APPLIED';
+  if(baseline.zed_process_count===null) return 'ZED_PROCESS_OBSERVATION_UNKNOWN';
+  if(baseline.zed_process_count===0) return 'ZED_PROCESS_NOT_OBSERVED';
+  if(baseline.acp_agent_count===null) return 'ACP_PROCESS_OBSERVATION_UNKNOWN';
+  if(baseline.acp_agent_count===0) return 'ACP_PROCESS_NOT_OBSERVED';
+  return 'ACP_SESSION_READBACK_UNVERIFIED';
+}
 function ndjsonLineCount(file){
   try{
     const raw=fs.readFileSync(file,'utf8');
@@ -1012,8 +1180,10 @@ async function zedIbalRuntime(action='status'){
   const home=os.homedir();
   const ledger=path.join(home,'.local','state','xi-io','ibal-acp-001a','events','operations.ndjson');
   const baseline={
-    zed_process_count:processCount('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
-    acp_agent_count:processCount('acp-agent/agent\\.mjs'),
+    zed_process_count:(action==='status'?observeProcessCount:processCount)('zed-editor|/zed([[:space:]]|$)|zed\\.app/bin/zed'),
+    acp_agent_count:action==='status'
+      ? observeProcessCount('acp-agent/agent(-runtime-operator)?\\.mjs([[:space:]]|$)')
+      : processCount('acp-agent/agent\\.mjs'),
     event_count:ndjsonLineCount(ledger),
   };
   const {map,root}=await frameworkRootFromCompass();
@@ -1030,7 +1200,7 @@ async function zedIbalRuntime(action='status'){
   const mod=await import(pathToFileURL(configurePath).href+`?xiio=${Date.now()}`);
   let source=mod.zedIbalStatus();
   let configure=null;
-  const sourceReady=()=>Boolean(
+  const sourceReady=()=>action==='status'?zedIbalStatusBindingReady(source):Boolean(
     source?.zed?.agent_servers_ok && source?.acp?.wrapper_ok && source?.acp?.agent_ok
     && source?.acp?.node_ok && source?.ollama?.ok
   );
@@ -1046,9 +1216,9 @@ async function zedIbalRuntime(action='status'){
       ? ['T1_LOAD::SOURCE','T2_SPAWN::SOURCE','T3_SESSION::SOURCE']
       : [],
     cells:[
-      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
+      {id:'T1_LOAD::PROCESS',state:baseline.zed_process_count===null?'UNKNOWN':baseline.zed_process_count>0?'PASS':'WAIT',evidence_ref:'pgrep:zed'},
       {id:'T1_LOAD::READBACK',state:'WAIT'},
-      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
+      {id:'T2_SPAWN::PROCESS',state:baseline.acp_agent_count===null?'UNKNOWN':baseline.acp_agent_count>0?'PASS':'WAIT',evidence_ref:'pgrep:acp-agent'},
       {id:'T2_SPAWN::READBACK',state:'WAIT'},
       {id:'T3_SESSION::PROCESS',state:'WAIT'},
       {id:'T3_SESSION::READBACK',state:'WAIT'},
@@ -1057,9 +1227,10 @@ async function zedIbalRuntime(action='status'){
   if(action!=='recover') return {
     schema:'xiio.cli.zed-ibal/v1',
     state:bindingApplied?'PASS_WITH_WAITS':'FAIL_CURRENT',
-    first_red:bindingApplied?(baseline.zed_process_count>0?'ACP_SPAWNED':'ZED_RUNNING'):'BINDING_APPLIED',
+    first_red:zedIbalStatusFirstRed(bindingApplied,baseline),
     root,source,binding_applied:bindingApplied,baseline,matrix,
     active_factors:['ZED_RUNNING','ACP_SPAWNED','ACP_SESSION_DELTA'],
+    process_observation_scope:'COMMAND_LINE_PATTERN_ONLY_NOT_SESSION_OR_TOOL_PROOF',
     provider_effect:false,authority_granted:false,
   };
   if(!bindingApplied) return {
@@ -1565,6 +1736,23 @@ if (
   }else usage(1);
 } else if (top === 'search') {
   const result=await searchRuntime(process.argv.slice(3));
+  process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
+} else if (top === 'quorum') {
+  const action=process.argv[3] || 'status';
+  const raw=process.argv.slice(4);
+  const flags={};
+  const filtered=[];
+  for (const value of raw) {
+    if (value === '--dry-run') { flags['dry-run']=true; continue; }
+    if (value === '--local') { flags.local=true; continue; }
+    if (value === '--write') { flags.write=true; continue; }
+    filtered.push(value);
+  }
+  const parsed=args(filtered);
+  Object.assign(flags, parsed.flags);
+  const target=parsed.positionals[0] || null;
+  const result=await runQuorumCli({ action, target, flags });
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
   process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
 } else if (top === 'hex' || top === 'inbox' || top === 'studio') {

@@ -9,7 +9,8 @@ const ack=validateRotflDistributedAck(f.self_ack);
 assert.equal(ack.ok,true);
 assert.equal(ack.authority_granted,false);
 assert.equal(ack.effect_attempt_eligible,false);
-assert.equal(ack.template_runtime_complete,true);
+assert.equal(ack.template_runtime_complete,false);
+assert.equal(ack.template_supplied_complete,true);
 const out=compileAckItemTrinity(f.trinity_input);
 assert.equal(out.ack_item_count,5);
 assert.equal(out.punch_card_count,5);
@@ -17,7 +18,8 @@ assert.equal(out.score_card_count,5);
 assert.equal(out.checklist_count,5);
 assert.equal(out.trinity_accounting_100,true);
 assert.equal(out.silent_remainder,0);
-assert.equal(out.rotfl_template_runtime_complete,true);
+assert.equal(out.rotfl_template_runtime_complete,false);
+assert.equal(out.rotfl_template_supplied_complete,true);
 assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 assert.equal(out.external_communication,false);
@@ -29,6 +31,6 @@ console.log(JSON.stringify({
  schema:'xiio.sdk.chain-recovery-self-ack-check/v1',
  status:'PASS',occurrence:'CANARY-060',self_ack_first:true,
  ack_items:5,declared_pass:1,declared_wait:4,trinity_accounting_100:true,
- rotfl_template_runtime_complete:true,authority_granted:false,provider_effect:false,
+ rotfl_template_runtime_complete:false,rotfl_template_supplied_complete:true,authority_granted:false,provider_effect:false,
  external_communication:false,terminal:false,next:'RUN_TTTF_CHAIN_RECOVERY_10'
 },null,2));
