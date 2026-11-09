@@ -165,3 +165,39 @@ test('wrong postimage revision or generation is readback drift and requires roll
     assert.match(result.first_red,/SELECTION_DRIFT_(REVISION|SOURCE_GENERATION)/);
   }
 });
+
+test('selection identity refuses object coercion and non-string revision tokens',()=>{
+ const input=selection();
+ assert.throws(()=>compileImmutableSelection({...input,matter_ref:{toString:()=>input.matter_ref}}),/MATTER_REF_REQUIRED/);
+ assert.throws(()=>compileImmutableSelection({...input,record_ref:{toString:()=>input.record_ref}}),/INVALID_OPTIONAL_REFERENCE/);
+ assert.throws(()=>compileImmutableSelection({...input,revision:2}),/REVISION_REQUIRED/);
+});
+
+test('historical read refuses failure or missing provider state, even with matching revision',()=>{
+ const selected=compileImmutableSelection(selection());
+ for(const state of [undefined,'ERROR','DENIED','STALE']){
+   const result=reduceRevisionRead(selected,{...selection(),state});
+   assert.equal(result.state,'REFUSED',String(state));
+   assert.equal(result.first_red,'REVISION_READ_STATE_UNVERIFIED');
+ }
+});
+
+test('lifecycle refuses coerced receipt objects as return and next-work evidence',()=>{
+ for(const [key,reason] of [
+   ['return_ref','RETURN_NOT_WRITTEN'],
+   ['apply_return_ref','APPLY_RETURN_MISSING'],
+   ['return_consumed_ref','RETURN_NOT_CONSUMED'],
+   ['next_input_ref','N_PLUS_1_NOT_ACKNOWLEDGED'],
+ ]){
+   const result=reduceAddressableTransaction(plan(),{...baseObservation(),[key]:{toString:()=>key+':fake'}});
+   assert.equal(result.state,'OPEN',key);
+   assert.equal(result.first_red,reason,key);
+ }
+});
+
+test('lifecycle refuses a coerced fuse state',()=>{
+ const fakeFuse={toString:()=> 'OPEN_FOR_OPERATION'};
+ const result=reduceAddressableTransaction(plan(),{...baseObservation(),fuse_state:fakeFuse});
+ assert.equal(result.state,'OPEN');
+ assert.equal(result.first_red,'ADMITTED_EFFECT_EVIDENCE_INCOMPLETE');
+});

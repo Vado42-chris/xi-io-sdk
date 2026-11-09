@@ -24,7 +24,7 @@ try {
 
   writeFileSync(path.join(consumer, 'consumer.mjs'), `
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import catalog from '@xi-io/sdk/catalog' with { type: 'json' };
 import { resolveCallable } from '@xi-io/sdk/callables';
@@ -37,6 +37,21 @@ import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-p
 import { compileYar, YAR_SCHEMA } from '@xi-io/sdk/acks/yar-return';
 import { snap55 } from '@xi-io/sdk/evaluation/hallbergmaths-snap55';
 import { compileBlankTestBed, serializeTestArtifact, parseTestArtifact } from '@xi-io/sdk/artifacts/test';
+import { readExactBytes } from '@xi-io/sdk/io/byte-reader';
+
+// Real installed-package consumer of the new public byte-reader export.
+const byteFixture = fileURLToPath(new URL('./byte-fixture.dat', import.meta.url));
+const byteVector = Buffer.from([0x00, 0x7f, 0x80, 0xff, 0x42]);
+writeFileSync(byteFixture, byteVector);
+try {
+  const observed = readExactBytes(byteFixture, { offset: 1, length: 3 });
+  assert.equal(observed.bytesRead, 3);
+  assert.deepEqual(observed.bytes, byteVector.subarray(1, 4));
+  assert.throws(() => readExactBytes(byteFixture, { offset: 4, length: 2 }), { code: 'UNEXPECTED_EOF' });
+} finally {
+  unlinkSync(byteFixture);
+}
+
 
 // Package import itself must expose offline Hallberg SNAP, without a workspace login.
 const knownAt=Date.UTC(2026,9,13);

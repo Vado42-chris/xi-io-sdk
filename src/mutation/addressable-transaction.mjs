@@ -4,14 +4,18 @@ export const ADDRESSABLE_TRANSACTION_SCHEMA='xiio.addressable-transaction/v1';
 export const ADDRESSABLE_TRANSACTION_RESULT_SCHEMA='xiio.addressable-transaction-result/v1';
 
 const required=(value,key)=>{
-  const text=String(value??'').trim();
+  if(typeof value!=='string') throw new Error(key+'_REQUIRED');
+  const text=value.trim();
   if(!text) throw new Error(key+'_REQUIRED');
   return text;
 };
 const optional=value=>{
-  const text=String(value??'').trim();
+  if(value===null||value===undefined) return null;
+  if(typeof value!=='string') throw new Error('INVALID_OPTIONAL_REFERENCE');
+  const text=value.trim();
   return text||null;
 };
+const hasRef=value=>typeof value==='string'&&value.trim().length>0;
 const stable=value=>Array.isArray(value)
   ? value.map(stable)
   : value&&typeof value==='object'
@@ -53,7 +57,7 @@ export function compareImmutableSelection(expected,observed={}){
 
 export function reduceRevisionRead(selection,observation={}){
   const requested=required(selection?.revision,'REQUESTED_REVISION');
-  const state=String(observation.state??'').trim().toUpperCase();
+  const state=typeof observation.state==='string'?observation.state.trim().toUpperCase():'';
   if(state==='UNAVAILABLE'){
     const identity=compareImmutableSelection(selection,{...observation,revision:requested});
     return Object.freeze({
@@ -64,6 +68,19 @@ export function reduceRevisionRead(selection,observation={}){
       current_substitution:false,
       selection_match:identity.match,
       first_red:identity.match?'REQUESTED_REVISION_UNAVAILABLE':identity.first_red,
+      authority_granted:false,
+      provider_effect:false,
+    });
+  }
+  if(state!=='FOUND'&&state!=='EXACT'){
+    return Object.freeze({
+      schema:'xiio.revision-read-result/v1',
+      state:'REFUSED',
+      requested_revision:requested,
+      returned_revision:null,
+      current_substitution:false,
+      selection_match:false,
+      first_red:'REVISION_READ_STATE_UNVERIFIED',
       authority_granted:false,
       provider_effect:false,
     });
@@ -130,7 +147,7 @@ export function reduceAddressableTransaction(plan,observation={}){
   const preimageMatch=preimageRevision===plan.expected_revision&&preimageGeneration===plan.expected_generation;
   const admission=[
     plan.admitted_effect_ref,plan.assignment_ref,plan.attempt_ref,plan.ward_admission_ref,plan.lease_ref,plan.typed_ack_ref
-  ].every(Boolean)&&observation.hold===false&&['OPEN','OPEN_FOR_OPERATION'].includes(String(observation.fuse_state??'').trim().toUpperCase());
+  ].every(hasRef)&&observation.hold===false&&typeof observation.fuse_state==='string'&&['OPEN','OPEN_FOR_OPERATION'].includes(observation.fuse_state.trim().toUpperCase());
   const writeAttempted=observation.write_attempted===true;
   const writeAccepted=observation.write_accepted===true;
   const readbackIndependent=observation.readback_independent===true;
@@ -143,10 +160,10 @@ export function reduceAddressableTransaction(plan,observation={}){
   const readbackMatch=readbackIndependent&&readbackSelection.match&&observation.readback_matches_intended===true;
   const rollbackRequired=writeAccepted&&!readbackMatch;
   const rollbackVerified=rollbackRequired?observation.rollback_verified===true:true;
-  const returnWritten=Boolean(observation.return_ref);
-  const applyReturn=Boolean(observation.apply_return_ref);
-  const returnConsumed=Boolean(observation.return_consumed_ref);
-  const nPlusOne=Boolean(observation.next_input_ref)&&observation.wake_acknowledged===true;
+  const returnWritten=hasRef(observation.return_ref);
+  const applyReturn=hasRef(observation.apply_return_ref);
+  const returnConsumed=hasRef(observation.return_consumed_ref);
+  const nPlusOne=hasRef(observation.next_input_ref)&&observation.wake_acknowledged===true;
 
   let first_red=null;
   if(!selection.match) first_red=selection.first_red;

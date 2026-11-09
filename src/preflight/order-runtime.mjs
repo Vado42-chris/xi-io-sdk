@@ -9,6 +9,14 @@ import {
 
 export const ROTFL_RUNTIME_SCHEMA='xiio.sdk.rotfl-order-runtime/v1';
 
+// The caller must supply the currently resolved generation. Stored order state
+// cannot supply its own currentness when a provider-neutral adapter omits it.
+function currentGenerationBound(value){
+  return typeof value==='string' && value.trim()===value
+    && value.length>0 && value.length<=512
+    && !['UNKNOWN','UNVERIFIED','NULL','UNDEFINED'].includes(value.toUpperCase());
+}
+
 export function defaultRotflOrderStatePath(env=process.env){
   const root=env.XDG_STATE_HOME || path.join(os.homedir(),'.local','state');
   return env.XIIO_OOR_STATE_PATH || path.join(root,'xi-io','rotfl','order.current.json');
@@ -93,11 +101,19 @@ export function advanceRotflOrderRuntime({
   current_source_generation,
   state_path=defaultRotflOrderStatePath(),
 }={}){
+  if(!currentGenerationBound(current_source_generation)){
+    return {
+      schema:ROTFL_RUNTIME_SCHEMA,
+      state:'FAIL_CURRENT', action:'ADVANCE', advanced:false, state_path,
+      first_red:'ROTFL_OOR_CURRENT_SOURCE_GENERATION_UNBOUND',
+      mutation_admitted:false, provider_effect:false, authority_granted:false,
+    };
+  }
   const current=readRotflOrderRuntime({state_path});
   if(current.state!=='PASS') return {...current,action:'ADVANCE',advanced:false};
   const order=current.order;
   const verdict=current.verdict;
-  if(current_source_generation && order.source_generation!==current_source_generation){
+  if(order.source_generation!==current_source_generation){
     return {
       schema:ROTFL_RUNTIME_SCHEMA,
       state:'FAIL_CURRENT',
@@ -171,7 +187,6 @@ export function requireRotflMutationAdmission({
   current_source_generation,
   state_path=defaultRotflOrderStatePath(),
 }={}){
-  const current=readRotflOrderRuntime({state_path});
   const fail=(first_red,extra={})=>({
     schema:'xiio.sdk.rotfl-mutation-admission/v1',
     admitted:false,
@@ -182,8 +197,10 @@ export function requireRotflMutationAdmission({
     provider_effect:false,
     authority_granted:false,
   });
+  if(!currentGenerationBound(current_source_generation)) return fail('ROTFL_OOR_CURRENT_SOURCE_GENERATION_UNBOUND');
+  const current=readRotflOrderRuntime({state_path});
   if(current.state!=='PASS') return fail(current.first_red||'ROTFL_OOR_RUNTIME_NOT_CURRENT');
-  if(current_source_generation && current.order.source_generation!==current_source_generation){
+  if(current.order.source_generation!==current_source_generation){
     return fail('ROTFL_OOR_SOURCE_GENERATION_DRIFT',{
       expected:current_source_generation,
       observed:current.order.source_generation,

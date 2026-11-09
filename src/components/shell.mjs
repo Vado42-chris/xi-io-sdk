@@ -13,9 +13,20 @@ function normalizeId(value, fallback) {
   return id || fallback;
 }
 
-export function renderIconButton({ label = '', title = '', iconHtml = '', badgeHtml = '', open = false, controls = '', disabled = false, className = '' } = {}) {
+export function renderIconButton({ label = '', title = '', iconHtml = '', badgeHtml = '', open = false, controls = '', disabled = false, className = '', shortcut = '', commandId = '', disabledReason = '' } = {}) {
+  const name = String(label ?? '').trim();
+  if (!name) throw new TypeError('icon button requires a nonempty accessible label');
+  const reason = String(disabledReason ?? '').trim();
+  if (disabled && !reason) throw new TypeError('disabled icon button requires a reason');
+  const command = String(commandId ?? '').trim();
+  if (command && !/^[a-z][a-z0-9._:-]*$/i.test(command)) throw new TypeError('invalid command id');
+  const key = String(shortcut ?? '').trim();
   const disabledAttr = disabled ? ' disabled aria-disabled="true"' : '';
-  return `<button type="button" class="${escapeHtml(className)}" data-xiui="icon-button" aria-label="${escapeHtml(label)}" title="${escapeHtml(title || label)}" aria-expanded="${open ? 'true' : 'false'}"${controls ? ` aria-controls="${escapeHtml(controls)}"` : ''}${disabledAttr}><span data-xiui-icon aria-hidden="true">${iconHtml}</span>${badgeHtml}</button>`;
+  const commandAttr = command ? ` data-xiui-command="${escapeHtml(command)}"` : '';
+  const shortcutAttr = key ? ` aria-keyshortcuts="${escapeHtml(key)}"` : '';
+  const reasonAttr = disabled ? ` data-disabled-reason="${escapeHtml(reason)}"` : '';
+  const tooltip = disabled ? `${name}: ${reason}` : `${String(title || name).trim()}${key ? ` (${key})` : ''}`;
+  return `<button type="button" class="${escapeHtml(className)}" data-xiui="icon-button" aria-label="${escapeHtml(name)}" title="${escapeHtml(tooltip)}"${controls ? ` aria-expanded="${open ? 'true' : 'false'}" aria-controls="${escapeHtml(controls)}"` : ''}${shortcutAttr}${commandAttr}${reasonAttr}${disabledAttr}><span data-xiui-icon aria-hidden="true">${iconHtml}</span>${badgeHtml}</button>`;
 }
 
 export function renderScrollRegion({ bodyHtml = '', label = '', role = 'region', id = '', ariaLabelledBy = '', className = '' } = {}) {

@@ -408,6 +408,23 @@ async function registry(kind = 'all') {
   }
 }
 
+function cliWrapperConflict(destination, wrapper) {
+  let stat;
+  try {stat=fs.lstatSync(destination);}
+  catch(error){
+    if(error?.code==='ENOENT') return null;
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+  try {
+    if(!stat.isFile() || stat.isSymbolicLink() || stat.nlink!==1) return {path:destination,reason:'DESTINATION_NOT_SINGLE_REGULAR_FILE'};
+    const expected=Buffer.from(wrapper,'utf8');
+    if(stat.size!==expected.length || !fs.readFileSync(destination).equals(expected)) return {path:destination,reason:'WRAPPER_BYTES_UNRECOGNIZED'};
+    return null;
+  } catch(error) {
+    return {path:destination,reason:'DESTINATION_INSPECTION_FAILED',code:error?.code || 'UNKNOWN'};
+  }
+}
+
 function installLocalCli() {
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
   const home=os.homedir();
@@ -415,11 +432,6 @@ function installLocalCli() {
   const shareDir=path.join(home,'.local','share','xi-io','cli');
   const stateDir=path.join(process.env.XDG_STATE_HOME || path.join(home,'.local','state'),'xi-io','cli');
   const rootFile=path.join(shareDir,'sdk.path');
-  fs.mkdirSync(binDir,{recursive:true});
-  fs.mkdirSync(shareDir,{recursive:true});
-  fs.mkdirSync(stateDir,{recursive:true});
-  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
-
   const wrapper=[
     '#!/usr/bin/env bash',
     'set -euo pipefail',
@@ -439,6 +451,18 @@ function installLocalCli() {
   ].join('\n');
 
   const bins=['xi-io','xiio','xi'];
+  // Preflight every alias before this local install phase writes any state or wrapper.
+  // Exact bytes recognize the current wrapper format, not provenance or authority.
+  const conflicts=bins.map(name=>cliWrapperConflict(path.join(binDir,name),wrapper)).filter(Boolean);
+  if(conflicts.length){
+    process.stdout.write(JSON.stringify({schema:'xiio.cli.install/v1',installed:false,state:'BLOCKED',first_red:'CLI_WRAPPER_OWNERSHIP_CONFLICT',conflicts,authority_granted:false,provider_effect:false},null,2)+'\n');
+    process.exitCode=2;
+    return;
+  }
+  fs.mkdirSync(binDir,{recursive:true});
+  fs.mkdirSync(shareDir,{recursive:true});
+  fs.mkdirSync(stateDir,{recursive:true});
+  fs.writeFileSync(rootFile,root+'\n',{encoding:'utf8',mode:0o600});
   for(const name of bins){
     const dest=path.join(binDir,name);
     try{ if(fs.existsSync(dest)) fs.unlinkSync(dest); }catch{}
@@ -761,7 +785,8 @@ async function statusSnapshot() {
     productRuntime('studio','status'),
     productRuntime('inbox','status'),
   ]);
-  // A legacy desktop relay is optional diagnostic evidence, never XI-IO authority.
+  // Keep v1 diagnostic field locations for existing readers. Their historical
+  // evidence is never an active native capability, required provider, or fallback.
   // Native device.execute requires a separately verified Ward + Switchboard + BINS
   // consumer receipt; do not turn absence of that receipt into a provider outage.
   const remoteDesktop=remoteDesktopStatus();
@@ -773,7 +798,7 @@ async function statusSnapshot() {
     authority_owner:'Ward',
     routing_owner:'Switchboard',
     receipt_owner:'BINS',
-    shared_server_role:'Loki',
+    shared_server_role:'UNKNOWN',
     device_session_transport:'OUTBOUND_SCOPED_REVOCABLE',
     authenticated_session_verified:false,
     native_effect_verified:false,
@@ -814,7 +839,8 @@ async function statusSnapshot() {
       provider_egress_state:'NOT_EVALUATED',
       device_execute:deviceExecute,
       remote_desktop:{
-        adapter_role:'OPTIONAL_LEGACY_TRANSPORT',
+        adapter_role:'HISTORICAL_NON_ROUTING_EVIDENCE',
+        compatibility_field:true,active_capability:false,routes_native_work:false,fallback_allowed:false,
         gates_native_execution:false,
         plugin_auth_state:remoteDesktop.plugin_auth_state,
         device_registration_state:remoteDesktop.device_registration_state,
@@ -829,7 +855,8 @@ async function statusSnapshot() {
     compass:map,
     machine_topology:topology,
     runner,
-    remote_desktop:{...remoteDesktop,adapter_role:'OPTIONAL_LEGACY_TRANSPORT',gates_native_execution:false},
+    remote_desktop:{...remoteDesktop,adapter_role:'HISTORICAL_NON_ROUTING_EVIDENCE',
+        compatibility_field:true,active_capability:false,routes_native_work:false,fallback_allowed:false,gates_native_execution:false},
     device_execute:deviceExecute,
     products:{hex,studio,inbox},
     local_effect:true,
@@ -843,10 +870,8 @@ async function statusSnapshot() {
       'PORT_BOUND != QUALIFIED_RUNTIME',
       'SOURCE_MOUNT_NOEXEC != TARGET_CACHE_NOEXEC',
       'NATIVE_DEP_SOURCE_DECLARED != HOST_METADATA_AVAILABLE',
-      'REMOTE_DESKTOP_AUTH_OK != LIVE_DEVICE_SESSION',
-      'REMOTE_DEVICE_OFFLINE != ARIES_OFFLINE',
-      'LEGACY_TRANSPORT != SOVEREIGN_DEVICE_EXECUTE',
-      'OPTIONAL_PROVIDER_UNAVAILABLE != CORE_CLI_FAILURE',
+      'HISTORICAL_PROVIDER_EVIDENCE != NATIVE_ROUTE',
+      'HISTORICAL_PROVIDER_UNAVAILABLE != CORE_CLI_FAILURE',
       'NATIVE_DEVICE_EXECUTE_NOT_VERIFIED != AVAILABLE',
     ],
   };
@@ -863,7 +888,7 @@ async function gatesCheck(){
     {id:'INBOX_RUNTIME',state:status.products?.inbox?.state||'UNKNOWN',evidence_ref:'product:inbox'},
     {id:'PROVIDER_INGRESS',state:status.io?.provider_ingress_state||'UNKNOWN',evidence_ref:'io:ingress'},
     {id:'PROVIDER_EGRESS',state:status.io?.provider_egress_state||'UNKNOWN',evidence_ref:'io:egress'},
-    // Remote transport availability must not block unrelated local CLI work.
+    // Historical provider evidence is not a native route or CLI prerequisite.
     // Use device_execute_gate for remote capability checks; it cannot PASS
     // before an independent XI-IO-native readback exists.
   ];
@@ -877,10 +902,12 @@ async function gatesCheck(){
     blocks_device_execution:true,
     blocks_unrelated_local_work:false,
   };
+  // The v1 key is retained only for wire compatibility, not transport selection.
   const optional_transport_diagnostics={
     remote_desktop:{
       state:status.remote_desktop.state,
-      adapter_role:'OPTIONAL_LEGACY_TRANSPORT',
+      adapter_role:'HISTORICAL_NON_ROUTING_EVIDENCE',
+        compatibility_field:true,active_capability:false,routes_native_work:false,fallback_allowed:false,
       core_gate:false,
       first_red:status.remote_desktop.first_red||null,
     }
