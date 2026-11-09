@@ -331,6 +331,15 @@ assert.throws(()=>validateWorkspaceCommand('bash',['-c','cat /etc/passwd']),/SHE
 assert.throws(()=>validateWorkspaceCommand('node',['bin/xi.mjs']),/NODE_COMMAND_DENIED/);
 assert.throws(()=>validateWorkspaceCommand('python3',['scripts/host-abi-observer.py']),/PYTHON_COMMAND_DENIED/);
 assert.throws(()=>validateWorkspaceCommand('npm',['test']),/COMMAND_DENIED/);
+// This tool is for syntax checks. Even an apparently read-only Git verb can
+// accept flags that write, and Git inspection already has its own bounded tool.
+for(const args of [
+  ['status'], ['pull','origin','main'], ['fetch','origin'],
+  ['switch','branch'], ['branch','-D','branch'],
+  ['diff','--output=outside.txt'], ['log','--output=outside.txt'],
+  ['show','--output=outside.txt']
+]) assert.throws(()=>validateWorkspaceCommand('git',args),/COMMAND_DENIED/);
+
 
 // Explicit syntax-check forms remain available and workspace-bounded.
 assert.deepEqual(validateWorkspaceCommand('bash',['-n','scripts/install-cli.sh']),{command:'bash',args:['-n','scripts/install-cli.sh']});
