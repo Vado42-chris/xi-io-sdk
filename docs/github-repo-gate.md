@@ -9,6 +9,8 @@
 | Private | `'["self-hosted","linux","x64"]'` (owner's xi-io runner on Aries) | none |
 | Public | `'"ubuntu-latest"'` | free for public repos |
 
+**Pin, don't track:** callers reference the reusable workflow by a full SDK commit SHA, not `@main`. A moving SDK must not silently change every consumer's gate. Each repo bumps its pin after the new generation is qualified for it: current SDK main → exported primitive → consumer pin → actual caller → qualification → adoption → affected return.
+
 **Gate of record:** `gate_command`, or the first existing package script of `check`, `verify`, `test`. Install uses the lockfile that is present (bun, pnpm, npm). Every run writes the artifact `xiio-gate-receipt-<sha>`: repository, head SHA, event, runner, command and outcome. That gives Ollama workers and the Reaper census one machine-readable result per head instead of a log to scrape.
 
 **Runner offline:** a job waits as *queued*, it does not fail. Recover with `xi-io runner recover --repo <owner/repo>` (`src/recovery/aries-runner.mjs`). Attaching the Aries runner to a new private repo needs a registration token, so it is an owner-approved step.
