@@ -46,6 +46,7 @@
     "./intent/audhd-command": "./src/intent/audhd-command.mjs",
     "./intent/workspace-artifact": "./src/intent/workspace-artifact.mjs",
     "./projections/x42-coordinate": "./src/projections/x42-coordinate.mjs",
+    "./projections/multithread-work": "./src/projections/multithread-work.mjs",
     "./command-lexicon": "./src/lexicon/commands.json",
     "./command-lexicon/runtime": "./src/lexicon/baseline-commands.mjs",
     "./command-lexicon/resolve": "./src/lexicon/resolve-token.mjs",

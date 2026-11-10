@@ -30,6 +30,7 @@ import catalog from '@xi-io/sdk/catalog' with { type: 'json' };
 import { resolveCallable } from '@xi-io/sdk/callables';
 import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
+import { compileMultiThreadWorkProjection } from '@xi-io/sdk/projections/multithread-work';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
 import { compileFlapHarvest } from '@xi-io/sdk/transport/flap-harvest';
@@ -67,6 +68,33 @@ assert.equal(knownSnap.effect_authority,0);
 const blank = compileBlankTestBed({ artifact_id: 'bed:clean-package', generation: 'g1' });
 assert.deepEqual(parseTestArtifact(serializeTestArtifact(blank)), blank);
 assert.equal(blank.authority.live_runtime, false);
+
+// Exercise the public export from the installed tarball, not a repository path.
+// This is a structural projection only; supplied refs grant no effect authority.
+const workLane = {
+  lane_ref: 'lane:package', root_ref: 'root:package', agent_ref: 'agent:package', work_ref: 'work:package',
+  generation: 'g1', state: 'RUNNING', attention: true, owner_relay_required: false,
+  bins_uuid: 'bins:package', resume_prompt_stack_ref: 'prompt:package', persona_card_ref: 'persona:package',
+  brand_profile_ref: 'brand:package', ack_ref: 'ack:package', cadence_ref: 'cadence:package', backbeat_ref: 'backbeat:package',
+};
+const projectWork = (lanes) => compileMultiThreadWorkProjection({
+  mission_root_ref: 'root:package', generation: 'g1', bins_generation: 'bins:g1',
+  audhd_brand_owner_ref: 'owner:brand', ux_owner_ref: 'owner:ux', crm_profile_owner_ref: 'owner:crm',
+  subterranean_reap_ref: 'reap:package', lanes,
+});
+const projectedWork = projectWork([workLane]);
+assert.equal(projectedWork.schema, 'xiio.sdk.multithread-work-projection/v1');
+assert.equal(projectedWork.state, 'BORING_MULTI_THREAD_READY');
+assert.equal(projectedWork.scorecard.lanes_total, 1);
+assert.equal(projectedWork.progressive.all_lanes[0].work_ref, 'work:package');
+assert.equal(projectedWork.effects, 0);
+assert.equal(projectedWork.effect_authority, false);
+const staleWork = projectWork([{ ...workLane, generation: 'old' }]);
+assert.equal(staleWork.state, 'MULTI_THREAD_GAPS_VISIBLE');
+assert(staleWork.failures.includes('STALE_LANE_GENERATION'));
+const returnedWork = projectWork([{ ...workLane, state: 'RETURNED', result_ref: 'result:package' }]);
+assert(returnedWork.failures.includes('RETURN_APPLY_RETURN_GAP'));
+assert.equal(returnedWork.effect_authority, false);
 
 const yar = compileYar({ schema: YAR_SCHEMA, ack_ref: 'ack:package-only' });
 assert.equal(yar.complete, false);
@@ -235,7 +263,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.equal(rejoin.result.authority_granted, false);
   assert.equal(rejoin.result.provider_effect, false);
 
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 cadence_continuation=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 installed_snap55=1 snap55_replay_precise=1 repo_relative_imports=0');
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 multithread_work=1 cadence_continuation=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 installed_snap55=1 snap55_replay_precise=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
