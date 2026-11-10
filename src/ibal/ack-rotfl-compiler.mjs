@@ -240,7 +240,7 @@ export function compileIbalAckRotfl(input={}){
         hot_folder_ref:bindings.hot_folder_ref,
         ack_template_refs:bindings.ack_template_refs,
         return_target_ref:bindings.return_target_ref||input.rotfl_context?.apply_return_target_ref,
-        disclosure_ref:bindings.disclosure_ref||bindings.flatpack_template_ref,
+        disclosure_ref:bindings.disclosure_ref,
         tool_call_budget:bindings.tool_call_budget??3,
         max_items_per_pass:bindings.max_items_per_pass??10,
         effect_ceiling:0,
