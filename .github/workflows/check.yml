@@ -19,6 +19,11 @@ jobs:
           node-version: '22'
       - name: Run SDK checks
         run: npm run check
+      - name: Verify white-label consumer bindings and effect refusals
+        run: |
+          npm run check:crm-current-bridge
+          npm run check:cube-quorum-cli
+          node scripts/validate-workspace-artifact-intent.mjs
       - name: Verify no third-party remote relay is a core gate
         run: npm run check:cli-remote-desktop-currentness
       - name: Upload SDK ROTFL heatmap receipt
