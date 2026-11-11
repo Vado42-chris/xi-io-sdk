@@ -48,6 +48,27 @@ assert.equal(changedDuringRead.content_digest,semanticContentDigest(changedDurin
 assert.equal(Object.isFrozen(changedDuringRead.payload.sections[0]),true);
 assert.equal(Object.isFrozen(changingPayload),false,'CALLER_SOURCE_MUST_NOT_BE_FROZEN');
 
+// The semantic format is JSON, not an arbitrary JavaScript object graph.
+// Dates, non-finite numbers, undefined fields and sparse arrays can otherwise
+// be omitted or reduced to null/{} while appearing to preserve evidence.
+for(const invalidPayload of [
+  {observed_at:new Date('2026-11-11T00:00:00Z')},
+  {confidence:NaN},
+  {missing:undefined},
+  {sections:[, 'second only']},
+]){
+  assert.throws(()=>PortableSemanticFile({...base,payload:invalidPayload}),
+    /SEMANTIC_NON_JSON_|SEMANTIC_SPARSE_ARRAY/,
+    'UNREPRESENTABLE_SEMANTIC_CONTENT_MUST_FAIL_CLOSED');
+}
+const cyclicPayload={part:'unreviewed'};
+cyclicPayload.self=cyclicPayload;
+assert.throws(()=>PortableSemanticFile({...base,payload:cyclicPayload}),
+  /SEMANTIC_NON_JSON_CYCLE/,'CYCLIC_CONTENT_MUST_NOT_BE_SERIALIZED_AS_EVIDENCE');
+const sharedObject={kind:'original'};
+const sharedPayload=PortableSemanticFile({...base,payload:{first:sharedObject,second:sharedObject}});
+assert.equal(sharedPayload.content_digest,semanticContentDigest(sharedPayload.payload));
+
 // Provider/render projections may move without mutating semantic identity.
 const b=PortableSemanticFile({...base,provider_projections:[{ref:'render:html',generation:'prov:g2',kind:'html'}]});
 assert.equal(b.file_id,a.file_id);assert.equal(b.semantic_generation,a.semantic_generation);assert.equal(b.content_digest,a.content_digest);
@@ -74,6 +95,6 @@ assert.equal('punchcard' in withProjection,false);
 assert.equal('checklist' in withProjection,false);
 assert.equal('cube' in withProjection,false);
 
-console.log(JSON.stringify({status:'PASS',hostiles:12,nested_mutation_refusals:3,caller_accessor_reads:changingReads,file_schema:a.schema,semantic_digest:a.content_digest,effects:0}));
+console.log(JSON.stringify({status:'PASS',hostiles:17,nested_mutation_refusals:3,caller_accessor_reads:changingReads,file_schema:a.schema,semantic_digest:a.content_digest,effects:0}));
 
 
