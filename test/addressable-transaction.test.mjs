@@ -201,3 +201,29 @@ test('lifecycle refuses a coerced fuse state',()=>{
  assert.equal(result.state,'OPEN');
  assert.equal(result.first_red,'ADMITTED_EFFECT_EVIDENCE_INCOMPLETE');
 });
+
+
+test('equal missing or malformed identities do not establish exact selection',()=>{
+ for(const field of ['workspace_ref','matter_ref','artifact_ref','original_ref','document_ref','revision','source_generation']) {
+  for(const value of [undefined,null,'', '   ',42]) {
+   const malformed={...selection(),[field]:value};
+   assert.equal(compareImmutableSelection(malformed,malformed).match,false,field+':'+value);
+  }
+ }
+ assert.equal(compareImmutableSelection({},{}).match,false);
+});
+test('revision alone cannot establish an exact or unavailable historical selection',()=>{
+ for(const state of ['FOUND','EXACT','UNAVAILABLE']) {
+  const result=reduceRevisionRead({revision:'2'},{revision:'2',state});
+  assert.equal(result.state,'REFUSED',state);
+  assert.equal(result.authority_granted,false);
+ }
+});
+test('malformed optional identities are refused without disallowing variable references',()=>{
+ for(const field of ['record_ref','proposition_ref']) {
+  const malformed={...selection(),[field]:42};
+  assert.equal(compareImmutableSelection(malformed,malformed).match,false);
+ }
+ const variable={...selection(),workspace_ref:'tenant-defined/α',matter_ref:'custom:project',record_ref:null,proposition_ref:null};
+ assert.equal(compareImmutableSelection(variable,variable).match,true);
+});
