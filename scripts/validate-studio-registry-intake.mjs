@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { compileStudioRegistryIntake } from '../src/baseline/studio-registry-intake.mjs';
 import { compileStudioRoster } from '../src/install/studio-headless-topology.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
@@ -89,5 +94,41 @@ const expanded=compileStudioRegistryIntake({...supplied,
 assert.equal(expanded.member_count,4);
 assert(expanded.member_ids.includes(extra));
 assert.equal(expanded.missing_graph_member_ids.includes(extra),true);
+
+// Cold-start CLI regression. The public help used to advertise `studio roster`
+// without dispatching it. Check actual executable routing, not a source grep.
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(),'sdk-studio-registry-intake-'));
+const cli = fileURLToPath(new URL('../bin/xi.mjs',import.meta.url));
+function exercise(args) {
+  const run = spawnSync(process.execPath,[cli,...args],{
+    encoding:'utf8',timeout:15000,cwd:tmp,
+    env:{...process.env,HOME:tmp},
+  });
+  assert.equal(run.status,0,`CLI failed: ${args.slice(0,2).join(' ')}: ${run.stderr.slice(0,500)}`);
+  return JSON.parse(run.stdout);
+}
+try {
+  const denominatorPath=path.join(tmp,'denominator.json');
+  const graphPath=path.join(tmp,'graph.json');
+  const rosterInputPath=path.join(tmp,'roster-input.json');
+  const baselineInputPath=path.join(tmp,'baseline-input.json');
+  fs.writeFileSync(denominatorPath,JSON.stringify(denominator));
+  fs.writeFileSync(graphPath,JSON.stringify(relationship_graph));
+  fs.writeFileSync(rosterInputPath,JSON.stringify({state_root:tmp}));
+  fs.writeFileSync(baselineInputPath,JSON.stringify(productInput));
+  const flags=['--denominator',denominatorPath,'--graph',graphPath];
+  const discovery=exercise(['studio','discover',...flags]);
+  assert.equal(discovery.state,'PARTIAL_GRAPH');
+  assert.equal(discovery.member_count,members.length);
+  const rosterFromCli=exercise(['studio','roster','--input',rosterInputPath,...flags]);
+  assert.equal(rosterFromCli.product_count,members.length);
+  assert.equal(rosterFromCli.relationship_complete,false);
+  const baselineFromCli=exercise(['product','compile','--input',baselineInputPath,...flags]);
+  assert.deepEqual(baselineFromCli.missing_canonical_member_ids,['tools_app']);
+  const unconfigured=exercise(['studio','discover']);
+  assert.equal(unconfigured.state,'WAIT_REGISTRY_UNBOUND');
+} finally {
+  fs.rmSync(tmp,{recursive:true,force:true});
+}
 
 console.log('studio-registry-intake: PASS');
