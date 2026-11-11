@@ -46,10 +46,17 @@ export function compileImmutableSelection(input={}){
 export function compareImmutableSelection(expected,observed={}){
   const keys=['workspace_ref','matter_ref','artifact_ref','original_ref','document_ref','revision','source_generation','record_ref','proposition_ref'];
   const drift=keys.filter(key=>(expected?.[key]??null)!==(observed?.[key]??null));
+  // Equality of absent/malformed references is not a bound selection. Reuse
+  // the canonical compiler instead of adding product-specific reference rules.
+  let invalid=null;
+  if(!drift.length){
+    try { compileImmutableSelection(expected); compileImmutableSelection(observed); }
+    catch(error) { invalid='INVALID_SELECTION_'+error.message; }
+  }
   return Object.freeze({
-    match:drift.length===0,
+    match:drift.length===0&&!invalid,
     drift:Object.freeze(drift),
-    first_red:drift.length?('SELECTION_DRIFT_'+drift[0].toUpperCase()):null,
+    first_red:drift.length?('SELECTION_DRIFT_'+drift[0].toUpperCase()):invalid,
     authority_granted:false,
     provider_effect:false,
   });
@@ -205,3 +212,4 @@ export function reduceAddressableTransaction(plan,observation={}){
     provider_effect:false,
   });
 }
+
