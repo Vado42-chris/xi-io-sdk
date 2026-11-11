@@ -51,6 +51,30 @@ assert.throws(()=>prepareExternalArtifactShipment({
   descriptor:{schema:'x'},profile_id:'invented.profile'
 }),/PROFILE_NOT_REGISTERED/);
 
+
+
+
+// Snapshot caller data before assessing the manifest, without freezing input.
+const mutableInput={file_id:'synthetic.snapshot',artifact_role:'synthetic.role',source_ref:'synthetic:source',source_generation:'g1',descriptor:{schema:'synthetic/v1',rows:[{body:'original'}]},bins_custody:{state:'UNVERIFIED',nested:{ref:'original'}}};
+const preparedSnapshot=prepareExternalArtifactShipment(mutableInput);
+mutableInput.descriptor.rows[0].body='changed';mutableInput.bins_custody.nested.ref='changed';
+assert.equal(preparedSnapshot.manifest.file.payload.descriptor.rows[0].body,'original');
+assert.equal(preparedSnapshot.manifest.bins_custody.nested.ref,'original');
+assert.equal(Object.isFrozen(mutableInput.descriptor),false);
+assert.throws(()=>{preparedSnapshot.manifest.file.payload.descriptor.rows[0].body='forged';},TypeError);
+assert.throws(()=>{preparedSnapshot.missing_cells[0].state='PASS';},TypeError);
+let descriptorReads=0;
+const getterDescriptor={schema:'synthetic/v1',get body(){descriptorReads++;return 'value-'+descriptorReads;}};
+const getterSnapshot=prepareExternalArtifactShipment({...mutableInput,descriptor:getterDescriptor});
+assert.equal(descriptorReads,1);
+assert.equal(getterSnapshot.manifest.file.payload.descriptor.body,'value-1');
+
+let schemaReads=0;
+const schemaGetter={get schema(){schemaReads++;return 'synthetic/schema-'+schemaReads;}};
+const schemaSnapshot=prepareExternalArtifactShipment({...mutableInput,descriptor:schemaGetter});
+assert.equal(schemaReads,1);
+assert.equal(schemaSnapshot.descriptor_schema,schemaSnapshot.manifest.file.payload.descriptor.schema);
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.external-artifact-shipment-check/v1',
   state:'PASS',
