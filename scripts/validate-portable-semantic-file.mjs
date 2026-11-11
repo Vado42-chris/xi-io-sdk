@@ -33,6 +33,21 @@ assert.equal(Object.isFrozen(nested.payload.provenance.sources[0].version),true)
 assert.throws(()=>{nested.payload.provenance.sources[0].version.ref='v2';},TypeError);
 assert.equal(nested.content_digest,semanticContentDigest(nested.payload));
 
+// Read a caller-owned semantic property only once. Computing a digest before
+// taking the retained snapshot allowed an accessor to swap the file bytes
+// between assessment and custody, even though the final payload was frozen.
+let changingReads=0;
+const changingPayload={sections:[{
+  get text(){return ++changingReads===1?'reviewed original':'substituted after assessment';}
+}]};
+const changedDuringRead=PortableSemanticFile({...base,payload:changingPayload});
+assert.equal(changingReads,1,'CALLER_SEMANTIC_CONTENT_READ_ONCE');
+assert.equal(changedDuringRead.payload.sections[0].text,'reviewed original');
+assert.equal(changedDuringRead.content_digest,semanticContentDigest(changedDuringRead.payload),
+  'CONTENT_DIGEST_MUST_IDENTIFY_RETAINED_SNAPSHOT');
+assert.equal(Object.isFrozen(changedDuringRead.payload.sections[0]),true);
+assert.equal(Object.isFrozen(changingPayload),false,'CALLER_SOURCE_MUST_NOT_BE_FROZEN');
+
 // Provider/render projections may move without mutating semantic identity.
 const b=PortableSemanticFile({...base,provider_projections:[{ref:'render:html',generation:'prov:g2',kind:'html'}]});
 assert.equal(b.file_id,a.file_id);assert.equal(b.semantic_generation,a.semantic_generation);assert.equal(b.content_digest,a.content_digest);
@@ -59,5 +74,6 @@ assert.equal('punchcard' in withProjection,false);
 assert.equal('checklist' in withProjection,false);
 assert.equal('cube' in withProjection,false);
 
-console.log(JSON.stringify({status:'PASS',hostiles:11,nested_mutation_refusals:3,file_schema:a.schema,semantic_digest:a.content_digest,effects:0}));
+console.log(JSON.stringify({status:'PASS',hostiles:12,nested_mutation_refusals:3,caller_accessor_reads:changingReads,file_schema:a.schema,semantic_digest:a.content_digest,effects:0}));
+
 

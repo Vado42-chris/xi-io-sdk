@@ -15,7 +15,11 @@ function binding(row,k){obj(row,k);return Object.freeze({ref:text(row.ref,k+'_re
 function projection(row,k){obj(row,k);return Object.freeze({ref:text(row.ref,k+'_ref',1024),generation:row.generation?text(row.generation,k+'_generation',512):null,kind:text(row.kind,k+'_kind',128)});}
 export function PortableSemanticFile(input={}){
  const payload=obj(input.payload,'payload');
- const computed=semanticContentDigest(payload);
+ // Detach caller-owned values before assessing the digest. Re-reading a
+ // mutable accessor after hashing can retain different bytes under the same
+ // semantic identity, even when the retained object is deeply frozen.
+ const payloadSnapshot=freezeStructure(stable(payload));
+ const computed=semanticContentDigest(payloadSnapshot);
  const supplied=input.content_digest?digest(input.content_digest,'content_digest'):computed;
  if(supplied!==computed)throw new TypeError('CONTENT_DIGEST_MISMATCH');
  const out={
@@ -25,7 +29,7 @@ export function PortableSemanticFile(input={}){
   semantic_generation:id(input.semantic_generation,'semantic_generation'),
   content_digest:computed,
   profile_id:id(input.profile_id,'profile_id'),
-  payload:freezeStructure(stable(payload)),
+  payload:payloadSnapshot,
   source_bindings:Object.freeze(arr(input.source_bindings??[],'source_bindings').map((x,i)=>binding(x,'source_'+i))),
   dependency_bindings:Object.freeze(arr(input.dependency_bindings??[],'dependency_bindings').map((x,i)=>binding(x,'dependency_'+i))),
   projection_refs:Object.freeze(arr(input.projection_refs??[],'projection_refs').map((x,i)=>projection(x,'projection_'+i))),
@@ -56,3 +60,4 @@ export function validatePortableSemanticFileRoundtrip(file){
   file_id:compiled.file_id,semantic_generation:compiled.semantic_generation,content_digest:compiled.content_digest,effect_authority:0
  });
 }
+
