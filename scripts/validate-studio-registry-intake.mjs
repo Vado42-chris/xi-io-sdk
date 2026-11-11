@@ -104,7 +104,7 @@ function exercise(args) {
     encoding:'utf8',timeout:15000,cwd:tmp,
     env:{...process.env,HOME:tmp},
   });
-  assert.equal(run.status,0,`CLI failed: ${args.slice(0,2).join(' ')}: ${run.stderr.slice(0,500)}`);
+  assert.equal(run.status,0,`CLI failed: ${args.slice(0,2).join(' ')}: ${(run.stderr||run.stdout).slice(0,500)}`);
   return JSON.parse(run.stdout);
 }
 try {

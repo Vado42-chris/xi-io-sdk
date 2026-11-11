@@ -1559,6 +1559,7 @@ if (process.argv.length === 3 && process.argv[2] === '--version') { process.stdo
 
 const top = process.argv[2] || null;
 const topArgs = process.argv.slice(2);
+const studioCompilerAction=top==='studio'&&['topology','discover','roster'].includes(process.argv[3]);
 
 enforceRuntimeOor(process.argv.slice(2));
 
@@ -1768,7 +1769,7 @@ if (
   const result=await runQuorumCli({ action, target, flags });
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
   process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
-} else if (top === 'hex' || top === 'inbox' || top === 'studio') {
+} else if (top === 'hex' || top === 'inbox' || (top === 'studio' && !studioCompilerAction)) {
   const action=process.argv[3] || 'status';
   const result=await productRuntime(top,action);
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
