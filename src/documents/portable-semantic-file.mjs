@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { freezeStructure } from './immutable-structure.mjs';
 
 export const PORTABLE_SEMANTIC_FILE_SCHEMA='xiio.sdk.portable-semantic-file/v1';
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -9,7 +10,6 @@ function digest(v,k){const x=text(v,k,64).toLowerCase();if(!SHA.test(x))throw ne
 function arr(v,k){if(!Array.isArray(v))throw new TypeError(k+'_INVALID');return v;}
 function obj(v,k){if(!v||typeof v!=='object'||Array.isArray(v))throw new TypeError(k+'_INVALID');return v;}
 function stable(value){if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,stable(value[k])]));return value;}
-function immutable(value){if(value&&typeof value==='object'){for(const child of Object.values(value))immutable(child);Object.freeze(value);}return value;}
 export function semanticContentDigest(payload){return crypto.createHash('sha256').update(JSON.stringify(stable(payload))).digest('hex');}
 function binding(row,k){obj(row,k);return Object.freeze({ref:text(row.ref,k+'_ref',1024),generation:text(row.generation,k+'_generation',512),role:row.role?text(row.role,k+'_role',128):null});}
 function projection(row,k){obj(row,k);return Object.freeze({ref:text(row.ref,k+'_ref',1024),generation:row.generation?text(row.generation,k+'_generation',512):null,kind:text(row.kind,k+'_kind',128)});}
@@ -25,7 +25,7 @@ export function PortableSemanticFile(input={}){
   semantic_generation:id(input.semantic_generation,'semantic_generation'),
   content_digest:computed,
   profile_id:id(input.profile_id,'profile_id'),
-  payload:immutable(stable(payload)),
+  payload:freezeStructure(stable(payload)),
   source_bindings:Object.freeze(arr(input.source_bindings??[],'source_bindings').map((x,i)=>binding(x,'source_'+i))),
   dependency_bindings:Object.freeze(arr(input.dependency_bindings??[],'dependency_bindings').map((x,i)=>binding(x,'dependency_'+i))),
   projection_refs:Object.freeze(arr(input.projection_refs??[],'projection_refs').map((x,i)=>projection(x,'projection_'+i))),
@@ -56,4 +56,3 @@ export function validatePortableSemanticFileRoundtrip(file){
   file_id:compiled.file_id,semantic_generation:compiled.semantic_generation,content_digest:compiled.content_digest,effect_authority:0
  });
 }
-

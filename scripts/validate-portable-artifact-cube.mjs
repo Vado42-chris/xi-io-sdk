@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { compilePortableArtifactCube, FILE_CUBE_CELLS } from '../src/documents/portable-artifact-cube.mjs';
+import { artifactProfileCatalog, resolveArtifactProfile } from '../src/documents/artifact-profile-catalog.mjs';
 
 const payload={kind:'primitive',body:{hello:'world'}};
 const file={
@@ -71,6 +72,16 @@ assert.equal(Object.isFrozen(cube.cells[0]),true);
 assert.throws(()=>{cube.cells[0].state='PASS';},TypeError,'CUBE_CELL_STATE_NOT_MUTABLE');
 assert.throws(()=>{cube.cells[0].verification_state='NATIVE_VERIFIED';},TypeError,'CUBE_CELL_VERIFICATION_NOT_MUTABLE');
 assert.equal(cube.cells[0].state,'PASS');
+assert.equal(Object.isFrozen(cube.cells[3].profile),true);
+assert.throws(()=>{cube.cells[3].profile.profile_id='forged.profile.v99';},TypeError,'CUBE_NESTED_PROFILE_NOT_MUTABLE');
+assert.throws(()=>{cube.cells[3].profile.media_types.push('application/forged');},TypeError,'CUBE_NESTED_MEDIA_NOT_MUTABLE');
+
+const detachedCatalog=artifactProfileCatalog();
+assert.equal(Object.isFrozen(detachedCatalog.profiles[0]),true);
+assert.throws(()=>{detachedCatalog.profiles[0].profile_id='forged.profile.v99';},TypeError,'PROFILE_CATALOG_ROW_NOT_MUTABLE');
+const resolvedProfile=resolveArtifactProfile('json.semantic.v1');
+assert.equal(Object.isFrozen(resolvedProfile.profile),true);
+assert.throws(()=>{resolvedProfile.profile.media_types[0]='application/forged';},TypeError,'RESOLVED_PROFILE_MEDIA_NOT_MUTABLE');
 
 const refused=compilePortableArtifactCube({});
 assert.equal(refused.cells[0].state,'FAIL');
@@ -165,7 +176,7 @@ console.log(JSON.stringify({
   state:'PASS',
   denominator:10,
   controls:2,
-  hostiles:143,
+  hostiles:147,
   file_types:['json','pdf'],
   false_green:0,
   effect_authority:0,

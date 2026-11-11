@@ -1,6 +1,7 @@
 import { PortableSemanticFile } from './portable-semantic-file.mjs';
 import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
 import { resolveArtifactProfile } from './artifact-profile-catalog.mjs';
+import { freezeStructure } from './immutable-structure.mjs';
 
 export const PORTABLE_ARTIFACT_CUBE_SCHEMA='xiio.sdk.portable-artifact-cube/v1';
 export const FILE_CUBE_CELLS=Object.freeze([
@@ -135,7 +136,9 @@ export function compilePortableArtifactCube(input={}){
 
   // Cells are the gate's evidence, not editable presentation state. Freezing
   // only the outer result/array leaves each PASS/WAIT/FAIL assertion forgeable.
-  for(const cell of cells) Object.freeze(cell);
+  // Freeze independent evidence snapshots all the way down. F04 profile
+  // metadata and other nested details cannot be rewritten after compilation.
+  for(let i=0;i<cells.length;i++) cells[i]=freezeStructure(structuredClone(cells[i]));
   const failures=cells.filter(x=>x.state==='FAIL');
   const waits=cells.filter(x=>x.state==='TRUE_WAIT');
   const passes=cells.filter(x=>x.state==='PASS');
@@ -174,6 +177,7 @@ export function compilePortableArtifactCube(input={}){
       'FILE_CUBE_PASS != PUBLICATION_OR_LEGAL_EFFECT',
       'CELL_STATE_IS_RESERVED_CANNOT_BE_OVERWRITTEN_BY_DETAIL',
       'CELL_EVIDENCE_IMMUTABLE_AFTER_COMPILATION',
+      'NESTED_CELL_METADATA_IMMUTABLE_AFTER_COMPILATION',
       'CUBE_PASS_REQUIRES_PASS_COUNT_EQUALS_DENOMINATOR',
       'MATCHING_SHA_BYTES != INDEPENDENT_TRANSFER_READBACK',
       'CALLER_SUPPLIED_BINS_REF != BINS_CUSTODY',
