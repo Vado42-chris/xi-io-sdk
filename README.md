@@ -117,14 +117,14 @@ from a developer's home directory or a guessed sibling repository:
 assessment still requires an independently admitted Ward writer and exact Work
 binding through the authorized carrier; the SDK returns `WARD_LEDGER_WRITE_ADMISSION_REQUIRED`.
 
-The SDK Studio roster intake consumes the accepted Studio product denominator
-and the separately versioned relationship graph. Callers may supply registry
-identity/digest/count and graph source data, but neither `registry_complete:true`
-nor `relationship_graph.complete:true` authenticates them. The SDK preserves
-partial graph status and its missing-edge reason, returns typed registry/graph
-readback waits, and never marks dependency closure from a selected product
-sample. The provider-current Studio registry/router owns discovery and the
-authorized installed consumer owns independent currentness readback.
+The SDK Studio roster intake uses the accepted `studio_registry` input with
+Studio's product denominator, separately versioned relationship graph and
+their source references. It derives the known member set from those sources
+when no explicit subset is selected. Neither a caller's completeness flag nor
+a supplied source reference authenticates currentness. Unknown memberships,
+missing graph nodes and partial relationships remain explicit blockers. The
+provider-current Studio registry/router owns discovery, and the authorized
+installed consumer owns independent currentness readback.
 
 ## Agent CLI
 

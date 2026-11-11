@@ -1,9 +1,10 @@
 import catalog from './artifact-profiles.json' with { type: 'json' };
+import { freezeStructure } from './immutable-structure.mjs';
 
 export const ARTIFACT_PROFILE_CATALOG_SCHEMA='xiio.sdk.artifact-profile-catalog/v1';
 
 export function artifactProfileCatalog(){
-  return Object.freeze(structuredClone(catalog));
+  return freezeStructure(structuredClone(catalog));
 }
 
 export function resolveArtifactProfile(profileId){
@@ -23,7 +24,7 @@ export function resolveArtifactProfile(profileId){
     schema:'xiio.sdk.artifact-profile-resolution/v1',
     state:'PASS',
     profile_id:id,
-    profile:structuredClone(row),
+    profile:freezeStructure(structuredClone(row)),
     authority_granted:false,
     provider_effect:false,
   });
@@ -38,7 +39,7 @@ export function resolveArtifactProfileByMediaType(mediaType){
       schema:'xiio.sdk.artifact-profile-resolution/v1',
       state:matches.length?'AMBIGUOUS':'UNKNOWN',
       media_type:media,
-      profiles:matches.map(x=>x.profile_id),
+      profiles:Object.freeze(matches.map(x=>x.profile_id)),
       first_red:matches.length?'MULTIPLE_PROFILES_MATCH_MEDIA_TYPE':'NO_PROFILE_MATCHES_MEDIA_TYPE',
       authority_granted:false,
       provider_effect:false,

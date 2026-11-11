@@ -21,6 +21,24 @@ assert.throws(
   ()=>prepareRegisteredPrimitiveShipment({primitive_id:'invented-primitive',source_generation:gen}),
   /PRIMITIVE_NOT_REGISTERED/
 );
+
+
+
+// A prepared manifest and its cube must describe the same detached generation.
+const mutableCustody={state:'UNVERIFIED',nested:{ref:'synthetic:original'}};
+const preparedSnapshot=prepareRegisteredPrimitiveShipment({primitive_id:'page-shell',source_generation:gen,bins_custody:mutableCustody});
+mutableCustody.nested.ref='synthetic:changed';
+assert.equal(preparedSnapshot.manifest.bins_custody.nested.ref,'synthetic:original');
+assert.equal(Object.isFrozen(mutableCustody),false);
+assert.throws(()=>{preparedSnapshot.manifest.file.source_bindings[0].generation='forged';},TypeError);
+assert.throws(()=>{preparedSnapshot.missing_cells[0].state='PASS';},TypeError);
+const cyclicCustody={state:'UNVERIFIED'};cyclicCustody.self=cyclicCustody;
+const cyclicSnapshot=prepareRegisteredPrimitiveShipment({primitive_id:'page-shell',source_generation:gen,bins_custody:cyclicCustody});
+assert.notEqual(cyclicSnapshot.manifest.bins_custody,cyclicCustody);
+assert.equal(cyclicSnapshot.manifest.bins_custody.self,cyclicSnapshot.manifest.bins_custody);
+assert.equal(Object.isFrozen(cyclicSnapshot.manifest.bins_custody),true);
+assert.equal(Object.isFrozen(cyclicCustody),false);
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.prepare-primitive-shipment-check/v1',
   state:'PASS',

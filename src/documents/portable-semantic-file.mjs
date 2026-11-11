@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { freezeStructure } from './immutable-structure.mjs';
 
 export const PORTABLE_SEMANTIC_FILE_SCHEMA='xiio.sdk.portable-semantic-file/v1';
 const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -24,7 +25,7 @@ export function PortableSemanticFile(input={}){
   semantic_generation:id(input.semantic_generation,'semantic_generation'),
   content_digest:computed,
   profile_id:id(input.profile_id,'profile_id'),
-  payload:Object.freeze(stable(payload)),
+  payload:freezeStructure(stable(payload)),
   source_bindings:Object.freeze(arr(input.source_bindings??[],'source_bindings').map((x,i)=>binding(x,'source_'+i))),
   dependency_bindings:Object.freeze(arr(input.dependency_bindings??[],'dependency_bindings').map((x,i)=>binding(x,'dependency_'+i))),
   projection_refs:Object.freeze(arr(input.projection_refs??[],'projection_refs').map((x,i)=>projection(x,'projection_'+i))),
@@ -36,7 +37,8 @@ export function PortableSemanticFile(input={}){
    'SEMANTIC_PAYLOAD!=TEST_PROJECTION','PUNCHCARD!=FILE_SCHEMA','CHECKLIST!=FILE_SCHEMA',
    'FLATPLANE_CUBE!=FILE_SCHEMA','PROJECTION_CHANGE!=SEMANTIC_CHANGE',
    'PROVIDER_RENDER!=SEMANTIC_TRUTH','FILE_VALID!=PROFILE_QUALIFIED',
-   'FILE_VALID!=SOURCE_CURRENT','FILE_VALID!=PUBLICATION_AUTHORITY'
+   'FILE_VALID!=SOURCE_CURRENT','FILE_VALID!=PUBLICATION_AUTHORITY',
+   'SEMANTIC_CONTENT_DIGEST_REQUIRES_IMMUTABLE_NESTED_PAYLOAD'
   ])
  };
  return Object.freeze(out);

@@ -92,7 +92,7 @@ assert.equal(wrongExecutor.status,'WAIT_LOCAL_FIRST');
 assert.ok(wrongExecutor.blockers.includes('CORD_FREE_OLLAMA_EXECUTOR_UNBOUND'));
 
 const firstLease = compileLeaseConsentGate({
-  canonicalRef:'drive:lease-core', canonicalGeneration:'g1', signerRef:'tenant:cary',
+  canonicalRef:'drive:lease-core', canonicalGeneration:'g1', signerRef:'tenant:cary', canonicalAvailable:true,
 });
 assert.equal(firstLease.status,'READY_TO_REVIEW_AND_SIGN');
 assert.equal(firstLease.signing_allowed,true);
@@ -100,7 +100,7 @@ assert.equal(firstLease.first_signing,true);
 
 const changedLease = compileLeaseConsentGate({
   canonicalRef:'drive:lease-core', canonicalGeneration:'g2', previousSignedGeneration:'g1',
-  signerRef:'tenant:cary', diffRef:'diff:g1..g2',
+  signerRef:'tenant:cary', diffRef:'diff:g1..g2', canonicalAvailable:true,
 });
 assert.equal(changedLease.status,'CHANGE_REVIEW_REQUIRED');
 assert.equal(changedLease.signing_allowed,false);
@@ -108,9 +108,10 @@ assert.equal(changedLease.changed_since_previous_signing,true);
 assert.ok(changedLease.display_requirements.includes('SHOW_DIFF_OR_CHANGE_SUMMARY_BEFORE_SIGNING'));
 
 const sameLease = compileLeaseConsentGate({
-  canonicalRef:'drive:lease-core', canonicalGeneration:'g2', previousSignedGeneration:'g2', signerRef:'tenant:cary',
+  canonicalRef:'drive:lease-core', canonicalGeneration:'g2', previousSignedGeneration:'g2', signerRef:'tenant:cary', canonicalAvailable:true,
 });
 assert.equal(sameLease.status,'READY_TO_REVIEW_AND_SIGN');
 assert.equal(sameLease.signing_allowed,true);
 
 console.log('LOCAL_FIRST_PREFLIGHTS_PASS cord_free_ollama_root_gate=1 zed_acp_ollama=1 automatic_cloud_fallback=0 owner_path_dependency=0 accepted_provider_preflight=1 remote_eligible_false=1 local_ack_first=1 versioned_lease_consent=1 effects=0');
+
