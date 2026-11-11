@@ -105,6 +105,17 @@ The installer writes real wrappers to `~/.local/bin/xi-io` and `~/.local/bin/xi`
 
 Hard: `HUMAN_ENTRY != SDK_INTERNAL_COMMAND`, `LOCAL_OLLAMA != CLOUD_FALLBACK`, `WORKSPACE_READ != EFFECT_AUTHORITY`, `--execute != MERGE_OR_PROVIDER_AUTHORITY`, `REGISTRY_DISCOVERY != ADMISSION`.
 
+The CRM and Cube readers take their local roots from the installed consumer, never
+from a developer's home directory or a guessed sibling repository:
+
+- `XIIO_INBOX_REPO` selects the one installed Inbox CRM producer (`INBOX_REPO` remains a legacy explicit alias). Conflicting bindings return `INBOX_CRM_REPO_BINDING_AMBIGUOUS`.
+- `XIIO_CRM_SEMANTIC_OWNER_REF` supplies that producer's semantic owner reference. It is required for the CRM read and remains `SUPPLIED_UNVERIFIED`, not a Ward or source-provenance receipt.
+- `XIIO_CUBE_ROOT` selects a parent Cube workspace root; `xi-io quorum status --project <name>` selects one project under it. `--cube <path>` selects one exact Cube directly. Missing roots, unsafe project names and out-of-Cube business record references refuse instead of falling back to another workspace.
+
+`xi-io quorum review --write` does not grant ledger mutation. A locally passing
+assessment still requires an independently admitted Ward writer and exact Work
+binding through the authorized carrier; the SDK returns `WARD_LEDGER_WRITE_ADMISSION_REQUIRED`.
+
 ## Agent CLI
 
 The package installs `xi`, with `xi-io` as an alias for the same binary. Its SDK command family is a local JSON adapter over nine existing public

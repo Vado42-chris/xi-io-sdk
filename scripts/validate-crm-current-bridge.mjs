@@ -4,6 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {readLocalCrmCurrent,resolveInboxCrmSurface,readAriesPhysicalCrmReceipt} from '../src/bridges/crm-current.mjs';
 
+const bridgeSource=fs.readFileSync(new URL('../src/bridges/crm-current.mjs',import.meta.url),'utf8');
+assert.doesNotMatch(bridgeSource,/\/media\/|Storage 22|chrishallberg|Vado42-chris\/xi-io-Inbox/,'reusable CRM bridge must not embed one tenant or workstation');
+
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-sdk-crm-'));
 try{
   fs.mkdirSync(path.join(tmp,'server'),{recursive:true});
@@ -15,8 +18,20 @@ const a=process.argv.slice(2);const ri=a.indexOf('--root');const qi=a.indexOf('-
 console.log(JSON.stringify({schema:'xiio.crm.knowledge-current-read/v1',ok:true,state:'CURRENT_KNOWLEDGE_PRESENT',root_id:ri>=0?a[ri+1]:null,required_ids:qi>=0?a[qi+1].split(','):[],required_ids_present:true,provider_effect:false}));
 `);
   const prior=process.env.XIIO_INBOX_REPO;
+  const priorLegacy=process.env.INBOX_REPO;
+  const priorOwner=process.env.XIIO_CRM_SEMANTIC_OWNER_REF;
   const priorReceipt=process.env.XIIO_CRM_EGRESS_RECEIPT;
+  delete process.env.INBOX_REPO;
+  delete process.env.XIIO_CRM_SEMANTIC_OWNER_REF;
+  delete process.env.XIIO_INBOX_REPO;
+  assert.deepEqual(resolveInboxCrmSurface().tried,[], 'unbound SDK must not search sibling or personal paths');
+  assert.equal(resolveInboxCrmSurface().reason,'INBOX_CRM_REPO_UNBOUND');
   process.env.XIIO_INBOX_REPO=tmp;
+  assert.equal(resolveInboxCrmSurface().reason,'INBOX_CRM_SEMANTIC_OWNER_UNBOUND');
+  process.env.XIIO_CRM_SEMANTIC_OWNER_REF='tenant/example-crm:server/crm-knowledge-returns.mjs';
+  process.env.INBOX_REPO=path.join(tmp,'foreign-tenant');
+  assert.equal(resolveInboxCrmSurface().reason,'INBOX_CRM_REPO_BINDING_AMBIGUOUS', 'conflicting producer roots must not choose first');
+  delete process.env.INBOX_REPO;
   const receiptPath=path.join(tmp,'latest-crm-egress.json');
   process.env.XIIO_CRM_EGRESS_RECEIPT=receiptPath;
   try{
@@ -80,12 +95,14 @@ console.log(JSON.stringify({schema:'xiio.crm.knowledge-current-read/v1',ok:true,
     assert.equal(out.physical_delivery.state,'SUPPLIED_UNVERIFIED');
     assert.equal(out.result.root_id,'SEARCH_PROJECT_CURRENT');
     assert.deepEqual(out.result.required_ids,['KR-SEARCH-LOCAL-FIRST-CRM-20260921']);
-    assert.equal(out.semantic_owner_ref,'Vado42-chris/xi-io-Inbox:server/crm-knowledge-returns.mjs');
+    assert.equal(out.semantic_owner_ref,'tenant/example-crm:server/crm-knowledge-returns.mjs');
     assert.equal(out.provider_effect,false);
     assert.equal(out.work_authority,false);
     assert.ok(out.hard.includes('CRM_CURRENT_BEFORE_PROVIDER_ARCHAEOLOGY'));
   }finally{
     if(prior===undefined) delete process.env.XIIO_INBOX_REPO; else process.env.XIIO_INBOX_REPO=prior;
+    if(priorLegacy===undefined) delete process.env.INBOX_REPO; else process.env.INBOX_REPO=priorLegacy;
+    if(priorOwner===undefined) delete process.env.XIIO_CRM_SEMANTIC_OWNER_REF; else process.env.XIIO_CRM_SEMANTIC_OWNER_REF=priorOwner;
     if(priorReceipt===undefined) delete process.env.XIIO_CRM_EGRESS_RECEIPT; else process.env.XIIO_CRM_EGRESS_RECEIPT=priorReceipt;
   }
   console.log(JSON.stringify({schema:'xiio.sdk.crm-current-bridge-check/v1',result:'PASS',owner:'Inbox CRM',aries_physical_gate:true,no_receipt_is_not_green:true,provider_effect:false,authority_granted:false}));

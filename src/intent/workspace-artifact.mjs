@@ -110,7 +110,7 @@ function nearestFolderPhrase(raw, fileToken) {
   return null;
 }
 
-export function resolveWorkspaceArtifactIntent(rawInput) {
+export function resolveWorkspaceArtifactIntent(rawInput, { semanticOwnerRef = null } = {}) {
   const raw = String(rawInput ?? '');
   if (!raw.trim()) throw new Error('RAW_INPUT_REQUIRED');
 
@@ -173,7 +173,8 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
     effect_ceiling: 'NO_EFFECT_RESOLUTION_ONLY',
     write_verification_contract: Object.freeze({
       applies_when: classification.operation === 'WRITE_TEXT',
-      semantic_owner_ref: 'Vado42-chris/xi-io.net:scripts/compile-artifact-mutation-guard.mjs',
+      semantic_owner_ref: typeof semanticOwnerRef === 'string' && semanticOwnerRef.trim() ? semanticOwnerRef.trim() : null,
+      semantic_owner_binding_state: typeof semanticOwnerRef === 'string' && semanticOwnerRef.trim() ? 'SUPPLIED_UNVERIFIED' : 'UNBOUND',
       required_after_attempt: Object.freeze([
         'TOOL_RESULT_ACKNOWLEDGED',
         'DESTINATION_READBACK_VERIFIED',
@@ -200,6 +201,7 @@ export function resolveWorkspaceArtifactIntent(rawInput) {
       'MACHINE_RESOLVABLE_PATH!=OWNER_REPROMPT',
       'PROSE_PUNCTUATION!=PATH_IDENTITY',
       'WRITE_REQUEST!=WRITE_VERIFIED',
+      'SEMANTIC_OWNER_REF_SUPPLIED!=SOURCE_PROVENANCE_VERIFIED',
       'WRITE_TOOL_ACK!=DESTINATION_READBACK',
       'ECHOED_CONTENT!=PERSISTED_CONTENT',
       'BYTE_COUNT_MATCH!=SEMANTIC_EFFECT',
