@@ -6,6 +6,7 @@ import {readLocalCrmCurrent,resolveInboxCrmSurface,readAriesPhysicalCrmReceipt} 
 
 const bridgeSource=fs.readFileSync(new URL('../src/bridges/crm-current.mjs',import.meta.url),'utf8');
 assert.doesNotMatch(bridgeSource,/\/media\/|Storage 22|chrishallberg|Vado42-chris\/xi-io-Inbox/,'reusable CRM bridge must not embed one tenant or workstation');
+assert.doesNotMatch(bridgeSource,/\bspawnSync\b|\bexecFileSync\b|\bexecSync\b/,'SDK CRM reader must not launch caller-selected repository code');
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-sdk-crm-'));
 try{
@@ -36,10 +37,15 @@ console.log(JSON.stringify({schema:'xiio.crm.knowledge-current-read/v1',ok:true,
   process.env.XIIO_CRM_EGRESS_RECEIPT=receiptPath;
   try{
     const surface=resolveInboxCrmSurface();
-    assert.equal(surface.state,'PASS');
+    assert.equal(surface.state,'TRUE_WAIT');
+    assert.equal(surface.reason,'CRM_INSTALLED_ADAPTER_ADMISSION_REQUIRED');
+    assert.equal(surface.owner_binding_state,'SUPPLIED_UNVERIFIED');
+    assert.equal(surface.executable,false);
     const noReceipt=readLocalCrmCurrent({root:'SEARCH_PROJECT_CURRENT',requireIds:['KR-SEARCH-LOCAL-FIRST-CRM-20260921'],hostRef:'aries'});
-    assert.equal(noReceipt.state,'PASS_WITH_WAITS');
-    assert.equal(noReceipt.semantic_state,'PASS');
+    assert.equal(noReceipt.state,'TRUE_WAIT');
+    assert.equal(noReceipt.semantic_state,'SUPPLIED_UNVERIFIED');
+    assert.equal(noReceipt.reason,'CRM_INSTALLED_ADAPTER_ADMISSION_REQUIRED');
+    assert.equal(noReceipt.result,null);
     assert.equal(noReceipt.physical_delivery.state,'TRUE_WAIT');
     assert.equal(noReceipt.physical_delivery.first_red,'ARIES_LOCAL_PACKET_RECEIPT_MISSING');
 
@@ -90,20 +96,47 @@ console.log(JSON.stringify({schema:'xiio.crm.knowledge-current-read/v1',ok:true,
     assert.equal(readAriesPhysicalCrmReceipt({hostRef:'aries'}).state,'SUPPLIED_UNVERIFIED');
 
     const out=readLocalCrmCurrent({root:'SEARCH_PROJECT_CURRENT',requireIds:['KR-SEARCH-LOCAL-FIRST-CRM-20260921'],hostRef:'aries'});
-    assert.equal(out.state,'PASS_WITH_WAITS');
-    assert.equal(out.semantic_state,'PASS');
+    assert.equal(out.state,'TRUE_WAIT');
+    assert.equal(out.semantic_state,'SUPPLIED_UNVERIFIED');
     assert.equal(out.physical_delivery.state,'SUPPLIED_UNVERIFIED');
-    assert.equal(out.result.root_id,'SEARCH_PROJECT_CURRENT');
-    assert.deepEqual(out.result.required_ids,['KR-SEARCH-LOCAL-FIRST-CRM-20260921']);
+    assert.equal(out.result,null);
+    assert.equal(out.root,'SEARCH_PROJECT_CURRENT');
+    assert.deepEqual(out.required_ids,['KR-SEARCH-LOCAL-FIRST-CRM-20260921']);
     assert.equal(out.semantic_owner_ref,'tenant/example-crm:server/crm-knowledge-returns.mjs');
     assert.equal(out.provider_effect,false);
     assert.equal(out.work_authority,false);
-    assert.ok(out.hard.includes('CRM_CURRENT_BEFORE_PROVIDER_ARCHAEOLOGY'));
+    assert.equal(out.executable,false);
+    assert.ok(out.hard.includes('SUPPLIED_OWNER_REF_NOT_EXECUTION_ADMISSION'));
+
+    // The caller can point at any folder and forge the semantic owner string.
+    // Neither those strings nor a forged authenticated flag may launch Node.
+    const sentinel=path.join(tmp,'crm-hostile-executed.txt');
+    fs.writeFileSync(path.join(tmp,'scripts','crm-knowledge-current.mjs'),`
+import fs from 'node:fs';
+fs.writeFileSync(${JSON.stringify(sentinel)},process.env.XIIO_TEST_SENTINEL||'missing');
+console.log(JSON.stringify({state:'PASS',authority_granted:true}));
+`);
+    const hostileEnv={XIIO_INBOX_REPO:tmp,XIIO_CRM_SEMANTIC_OWNER_REF:'candidate:owner',XIIO_TEST_SENTINEL:'synthetic-only'};
+    for(const [name,variation] of [
+      ['caller_selected_root',{}],
+      ['forged_semantic_owner',{semanticOwnerRef:'forged:owner'}],
+      ['wrong_workspace',{root:'foreign-workspace'}],
+      ['revoked_adapter',{adapterAdmission:{state:'REVOKED',authenticated:false}}],
+      ['forged_admission',{adapterAdmission:{state:'PASS',authenticated:true,ward_granted:true}}],
+    ]){
+      const hostile=readLocalCrmCurrent({root:'current-workspace',repoRoot:tmp,
+        semanticOwnerRef:'candidate:owner',hostRef:'loki',env:hostileEnv,...variation});
+      assert.equal(fs.existsSync(sentinel),false,`UNVERIFIED_CRM_REPO_MUST_NEVER_EXECUTE:${name}`);
+      assert.equal(hostile.state,'TRUE_WAIT',name);
+      assert.equal(hostile.executable,false,name);
+      assert.equal(hostile.result,null,name);
+      assert.equal(hostile.authority_granted,false,name);
+    }
   }finally{
     if(prior===undefined) delete process.env.XIIO_INBOX_REPO; else process.env.XIIO_INBOX_REPO=prior;
     if(priorLegacy===undefined) delete process.env.INBOX_REPO; else process.env.INBOX_REPO=priorLegacy;
     if(priorOwner===undefined) delete process.env.XIIO_CRM_SEMANTIC_OWNER_REF; else process.env.XIIO_CRM_SEMANTIC_OWNER_REF=priorOwner;
     if(priorReceipt===undefined) delete process.env.XIIO_CRM_EGRESS_RECEIPT; else process.env.XIIO_CRM_EGRESS_RECEIPT=priorReceipt;
   }
-  console.log(JSON.stringify({schema:'xiio.sdk.crm-current-bridge-check/v1',result:'PASS',owner:'Inbox CRM',aries_physical_gate:true,no_receipt_is_not_green:true,provider_effect:false,authority_granted:false}));
+  console.log(JSON.stringify({schema:'xiio.sdk.crm-current-bridge-check/v1',result:'PASS',owner:'Inbox CRM',aries_physical_gate:true,no_receipt_is_not_green:true,hostile_execution_attempts:5,provider_effect:false,authority_granted:false}));
 }finally{fs.rmSync(tmp,{recursive:true,force:true});}

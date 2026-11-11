@@ -7,6 +7,20 @@ const OWNERS={
 };
 function text(v,n){if(typeof v!=='string'||!v.trim())throw new Error(n+'_REQUIRED');return v.trim();}
 function id(v){const x=text(v,'PRODUCT_ID').toLowerCase().replace(/_/g,'-');if(!SAFE.test(x))throw new Error('PRODUCT_ID_INVALID');return x;}
+function optionalText(v){return typeof v==='string'&&v.trim()?v.trim():null;}
+function compileRelationshipGraphIntake(input,registryRef){
+ const graph=input&&typeof input==='object'&&!Array.isArray(input)?input:null;
+ if(!graph) return {state:'TRUE_WAIT',first_red:'RELATIONSHIP_GRAPH_UNBOUND',complete:false,verified:false,source_ref:null,source_generation:null,observed_status:null,completeness_reason:null};
+ const schemaOk=graph.schema==='xiio.studio-relationship-graph/v1';
+ const sourceRef=optionalText(graph.product_denominator_ref),generation=optionalText(graph.generation);
+ const first_red=!schemaOk?'RELATIONSHIP_GRAPH_SCHEMA_INVALID':
+  !generation?'RELATIONSHIP_GRAPH_GENERATION_UNBOUND':
+  !sourceRef||sourceRef!==registryRef?'RELATIONSHIP_GRAPH_DENOMINATOR_REF_MISMATCH':
+  graph.complete===false?'RELATIONSHIP_GRAPH_INCOMPLETE':'RELATIONSHIP_GRAPH_CURRENT_READBACK_REQUIRED';
+ return {state:'TRUE_WAIT',first_red,complete:false,verified:false,
+  source_ref:sourceRef,source_generation:generation,observed_status:optionalText(graph.status),
+  declared_complete:graph.complete===true,completeness_reason:optionalText(graph.completeness_reason)};
+}
 export function compileStudioHeadlessTopology(input){
  if(!input||typeof input!=='object')throw new Error('INPUT_REQUIRED');
  const product_id=id(input.product_id),base=Number.isInteger(input.base_port)?input.base_port:8800;
@@ -40,10 +54,35 @@ export function compileStudioRoster(input){
  const external=new Set(Array.isArray(input.external_dependencies)?input.external_dependencies.map(id):[]);
  const dependencyBlockers=products.flatMap(p=>p.dependencies.filter(d=>!seen.has(d)&&!external.has(d)).map(dependency=>({target:'ROSTER_DEPENDENCY',product_id:p.product_id,dependency,state:'UNKNOWN_BLOCKED'})));
  const expected=Number.isInteger(input.expected_product_count)?input.expected_product_count:null;
- const registryProved=input.registry_complete===true&&typeof input.registry_ref==='string'&&typeof input.registry_digest==='string'&&typeof input.registry_receipt_ref==='string'&&expected===products.length;
- const registryBlockers=registryProved?[]:[{target:'ROSTER_REGISTRY_PROOF',state:'UNKNOWN_BLOCKED',expected_product_count:expected,observed_product_count:products.length,registry_ref:input.registry_ref||null,registry_digest:input.registry_digest||null,registry_receipt_ref:input.registry_receipt_ref||null}];
+ const registryRef=optionalText(input.registry_ref),registryDigest=optionalText(input.registry_digest),registryReceipt=optionalText(input.registry_receipt_ref);
+ const shapeComplete=input.registry_complete===true&&Boolean(registryRef)&&Boolean(registryReceipt)&&/^sha256:[a-f0-9]{64}$/i.test(registryDigest||'')&&expected===products.length;
+ const registry_discovery={state:shapeComplete?'SUPPLIED_UNVERIFIED':'TRUE_WAIT',verified:false,
+  supplied_complete:shapeComplete,source_ref:registryRef,source_digest:registryDigest,receipt_ref:registryReceipt,
+  expected_product_count:expected,observed_product_count:products.length,
+  first_red:expected!==products.length?'PRODUCT_ROSTER_DENOMINATOR_MISMATCH':
+   !registryRef?'PRODUCT_REGISTRY_UNBOUND':
+   !/^sha256:[a-f0-9]{64}$/i.test(registryDigest||'')?'PRODUCT_REGISTRY_DIGEST_INVALID':
+   !registryReceipt?'PRODUCT_REGISTRY_RECEIPT_UNBOUND':'AUTHENTICATED_PRODUCT_REGISTRY_READBACK_REQUIRED'};
+ const relationship_graph=compileRelationshipGraphIntake(input.relationship_graph,registryRef);
+ // The SDK can count supplied rows but cannot authenticate Studio's registry,
+ // provider-current relationship edges or their per-root applicability.
+ const registryProved=false;
+ const registryBlockers=[{target:'ROSTER_REGISTRY_PROOF',state:'UNKNOWN_BLOCKED',first_red:registry_discovery.first_red,
+  expected_product_count:expected,observed_product_count:products.length,registry_ref:registryRef,registry_digest:registryDigest,registry_receipt_ref:registryReceipt}];
+ const relationshipBlockers=[{target:'RELATIONSHIP_GRAPH',state:'UNKNOWN_BLOCKED',first_red:relationship_graph.first_red,
+  graph_ref:relationship_graph.source_ref,graph_generation:relationship_graph.source_generation,
+  completeness_reason:relationship_graph.completeness_reason}];
  const productBlockers=products.flatMap(p=>p.hvt_punchcards.filter(c=>c.state!=='SUPPLIED_UNVERIFIED').map(c=>({product_id:p.product_id,...c})));
  const evidenceBlockers=evidence_stack.filter(x=>x.state!=='SUPPLIED_UNVERIFIED').map(x=>({target:'EVIDENCE_DEPENDENCY',...x}));
- const blockers=[...registryBlockers,...evidenceBlockers,...dependencyBlockers,...productBlockers];
- return {schema:'xiio.sdk.studio-roster/v1',registry_ref:input.registry_ref||null,registry_digest:input.registry_digest||null,registry_receipt_ref:input.registry_receipt_ref||null,registry_complete:registryProved,evidence_stack,evidence_complete:evidenceBlockers.length===0,dependency_closure:dependencyBlockers.length===0,products,product_count:products.length,server_count:products.length*3,blockers,closure:false,hard:['REGISTRY_FLAG!=REGISTRY_PROOF','REGISTRY_COMPLETE_FALSE!=FULL_ROSTER','PRODUCT_OMISSION=BLOCKER','UNRESOLVED_DEPENDENCY=BLOCKER','PRODUCT_COUNT*3=MINIMUM_SERVER_COUNT','IMPACT_REPORT_WITHOUT_DATA_FORGE_DOTPROJECT_BUGZILLA=UNRELIABLE','PLACEHOLDER_ADAPTER!=IMPLEMENTATION']};
+ const blockers=[...registryBlockers,...relationshipBlockers,...evidenceBlockers,...dependencyBlockers,...productBlockers];
+ return {schema:'xiio.sdk.studio-roster/v1',registry_ref:registryRef,registry_digest:registryDigest,registry_receipt_ref:registryReceipt,
+  registry_complete:registryProved,registry_discovery,relationship_graph,
+  evidence_stack,evidence_complete:evidenceBlockers.length===0,
+  supplied_dependency_closure:dependencyBlockers.length===0,dependency_closure:false,
+  products,product_count:products.length,server_count:products.length*3,blockers,closure:false,
+  hard:['REGISTRY_FLAG!=REGISTRY_PROOF','REGISTRY_COMPLETE_FALSE!=FULL_ROSTER',
+   'PRODUCT_OMISSION=BLOCKER','UNRESOLVED_DEPENDENCY=BLOCKER','PRODUCT_COUNT*3=MINIMUM_SERVER_COUNT',
+   'INCOMPLETE_RELATIONSHIP_GRAPH!=NO_EFFECT','SUPPLIED_GRAPH_COMPLETE!=AUTHENTICATED_GRAPH_CURRENT',
+   'REGISTRY_DISCOVERY!=REGISTRY_VERIFIED','PARTIAL_GRAPH!=DEPENDENCY_CLOSURE',
+   'IMPACT_REPORT_WITHOUT_DATA_FORGE_DOTPROJECT_BUGZILLA=UNRELIABLE','PLACEHOLDER_ADAPTER!=IMPLEMENTATION']};
 }

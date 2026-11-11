@@ -27,10 +27,38 @@ assert.deepEqual(roster.evidence_stack.map(x=>x.name),['data_forge','dotproject'
 assert.equal(roster.evidence_stack.every(x=>x.state==='UNKNOWN_BLOCKED'),true);
 assert.equal(roster.blockers.filter(x=>x.target==='EVIDENCE_DEPENDENCY').length,3);
 
-const chained=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_digest:'sha256:test',registry_receipt_ref:'rcp:test',registry_complete:true,expected_product_count:2,products:[{product_id:'inbox',dependencies:['switchboard']},{product_id:'publisher',dependencies:['missing-child']}],external_dependencies:['switchboard']});
-assert.equal(chained.registry_complete,true);
+const chained=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_digest:'sha256:'+'a'.repeat(64),registry_receipt_ref:'rcp:test',registry_complete:true,expected_product_count:2,products:[{product_id:'inbox',dependencies:['switchboard']},{product_id:'publisher',dependencies:['missing-child']}],external_dependencies:['switchboard']});
+assert.equal(chained.registry_complete,false,'CALLER_REGISTRY_FLAG_CANNOT_CERTIFY_FULL_CENSUS');
+assert.equal(chained.registry_discovery.state,'SUPPLIED_UNVERIFIED');
+assert.equal(chained.registry_discovery.verified,false);
+assert.equal(chained.relationship_graph.state,'TRUE_WAIT');
+assert.equal(chained.relationship_graph.first_red,'RELATIONSHIP_GRAPH_UNBOUND');
 assert.equal(chained.dependency_closure,false);
 assert.equal(chained.blockers.some(x=>x.target==='ROSTER_DEPENDENCY'&&x.dependency==='missing-child'),true);
+
+const partialGraph=compileStudioRoster({
+  state_root:'/tmp/xiio-test',registry_ref:'registry:current',registry_digest:'sha256:'+'b'.repeat(64),
+  registry_receipt_ref:'receipt:provided',registry_complete:true,expected_product_count:2,
+  products:[{product_id:'inbox'},{product_id:'publisher'}],
+  relationship_graph:{schema:'xiio.studio-relationship-graph/v1',generation:'g1',
+    product_denominator_ref:'registry:current',status:'PARTIAL_GRAPH_CURRENT_PRODUCT_DENOMINATOR_BOUND',
+    complete:false,completeness_reason:'Historical edges remain unresolved'},
+});
+assert.equal(partialGraph.relationship_graph.complete,false);
+assert.equal(partialGraph.relationship_graph.first_red,'RELATIONSHIP_GRAPH_INCOMPLETE');
+assert.equal(partialGraph.relationship_graph.completeness_reason,'Historical edges remain unresolved');
+assert.equal(partialGraph.blockers.some(x=>x.target==='RELATIONSHIP_GRAPH'),true);
+assert.equal(partialGraph.registry_complete,false);
+const forgedComplete=compileStudioRoster({
+  state_root:'/tmp/xiio-test',registry_ref:'registry:current',registry_digest:'sha256:'+'c'.repeat(64),
+  registry_receipt_ref:'receipt:provided',registry_complete:true,expected_product_count:1,
+  products:[{product_id:'inbox'}],relationship_graph:{schema:'xiio.studio-relationship-graph/v1',
+    generation:'g1',product_denominator_ref:'registry:current',status:'COMPLETE',complete:true,
+    authenticated:true,verified:true},
+});
+assert.equal(forgedComplete.relationship_graph.verified,false,'CALLER_VERIFIED_FLAG_IS_NOT_PROVIDER_READBACK');
+assert.equal(forgedComplete.relationship_graph.first_red,'RELATIONSHIP_GRAPH_CURRENT_READBACK_REQUIRED');
+assert.equal(forgedComplete.registry_complete,false);
 
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[]}));
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[{product_id:'same'},{product_id:'same'}]}));

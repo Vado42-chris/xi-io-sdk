@@ -13,6 +13,16 @@ When work is entered from the xi-io managed suite, start from Studio current bef
 5. read this file and the affected SDK contract/runtime;
 6. run `npm run check`, which is the SDK runtime ROTFL suite.
 
+Every SDK cold start that selects product, repo or affected-consumer work must
+also resolve Studio's current `studio-product-denominator.current.json`,
+`studio-relationship-graph.current.json` and owner project router from its
+accepted source. Registry discovery and graph completeness are separate cells.
+Keep the graph's actual `complete` and `completeness_reason`, including PARTIAL
+and unknown relationships. A supplied product count, a caller's `complete:true`
+or an observed subset never certifies the full registry or relationship graph;
+the installed provider must authenticate currentness and readback. Do not
+hardcode the XI-IO lineup or require owner reconstruction of registered rows.
+
 Hard:
 
 ```text

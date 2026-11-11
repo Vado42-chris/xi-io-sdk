@@ -24,6 +24,7 @@ jobs:
           npm run check:crm-current-bridge
           npm run check:cube-quorum-cli
           node scripts/validate-workspace-artifact-intent.mjs
+          node scripts/validate-studio-headless-topology.mjs
       - name: Verify no third-party remote relay is a core gate
         run: npm run check:cli-remote-desktop-currentness
       - name: Upload SDK ROTFL heatmap receipt

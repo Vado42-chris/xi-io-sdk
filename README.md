@@ -108,13 +108,23 @@ Hard: `HUMAN_ENTRY != SDK_INTERNAL_COMMAND`, `LOCAL_OLLAMA != CLOUD_FALLBACK`, `
 The CRM and Cube readers take their local roots from the installed consumer, never
 from a developer's home directory or a guessed sibling repository:
 
-- `XIIO_INBOX_REPO` selects the one installed Inbox CRM producer (`INBOX_REPO` remains a legacy explicit alias). Conflicting bindings return `INBOX_CRM_REPO_BINDING_AMBIGUOUS`.
-- `XIIO_CRM_SEMANTIC_OWNER_REF` supplies that producer's semantic owner reference. It is required for the CRM read and remains `SUPPLIED_UNVERIFIED`, not a Ward or source-provenance receipt.
+- `XIIO_INBOX_REPO` selects a candidate Inbox CRM producer (`INBOX_REPO` remains a legacy explicit alias). Conflicting bindings return `INBOX_CRM_REPO_BINDING_AMBIGUOUS`.
+- `XIIO_CRM_SEMANTIC_OWNER_REF` supplies that candidate's semantic owner reference. It remains `SUPPLIED_UNVERIFIED`, not proof that the installed adapter is trusted or runnable.
+- `xi-io crm current` is a pure structural request until the existing authenticated CRM host/Work adapter admits execution and returns native readback. The SDK does not execute a `crm-knowledge-current.mjs` script from the supplied repository; a found script returns `CRM_INSTALLED_ADAPTER_ADMISSION_REQUIRED`. This refusal also applies to forged owners, wrong workspaces and revoked or missing native bindings.
 - `XIIO_CUBE_ROOT` selects a parent Cube workspace root; `xi-io quorum status --project <name>` selects one project under it. `--cube <path>` selects one exact Cube directly. Missing roots, unsafe project names and out-of-Cube business record references refuse instead of falling back to another workspace.
 
 `xi-io quorum review --write` does not grant ledger mutation. A locally passing
 assessment still requires an independently admitted Ward writer and exact Work
 binding through the authorized carrier; the SDK returns `WARD_LEDGER_WRITE_ADMISSION_REQUIRED`.
+
+The SDK Studio roster intake consumes the accepted Studio product denominator
+and the separately versioned relationship graph. Callers may supply registry
+identity/digest/count and graph source data, but neither `registry_complete:true`
+nor `relationship_graph.complete:true` authenticates them. The SDK preserves
+partial graph status and its missing-edge reason, returns typed registry/graph
+readback waits, and never marks dependency closure from a selected product
+sample. The provider-current Studio registry/router owns discovery and the
+authorized installed consumer owns independent currentness readback.
 
 ## Agent CLI
 

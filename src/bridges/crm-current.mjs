@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {spawnSync} from 'node:child_process';
 
 function text(v){return String(v??'').trim();}
 function readJsonMaybe(file){
@@ -82,58 +81,43 @@ export function resolveInboxCrmSurface({repoRoot=null,semanticOwnerRef=null,env=
   const tried=[repoRoot,env.XIIO_INBOX_REPO,env.INBOX_REPO]
     .map(text).filter(Boolean).map((v)=>path.resolve(v));
   const roots=[...new Set(tried)];
-  if(!roots.length) return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_REPO_UNBOUND',tried:[]});
-  if(roots.length!==1) return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_REPO_BINDING_AMBIGUOUS',tried:roots});
+  if(!roots.length) return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_REPO_UNBOUND',executable:false,tried:Object.freeze([])});
+  if(roots.length!==1) return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_REPO_BINDING_AMBIGUOUS',executable:false,tried:Object.freeze(roots)});
   const owner=text(semanticOwnerRef||env.XIIO_CRM_SEMANTIC_OWNER_REF);
-  if(!owner) return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_SEMANTIC_OWNER_UNBOUND',tried:roots});
+  if(!owner) return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_SEMANTIC_OWNER_UNBOUND',executable:false,tried:Object.freeze(roots)});
   const repo=roots[0];
   const script=path.join(repo,'scripts','crm-knowledge-current.mjs');
   const semantic=path.join(repo,'server','crm-knowledge-returns.mjs');
   if(fs.existsSync(path.join(repo,'package.json'))&&fs.existsSync(script)&&fs.existsSync(semantic)){
-    return Object.freeze({state:'PASS',repo,script,semantic_owner_ref:owner,owner_binding_state:'SUPPLIED_UNVERIFIED',tried:roots});
+    // File presence and a caller-supplied owner only describe a candidate.
+    // Executing repository code requires an independently authenticated native
+    // CRM adapter/Work assignment, which this pure SDK surface cannot admit.
+    return Object.freeze({state:'TRUE_WAIT',reason:'CRM_INSTALLED_ADAPTER_ADMISSION_REQUIRED',
+      repo,semantic_owner_ref:owner,owner_binding_state:'SUPPLIED_UNVERIFIED',
+      executable:false,tried:Object.freeze(roots)});
   }
-  return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_SURFACE_NOT_FOUND',tried:roots});
+  return Object.freeze({state:'TRUE_WAIT',reason:'INBOX_CRM_SURFACE_NOT_FOUND',executable:false,tried:Object.freeze(roots)});
 }
 export function readLocalCrmCurrent({root=null,limit=null,requireIds=[],repoRoot=null,semanticOwnerRef=null,hostRef=null,env=process.env}={}){
   const found=resolveInboxCrmSurface({repoRoot,semanticOwnerRef,env});
   const physical_delivery=readAriesPhysicalCrmReceipt({hostRef});
-  if(found.state!=='PASS'){
-    return Object.freeze({
-      schema:'xiio.sdk.crm-current-bridge/v1',
-      state:'TRUE_WAIT',
-      reason:found.reason,
-      tried:found.tried,
-      provider_effect:false,
-      work_authority:false,
-      authority_granted:false
-    });
-  }
-  const args=[];
-  if(text(root)) args.push('--root',text(root));
-  if(Number.isInteger(limit)&&limit>0) args.push('--limit',String(limit));
   const ids=Array.isArray(requireIds)?requireIds.map(text).filter(Boolean):String(requireIds||'').split(',').map(text).filter(Boolean);
-  if(ids.length) args.push('--require',ids.join(','));
-  const result=spawnSync(process.execPath,[found.script,...args],{
-    cwd:found.repo,encoding:'utf8',timeout:30_000,env
-  });
-  let payload=null;
-  try{payload=JSON.parse((result.stdout||'').trim());}catch{}
-  const semantic_state=result.status===0?'PASS':'TRUE_WAIT';
-  const state=semantic_state!=='PASS'?'TRUE_WAIT':'PASS_WITH_WAITS';
   return Object.freeze({
     schema:'xiio.sdk.crm-current-bridge/v1',
-    state,
-    semantic_state,
-    inbox_repo:found.repo,
-    semantic_owner_ref:found.semantic_owner_ref,
-    owner_binding_state:found.owner_binding_state,
-    read_surface:'scripts/crm-knowledge-current.mjs',
+    state:'TRUE_WAIT',
+    reason:found.reason||'CRM_INSTALLED_ADAPTER_ADMISSION_REQUIRED',
+    semantic_state:found.owner_binding_state||'UNBOUND',
+    inbox_repo:found.repo||null,
+    semantic_owner_ref:found.semantic_owner_ref||null,
+    owner_binding_state:found.owner_binding_state||'UNBOUND',
+    read_surface:'AUTHENTICATED_INSTALLED_CRM_ADAPTER_REQUIRED',
     root:text(root)||null,
-    required_ids:ids,
-    result:payload,
+    required_ids:Object.freeze(ids),
+    limit:Number.isInteger(limit)&&limit>0?limit:null,
+    result:null,
     physical_delivery,
-    stdout:payload?null:(result.stdout||'').trim(),
-    stderr:(result.stderr||'').trim(),
+    executable:false,
+    tried:found.tried,
     provider_effect:false,
     work_authority:false,
     authority_granted:false,
@@ -141,6 +125,9 @@ export function readLocalCrmCurrent({root=null,limit=null,requireIds=[],repoRoot
       'CLI_EXPOSES_OPERATION__CRM_OWNS_SEMANTICS',
       'CRM_CURRENT_BEFORE_PROVIDER_ARCHAEOLOGY',
       'SUPPLIED_SEMANTIC_OWNER_REF != VERIFIED_SOURCE_PROVENANCE',
+      'REPO_FILES_PRESENT != TRUSTED_EXECUTABLE',
+      'SUPPLIED_OWNER_REF_NOT_EXECUTION_ADMISSION',
+      'SDK_CRM_READ_PLAN != HOST_PROCESS_AUTHORITY',
       'CRM_READ!=WORK_AUTHORITY',
       'EMPTY_CURRENT!=PROVEN_NO_LESSONS',
       'RESULT!=RETURN!=APPLY_RETURN',
