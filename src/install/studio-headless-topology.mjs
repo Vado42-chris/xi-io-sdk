@@ -1,3 +1,5 @@
+import { compileStudioRegistryIntake } from '../baseline/studio-registry-intake.mjs';
+
 const ROLES=['product_runtime','internal_mail_crm','switchboard_control'];
 const SAFE=/^[a-z0-9][a-z0-9-]{1,62}$/;
 const OWNERS={
@@ -32,18 +34,42 @@ export function compileStudioHeadlessTopology(input){
  return {schema:'xiio.sdk.studio-headless-topology/v1',product_id,minimum_server_count:3,servers,bin_registry:{owner_product:'xi-io_bins',global_path_mutation:false,all_roles_receipted:binsReady},quarantine:{loopback_only:true,state_root:root,user_existing_settings_mutated:false,separate_ports:true,dev_namespace_only:true},cloudflare:{hostname:`${product_id}.dev.xi-io.net`,state:'PROPOSED_NOT_APPLIED',owner_product:'xi-io-Switchboard',ward_admission_required:true},crm:{owner_product:'xi-io-Inbox',transport:'internal_mail_crm',external_email_fallback:false},installer:{owner_product:'xi-io-HEX',host_shell:'xi-io-Studio/Tauri'},hvt_punchcards:cards,next_hvt:first?.card_id||null,closure:false,authority:{cloudflare:false,service_install:false,provider_effect:false},hard:['ONE_SERVER!=STUDIO_INSTALL','BIN_NAME!=EXECUTABLE_RECEIPT','ROSTER_SAMPLE!=ROSTER','CRM_WITHOUT_INTERNAL_MAIL=UNUSABLE','CADENCE_WITHOUT_SWITCHBOARD=PROJECTION_ONLY','LOCAL_HEALTH!=DEV_LIVE','PROPOSED_HOSTNAME!=DNS_EFFECT','USER_SETTINGS_MUTATION=DENIED','EXISTING_OWNER!=DUPLICATE_IMPLEMENTATION']};
 }
 export function compileStudioRoster(input){
- if(!input||!Array.isArray(input.products)||input.products.length===0)throw new Error('PRODUCT_ROSTER_REQUIRED');
+ if(!input||typeof input!=='object')throw new Error('PRODUCT_ROSTER_REQUIRED');
+ const discovery=compileStudioRegistryIntake(input.studio_registry);
+ // A caller may scope a diagnostic to a subset, but the missing members remain
+ // explicit. Without an explicit roster, derive the entire known member set
+ // from Studio's supplied source, never a fixed list in SDK.
+ const supplied=Array.isArray(input.products)&&input.products.length
+   ?input.products
+   :discovery.members.map(member=>({product_id:member.product_id}));
+ if(!supplied.length)throw new Error('PRODUCT_ROSTER_REQUIRED');
  const evidenceNames=['data_forge','dotproject','bugzilla'],evidenceInput=input.evidence_stack&&typeof input.evidence_stack==='object'?input.evidence_stack:{};
  const evidence_stack=evidenceNames.map(name=>{const row=evidenceInput[name]||{};return {name,owner_product:row.owner_product||null,contract_ref:row.contract_ref||null,receipt_ref:row.receipt_ref||null,verified:row.verified===true,state:row.verified===true&&row.contract_ref&&row.receipt_ref?'SUPPLIED_UNVERIFIED':'UNKNOWN_BLOCKED'};});
  const seen=new Set(),base=Number.isInteger(input.base_port)?input.base_port:8800;
- const products=input.products.map((p,i)=>{const product_id=id(p.product_id);if(seen.has(product_id))throw new Error('DUPLICATE_PRODUCT_ID');seen.add(product_id);return {...compileStudioHeadlessTopology({...p,product_id,state_root:p.state_root||input.state_root,base_port:Number.isInteger(p.base_port)?p.base_port:base+i*10}),dependencies:Array.isArray(p.dependencies)?p.dependencies.map(id):[]};});
+ const products=supplied.map((p,i)=>{const product_id=id(p.product_id);if(seen.has(product_id))throw new Error('DUPLICATE_PRODUCT_ID');seen.add(product_id);return {...compileStudioHeadlessTopology({...p,product_id,state_root:p.state_root||input.state_root,base_port:Number.isInteger(p.base_port)?p.base_port:base+i*10}),dependencies:Array.isArray(p.dependencies)?p.dependencies.map(id):[]};});
  const external=new Set(Array.isArray(input.external_dependencies)?input.external_dependencies.map(id):[]);
  const dependencyBlockers=products.flatMap(p=>p.dependencies.filter(d=>!seen.has(d)&&!external.has(d)).map(dependency=>({target:'ROSTER_DEPENDENCY',product_id:p.product_id,dependency,state:'UNKNOWN_BLOCKED'})));
- const expected=Number.isInteger(input.expected_product_count)?input.expected_product_count:null;
- const registryProved=input.registry_complete===true&&typeof input.registry_ref==='string'&&typeof input.registry_digest==='string'&&typeof input.registry_receipt_ref==='string'&&expected===products.length;
- const registryBlockers=registryProved?[]:[{target:'ROSTER_REGISTRY_PROOF',state:'UNKNOWN_BLOCKED',expected_product_count:expected,observed_product_count:products.length,registry_ref:input.registry_ref||null,registry_digest:input.registry_digest||null,registry_receipt_ref:input.registry_receipt_ref||null}];
+ const expected=discovery.member_count;
+ const missingMemberIds=discovery.member_ids.filter(member=>!seen.has(id(member)));
+ const nonMemberIds=discovery.member_ids.length
+   ?products.map(product=>product.product_id).filter(product=>!discovery.member_ids.some(member=>id(member)===product))
+   :[];
+ const knownMemberCoverage=discovery.counted_from_canonical_registry&&discovery.registry_count_consistent&&missingMemberIds.length===0;
+ // A caller-supplied count/receipt was formerly enough to claim a complete
+ // roster. It is not authenticated Studio discovery, and graph G1 is partial.
+ const registryProved=knownMemberCoverage&&discovery.relationship_complete&&
+   discovery.unknown_membership_ids.length===0&&discovery.blockers.length===0&&
+   discovery.source.currentness==='VERIFIED';
+ const registryBlockers=[
+   {target:'ROSTER_REGISTRY_PROOF',state:'UNKNOWN_BLOCKED',expected_product_count:expected,observed_product_count:products.length,registry_ref:discovery.source.denominator_ref,reason:discovery.state},
+   ...missingMemberIds.map(product_id=>({target:'ROSTER_MEMBER_MISSING',product_id,state:'UNKNOWN_BLOCKED'})),
+   ...nonMemberIds.map(product_id=>({target:'ROSTER_MEMBERSHIP_NOT_CONFIRMED',product_id,state:'UNKNOWN_BLOCKED'})),
+   ...discovery.unknown_membership_ids.map(product_id=>({target:'ROSTER_MEMBERSHIP_UNKNOWN',product_id,state:'UNKNOWN_BLOCKED'})),
+   ...(discovery.relationship_complete?[]:[{target:'ROSTER_RELATIONSHIP_GRAPH_PARTIAL',state:'UNKNOWN_BLOCKED',reason:discovery.state}]),
+ ];
  const productBlockers=products.flatMap(p=>p.hvt_punchcards.filter(c=>c.state!=='SUPPLIED_UNVERIFIED').map(c=>({product_id:p.product_id,...c})));
  const evidenceBlockers=evidence_stack.filter(x=>x.state!=='SUPPLIED_UNVERIFIED').map(x=>({target:'EVIDENCE_DEPENDENCY',...x}));
  const blockers=[...registryBlockers,...evidenceBlockers,...dependencyBlockers,...productBlockers];
- return {schema:'xiio.sdk.studio-roster/v1',registry_ref:input.registry_ref||null,registry_digest:input.registry_digest||null,registry_receipt_ref:input.registry_receipt_ref||null,registry_complete:registryProved,evidence_stack,evidence_complete:evidenceBlockers.length===0,dependency_closure:dependencyBlockers.length===0,products,product_count:products.length,server_count:products.length*3,blockers,closure:false,hard:['REGISTRY_FLAG!=REGISTRY_PROOF','REGISTRY_COMPLETE_FALSE!=FULL_ROSTER','PRODUCT_OMISSION=BLOCKER','UNRESOLVED_DEPENDENCY=BLOCKER','PRODUCT_COUNT*3=MINIMUM_SERVER_COUNT','IMPACT_REPORT_WITHOUT_DATA_FORGE_DOTPROJECT_BUGZILLA=UNRELIABLE','PLACEHOLDER_ADAPTER!=IMPLEMENTATION']};
+ return {schema:'xiio.sdk.studio-roster/v1',registry_ref:discovery.source.denominator_ref,registry_digest:null,registry_receipt_ref:null,registry_complete:registryProved,registry_discovery:discovery,known_member_coverage:knownMemberCoverage,missing_member_ids:missingMemberIds,nonmember_or_unconfirmed_ids:nonMemberIds,relationship_complete:discovery.relationship_complete,evidence_stack,evidence_complete:evidenceBlockers.length===0,dependency_closure:dependencyBlockers.length===0,products,product_count:products.length,server_count:products.length*3,blockers,closure:false,hard:['REGISTRY_FLAG!=REGISTRY_PROOF','REGISTRY_COMPLETE_FALSE!=FULL_ROSTER','PRODUCT_OMISSION=BLOCKER','UNRESOLVED_DEPENDENCY=BLOCKER','PRODUCT_COUNT*3=MINIMUM_SERVER_COUNT','IMPACT_REPORT_WITHOUT_DATA_FORGE_DOTPROJECT_BUGZILLA=UNRELIABLE','PLACEHOLDER_ADAPTER!=IMPLEMENTATION','GRAPH_PARTIAL!=NO_EFFECT','SUPPLIED_DENOMINATOR!=AUTHENTICATED_ADOPTION']};
 }
+
