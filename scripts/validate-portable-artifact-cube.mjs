@@ -67,6 +67,18 @@ assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').state,'TRUE_WAIT')
 assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').verification_state,'SUPPLIED_UNVERIFIED');
 assert.equal(cube.cells.find(x=>x.id==='F05_HEX_CURRENTNESS').hex_currentness_state,'HEX_QUALIFIED_CURRENT');
 assert.equal(cube.effect_authority,false);
+assert.equal(Object.isFrozen(cube.cells[0]),true);
+assert.throws(()=>{cube.cells[0].state='PASS';},TypeError,'CUBE_CELL_STATE_NOT_MUTABLE');
+assert.throws(()=>{cube.cells[0].verification_state='NATIVE_VERIFIED';},TypeError,'CUBE_CELL_VERIFICATION_NOT_MUTABLE');
+assert.equal(cube.cells[0].state,'PASS');
+
+const refused=compilePortableArtifactCube({});
+assert.equal(refused.cells[0].state,'FAIL');
+assert.equal(refused.first_red,refused.cells[0]);
+assert.throws(()=>{refused.first_red.state='PASS';},TypeError,'CUBE_REFUSAL_NOT_ERASABLE');
+assert.throws(()=>{refused.first_red.first_red=null;},TypeError,'CUBE_FIRST_RED_NOT_ERASABLE');
+assert.equal(refused.cells[0].state,'FAIL');
+assert.equal(refused.first_red.first_red,'PORTABLE_SEMANTIC_FILE_INVALID');
 
 for(let n=0;n<128;n++){
   const forged=compilePortableArtifactCube({
@@ -153,7 +165,7 @@ console.log(JSON.stringify({
   state:'PASS',
   denominator:10,
   controls:2,
-  hostiles:139,
+  hostiles:143,
   file_types:['json','pdf'],
   false_green:0,
   effect_authority:0,
