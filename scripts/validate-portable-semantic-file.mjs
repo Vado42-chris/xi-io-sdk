@@ -17,7 +17,21 @@ assert.equal(a.content_digest,semanticContentDigest(payload));
 assert.equal(a.authority_granted,false);
 assert(a.hard.includes('PUNCHCARD!=FILE_SCHEMA'));
 assert(a.hard.includes('FLATPLANE_CUBE!=FILE_SCHEMA'));
+assert(a.hard.includes('SEMANTIC_CONTENT_DIGEST_REQUIRES_IMMUTABLE_NESTED_PAYLOAD'));
 assert.equal(validatePortableSemanticFileRoundtrip(a).pass,true);
+
+// The semantic payload must remain sealed all the way down. A shallow freeze
+// let callers mutate nested document bytes while the stored digest stayed old.
+assert.equal(Object.isFrozen(a.payload),true);
+assert.equal(Object.isFrozen(a.payload.blocks),true);
+assert.equal(Object.isFrozen(a.payload.blocks[0]),true);
+assert.throws(()=>{a.payload.blocks[0].text='substituted';},TypeError);
+assert.throws(()=>{a.payload.blocks.push({role:'new',text:'unreviewed'});},TypeError);
+assert.equal(a.content_digest,semanticContentDigest(a.payload));
+const nested=PortableSemanticFile({...base,payload:{provenance:{sources:[{kind:'original',version:{ref:'v1'}}]}}});
+assert.equal(Object.isFrozen(nested.payload.provenance.sources[0].version),true);
+assert.throws(()=>{nested.payload.provenance.sources[0].version.ref='v2';},TypeError);
+assert.equal(nested.content_digest,semanticContentDigest(nested.payload));
 
 // Provider/render projections may move without mutating semantic identity.
 const b=PortableSemanticFile({...base,provider_projections:[{ref:'render:html',generation:'prov:g2',kind:'html'}]});
@@ -45,4 +59,5 @@ assert.equal('punchcard' in withProjection,false);
 assert.equal('checklist' in withProjection,false);
 assert.equal('cube' in withProjection,false);
 
-console.log(JSON.stringify({status:'PASS',hostiles:8,file_schema:a.schema,semantic_digest:a.content_digest,effects:0}));
+console.log(JSON.stringify({status:'PASS',hostiles:11,nested_mutation_refusals:3,file_schema:a.schema,semantic_digest:a.content_digest,effects:0}));
+
