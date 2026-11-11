@@ -133,6 +133,9 @@ export function compilePortableArtifactCube(input={}){
     cells.push(wait('F10_AUTHORITY_BOUNDARY','REQUIRED_AUTHORITY_GATE_UNSET'));
   }
 
+  // Cells are the gate's evidence, not editable presentation state. Freezing
+  // only the outer result/array leaves each PASS/WAIT/FAIL assertion forgeable.
+  for(const cell of cells) Object.freeze(cell);
   const failures=cells.filter(x=>x.state==='FAIL');
   const waits=cells.filter(x=>x.state==='TRUE_WAIT');
   const passes=cells.filter(x=>x.state==='PASS');
@@ -170,6 +173,7 @@ export function compilePortableArtifactCube(input={}){
       'TRANSFER_REQUEST != TRANSFER_COMPLETE',
       'FILE_CUBE_PASS != PUBLICATION_OR_LEGAL_EFFECT',
       'CELL_STATE_IS_RESERVED_CANNOT_BE_OVERWRITTEN_BY_DETAIL',
+      'CELL_EVIDENCE_IMMUTABLE_AFTER_COMPILATION',
       'CUBE_PASS_REQUIRES_PASS_COUNT_EQUALS_DENOMINATOR',
       'MATCHING_SHA_BYTES != INDEPENDENT_TRANSFER_READBACK',
       'CALLER_SUPPLIED_BINS_REF != BINS_CUSTODY',
