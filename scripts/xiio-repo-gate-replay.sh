@@ -15,7 +15,14 @@ step(){ echo "+ $*" | tee -a "$LOG"; }
 step git clone "https://github.com/$REPO" "$WORK/src"
 git clone -q "https://github.com/$REPO" "$WORK/src" >>"$LOG" 2>&1 && git -C "$WORK/src" checkout -q "$SHA" >>"$LOG" 2>&1 || { echo "XIIO_REPLAY=BLOCKED first_red=CHECKOUT_FAILED"; exit 2; }
 TREE=$(git -C "$WORK/src" rev-parse "$SHA^{tree}")
-cd "$WORK/src/$WD" || exit 2
+# Scope the requested directory to this exact checkout, including symlink resolution.
+SOURCE_ROOT=$(realpath -e "$WORK/src") || { echo "XIIO_REPLAY=BLOCKED first_red=SOURCE_ROOT_MISSING"; exit 2; }
+TARGET=$(realpath -e "$SOURCE_ROOT/$WD" 2>>"$LOG") || { echo "XIIO_REPLAY=BLOCKED first_red=WORKING_DIRECTORY_MISSING"; exit 2; }
+case "$TARGET" in
+  "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) [ -d "$TARGET" ] || { echo "XIIO_REPLAY=BLOCKED first_red=WORKING_DIRECTORY_NOT_DIRECTORY"; exit 2; } ;;
+  *) echo "XIIO_REPLAY=BLOCKED first_red=WORKING_DIRECTORY_ESCAPE"; exit 2 ;;
+esac
+cd "$TARGET" || exit 2
 # 2. node major must match the gate (22)
 NODE_V=$(node -v 2>/dev/null || echo none); [[ "$NODE_V" == v22.* ]] || { echo "XIIO_REPLAY=BLOCKED first_red=NODE_NOT_22:$NODE_V"; exit 2; }
 BUN_V=none; if [ -f bun.lock ] || [ -f bun.lockb ]; then BUN_V=$(bun --version 2>/dev/null || echo missing); [ "$BUN_V" = missing ] && { echo "XIIO_REPLAY=BLOCKED first_red=BUN_REQUIRED"; exit 2; }; fi
