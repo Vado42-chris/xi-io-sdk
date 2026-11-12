@@ -19,11 +19,12 @@ cd "$WORK/src/$WD" || exit 2
 # 2. node major must match the gate (22)
 NODE_V=$(node -v 2>/dev/null || echo none); [[ "$NODE_V" == v22.* ]] || { echo "XIIO_REPLAY=BLOCKED first_red=NODE_NOT_22:$NODE_V"; exit 2; }
 BUN_V=none; if [ -f bun.lock ] || [ -f bun.lockb ]; then BUN_V=$(bun --version 2>/dev/null || echo missing); [ "$BUN_V" = missing ] && { echo "XIIO_REPLAY=BLOCKED first_red=BUN_REQUIRED"; exit 2; }; fi
-# 3. install locked dependencies (same branch order as the gate)
+# 3. install dependencies (same branch order as the gate)
 INSTALL_RC=0
 if [ -f bun.lock ] || [ -f bun.lockb ]; then step bun install --frozen-lockfile; bun install --frozen-lockfile >>"$LOG" 2>&1 || INSTALL_RC=$?
 elif [ -f pnpm-lock.yaml ]; then step pnpm install --frozen-lockfile; (corepack enable && pnpm install --frozen-lockfile) >>"$LOG" 2>&1 || INSTALL_RC=$?
 elif [ -f package-lock.json ]; then step npm ci; npm ci --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
+elif [ -f package.json ]; then step npm install --no-audit --no-fund; npm install --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
 fi
 # 4. gate of record (same selection as the gate)
 CMD="$GATE"
