@@ -106,7 +106,9 @@ jobs:
         env:
           EVIDENCE_DIR: ${{ inputs.evidence_dir }}
           EVIDENCE_NAME: ${{ inputs.evidence_name }}
+          WORKING_DIR: ${{ inputs.working_directory }}
         run: |
+          set -euo pipefail
           case "$EVIDENCE_DIR" in
             artifacts/*) ;;
             *) echo "::error::EVIDENCE_DIR_OUTSIDE_ARTIFACTS"; exit 1 ;;
@@ -121,6 +123,18 @@ jobs:
             echo "::error::EVIDENCE_ARTIFACT_NAME_INVALID"
             exit 1
           fi
+          # Resolve the upload target instead of trusting a lexical path.
+          # Refuse symlinks escaping the permitted artifacts/ subtree.
+          root=$(realpath -e "$GITHUB_WORKSPACE/$WORKING_DIR/artifacts") || {
+            echo "::error::EVIDENCE_ROOT_MISSING"; exit 1;
+          }
+          actual=$(realpath -e "$GITHUB_WORKSPACE/$WORKING_DIR/$EVIDENCE_DIR") || {
+            echo "::error::EVIDENCE_DIR_MISSING"; exit 1;
+          }
+          case "$actual" in
+            "$root"/*) ;;
+            *) echo "::error::EVIDENCE_DIR_ESCAPE"; exit 1 ;;
+          esac
       - name: Upload product evidence from existing gate
         if: ${{ always() && inputs.evidence_dir != '' && steps.evidence_scope.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
