@@ -38,6 +38,7 @@ for mode in auth generic; do
   [ "$actual_rc" = 2 ] || { echo "FAIL: $mode returned $actual_rc, expected 2"; exit 1; }
   node - "$TEMP/out-$mode/xiio-gate-receipt.json" "$mode" "$SHA" <<'NODE'
 const fs=require('fs');
+const crypto=require('crypto');
 const [path,mode,sha]=process.argv.slice(2);
 const r=JSON.parse(fs.readFileSync(path,'utf8'));
 const reason=mode==='auth'?'AUTHENTICATED_CHECKOUT_UNAVAILABLE':'CHECKOUT_FAILED';
@@ -53,11 +54,34 @@ if(r.cadence_return?.outcome_class!=='PROVIDER_UNAVAILABLE' ||
    r.cadence_return?.wake_refs?.[0]!==r.wake?.ref ||
    r.wake?.native_readback_required!==true)
   throw Error(`${mode}: Cadence wake candidate invalid or misrepresented as applied`);
+const reg=r.wake?.cadence_registration;
+if(reg?.occurrence_ref!=='game:159#sprite:188'||reg?.provider!=='github-checkout'||
+   reg?.acquisition_ref!==`github-commit:${r.repository}@${sha}`)
+  throw Error(`${mode}: wake does not retain exact acquisition and Work`);
+const expected='provider-availability:'+crypto.createHash('sha256')
+  .update(JSON.stringify([reg.occurrence_ref,reg.provider,reg.acquisition_ref,reg.wake_condition_ref]))
+  .digest('hex').slice(0,24);
+if(r.wake.ref!==expected)throw Error(`${mode}: wake ref mismatches Cadence #44 projection`);
 if(r.runner!==null || r.replay?.equivalence_status!=='UNAPPROVED_PENDING_OWNER_REVIEW')
   throw Error(`${mode}: blocker misrepresented as executed or approved`);
 console.log(`PASS: ${mode} failed checkout creates typed exact-work wake receipt`);
 NODE
 done
+
+mkdir -p "$TEMP/out-unbound"
+unbound_rc=0
+XIIO_TEST_FAIL_MODE=auth XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" \
+  XIIO_REPLAY_OUT="$TEMP/out-unbound" \
+  bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" \
+  >"$TEMP/out-unbound/stdout.log" || unbound_rc=$?
+[ "$unbound_rc" = 2 ] || { echo 'FAIL: missing Work was admitted'; exit 1; }
+node - "$TEMP/out-unbound/xiio-gate-receipt.json" <<'NODE'
+const r=require(process.argv[2]);
+if(r.work_ref!==null||r.wake?.resume_same_work!==false||r.wake?.ref!==null||
+  r.wake?.cadence_registration!==null||r.cadence_return!==null)
+  throw Error('unbound Work improperly produced a Cadence wake');
+console.log('PASS: unbound Work cannot fabricate a resumable Cadence event');
+NODE
 
 mkdir -p "$TEMP/out-success"
 XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" \
@@ -73,9 +97,8 @@ if(r.outcome!=='success'||r.head_sha!=='975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e
 console.log('PASS: completed replay preserves unapproved evidence boundary');
 NODE
 
-
-# A gate PASS with an unwritable receipt destination must never report success.
-# The existing Git/Node doubles already prove a source-qualified local attempt.
+# Both a passing and failing gate must refuse to complete when its receipt is
+# unwritable, including when the evidence file path is already a directory.
 for gate in true 'exit 17'; do
   tag=$(echo "$gate" | tr -cd '0-9a-zA-Z')
   mkdir -p "$TEMP/out-receipt-$tag/xiio-gate-receipt.json"
@@ -84,16 +107,11 @@ for gate in true 'exit 17'; do
     XIIO_REPLAY_WORK_REF='game:159#sprite:188' XIIO_REPLAY_OUT="$TEMP/out-receipt-$tag" \
     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" "$gate" \
       >"$TEMP/out-receipt-$tag/stdout.log" 2>"$TEMP/out-receipt-$tag/stderr.log" || actual_rc=$?
-  [ "$actual_rc" = 2 ] || {
-    echo "FAIL: receipt unwritable but $gate returned $actual_rc (expected 2)"
-    exit 1
-  }
-  grep -q 'first_red=RECEIPT_WRITE_FAILED' "$TEMP/out-receipt-$tag/stdout.log" ||
-    { echo "FAIL: missing typed receipt write failure for $gate"; exit 1; }
-  echo "PASS: $gate cannot silently qualify missing receipt"
+  [ "$actual_rc" = 2 ] || { echo "FAIL: unwritable receipt for $gate returned $actual_rc"; exit 1; }
+  grep -q 'first_red=RECEIPT_WRITE_FAILED' "$TEMP/out-receipt-$tag/stdout.log" || exit 1
+  echo "PASS: $gate refuses missing receipt"
 done
 
-# A failing gate with a writable receipt still returns honest failure.
 mkdir -p "$TEMP/out-gate-red"
 gate_rc=0
 XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" \

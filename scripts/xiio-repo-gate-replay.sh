@@ -24,17 +24,28 @@ blocked(){
   XIIO_BLOCK_REASON="$reason" XIIO_BLOCK_WAKE="$wake" XIIO_BLOCK_LOG_SHA="$log_sha" \
   REPO="$REPO" SHA="$SHA" OUT="$OUT" node -e '
     const e=process.env;
-    const wakeRef="wake:xiio-repo-gate:"+e.REPO+":"+e.SHA+":"+e.XIIO_BLOCK_REASON;
+    const crypto=require("node:crypto");
+    const workRef=e.XIIO_REPLAY_WORK_REF||null;
+    const wakeRegistration=workRef?{
+      occurrence_ref:workRef,
+      provider:"github-checkout",
+      acquisition_ref:"github-commit:"+e.REPO+"@"+e.SHA,
+      wake_condition_ref:"checkout-availability:"+e.XIIO_BLOCK_WAKE,
+    }:null;
+    // Same deterministic projection used by Cadence #44 provider-availability-wake.
+    const wakeRef=wakeRegistration?"provider-availability:"+crypto.createHash("sha256")
+      .update(JSON.stringify(Object.values(wakeRegistration))).digest("hex").slice(0,24):null;
     const r={schema:"xiio.repo-gate-receipt/v1",repository:e.REPO,head_sha:e.SHA,
       ref:null,event:"replay",run_id:null,runner:null,command:null,outcome:"blocked",
       first_red:e.XIIO_BLOCK_REASON,written_at:new Date().toISOString(),
-      work_ref:e.XIIO_REPLAY_WORK_REF||null,
-      wake:{ref:wakeRef,refs:[wakeRef],condition:e.XIIO_BLOCK_WAKE,
+      work_ref:workRef,
+      wake:{ref:wakeRef,refs:wakeRef?[wakeRef]:[],condition:e.XIIO_BLOCK_WAKE,
         required_repo:e.REPO,required_head:e.SHA,
-        resume_same_work:Boolean(e.XIIO_REPLAY_WORK_REF),native_readback_required:true,
+        resume_same_work:Boolean(workRef),native_readback_required:true,
+        cadence_registration:wakeRegistration,
         dispatch_adapter:null,qualified_worker:null},
-      cadence_return:{outcome_class:"PROVIDER_UNAVAILABLE",wake_refs:[wakeRef],
-        provider_effect_state:"NOT_PERFORMED",applied:false},
+      cadence_return:wakeRef?{outcome_class:"PROVIDER_UNAVAILABLE",wake_refs:[wakeRef],
+        provider_effect_state:"NOT_PERFORMED",applied:false}:null,
       hard:["BLOCKED != GATE_PASS","REPLAY_RECEIPT != GITHUB_CHECK",
         "WAKE != DISPATCH","RECEIPT != OWNER_ACCEPTANCE"],
       replay:{schema:"xiio.repo-gate-replay/v1",gate_workflow:".github/workflows/xiio-repo-gate.yml",
