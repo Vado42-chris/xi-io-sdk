@@ -96,6 +96,7 @@ fi
 OUTCOME=$([ "$INSTALL_RC" = 0 ] && [ "$GATE_RC" = 0 ] && echo success || echo failure)
 LOG_SHA=$(sha256sum "$LOG" | cut -d' ' -f1)
 export REPO SHA CMD OUTCOME TREE WD INSTALL_RC GATE_RC NODE_V BUN_V LOG_SHA OUT
+RECEIPT_RC=0
 node -e '
 const e=process.env,r={schema:"xiio.repo-gate-receipt/v1",repository:e.REPO,head_sha:e.SHA,
  ref:null,event:"replay",run_id:null,runner:"replay:"+require("os").hostname(),command:e.CMD||null,
@@ -105,5 +106,11 @@ const e=process.env,r={schema:"xiio.repo-gate-receipt/v1",repository:e.REPO,head
   working_directory:e.WD,install_exit:+e.INSTALL_RC,gate_exit:+e.GATE_RC,node:e.NODE_V,bun:e.BUN_V,
   os:process.platform+"-"+process.arch,log_sha256:e.LOG_SHA,fresh_clone:true,
   equivalence_status:"UNAPPROVED_PENDING_OWNER_REVIEW"}};
-require("fs").writeFileSync(e.OUT+"/xiio-gate-receipt.json",JSON.stringify(r,null,2)); console.log(JSON.stringify(r));'
+require("fs").writeFileSync(e.OUT+"/xiio-gate-receipt.json",JSON.stringify(r,null,2)); console.log(JSON.stringify(r));' || RECEIPT_RC=$?
+# A successful gate without its durable source-bound receipt is NEVER success.
+# Preserve a failing gate's own status while also refusing lost evidence.
+if [ "$RECEIPT_RC" -ne 0 ] || [ ! -s "$OUT/xiio-gate-receipt.json" ]; then
+  echo "XIIO_REPLAY=BLOCKED first_red=RECEIPT_WRITE_FAILED"
+  exit 2
+fi
 [ "$OUTCOME" = success ]
