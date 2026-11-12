@@ -24,12 +24,17 @@ blocked(){
   XIIO_BLOCK_REASON="$reason" XIIO_BLOCK_WAKE="$wake" XIIO_BLOCK_LOG_SHA="$log_sha" \
   REPO="$REPO" SHA="$SHA" OUT="$OUT" node -e '
     const e=process.env;
+    const wakeRef="wake:xiio-repo-gate:"+e.REPO+":"+e.SHA+":"+e.XIIO_BLOCK_REASON;
     const r={schema:"xiio.repo-gate-receipt/v1",repository:e.REPO,head_sha:e.SHA,
       ref:null,event:"replay",run_id:null,runner:null,command:null,outcome:"blocked",
       first_red:e.XIIO_BLOCK_REASON,written_at:new Date().toISOString(),
       work_ref:e.XIIO_REPLAY_WORK_REF||null,
-      wake:{condition:e.XIIO_BLOCK_WAKE,required_repo:e.REPO,required_head:e.SHA,
-        resume_same_work:true,dispatch_adapter:null,qualified_worker:null},
+      wake:{ref:wakeRef,refs:[wakeRef],condition:e.XIIO_BLOCK_WAKE,
+        required_repo:e.REPO,required_head:e.SHA,
+        resume_same_work:Boolean(e.XIIO_REPLAY_WORK_REF),native_readback_required:true,
+        dispatch_adapter:null,qualified_worker:null},
+      cadence_return:{outcome_class:"PROVIDER_UNAVAILABLE",wake_refs:[wakeRef],
+        provider_effect_state:"NOT_PERFORMED",applied:false},
       hard:["BLOCKED != GATE_PASS","REPLAY_RECEIPT != GITHUB_CHECK",
         "WAKE != DISPATCH","RECEIPT != OWNER_ACCEPTANCE"],
       replay:{schema:"xiio.repo-gate-replay/v1",gate_workflow:".github/workflows/xiio-repo-gate.yml",
