@@ -18,3 +18,5 @@
 Hard: `QUEUED != PASS` · `HOSTED_EMPTY_STEPS != SOURCE_FAIL` · `GATE_PASS != LIVE` · `RECEIPT != OWNER_ACCEPTANCE`.
 
 First adopter: `Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026`.
+
+**Visual product consumers:** For a game or other sprite-driven product, `gate_command` must build the deployable artifact and run browser acceptance against that *built artifact* (for Vite, `vite preview` after `vite build`), not only a Vite dev server or asset-manifest/unit tests. The browser check must fail on missing/undecodable registered artwork in every supported camera/view, and preserve screenshot evidence tied to the tested commit. A source-art receipt, passing development server, or queued workflow cannot satisfy the installed/Preview acceptance boundary. The product's existing manifest determines required sprites and views, never a duplicate hard-coded SDK product list. A pipeline with no Preview deployment job must explicitly report `NOT_DEPLOYED`, never `LIVE` or `RESTORED`.
