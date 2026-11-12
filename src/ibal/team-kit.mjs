@@ -39,7 +39,7 @@ export function compileIbalTeamKit(input={}){
     hot_folder_ref:clean(input.hot_folder_ref,'hot_folder_ref',1024),
     ack_template_refs:refs(input.ack_template_refs,'ack_template_refs'),
     return_target_ref:clean(input.return_target_ref,'return_target_ref',1024),
-    disclosure_ref:clean(input.disclosure_ref||input.flatpack_template_ref,'disclosure_ref',1024),
+    disclosure_ref:clean(input.disclosure_ref===undefined?input.flatpack_template_ref:input.disclosure_ref,'disclosure_ref',1024),
     tool_call_budget:int(input.tool_call_budget??3,'tool_call_budget',1,10),
     max_items_per_pass:int(input.max_items_per_pass??10,'max_items_per_pass',1,25),
     effect_ceiling:input.effect_ceiling??0,

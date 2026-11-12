@@ -28,7 +28,8 @@ assert.equal(roster.evidence_stack.every(x=>x.state==='UNKNOWN_BLOCKED'),true);
 assert.equal(roster.blockers.filter(x=>x.target==='EVIDENCE_DEPENDENCY').length,3);
 
 const chained=compileStudioRoster({state_root:'/tmp/xiio-test',registry_ref:'ward://children',registry_digest:'sha256:test',registry_receipt_ref:'rcp:test',registry_complete:true,expected_product_count:2,products:[{product_id:'inbox',dependencies:['switchboard']},{product_id:'publisher',dependencies:['missing-child']}],external_dependencies:['switchboard']});
-assert.equal(chained.registry_complete,true);
+assert.equal(chained.registry_complete,false);
+assert.equal(chained.registry_discovery.state,'WAIT_REGISTRY_UNBOUND');
 assert.equal(chained.dependency_closure,false);
 assert.equal(chained.blockers.some(x=>x.target==='ROSTER_DEPENDENCY'&&x.dependency==='missing-child'),true);
 
@@ -36,3 +37,4 @@ assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[]}));
 assert.throws(()=>compileStudioRoster({state_root:'/tmp/x',products:[{product_id:'same'},{product_id:'same'}]}));
 assert.throws(()=>compileStudioHeadlessTopology({product_id:'x',state_root:'relative'}));
 console.log('studio-headless-topology: PASS');
+

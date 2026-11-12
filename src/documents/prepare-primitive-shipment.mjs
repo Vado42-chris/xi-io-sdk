@@ -1,3 +1,4 @@
+import { freezeStructure } from './immutable-structure.mjs';
 import primitiveCatalog from '../catalog/primitives.json' with { type: 'json' };
 import { compilePortableArtifactCube } from './portable-artifact-cube.mjs';
 
@@ -21,7 +22,7 @@ export function prepareRegisteredPrimitiveShipment(input={}){
   const fileId=text(input.file_id)||`sdk.primitive.${primitive.id}`;
   const artifactRole=text(input.artifact_role)||'sdk.primitive';
 
-  const manifest={
+  const manifest=freezeStructure(structuredClone({
     cube_id:text(input.cube_id)||`file-cube:${fileId}`,
     file:{
       file_id:fileId,
@@ -57,7 +58,7 @@ export function prepareRegisteredPrimitiveShipment(input={}){
     parser_readback:input.parser_readback||{},
     consumer_readback:input.consumer_readback||{},
     authority_gate:input.authority_gate||{required:false,held:false},
-  };
+  }));
 
   const cube=compilePortableArtifactCube(manifest);
   return Object.freeze({
@@ -67,7 +68,7 @@ export function prepareRegisteredPrimitiveShipment(input={}){
     source_generation_looks_like_git_sha:SHA.test(sourceGeneration),
     manifest:Object.freeze(manifest),
     cube,
-    missing_cells:Object.freeze(cube.cells.filter((x)=>x.state!=='PASS').map((x)=>({
+    missing_cells:freezeStructure(cube.cells.filter((x)=>x.state!=='PASS').map((x)=>({
       id:x.id,state:x.state,first_red:x.first_red||null
     }))),
     ready_to_ship:cube.closure_100,
@@ -81,3 +82,4 @@ export function prepareRegisteredPrimitiveShipment(input={}){
     ])
   });
 }
+

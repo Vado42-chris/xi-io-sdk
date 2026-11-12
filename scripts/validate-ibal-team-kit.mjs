@@ -33,6 +33,13 @@ function goodTen(){
 }
 
 for(const role of IBAL_TEAM_ROLES){ const k=compileIbalTeamKit(goodKit(role)); assert.equal(k.kit_complete,true); assert.equal(k.tool_call_budget,3); assert.equal(k.max_items_per_pass,10); assert(k.disclosure_ref); }
+// Only omission selects the documented flatpack disclosure default. An explicit
+// invalid reference must not be laundered into a structurally complete role kit.
+const omittedDisclosure=goodKit();delete omittedDisclosure.disclosure_ref;
+assert.equal(compileIbalTeamKit(omittedDisclosure).disclosure_ref,omittedDisclosure.flatpack_template_ref);
+for(const disclosure of ['',null,false,0,NaN,' ',{},[]]){
+  assert.throws(()=>compileIbalTeamKit({...goodKit(),disclosure_ref:disclosure}),/disclosure_ref_INVALID/);
+}
 assert.equal(compileIbalTenReducer(goodTen()).collapse_to_1,true);
 
 const mutations=[

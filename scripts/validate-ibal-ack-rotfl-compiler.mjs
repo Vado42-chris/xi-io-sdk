@@ -148,6 +148,16 @@ assert.equal(out.provider_effect,false);
 assert.equal(out.next,'RUN_SIM_TRIAGE_THEN_REDUCE_AND_PREP_PACKS');
 assert.equal(out.cog_throttle.state,'WITHIN_COG_BUDGET');
 
+// The real team producer must preserve invalid explicit references so the
+// shared team-kit validator can refuse them; only omission gets its default.
+const omittedDisclosure=base();delete omittedDisclosure.bindings.disclosure_ref;
+const omittedDisclosureResult=compileIbalAckRotfl(omittedDisclosure);
+assert.equal(omittedDisclosureResult.team_kit_denominator,3);
+for(const disclosure of ['',null,false,0,NaN,' ',{},[]]){
+  const invalidDisclosure=base();invalidDisclosure.bindings.disclosure_ref=disclosure;
+  assert.throws(()=>compileIbalAckRotfl(invalidDisclosure),/disclosure_ref_INVALID/);
+}
+
 // Regression: individually safe integers may multiply beyond binary64's exact range.
 // Never mint whole-unit or cost "exactness" from rounded doubles.
 const largeMeter=base();

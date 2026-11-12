@@ -27,6 +27,14 @@ on:
       timeout_minutes:
         type: number
         default: 30
+      evidence_dir:
+        description: 'Optional scoped artifacts/ directory produced by the existing gate'
+        type: string
+        default: ''
+      evidence_name:
+        description: 'Unique artifact name required whenever evidence_dir is set'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -90,3 +98,48 @@ jobs:
           name: xiio-gate-receipt-${{ github.sha }}
           path: ${{ runner.temp }}/xiio-gate-receipt.json
           if-no-files-found: error
+
+      - name: Validate product evidence scope
+        id: evidence_scope
+        if: ${{ always() && inputs.evidence_dir != '' }}
+        shell: bash
+        env:
+          EVIDENCE_DIR: ${{ inputs.evidence_dir }}
+          EVIDENCE_NAME: ${{ inputs.evidence_name }}
+          WORKING_DIR: ${{ inputs.working_directory }}
+        run: |
+          set -euo pipefail
+          case "$EVIDENCE_DIR" in
+            artifacts/*) ;;
+            *) echo "::error::EVIDENCE_DIR_OUTSIDE_ARTIFACTS"; exit 1 ;;
+          esac
+          if [[ "$EVIDENCE_DIR" == *'..'* || "$EVIDENCE_DIR" == *'~'* ||
+                "$EVIDENCE_DIR" == *'*'* || "$EVIDENCE_DIR" == *'?'* ||
+                "$EVIDENCE_DIR" == *'['* ]]; then
+            echo "::error::EVIDENCE_DIR_UNSAFE"
+            exit 1
+          fi
+          if [[ ! "$EVIDENCE_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            echo "::error::EVIDENCE_ARTIFACT_NAME_INVALID"
+            exit 1
+          fi
+          # Resolve the upload target instead of trusting a lexical path.
+          # Refuse symlinks escaping the permitted artifacts/ subtree.
+          root=$(realpath -e "$GITHUB_WORKSPACE/$WORKING_DIR/artifacts") || {
+            echo "::error::EVIDENCE_ROOT_MISSING"; exit 1;
+          }
+          actual=$(realpath -e "$GITHUB_WORKSPACE/$WORKING_DIR/$EVIDENCE_DIR") || {
+            echo "::error::EVIDENCE_DIR_MISSING"; exit 1;
+          }
+          case "$actual" in
+            "$root"/*) ;;
+            *) echo "::error::EVIDENCE_DIR_ESCAPE"; exit 1 ;;
+          esac
+      - name: Upload product evidence from existing gate
+        if: ${{ always() && inputs.evidence_dir != '' && steps.evidence_scope.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ inputs.evidence_name }}
+          path: ${{ inputs.working_directory }}/${{ inputs.evidence_dir }}/
+          if-no-files-found: error
+          include-hidden-files: false

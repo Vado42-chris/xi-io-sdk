@@ -9,14 +9,29 @@ When work is entered from the xi-io managed suite, start from Studio current bef
 1. resolve `Vado42-chris/xi-io-studio:AGENTS.md`;
 2. read `installer/app/products/studio-primitives/STUDIO-CURRENT-HANDOFF.current.json`;
 3. read `installer/app/products/studio-primitives/STUDIO-CURRENT-SESSION-INGRESS.current.json`;
-4. resolve this repository's provider-current `main`;
-5. read this file and the affected SDK contract/runtime;
-6. run `npm run check`, which is the SDK runtime ROTFL suite.
+4. discover Studio's canonical `studio-product-denominator.current.json` and
+   `studio-relationship-graph.current.json` from its current owner, preserving
+   their exact source generations, unknown memberships and graph `complete`
+   flag. Do not infer a product list from repository count, prompts or old lists;
+5. resolve this repository's provider-current `main`, the exact affected
+   consumer roots and this file. Use the read-only
+   `@xi-io/sdk/baseline/studio-registry-intake` projection, or
+   `xi-io studio discover --denominator <configured> --graph <configured>`,
+   to carry those current artifacts into roster and product-baseline intake;
+6. read the affected SDK contract/runtime, check the exact owner and writer
+   authority, then run `npm run check`, the SDK runtime ROTFL suite;
+7. classify each canonical member for each exact SDK change as AFFECTED,
+   NO_EFFECT_WITH_EVIDENCE, N_A_WITH_EVIDENCE or UNKNOWN, and record its consumer
+   readback through the existing Work/PunchCard owner. An incomplete graph
+   cannot silently erase consumers or grant release credit.
 
 Hard:
 
 ```text
 STUDIO_BASE_FIRST
+CANONICAL_REGISTRY_READ != AUTOMATIC_CONSUMER_ADOPTION
+PARTIAL_RELATIONSHIP_GRAPH != AFFECTED_SET_CLOSED
+UNCLASSIFIED_MEMBER != NO_EFFECT
 CHAT_OR_COMMENT != SDK_CURRENT
 SDK_MAIN != LIVE_PROVIDER_EFFECT
 MODEL_LABEL != WORKER_RANK
@@ -193,3 +208,4 @@ readback, explicit Ward consent and physical runtime proof still apply.
 Use the smallest shared-owner patch that fixes the root contract. During hostile explosion, do not repair each failing path independently. Preserve all reds, reduce them to shared root causes, patch the semantic owner once, replay the affected denominator, then return/reap.
 
 No external send, purchase, deployment, destructive action, or other consequential provider effect is authorized by this file.
+

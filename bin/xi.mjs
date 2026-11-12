@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { compilePortfolioBaseline, compileDistributedAcks, compileOrgBurnMap } from '../src/baseline/compiler.mjs';
 import { compileProductCapabilityBaseline } from '../src/baseline/product-capability.mjs';
+import { compileStudioRegistryIntake } from '../src/baseline/studio-registry-intake.mjs';
 import { compilePortableSemanticFile } from '../src/documents/portable-semantic-file.mjs';
 import { compileFlatpackPacket, reduceFlatpackArtifact, expandFlatpackArtifact } from '../src/flatpack/executable-packet.mjs';
 import { compilePortableArtifactCube } from '../src/documents/portable-artifact-cube.mjs';
@@ -144,7 +145,7 @@ Interactive slash commands:
 
 Pure compilers:
   xi-io baseline compile --input <snapshot.json> [--out <baseline.json>]
-  xi-io product compile --input <products.json> [--out <product-baseline.json>]
+  xi-io product compile --input <products.json> [--denominator <studio-denominator.json> --graph <studio-graph.json>] [--out <product-baseline.json>]
   xi-io flatpack compile --input <packet.json> [--out <flatpack.json>]
   xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
   xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
@@ -168,7 +169,8 @@ Pure compilers:
   xi-io ibal compile-acks --input <ack-pack.json> [--out <rotfl-pack.json>]
   xi-io cadence continue --input <continuation.json> [--out <continuation-result.json>]
   xi-io studio topology --input <install.json> [--out <topology.json>]
-  xi-io studio roster --input <registry.json> [--out <roster.json>]
+  xi-io studio discover [--denominator <studio-denominator.json> --graph <studio-graph.json>]
+  xi-io studio roster --input <install.json> [--denominator <studio-denominator.json> --graph <studio-graph.json>] [--out <roster.json>]
   xi-io stack compile --input <mini-prompt.json> [--out <punchcards.json>]
   xi-io stack reap --input <punchcards.json> --card <C001> --receipt <ref> [--verified true]
   xi-io work egress --input <work-egress.json> [--out <projection.json>]
@@ -287,6 +289,17 @@ function args(argv) {
 function readJson(file, label) {
   if (!file) throw new Error(`${label} path is required`);
   return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
+}
+
+function withStudioRegistry(input, flags) {
+  if(!flags.denominator && !flags.graph) return input;
+  if(!flags.denominator || !flags.graph) throw new Error('STUDIO_DENOMINATOR_AND_GRAPH_REQUIRED');
+  return {...input,studio_registry:{
+    denominator:readJson(flags.denominator,'--denominator'),
+    relationship_graph:readJson(flags.graph,'--graph'),
+    denominator_source_ref:path.resolve(flags.denominator),
+    graph_source_ref:path.resolve(flags.graph),
+  }};
 }
 
 function writeOutput(value, out) {
@@ -1546,6 +1559,7 @@ if (process.argv.length === 3 && process.argv[2] === '--version') { process.stdo
 
 const top = process.argv[2] || null;
 const topArgs = process.argv.slice(2);
+const studioCompilerAction=top==='studio'&&['topology','discover','roster'].includes(process.argv[3]);
 
 enforceRuntimeOor(process.argv.slice(2));
 
@@ -1755,7 +1769,7 @@ if (
   const result=await runQuorumCli({ action, target, flags });
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
   process.exitCode = ['FAIL','FAIL_CURRENT','BLOCKED'].includes(result.state) ? 2 : result.state==='TRUE_WAIT' ? 1 : 0;
-} else if (top === 'hex' || top === 'inbox' || top === 'studio') {
+} else if (top === 'hex' || top === 'inbox' || (top === 'studio' && !studioCompilerAction)) {
   const action=process.argv[3] || 'status';
   const result=await productRuntime(top,action);
   process.stdout.write(JSON.stringify(result,null,2)+'\n');
@@ -1882,7 +1896,7 @@ try {
       conserved:vector,
     }), flags.out);
   } else if (family === 'product' && action === 'compile') {
-    writeOutput(compileProductCapabilityBaseline(readJson(flags.input, '--input')), flags.out);
+    writeOutput(compileProductCapabilityBaseline(withStudioRegistry(readJson(flags.input, '--input'),flags)), flags.out);
   } else if (family === 'fleet' && action === 'delivery') {
     writeOutput(compileFleetDeliveryGate(readJson(flags.input, '--input')), flags.out);
   } else if (family === '100s' && action === 'compile') {
@@ -1906,6 +1920,11 @@ try {
     writeOutput(compileIbalAckRotfl(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'studio' && action === 'topology') {
     writeOutput(compileStudioHeadlessTopology(readJson(flags.input, '--input')), flags.out);
+  } else if (family === 'studio' && action === 'discover') {
+    const intake=withStudioRegistry({},flags);
+    writeOutput(compileStudioRegistryIntake(intake.studio_registry), flags.out);
+  } else if (family === 'studio' && action === 'roster') {
+    writeOutput(compileStudioRoster(withStudioRegistry(readJson(flags.input, '--input'),flags)), flags.out);
   } else if (family === 'stack' && action === 'compile') {
     writeOutput(compileMiniPromptStack(readJson(flags.input, '--input')), flags.out);
   } else if (family === 'stack' && action === 'reap') {
@@ -1964,3 +1983,4 @@ try {
   process.exit(2);
 }
 }
+
