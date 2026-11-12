@@ -73,6 +73,41 @@ if(r.outcome!=='success'||r.head_sha!=='975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e
 console.log('PASS: completed replay preserves unapproved evidence boundary');
 NODE
 
+
+# A gate PASS with an unwritable receipt destination must never report success.
+# The existing Git/Node doubles already prove a source-qualified local attempt.
+for gate in true 'exit 17'; do
+  tag=$(echo "$gate" | tr -cd '0-9a-zA-Z')
+  mkdir -p "$TEMP/out-receipt-$tag/xiio-gate-receipt.json"
+  actual_rc=0
+  XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" \
+    XIIO_REPLAY_WORK_REF='game:159#sprite:188' XIIO_REPLAY_OUT="$TEMP/out-receipt-$tag" \
+    bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" "$gate" \
+      >"$TEMP/out-receipt-$tag/stdout.log" 2>"$TEMP/out-receipt-$tag/stderr.log" || actual_rc=$?
+  [ "$actual_rc" = 2 ] || {
+    echo "FAIL: receipt unwritable but $gate returned $actual_rc (expected 2)"
+    exit 1
+  }
+  grep -q 'first_red=RECEIPT_WRITE_FAILED' "$TEMP/out-receipt-$tag/stdout.log" ||
+    { echo "FAIL: missing typed receipt write failure for $gate"; exit 1; }
+  echo "PASS: $gate cannot silently qualify missing receipt"
+done
+
+# A failing gate with a writable receipt still returns honest failure.
+mkdir -p "$TEMP/out-gate-red"
+gate_rc=0
+XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" \
+  XIIO_REPLAY_WORK_REF='game:159#sprite:188' XIIO_REPLAY_OUT="$TEMP/out-gate-red" \
+  bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" 'exit 17' \
+    >"$TEMP/out-gate-red/stdout.log" || gate_rc=$?
+[ "$gate_rc" = 1 ] || { echo "FAIL: gate rejection returned $gate_rc"; exit 1; }
+node - "$TEMP/out-gate-red/xiio-gate-receipt.json" <<'NODE'
+const r=require(process.argv[2]);
+if(r.outcome!=='failure'||r.replay?.gate_exit!==17||r.replay?.equivalence_status!=='UNAPPROVED_PENDING_OWNER_REVIEW')
+  throw Error('gate failure lost or replay equivalence manufactured');
+console.log('PASS: failed gate retains truthful receipt');
+NODE
+
 invalid_rc=0
 bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 short-sha \
   >"$TEMP/invalid.log" || invalid_rc=$?
