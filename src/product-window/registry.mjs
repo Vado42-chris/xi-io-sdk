@@ -94,7 +94,9 @@ export const XIIO_PRODUCT_LINEUP_BY_REF = Object.freeze(
 
 export function resolveProductWindow(productRef) {
   const key = String(productRef || '').trim();
-  const found = XIIO_PRODUCT_LINEUP_BY_REF[key];
+  const found = Object.hasOwn(XIIO_PRODUCT_LINEUP_BY_REF, key)
+    ? XIIO_PRODUCT_LINEUP_BY_REF[key]
+    : undefined;
   if (!found) throw new Error('XIIO_PRODUCT_NOT_STAMPED:' + key);
   return found;
 }
