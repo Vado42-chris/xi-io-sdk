@@ -17,7 +17,8 @@ export function productWindowProductStage({
   body_ref,
   launch_surface = 'LOCAL_LINUX',
 } = {}) {
-  const stamp = productWindowStamp(product_ref);
+  const session = compileProductWindowSession({ product_ref, project_ref, chat_ref, launch_surface });
+  const stamp = session.product;
   if (!body_ref || typeof body_ref !== 'string') throw new Error('XIIO_PRODUCT_BODY_REF_REQUIRED');
   if (!project_ref || typeof project_ref !== 'string') throw new Error('XIIO_PRODUCT_PROJECT_REF_REQUIRED');
   if (!chat_ref || typeof chat_ref !== 'string') throw new Error('XIIO_PRODUCT_CHAT_REF_REQUIRED');
