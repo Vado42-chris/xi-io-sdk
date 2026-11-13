@@ -183,7 +183,10 @@ export function assessReleaseOwnerQuestion(preflight, options = {}) {
       Array.isArray(cell.evidence_refs) && cell.evidence_refs.length > 0 && !cell.defect;
   });
   const standing = bounded(options.standing_conditional_policy_ref);
-  const genuinelyNew = options.new_owner_choice_required === true;
+  const approvalCell = preflight.cells[9];
+  const approvalAlreadyRecorded = approvalCell?.id === 'P9' &&
+    ['PASS', 'N_A_WITH_REASON'].includes(approvalCell.state) && approvalCell.evidence_refs?.length > 0 && !approvalCell.defect;
+  const genuinelyNew = options.new_owner_choice_required === true && !approvalAlreadyRecorded;
   const disposition = !matched ? 'CONTINUE_PREFLIGHT'
     : standing ? 'VERIFY_EXISTING_CONDITIONAL_POLICY'
       : genuinelyNew ? 'OWNER_QUESTION_ELIGIBLE' : 'CONTINUE_EXISTING_WORK';
