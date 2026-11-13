@@ -126,10 +126,14 @@ assert.equal(omissionHostiles, 78); checks += 1;
   assert.equal(standing.authority_granted, false);
   const noChoice = assessReleaseOwnerQuestion(ready, {new_owner_choice_required:false});
   assert.equal(noChoice.disposition, 'CONTINUE_EXISTING_WORK');
-  const genuinelyNew = assessReleaseOwnerQuestion(ready, {new_owner_choice_required:true});
+  const alreadyApproved = assessReleaseOwnerQuestion(ready, {new_owner_choice_required:true});
+  assert.equal(alreadyApproved.owner_question_eligible, false);
+  const pending = goodInput('RELEASE_P0_P13');
+  pending.cells.P9 = {state:'WAIT',reason:'NEW_OWNER_DECISION',blockers:['wake:owner-choice']};
+  const genuinelyNew = assessReleaseOwnerQuestion(compileGraduationPreflight(pending), {new_owner_choice_required:true});
   assert.equal(genuinelyNew.owner_question_eligible, true);
   assert.equal(genuinelyNew.provider_effect, false);
-  checks += 6;
+  checks += 7;
 }
 
 assert.throws(() => compileGraduationPreflight({ ...goodInput('TEMPLATE_L1_L10'), profile: 'NOPE' }), /unknown graduation profile/); checks += 1;
