@@ -50,27 +50,20 @@ function faceSummary(face,edges){
 }
 
 function projectImpactNodes(root,edges,projects){
-  const byProject=new Map(projects.map(p=>[p.project_ref,p]));
   const nodes=[];
   for(const project of projects){
     const relevant=edges.filter(e=>e.affected_project_refs.includes(project.project_ref));
-    if(!relevant.length && project.applicability==='NO_EFFECT') {
-      nodes.push({
-        ref:project.project_ref,direction:'DOWNSTREAM',state:'NO_EFFECT',currentness:'CURRENT',
-        priority:project.priority,risk:0,user_impact:0,time_pressure:0,fanout:0,cognitive_load:0,
-        human_facing:project.human_facing,independent_review_required:false,ux_review_required:false,
-        parallel_safe:true,runnable:false,dependencies:[]
-      });
-      continue;
-    }
+    // No relationship entry is an unknown coverage state, not proof of NO_EFFECT.
+    // A pending dependency must be classified before it can be called affected.
     const anyFail=relevant.some(e=>e.state==='FAIL');
     const anyOpen=relevant.some(e=>['UNKNOWN','TRUE_WAIT'].includes(e.state));
     const allCurrent=relevant.length>0&&relevant.every(e=>e.currentness==='CURRENT');
-    const affected=relevant.length>0&&relevant.some(e=>e.material&&e.state!=='N_A_WITH_EVIDENCE');
+    const affected=relevant.some(e=>e.material&&e.state!=='N_A_WITH_EVIDENCE');
+    const unclassified=!relevant.length||anyOpen;
     nodes.push({
       ref:project.project_ref,
       direction:'DOWNSTREAM',
-      state:anyFail||affected?'AFFECTED':anyOpen?'UNKNOWN':'NO_EFFECT',
+      state:unclassified?'UNKNOWN':anyFail||affected?'AFFECTED':'NO_EFFECT',
       currentness:allCurrent?'CURRENT':relevant.some(e=>e.currentness==='STALE')?'STALE':'UNKNOWN',
       priority:project.priority,
       risk:integer(project.risk??1,'project.risk'),
@@ -82,7 +75,7 @@ function projectImpactNodes(root,edges,projects){
       independent_review_required:project.independent_review_required===true,
       ux_review_required:project.ux_review_required!==false,
       parallel_safe:project.parallel_safe!==false,
-      runnable:anyFail?true:anyOpen?null:affected?true:false,
+      runnable:unclassified?null:anyFail?true:affected?true:false,
       dependencies:relevant.map(e=>e.target_ref)
     });
   }
