@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compileGraduationPreflight, GRADUATION_PROFILES, profileCatalog } from '../src/preflight/graduation.mjs';
+import { compileGraduationPreflight, assessReleaseOwnerQuestion, GRADUATION_PROFILES, profileCatalog } from '../src/preflight/graduation.mjs';
 
 function goodInput(profile) {
   return {
@@ -103,6 +103,33 @@ assert.equal(omissionHostiles, 78); checks += 1;
   assert.equal(out.cells.find((c) => c.id === 'E5').state, 'N_A_WITH_REASON');
   assert.equal(out.release_eligible, true);
   checks += 2;
+}
+
+// Incomplete preflight cannot be laundered into a new owner authorization ask.
+{
+  const incomplete = goodInput('RELEASE_P0_P13');
+  incomplete.cells.P3 = {state:'WAIT',reason:'BUILD_UNRUN',blockers:['wake:runner'],evidence_refs:[]};
+  const result = assessReleaseOwnerQuestion(compileGraduationPreflight(incomplete), {new_owner_choice_required:true});
+  assert.equal(result.owner_question_eligible, false);
+  assert.equal(result.disposition, 'CONTINUE_PREFLIGHT');
+  assert.equal(result.first_unqualified_cell, 'P3');
+  checks += 3;
+}
+{
+  const ready = compileGraduationPreflight(goodInput('RELEASE_P0_P13'));
+  const standing = assessReleaseOwnerQuestion(ready, {
+    standing_conditional_policy_ref:'owner:standing-conditional-release',
+    new_owner_choice_required:true,
+  });
+  assert.equal(standing.owner_question_eligible, false);
+  assert.equal(standing.disposition, 'VERIFY_EXISTING_CONDITIONAL_POLICY');
+  assert.equal(standing.authority_granted, false);
+  const noChoice = assessReleaseOwnerQuestion(ready, {new_owner_choice_required:false});
+  assert.equal(noChoice.disposition, 'CONTINUE_EXISTING_WORK');
+  const genuinelyNew = assessReleaseOwnerQuestion(ready, {new_owner_choice_required:true});
+  assert.equal(genuinelyNew.owner_question_eligible, true);
+  assert.equal(genuinelyNew.provider_effect, false);
+  checks += 6;
 }
 
 assert.throws(() => compileGraduationPreflight({ ...goodInput('TEMPLATE_L1_L10'), profile: 'NOPE' }), /unknown graduation profile/); checks += 1;
