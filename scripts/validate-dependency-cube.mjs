@@ -104,6 +104,29 @@ assert.equal(rejected,300);
  assert.equal(out.box_closed,true);
 }
 
+
+// Shared dependency identity: inherited Object keys cannot intercept real edges.
+{
+ const x=base();
+ x.internal_edges[0].dependency_key='constructor';
+ x.internal_edges[1].dependency_key='toString';
+ const out=compileDependencyCube(x);
+ assert(out.triangulation.some(row=>row.dependency_key==='constructor'));
+ assert(out.triangulation.some(row=>row.dependency_key==='toString'));
+ assert.equal(out.denominator.triangulation_keys,8);
+}
+// A missing dependency face cannot close the whole blastwave by vacuous PASS.
+{
+ const x=base();
+ x.internal_edges=[];
+ x.external_edges=x.external_edges.map(e=>({...e,state:'PASS',currentness:'CURRENT',evidence_refs:['receipt:'+e.edge_id],wake:null}));
+ x.glass_edges=x.glass_edges.map(e=>({...e,state:'PASS',currentness:'CURRENT',evidence_refs:['receipt:'+e.edge_id],wake:null}));
+ const out=compileDependencyCube(x);
+ assert.equal(out.faces.INTERNAL.denominator,0);
+ assert.equal(out.faces.INTERNAL.state,'PASS');
+ assert.equal(out.box_closed,false);
+}
+
 console.log(JSON.stringify({
  schema:'xiio.sdk.dependency-cube-check/v1',
  result:'PASS',
