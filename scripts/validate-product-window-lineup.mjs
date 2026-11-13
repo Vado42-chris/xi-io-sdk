@@ -42,6 +42,10 @@ const body = productWindowProductStage({
 assert.equal(body.stage,'PRODUCT_BODY');
 assert.equal(body.project_management,'BOUND');
 assert.equal(body.chat,'BOUND');
+assert.throws(() => productWindowProductStage({
+  product_ref:'xi-io:ibal', project_ref:'project:demo', chat_ref:'chat:demo',
+  body_ref:'body:ibal', launch_surface:'UNREGISTERED_SURFACE',
+}), /XIIO_PRODUCT_WINDOW_SURFACE_INVALID/);
 
 const dev = XIIO_PRODUCT_LINEUP.find(x => x.product_ref === 'xi-io:dev_forge');
 assert.equal(dev.lifecycle,'STARTED_NOT_FINISHED');
