@@ -18,6 +18,9 @@ const expected = [
 
 assert.deepEqual(XIIO_PRODUCT_LINEUP.map((x) => x.product_ref), expected);
 assert.equal(new Set(expected).size, expected.length);
+for (const inheritedKey of ['toString', 'constructor', '__proto__']) {
+  assert.throws(() => compileProductWindowSession({ product_ref: inheritedKey }), /XIIO_PRODUCT_NOT_STAMPED/);
+}
 for (const stamp of stampAllProducts()) {
   assert.equal(stamp.intermediary_template, PRODUCT_WINDOW_TEMPLATE);
   assert.equal(stamp.project_management, 'REQUIRED');
