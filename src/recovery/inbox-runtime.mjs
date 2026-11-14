@@ -32,9 +32,12 @@ function volumeRoot(cwd,env=process.env){
 }
 function originMatches(origin){
   const value=String(origin||'').replace(/\.git$/,'');
-  return value==='https://github.com/Vado42-chris/xi-io-Inbox'
-    || value==='git@github.com:Vado42-chris/xi-io-Inbox'
-    || value.endsWith('github.com/Vado42-chris/xi-io-Inbox');
+  return [
+    'https://github.com/Vado42-chris/xi-io-Inbox',
+    'git@github.com:Vado42-chris/xi-io-Inbox',
+    'ssh://git@github.com/Vado42-chris/xi-io-Inbox',
+    'git://github.com/Vado42-chris/xi-io-Inbox',
+  ].includes(value);
 }
 function inspectRepo(candidate,{exec=run,env=process.env,providerRead=true}={}){
   if(!candidate || !isDir(candidate)) return {state:'ABSENT',path:candidate||null};
