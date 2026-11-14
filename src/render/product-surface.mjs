@@ -15,7 +15,8 @@ const SECTION_KEYS = new Set(['id', 'title', 'summary', 'fields', 'rows']);
 const FIELD_KEYS = new Set(['id', 'label', 'type', 'value', 'hint', 'min', 'max', 'step', 'required', 'disabled', 'options']);
 const ACTION_KEYS = new Set(['id', 'label', 'disabled', 'kind']);
 const STATUS_KEYS = new Set(['label', 'tone']);
-const ROW_KEYS = new Set(['label', 'value', 'status']);
+const ROW_KEYS = new Set(['label', 'value', 'status', 'requirement']);
+const REQUIREMENT_KEYS = new Set(['disposition', 'action_id', 'blocker', 'owner', 'recovery_action', 'explanation']);
 const OPTION_KEYS = new Set(['value', 'label']);
 const MAX_SECTIONS = 20;
 const MAX_FIELDS_PER_SECTION = 50;
@@ -133,6 +134,28 @@ function normalizeRow(row, label) {
   if (!['string', 'number', 'boolean'].includes(typeof row.value)) throw new TypeError(`${label}.value must be scalar`);
   const normalized = { label: row.label, value: row.value };
   if (row.status !== undefined) normalized.status = normalizeStatus(row.status, `${label}.status`);
+  if (row.requirement !== undefined) {
+    const item=row.requirement;
+    assertClosedShape(item,REQUIREMENT_KEYS,`${label}.requirement`);
+    if(!['ACTIONABLE','BLOCKED','INFORMATIONAL'].includes(item.disposition))
+      throw new TypeError(`${label}.requirement disposition unsupported; IMPLEMENTED requires independent effect proof`);
+    if(item.disposition==='ACTIONABLE') {
+      assertId(item.action_id,`${label}.requirement.action_id`);
+      if(item.blocker!==undefined||item.owner!==undefined||item.recovery_action!==undefined||item.explanation!==undefined)
+        throw new TypeError(`${label}.requirement actionable fields conflict`);
+      normalized.requirement={disposition:'ACTIONABLE',action_id:item.action_id};
+    }else if(item.disposition==='BLOCKED') {
+      for(const key of ['blocker','owner','recovery_action'])assertText(item[key],`${label}.requirement.${key}`);
+      if(item.action_id!==undefined||item.explanation!==undefined)
+        throw new TypeError(`${label}.requirement blocked fields conflict`);
+      normalized.requirement={disposition:'BLOCKED',blocker:item.blocker,owner:item.owner,recovery_action:item.recovery_action};
+    }else{
+      assertText(item.explanation,`${label}.requirement.explanation`);
+      if(item.action_id!==undefined||item.blocker!==undefined||item.owner!==undefined||item.recovery_action!==undefined)
+        throw new TypeError(`${label}.requirement informational fields conflict`);
+      normalized.requirement={disposition:'INFORMATIONAL',explanation:item.explanation};
+    }
+  }
   return normalized;
 }
 
@@ -190,6 +213,11 @@ export function normalizeProductSurface(model) {
     ...normalized.actions.map((action) => `action:${action.id}`),
   ];
   if (ids.length !== new Set(ids).size) throw new TypeError('duplicate section/field/action identity');
+  const actionIds=new Set(normalized.actions.filter(action=>!action.disabled).map(action=>action.id));
+  for(const section of normalized.sections)for(const row of section.rows){
+    if(row.requirement?.disposition==='ACTIONABLE'&&!actionIds.has(row.requirement.action_id))
+      throw new TypeError('ACTIONABLE requirement needs a declared enabled action');
+  }
   return normalized;
 }
 
@@ -214,7 +242,12 @@ function renderInput(field) {
 
 function renderRow(row) {
   const statusHtml = row.status ? Core.renderStatusBadge(row.status) : '';
-  return Core.renderReceiptRow({ label: row.label, value: row.value, statusHtml });
+  const requirement=row.requirement;
+  let gate='';
+  if(requirement?.disposition==='ACTIONABLE')gate=`<small data-xiio-requirement="actionable" data-xiio-required-action="${escapeHtml(requirement.action_id)}">Action declared. Host connection and verified result required.</small>`;
+  if(requirement?.disposition==='BLOCKED')gate=`<small data-xiio-requirement="blocked">Blocked: ${escapeHtml(requirement.blocker)}. Owner: ${escapeHtml(requirement.owner)}. Next: ${escapeHtml(requirement.recovery_action)}.</small>`;
+  if(requirement?.disposition==='INFORMATIONAL')gate=`<small data-xiio-requirement="informational">${escapeHtml(requirement.explanation)}</small>`;
+  return Core.renderReceiptRow({ label: row.label, value: row.value, statusHtml: statusHtml+gate });
 }
 
 function renderSection(section) {
