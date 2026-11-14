@@ -215,7 +215,26 @@ test('three child closes require all three child close dispositions', () => {
   assert.equal(result.root_stop_allowed, false);
 });
 
-assert.equal(passed, 14);
+test('residual reds cannot disappear behind a terminal close', () => {
+  const closed={return_ref:'return:1',apply_return_ref:'apply:1',reap_ref:'reap:1',
+    rejoin_ref:'rejoin:1',current_readback_ref:'readback:1',remaining_red_refs:['red:still-open']};
+  const terminal=compileInteractionLifecycle(base({machine_resolvable_next:false,close:closeAccounting(closed)}));
+  assert.equal(terminal.root_stop_allowed,false);
+  assert.equal(terminal.status,'FAIL_CURRENT');
+  assert(terminal.failures.includes('REMAINING_REDS_WITHOUT_NEXT_OR_WAIT'));
+  assert.equal(terminal.next_action,'COMPLETE_BURNDOWN_ACCOUNTING');
+  assert.deepEqual(terminal.close.remaining_red_refs,['red:still-open']);
+  for(const disposition of [{next_ref:'work:existing-next'},{wait_ref:'wait:existing-owner'}]) {
+    const result=compileInteractionLifecycle(base({machine_resolvable_next:false,
+      close:closeAccounting({...closed,...disposition})}));
+    assert.equal(result.status,'CLOSED_CURRENT');
+    assert.equal(result.root_stop_allowed,false);
+    assert.equal(result.authority_granted,false);
+    assert.equal(result.provider_effect,false);
+  }
+});
+
+assert.equal(passed, 15);
 console.log(JSON.stringify({
   status: 'PASS',
   denominator: passed,
