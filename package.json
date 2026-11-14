@@ -177,6 +177,6 @@
     "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs",
     "check:self-drive-continuation": "node scripts/validate-self-drive-continuation.mjs",
     "check:local-agent-service": "node --test test/local-agent-service.test.mjs",
-    "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs"
+    "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs && node --test scripts/validate-product-window-connection.test.mjs"
   }
 }
