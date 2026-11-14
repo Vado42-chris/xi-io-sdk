@@ -12,12 +12,14 @@ function projectOption(project, selected) {
 
 export function renderProductWindowIntermediary({
   product_ref,
+  studio_registry,
+  product_catalog,
   current_project_ref = '',
   recent_projects = [],
   chat_placeholder = 'Ask @ibal about this product or project…',
   status = 'Choose a project or continue the current one.',
 } = {}) {
-  const product = resolveProductWindow(product_ref);
+  const product = resolveProductWindow(product_ref, { studio_registry, product_catalog });
   const projects = Array.isArray(recent_projects) ? recent_projects.slice(0, 20) : [];
   return `
 <section data-xiio-product-window="intermediary" data-product-ref="${esc(product.product_ref)}">
