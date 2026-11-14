@@ -103,7 +103,7 @@ assert.equal(derivePrimitiveAdoptionPlan({ ...declared, recipeBaseline,
   observedRecipe: { ...recipeBaseline, recipe_generation: 'UNKNOWN' } }).state, 'UNKNOWN_LINEAGE');
 
 const child = { ...lineage, consumer_id: 'child-a', required_primitive_ids: ['panel'], observed_primitive_ids: ['panel'] };
-const scope = { catalog, recipeBaseline, expectedConsumerIds: ['child-a', 'child-b', 'child-c'],
+const scope = { catalog, recipeBaseline, unresolvedMembershipCount: 0, expectedConsumerIds: ['child-a', 'child-b', 'child-c'],
   consumerRosterRef: 'fixture:consumer-roster', consumerRosterGeneration: 'fixture:roster-g2', consumers: [child] };
 const omitted = deriveAffectedPrimitiveConsumers(scope);
 assert.equal(omitted.denominator, 3);
@@ -146,6 +146,17 @@ assert.throws(() => deriveAffectedPrimitiveConsumers({ ...scope, expectedConsume
 const claimed = deriveAffectedPrimitiveConsumers({ ...scope, consumers: [child], expectedConsumerIds: ['child-a'],
   source_currentness: 'CURRENT', authenticated: true, closure_100: true, verified_count: 100 });
 assert.equal(claimed.supplied_denominator_coverage_complete, true);
+const partialStudio = deriveAffectedPrimitiveConsumers({ ...scope, consumers: [child],
+  expectedConsumerIds: ['child-a'], unresolvedMembershipCount: 7 });
+assert.equal(partialStudio.unresolved_membership_count, 7);
+assert.equal(partialStudio.supplied_denominator_coverage_complete, false);
+assert.equal(partialStudio.closure_100, false);
+const unaccountedMembership = deriveAffectedPrimitiveConsumers({ ...scope, consumers: [child],
+  expectedConsumerIds: ['child-a'], unresolvedMembershipCount: undefined });
+assert.equal(unaccountedMembership.supplied_denominator_coverage_complete, false);
+for (const count of [-1, 1.5, NaN, Infinity, '0']) {
+  assert.throws(() => deriveAffectedPrimitiveConsumers({ ...scope, unresolvedMembershipCount: count }), TypeError);
+}
 for (const result of [impact, omitted, undeclared, noRoster, noConsumers, declaredEmpty, staleConsumer, unknownConsumer, claimed]) {
   assert.deepEqual(result.no_effect, []);
   assert.equal(result.verified_count, 0);
