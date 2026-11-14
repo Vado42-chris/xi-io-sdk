@@ -57,7 +57,7 @@ export function compileWorkEgressProjection(input) {
   else if (unknown.length) disposition = 'WAIT_PROVIDER_CURRENTNESS';
   else if (blocked.length) disposition = 'DEGRADED_EGRESS_CONTINUE_INTERNAL';
   else if (pending.length) disposition = 'WAIT_PROVIDER_READBACK_CONTINUE_INTERNAL';
-  else if (rows.length && read.length === rows.length) disposition = 'EGRESS_READBACK_CURRENT';
+  else if (rows.length && read.length === rows.length) disposition = 'EGRESS_READBACK_SUPPLIED_UNVERIFIED';
   return {
     schema: 'xiio.sdk.work-egress-projection/v2',
     root_ref: req(input.root_ref, 'ROOT_REF_REQUIRED'),
@@ -76,6 +76,8 @@ export function compileWorkEgressProjection(input) {
     disposition,
     canonical_work_preserved: true,
     projection_eligible: !terminal,
+    authenticated_destination_readbacks: 0,
+    custody_destination_verified: false,
     root_stop: false,
     provider_effect_authority: false,
     registry_authority: false,
@@ -90,6 +92,7 @@ export function compileWorkEgressProjection(input) {
       'PROVIDER_FAILURE != WORK_FAILURE',
       'ONE_EGRESS_BLOCK != ROOT_STOP',
       'WORK_TERMINAL != ROOT_TERMINAL',
+      'SUPPLIED_READBACK_REF != AUTHENTICATED_DESTINATION_READBACK',
       'READ_BACK != OWNER_ACCEPTANCE'
     ],
   };

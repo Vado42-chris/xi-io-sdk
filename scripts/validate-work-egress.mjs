@@ -14,8 +14,20 @@ function test(name, fn) { fn(); cases.push(name); process.stdout.write(`PASS ${n
 test('01 TEN provider families share one egress compiler', () => {
   const out = compileWorkEgressProjection(clone(fixture));
   assert.equal(out.projections.length, 10);
-  assert.equal(out.disposition, 'EGRESS_READBACK_CURRENT');
+  assert.equal(out.disposition, 'EGRESS_READBACK_SUPPLIED_UNVERIFIED');
+  assert.equal(out.custody_destination_verified, false);
+  assert.equal(out.authenticated_destination_readbacks, 0);
   assert.equal(out.root_stop, false);
+});
+
+test('11 supplied readback never authenticates artifact destination', () => {
+  const input=clone(fixture);
+  input.projections.forEach(p => {p.provider_readback_ref='receipt:claimed';p.authenticated=true;p.destination_verified=true;});
+  const out=compileWorkEgressProjection(input);
+  assert.equal(out.disposition,'EGRESS_READBACK_SUPPLIED_UNVERIFIED');
+  assert.equal(out.custody_destination_verified,false);
+  assert.equal(out.authenticated_destination_readbacks,0);
+  assert.ok(out.hard.includes('SUPPLIED_READBACK_REF != AUTHENTICATED_DESTINATION_READBACK'));
 });
 
 test('02 WordPress high-cardinality registry does not mint authority', () => {
@@ -83,5 +95,5 @@ test('10 terminal Work cannot promote provider projection into root stop', () =>
   assert.equal(out.disposition, 'NO_OP_TERMINAL_WORK');
 });
 
-assert.equal(cases.length, 10);
+assert.equal(cases.length, 11);
 console.log(JSON.stringify({schema:'xiio.sdk.surface-egress-ten-hvt/v1',result:'PASS',cases:cases.length,false_greens:0,wordpress:'SHARED_HIGH_CARDINALITY_EGRESS'}, null, 2));
