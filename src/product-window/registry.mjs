@@ -1,163 +1,80 @@
+import { compileStudioRegistryIntake } from '../baseline/studio-registry-intake.mjs';
 export const PRODUCT_WINDOW_SCHEMA = 'xiio.product-window-registry/v1';
 export const PRODUCT_WINDOW_CONTRACT = 'xiio.product-window-contract/v1';
 export const PRODUCT_WINDOW_TEMPLATE = 'SAM_LAW_WHITE_LABEL_INTERMEDIARY';
-
-const shared = Object.freeze({
-  host: 'HEX',
-  frame_owner: 'Vado42-chris/xi-io-node:src/components/desktop/WindowFrame.jsx',
-  intermediary_template: PRODUCT_WINDOW_TEMPLATE,
-  intermediary_owner: 'SAM_LAW_DOCUMENT_WINDOW_PATTERN',
-  required_intermediary: Object.freeze([
-    'PRODUCT_IDENTITY',
-    'PROJECT_MANAGER',
-    'CHAT',
-    'RECENT_OR_CURRENT_PROJECT',
-    'PRODUCT_LAUNCH_STATE',
-  ]),
-  frame_settings: Object.freeze([
-    'BLACK_LEVEL',
-  ]),
-  frame_controls: Object.freeze([
-    'MINIMIZE',
-    'MAXIMIZE_RESTORE',
-    'CLOSE',
-  ]),
-  product_settings_location: 'INSIDE_PRODUCT_BODY',
-  project_management: 'REQUIRED',
-  chat: 'REQUIRED',
-  linux_surface: 'REQUIRED',
-  empire_os_surface: 'REQUIRED',
-  effect_authority: 0,
+const SHARED = Object.freeze({
+  host:'HEX', intermediary_template:PRODUCT_WINDOW_TEMPLATE,
+  frame_settings:Object.freeze(['BLACK_LEVEL']),
+  frame_controls:Object.freeze(['MINIMIZE','MAXIMIZE_RESTORE','CLOSE']),
+  product_settings_location:'INSIDE_PRODUCT_BODY',
+  project_management:'REQUIRED',chat:'REQUIRED',
+  linux_surface:'REQUIRED',empire_os_surface:'REQUIRED',effect_authority:0,
 });
-
-function product(id, label, family, extra = {}) {
+const required=(value,name)=>{if(typeof value!=='string'||!value.trim())throw new TypeError(name+'_REQUIRED');return value.trim();};
+export function compileProductWindowRegistry({studio_registry,product_catalog}={}){
+  const intake=compileStudioRegistryIntake(studio_registry);
+  if(!intake.counted_from_canonical_registry||!intake.registry_count_consistent||
+     !intake.source.denominator_ref||!intake.denominator_generation)
+    throw new Error('XIIO_PRODUCT_WINDOW_STUDIO_REGISTRY_UNBOUND');
+  if(!Array.isArray(product_catalog))throw new TypeError('XIIO_PRODUCT_CATALOG_REQUIRED');
+  const known=new Set(intake.member_ids),refs=new Set(),ids=new Set(),products=[];
+  for(const candidate of product_catalog){
+    const studio_product_id=required(candidate?.studio_product_id,'STUDIO_PRODUCT_ID');
+    const product_ref=required(candidate?.product_ref,'PRODUCT_REF');
+    if(!known.has(studio_product_id))throw new Error('XIIO_PRODUCT_NOT_STUDIO_MEMBER:'+studio_product_id);
+    if(refs.has(product_ref)||ids.has(studio_product_id))throw new Error('XIIO_PRODUCT_CATALOG_DUPLICATE');
+    refs.add(product_ref);ids.add(studio_product_id);
+    products.push(Object.freeze({
+      product_ref,studio_product_id,
+      label:required(candidate?.label,'PRODUCT_LABEL'),
+      family:required(candidate?.family,'PRODUCT_FAMILY'),
+      lifecycle:typeof candidate.lifecycle==='string'&&candidate.lifecycle.trim()?candidate.lifecycle.trim():'UNKNOWN',
+      body_owner:typeof candidate.body_owner==='string'&&candidate.body_owner.trim()?candidate.body_owner.trim():null,
+      shared_window:SHARED,
+    }));
+  }
+  const missing_member_ids=intake.member_ids.filter(id=>!ids.has(id));
   return Object.freeze({
-    product_ref: `xi-io:${id}`,
-    label,
-    family,
-    lifecycle: extra.lifecycle || 'EXISTING_PRODUCT',
-    body_owner: extra.body_owner || 'EXISTING_PRODUCT_OWNER',
-    aliases: Object.freeze(extra.aliases || []),
-    troubleshooting_surface: extra.troubleshooting_surface || null,
-    shared_window: shared,
+    schema:PRODUCT_WINDOW_SCHEMA,products:Object.freeze(products),
+    denominator_generation:intake.denominator_generation,relationship_generation:intake.relationship_generation,
+    source:intake.source,relationship_complete:intake.relationship_complete,
+    state:missing_member_ids.length||intake.unknown_membership_ids.length||!intake.relationship_complete
+      ?'PARTIAL_UNVERIFIED':'SUPPLIED_UNVERIFIED',
+    missing_member_ids:Object.freeze(missing_member_ids),
+    unknown_membership_ids:Object.freeze([...intake.unknown_membership_ids]),
+    effect_authority:0,
   });
 }
-
-export const XIIO_PRODUCT_LINEUP = Object.freeze([
-  product('desktop', 'xi-io: desktop', 'SYSTEM'),
-  product('ibal', 'xi-io: ibal', 'AI_CONDUCTOR'),
-  product('switchboard', 'xi-io: Switchboard', 'CONTROL_PLANE'),
-  product('movie-time', 'xi-io: movie time', 'MEDIA'),
-  product('hex', 'xi-io: hex', 'SYSTEM'),
-  product('repo-reaper', 'xi-io: repo reaper', 'DEVELOPER_TOOL'),
-  product('wordpress', 'xi-io: wordpress', 'PUBLISHING'),
-  product('ward', 'xi-io: Ward', 'SECURITY'),
-  product('inbox', 'xi-io: inbox', 'COMMUNICATIONS'),
-  product('bins', 'xi-io: bins', 'KNOWLEDGE'),
-  product('cadence', 'xi-io: Cadence', 'WORK'),
-  product('benchmark', 'xi-io: benchmark', 'QUALITY'),
-  product('publisher', 'xi-io: publisher', 'PUBLISHING'),
-  product('dataforge', 'xi-io: dataforge', 'FORGE'),
-  product('photoforge', 'xi-io: photoforge', 'FORGE'),
-  product('vectorforge', 'xi-io: vectorforge', 'FORGE'),
-  product('filmforge', 'xi-io: filmforge', 'FORGE'),
-  product('lightforge', 'xi-io: lightforge', 'FORGE'),
-  product('pdfforge', 'xi-io: pdfforge', 'FORGE'),
-  product('effectforge', 'xi-io: effectforge', 'FORGE'),
-  product('designeforge', 'xi-io: designeforge', 'FORGE'),
-  product('wordforge', 'xi-io: wordforge', 'FORGE'),
-  product('soundforge', 'xi-io: soundforge', 'FORGE'),
-  product('gridforge', 'xi-io: gridforge', 'FORGE'),
-  product('deckforge', 'xi-io: deckforge', 'FORGE'),
-  product('cadforge', 'xi-io: cadforge', 'FORGE'),
-  product('txtureforge', 'xi-io: txtureforge', 'FORGE'),
-  product('solidforge', 'xi-io: solidforge', 'FORGE'),
-  product('dev_forge', 'xi-io: Dev_forge', 'FORGE_SYSTEM', {
-    lifecycle: 'STARTED_NOT_FINISHED',
-    aliases: ['forge-anything'],
-    troubleshooting_surface: Object.freeze({
-      combines: Object.freeze([
-        'xi-io:Dev_forge',
-        'xi-io:ibal',
-        '@xi-io/sdk',
-        'xi-io:cli',
-      ]),
-      purpose: 'TROUBLESHOOT_BUILD_INSPECT_REPAIR_PRODUCT_LINE',
-      forge_anything: 'ABSORBED_INTO_DEV_FORGE',
-    }),
-  }),
-]);
-
-export const XIIO_PRODUCT_LINEUP_BY_REF = Object.freeze(
-  Object.fromEntries(XIIO_PRODUCT_LINEUP.map((entry) => [entry.product_ref, entry])),
-);
-
-export function resolveProductWindow(productRef) {
-  const key = String(productRef || '').trim();
-  const found = Object.hasOwn(XIIO_PRODUCT_LINEUP_BY_REF, key)
-    ? XIIO_PRODUCT_LINEUP_BY_REF[key]
-    : undefined;
-  if (!found) throw new Error('XIIO_PRODUCT_NOT_STAMPED:' + key);
+export function resolveProductWindow(productRef,options){
+  const key=required(productRef,'PRODUCT_REF');
+  const found=compileProductWindowRegistry(options).products.find(x=>x.product_ref===key);
+  if(!found)throw new Error('XIIO_PRODUCT_NOT_STAMPED:'+key);
   return found;
 }
-
-export function productWindowStamp(productRef) {
-  const entry = resolveProductWindow(productRef);
-  return Object.freeze({
-    schema: PRODUCT_WINDOW_CONTRACT,
-    product_ref: entry.product_ref,
-    label: entry.label,
-    family: entry.family,
-    lifecycle: entry.lifecycle,
-    host: shared.host,
-    frame_owner: shared.frame_owner,
-    intermediary_template: shared.intermediary_template,
-    project_management: shared.project_management,
-    chat: shared.chat,
-    frame_settings: shared.frame_settings,
-    frame_controls: shared.frame_controls,
-    product_settings_location: shared.product_settings_location,
-    linux_surface: shared.linux_surface,
-    empire_os_surface: shared.empire_os_surface,
-    effect_authority: 0,
-  });
+export function productWindowStamp(productRef,options){
+  const item=resolveProductWindow(productRef,options);
+  return Object.freeze({schema:PRODUCT_WINDOW_CONTRACT,product_ref:item.product_ref,
+    studio_product_id:item.studio_product_id,label:item.label,family:item.family,
+    lifecycle:item.lifecycle,body_owner:item.body_owner,...SHARED});
 }
-
 export function compileProductWindowSession({
-  product_ref,
-  project_ref = null,
-  chat_ref = null,
-  launch_surface = 'LOCAL_LINUX',
-} = {}) {
-  const stamp = productWindowStamp(product_ref);
-  if (!['LOCAL_LINUX', 'EMPIRE_OS'].includes(launch_surface)) {
-    throw new Error('XIIO_PRODUCT_WINDOW_SURFACE_INVALID');
-  }
+  product_ref,project_ref=null,chat_ref=null,launch_surface='LOCAL_LINUX',
+  studio_registry,product_catalog,
+}={}){
+  const stamp=productWindowStamp(product_ref,{studio_registry,product_catalog});
+  if(!['LOCAL_LINUX','EMPIRE_OS'].includes(launch_surface))throw new Error('XIIO_PRODUCT_WINDOW_SURFACE_INVALID');
   return Object.freeze({
-    schema: 'xiio.product-window-session/v1',
-    product: stamp,
-    stage: 'INTERMEDIARY',
-    launch_surface,
-    project_ref,
-    chat_ref,
-    intermediary: Object.freeze({
-      template: shared.intermediary_template,
-      show_product_identity: true,
-      show_project_manager: true,
-      show_chat: true,
-      show_recent_or_current_project: true,
-      product_body_state: 'NOT_YET_MOUNTED',
-      product_settings_visible_here: false,
+    schema:'xiio.product-window-session/v1',product:stamp,stage:'INTERMEDIARY',
+    launch_surface,project_ref,chat_ref,
+    intermediary:Object.freeze({
+      template:SHARED.intermediary_template,show_product_identity:true,
+      show_project_manager:true,show_chat:true,show_recent_or_current_project:true,
+      product_body_state:'NOT_YET_MOUNTED',product_settings_visible_here:false,
     }),
-    next: 'MOUNT_PRODUCT_BODY',
-    authority: Object.freeze({
-      effect_authority: 0,
-      project_selected: Boolean(project_ref),
-      chat_bound: Boolean(chat_ref),
-    }),
+    next:'MOUNT_PRODUCT_BODY',
+    authority:Object.freeze({effect_authority:0,project_selected:Boolean(project_ref),chat_bound:Boolean(chat_ref)}),
   });
 }
-
-export function stampAllProducts() {
-  return Object.freeze(XIIO_PRODUCT_LINEUP.map(({ product_ref }) => productWindowStamp(product_ref)));
+export function stampAllProducts(options){
+  return Object.freeze(compileProductWindowRegistry(options).products.map(x=>productWindowStamp(x.product_ref,options)));
 }
