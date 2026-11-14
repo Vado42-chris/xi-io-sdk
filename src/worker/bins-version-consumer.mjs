@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 /**
  * Product-neutral BINS legal-evidence event -> existing SDK worker.file-read.
  * Structural projection only: no filesystem access, provider credential,
@@ -98,6 +99,18 @@ export function checkBinsVersionReadReturn(prepared, readback) {
   }
   equal(readback.sha256, scope.expected_sha256, 'BINS_VERSION_CONSUMER_READBACK_DIGEST_MISMATCH');
   equal(readback.bytes, scope.expected_bytes, 'BINS_VERSION_CONSUMER_READBACK_BYTES_MISMATCH');
+  // Recompute integrity from the actual bytes of the worker's return.
+  // A supplied digest and length alone can describe bytes that never arrived.
+  const b64=readback.contentBase64;
+  if(typeof b64!=='string' ||
+     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(b64)) {
+    throw new Error('BINS_VERSION_CONSUMER_RETURN_BYTES_MISSING');
+  }
+  const bytes=Buffer.from(b64,'base64');
+  if(bytes.toString('base64')!==b64 || bytes.length!==scope.expected_bytes ||
+     createHash('sha256').update(bytes).digest('hex')!==scope.expected_sha256) {
+    throw new Error('BINS_VERSION_CONSUMER_RETURN_BYTE_INTEGRITY_MISMATCH');
+  }
   required(readback.readback_ref, 'BINS_VERSION_CONSUMER_READBACK_REF_REQUIRED');
   if (readback.authority_granted !== false || readback.apply_return_verified !== false) {
     throw new Error('BINS_VERSION_CONSUMER_READBACK_AUTHORITY_CLAIM');
@@ -112,4 +125,34 @@ export function checkBinsVersionReadReturn(prepared, readback) {
     return_certified: false,
     apply_return_verified: false,
   });
+}
+
+/**
+ * Invoke the existing SDK #205 worker, never a direct BINS path or endpoint.
+ * Only the worker's admitted runtime adapter can provide a trustworthy result.
+ * This glue neither creates a Ward grant nor performs APPLY_RETURN.
+ */
+export async function readBinsVersionWithWorker({prepared,worker,binding}={}) {
+  if(prepared?.schema!==BINS_VERSION_CONSUMER_SCHEMA ||
+     prepared.state!=='REQUEST_SCOPE_PREPARED_UNVERIFIED' ||
+     !Object.isFrozen(prepared.scope)) {
+    throw new Error('BINS_VERSION_CONSUMER_SCOPE_NOT_PREPARED');
+  }
+  if(!worker || typeof worker.readFile!=='function') {
+    throw new Error('BINS_VERSION_CONSUMER_WORKER_UNBOUND');
+  }
+  const returned=await worker.readFile(binding,prepared.scope);
+  if(returned?.state==='BLOCKED') {
+    // Leave the worker's typed refusal with the originating Work. Never
+    // retry an uncertain effect or relabel a refused read as successful.
+    return Object.freeze({
+      schema:BINS_VERSION_CONSUMER_SCHEMA,state:'BLOCKED',
+      first_red:required(returned.first_red,'BINS_VERSION_CONSUMER_FIRST_RED_REQUIRED'),
+      work_ref:prepared.scope.work_ref,
+      resource_ref:prepared.scope.resource_ref,
+      version_ref:prepared.scope.version_ref,
+      authority_granted:false,return_certified:false,apply_return_verified:false,
+    });
+  }
+  return checkBinsVersionReadReturn(prepared,returned);
 }

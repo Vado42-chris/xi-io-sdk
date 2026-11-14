@@ -1,9 +1,11 @@
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
-import {prepareBinsVersionRead,checkBinsVersionReadReturn}
+import {prepareBinsVersionRead,checkBinsVersionReadReturn,readBinsVersionWithWorker}
   from '../src/worker/bins-version-consumer.mjs';
 
-const sha='a'.repeat(64);
+const content=Buffer.from('example');
+const sha=createHash('sha256').update(content).digest('hex');
 const event={
   schema:'xiio.dataforge.legal-evidence/v1',state:'BINS_CUSTODIED',
   case_ref:'matter:1',event_id:'event:1',
@@ -62,6 +64,7 @@ test('exact worker return is matched but not promoted to APPLY_RETURN',()=>{
     state:'REQUESTER_FILE_BYTES_MATCHED',
     ...prepared.scope,
     bytes:7,sha256:sha,readback_ref:'readback:1',
+    contentBase64:content.toString('base64'),
     authority_granted:false,apply_return_verified:false,
   };
   const matched=checkBinsVersionReadReturn(prepared,read);
@@ -70,5 +73,53 @@ test('exact worker return is matched but not promoted to APPLY_RETURN',()=>{
   for(const patch of [
     {resource_ref:'wrong'},{version_ref:'wrong'},{bytes:6},
     {sha256:'b'.repeat(64)},{apply_return_verified:true},
+    {contentBase64:undefined},{contentBase64:Buffer.from('EXAMPLE').toString('base64')},
+    {contentBase64:content.toString('base64')+'!'},
   ]) assert.throws(()=>checkBinsVersionReadReturn(prepared,{...read,...patch}));
+});
+
+test('existing worker readFile invoked once with exact BINS scope and matched bytes',async()=>{
+  const prepared=make();
+  const binding=Object.freeze({worker_ref:'worker:bound'});
+  let calls=0;
+  const worker={readFile:async(actualBinding,scope)=>{
+    calls++;
+    assert.strictEqual(actualBinding,binding);
+    assert.strictEqual(scope,prepared.scope);
+    return {
+      schema:'xiio.sdk.worker-connection/v1',state:'REQUESTER_FILE_BYTES_MATCHED',
+      ...scope,bytes:content.length,sha256:sha,contentBase64:content.toString('base64'),
+      readback_ref:'readback:1',authority_granted:false,apply_return_verified:false,
+    };
+  }};
+  const out=await readBinsVersionWithWorker({prepared,worker,binding});
+  assert.equal(calls,1);
+  assert.equal(out.state,'RECEIVER_SCOPE_MATCHED_UNVERIFIED');
+  assert.equal(out.authority_granted,false);
+  assert.equal(out.apply_return_verified,false);
+});
+test('blocked Ward/broker worker returns typed refusal without retry or false readiness',async()=>{
+  const prepared=make();
+  let calls=0;
+  const worker={readFile:async()=>{calls++;return {
+    schema:'xiio.sdk.worker-connection/v1',state:'BLOCKED',
+    first_red:'WARD_ADMISSION_UNAVAILABLE',authority_granted:false,
+  };}};
+  const out=await readBinsVersionWithWorker({prepared,worker,binding:{}});
+  assert.equal(calls,1);
+  assert.equal(out.state,'BLOCKED');
+  assert.equal(out.first_red,'WARD_ADMISSION_UNAVAILABLE');
+  assert.equal(out.authority_granted,false);
+  assert.equal(out.apply_return_verified,false);
+});
+test('unbound worker and forged empty metadata-only result fail',async()=>{
+  const prepared=make();
+  await assert.rejects(readBinsVersionWithWorker({prepared}),/WORKER_UNBOUND/);
+  await assert.rejects(readBinsVersionWithWorker({
+    prepared,worker:{readFile:async()=>({
+      schema:'xiio.sdk.worker-connection/v1',state:'REQUESTER_FILE_BYTES_MATCHED',
+      ...prepared.scope,bytes:7,sha256:sha,readback_ref:'readback:1',
+      authority_granted:false,apply_return_verified:false
+    })}
+  }),/RETURN_BYTES_MISSING/);
 });
