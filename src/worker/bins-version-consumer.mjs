@@ -128,6 +128,41 @@ export function checkBinsVersionReadReturn(prepared, readback) {
   });
 }
 
+// Preserve an existing worker repair route, never arbitrary provider payload.
+// Snapshot data descriptors so accessors cannot change validated output fields.
+function repairRecord(value) {
+  if(!value || typeof value!=='object' || Array.isArray(value) ||
+     ![Object.prototype,null].includes(Object.getPrototypeOf(value)))
+    throw new Error('BINS_VERSION_CONSUMER_REPAIR_UNQUALIFIED');
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  if(Object.values(descriptors).some(d=>!Object.hasOwn(d,'value')))
+    throw new Error('BINS_VERSION_CONSUMER_REPAIR_UNQUALIFIED');
+  return Object.freeze(Object.fromEntries(Object.entries(descriptors).map(([key,d])=>[key,d.value])));
+}
+function blockedRepair(returned,scope) {
+  returned=repairRecord(returned);
+  if(returned.required_repair==null)return {};
+  if(returned.schema!=='xiio.sdk.worker-connection/v1' || returned.state!=='BLOCKED' ||
+     returned.authority_granted!==false || returned.apply_return_verified!==false)
+    throw new Error('BINS_VERSION_CONSUMER_REPAIR_UNQUALIFIED');
+  const operation=repairRecord(returned.blocked_operation);
+  if(operation.operation!=='worker.file-read')
+    throw new Error('BINS_VERSION_CONSUMER_REPAIR_SCOPE_MISMATCH');
+  for(const key of Object.keys(scope))
+    equal(operation[key],scope[key],'BINS_VERSION_CONSUMER_REPAIR_SCOPE_MISMATCH');
+  const repair=repairRecord(returned.required_repair);
+  if(typeof repair.owner_approval_needed!=='boolean')
+    throw new Error('BINS_VERSION_CONSUMER_REPAIR_UNQUALIFIED');
+  return {state:'BLOCKED',
+    first_red:required(returned.first_red,'BINS_VERSION_CONSUMER_FIRST_RED_REQUIRED'),
+    next_action:required(returned.next_action,'BINS_VERSION_CONSUMER_REPAIR_ACTION_INVALID'),
+    required_repair:Object.freeze({
+      owner_ref:required(repair.owner_ref,'BINS_VERSION_CONSUMER_REPAIR_OWNER_INVALID'),
+      action:required(repair.action,'BINS_VERSION_CONSUMER_REPAIR_ACTION_INVALID'),
+      owner_approval_needed:repair.owner_approval_needed,
+    })};
+}
+
 /**
  * Invoke the existing SDK #205 worker, never a direct BINS path or endpoint.
  * Only the worker's admitted runtime adapter can provide a trustworthy result.
@@ -209,6 +244,7 @@ export async function readBinsVersionWithWorker({prepared,worker,binding}={}) {
       work_ref:scope.work_ref,
       resource_ref:scope.resource_ref,
       version_ref:scope.version_ref,
+      ...blockedRepair(returned,scope),
       authority_granted:false,return_certified:false,apply_return_verified:false,
     });
   }

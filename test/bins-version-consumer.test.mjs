@@ -204,3 +204,27 @@ test('hostile BINS parent version cannot escape bounded metadata projection',()=
     assert.throws(()=>make(e),{message:'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'});
   }
 });
+
+
+test('worker refusal retains bounded repair route but refuses foreign scope and private data',async()=>{
+  const prepared=make();
+  const refusal={schema:'xiio.sdk.worker-connection/v1',state:'BLOCKED',
+    first_red:'DEVICE_RETURN_BINS_VERIFIER_UNBOUND',authority_granted:false,apply_return_verified:false,
+    next_action:'REPAIR_AND_RESUME_ORIGINAL_WORK',
+    blocked_operation:{operation:'worker.file-read',...prepared.scope},
+    required_repair:{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'BIND_OR_REPAIR_REQUESTER_ONLY_RETURN_BYTES',owner_approval_needed:false},
+    private_payload:'/private/case',credentials:'not-to-forward'};
+  const run=value=>readBinsVersionWithWorker({prepared,worker:{readFile:async()=>value}});
+  const matched=await run(refusal);
+  assert.equal(matched.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.equal(matched.next_action,'REPAIR_AND_RESUME_ORIGINAL_WORK');
+  assert.doesNotMatch(JSON.stringify(matched),/private|credentials|not-to-forward/);
+  for(const patch of [
+    {blocked_operation:{...refusal.blocked_operation,version_ref:'version:other'}},
+    {blocked_operation:{...refusal.blocked_operation,expected_sha256:'a'.repeat(64)}},
+    {schema:'untrusted'}, {authority_granted:true},
+    {required_repair:{...refusal.required_repair,owner_ref:'/private/owner'}},
+    {required_repair:{...refusal.required_repair,owner_approval_needed:'true'}},
+    {required_repair:{...refusal.required_repair,get owner_ref(){return 'EXISTING_WARD_RUNTIME_OWNER';}}},
+  ])await assert.rejects(run({...refusal,...patch}),/BINS_VERSION_CONSUMER_/);
+});

@@ -150,3 +150,14 @@ test('wrong source matter refuses before worker admission',async()=>{
   assert.equal(calls.admit,0);
   assert.equal(calls.broker,0);
 });
+
+
+test('existing SDK refusal keeps exact repair route through BINS adapter',async()=>{
+  const {worker,calls}=harness({denyWard:true});
+  const binding=await worker.bind(selected);
+  const result=await readBinsVersionWithWorker({prepared:prepareBinsVersionRead({event,work,returned}),worker,binding});
+  assert.equal(result.state,'BLOCKED');
+  assert.equal(result.required_repair.owner_ref,'EXISTING_WARD_RUNTIME_OWNER');
+  assert.equal(result.next_action,'REPAIR_AND_RESUME_ORIGINAL_WORK');
+  assert.equal(calls.admit,1);assert.equal(calls.broker,0);
+});
