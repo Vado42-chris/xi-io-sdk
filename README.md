@@ -105,6 +105,27 @@ The installer writes real wrappers to `~/.local/bin/xi-io` and `~/.local/bin/xi`
 
 Hard: `HUMAN_ENTRY != SDK_INTERNAL_COMMAND`, `LOCAL_OLLAMA != CLOUD_FALLBACK`, `WORKSPACE_READ != EFFECT_AUTHORITY`, `--execute != MERGE_OR_PROVIDER_AUTHORITY`, `REGISTRY_DISCOVERY != ADMISSION`.
 
+The CRM and Cube readers take their local roots from the installed consumer, never
+from a developer's home directory or a guessed sibling repository:
+
+- `XIIO_INBOX_REPO` selects a candidate Inbox CRM producer (`INBOX_REPO` remains a legacy explicit alias). Conflicting bindings return `INBOX_CRM_REPO_BINDING_AMBIGUOUS`.
+- `XIIO_CRM_SEMANTIC_OWNER_REF` supplies that candidate's semantic owner reference. It remains `SUPPLIED_UNVERIFIED`, not proof that the installed adapter is trusted or runnable.
+- `xi-io crm current` is a pure structural request until the existing authenticated CRM host/Work adapter admits execution and returns native readback. The SDK does not execute a `crm-knowledge-current.mjs` script from the supplied repository; a found script returns `CRM_INSTALLED_ADAPTER_ADMISSION_REQUIRED`. This refusal also applies to forged owners, wrong workspaces and revoked or missing native bindings.
+- `XIIO_CUBE_ROOT` selects a parent Cube workspace root; `xi-io quorum status --project <name>` selects one project under it. `--cube <path>` selects one exact Cube directly. Missing roots, unsafe project names and out-of-Cube business record references refuse instead of falling back to another workspace.
+
+`xi-io quorum review --write` does not grant ledger mutation. A locally passing
+assessment still requires an independently admitted Ward writer and exact Work
+binding through the authorized carrier; the SDK returns `WARD_LEDGER_WRITE_ADMISSION_REQUIRED`.
+
+The SDK Studio roster intake uses the accepted `studio_registry` input with
+Studio's product denominator, separately versioned relationship graph and
+their source references. It derives the known member set from those sources
+when no explicit subset is selected. Neither a caller's completeness flag nor
+a supplied source reference authenticates currentness. Unknown memberships,
+missing graph nodes and partial relationships remain explicit blockers. The
+provider-current Studio registry/router owns discovery, and the authorized
+installed consumer owns independent currentness readback.
+
 ## Agent CLI
 
 The package installs `xi`, with `xi-io` as an alias for the same binary. Its SDK command family is a local JSON adapter over nine existing public

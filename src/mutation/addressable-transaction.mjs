@@ -46,10 +46,17 @@ export function compileImmutableSelection(input={}){
 export function compareImmutableSelection(expected,observed={}){
   const keys=['workspace_ref','matter_ref','artifact_ref','original_ref','document_ref','revision','source_generation','record_ref','proposition_ref'];
   const drift=keys.filter(key=>(expected?.[key]??null)!==(observed?.[key]??null));
+  // Equality of absent/malformed references is not a bound selection. Reuse
+  // the canonical compiler instead of adding product-specific reference rules.
+  let invalid=null;
+  if(!drift.length){
+    try { compileImmutableSelection(expected); compileImmutableSelection(observed); }
+    catch(error) { invalid='INVALID_SELECTION_'+error.message; }
+  }
   return Object.freeze({
-    match:drift.length===0,
+    match:drift.length===0&&!invalid,
     drift:Object.freeze(drift),
-    first_red:drift.length?('SELECTION_DRIFT_'+drift[0].toUpperCase()):null,
+    first_red:drift.length?('SELECTION_DRIFT_'+drift[0].toUpperCase()):invalid,
     authority_granted:false,
     provider_effect:false,
   });
@@ -104,6 +111,10 @@ export function compileAddressableTransaction(input={}){
   const selection=compileImmutableSelection(input.selection||{});
   const expected_revision=required(input.expected_revision??selection.revision,'EXPECTED_REVISION');
   const expected_generation=required(input.expected_generation??selection.source_generation,'EXPECTED_GENERATION');
+  // The preimage CAS must refer to the same immutable version the caller
+  // selected. An explicit override cannot quietly replace that selection.
+  if(expected_revision!==selection.revision||expected_generation!==selection.source_generation)
+    throw new Error('SELECTION_PREIMAGE_MISMATCH');
   const expected_post_revision=required(input.expected_post_revision,'EXPECTED_POST_REVISION');
   const expected_post_generation=required(input.expected_post_generation,'EXPECTED_POST_GENERATION');
   return Object.freeze({
