@@ -128,6 +128,63 @@ export function checkBinsVersionReadReturn(prepared, readback) {
   });
 }
 
+// Preserve only the existing worker's bounded continuation contract. A
+// challenge is not approval; repair routing is not permission to retry.
+function continuationRecord(value) {
+  if(!value || typeof value!=='object' || Array.isArray(value) ||
+     ![Object.prototype,null].includes(Object.getPrototypeOf(value)))
+    throw new Error('BINS_VERSION_CONSUMER_CONTINUATION_UNQUALIFIED');
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  if(Object.values(descriptors).some(d=>!Object.hasOwn(d,'value')))
+    throw new Error('BINS_VERSION_CONSUMER_CONTINUATION_UNQUALIFIED');
+  return Object.freeze(Object.fromEntries(Object.entries(descriptors).map(([key,d])=>[key,d.value])));
+}
+function readContinuation(returned,scope) {
+  returned=continuationRecord(returned);
+  const approval=returned.state==='OWNER_APPROVAL_REQUIRED';
+  const repair=returned.required_repair==null ? null : continuationRecord(returned.required_repair);
+  if(!approval && repair==null)return {};
+  if(returned.schema!=='xiio.sdk.worker-connection/v1' ||
+     returned.authority_granted!==false || returned.apply_return_verified!==false)
+    throw new Error('BINS_VERSION_CONSUMER_CONTINUATION_UNQUALIFIED');
+  const operation=continuationRecord(returned.blocked_operation);
+  if(operation?.operation!=='worker.file-read')
+    throw new Error('BINS_VERSION_CONSUMER_CONTINUATION_SCOPE_MISMATCH');
+  for(const key of Object.keys(scope))
+    equal(operation[key],scope[key],'BINS_VERSION_CONSUMER_CONTINUATION_SCOPE_MISMATCH');
+  const next=required(returned.next_action,'BINS_VERSION_CONSUMER_CONTINUATION_ACTION_INVALID');
+  const blocked=Object.freeze({operation:'worker.file-read',...scope});
+  if(!approval){
+    if(typeof repair.owner_approval_needed!=='boolean')
+      throw new Error('BINS_VERSION_CONSUMER_CONTINUATION_UNQUALIFIED');
+    return {state:'BLOCKED',first_red:required(returned.first_red,'BINS_VERSION_CONSUMER_FIRST_RED_REQUIRED'),next_action:next,blocked_operation:blocked,required_repair:Object.freeze({
+      owner_ref:required(repair.owner_ref,'BINS_VERSION_CONSUMER_REPAIR_OWNER_INVALID'),
+      action:required(repair.action,'BINS_VERSION_CONSUMER_REPAIR_ACTION_INVALID'),
+      owner_approval_needed:repair.owner_approval_needed,
+    })};
+  }
+  const challenge=continuationRecord(returned.required_approval);
+  if(returned.first_red!=='WARD_EXACT_OWNER_APPROVAL_REQUIRED' ||
+     next!=='REVIEW_EXISTING_WARD_CHALLENGE' || returned.owner_approval_needed!==true ||
+     challenge?.approval_granted!==false || challenge.operation!=='worker.file-read' ||
+     challenge.work_ref!==scope.work_ref || challenge.owner_ref!=='EXISTING_WARD_RUNTIME_OWNER' ||
+     challenge.action!==next || challenge.challenge_ref!==returned.challenge_ref ||
+     challenge.expires_at!==returned.expires_at ||
+     typeof challenge.expires_at!=='string' || challenge.expires_at.length>64 ||
+     !Number.isFinite(Date.parse(challenge.expires_at)) ||
+     typeof challenge.intent_digest!=='string' || !SHA.test(challenge.intent_digest) ||
+     typeof challenge.request_digest!=='string' || !SHA.test(challenge.request_digest) ||
+     challenge.intent_digest!==operation.intent_digest || challenge.request_digest!==operation.request_digest)
+    throw new Error('BINS_VERSION_CONSUMER_APPROVAL_UNQUALIFIED');
+  const challengeRef=required(challenge.challenge_ref,'BINS_VERSION_CONSUMER_CHALLENGE_INVALID');
+  return {state:'OWNER_APPROVAL_REQUIRED',first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',next_action:next,blocked_operation:blocked,owner_approval_needed:true,
+    challenge_ref:challengeRef,expires_at:challenge.expires_at,
+    required_approval:Object.freeze({owner_ref:challenge.owner_ref,action:next,
+      challenge_ref:challengeRef,operation:'worker.file-read',work_ref:scope.work_ref,
+      intent_digest:challenge.intent_digest,request_digest:challenge.request_digest,
+      expires_at:challenge.expires_at,approval_granted:false})};
+}
+
 /**
  * Invoke the existing SDK #205 worker, never a direct BINS path or endpoint.
  * Only the worker's admitted runtime adapter can provide a trustworthy result.
@@ -160,15 +217,16 @@ export async function readBinsVersionWithWorker({prepared,worker,binding}={}) {
     throw new Error('BINS_VERSION_CONSUMER_WORKER_UNBOUND');
   }
   const returned=await worker.readFile(binding,scope);
-  if(returned?.state==='BLOCKED') {
+  if(returned?.state==='BLOCKED' || returned?.state==='OWNER_APPROVAL_REQUIRED') {
     // Leave the worker's typed refusal with the originating Work. Never
     // retry an uncertain effect or relabel a refused read as successful.
     return Object.freeze({
-      schema:BINS_VERSION_CONSUMER_SCHEMA,state:'BLOCKED',
+      schema:BINS_VERSION_CONSUMER_SCHEMA,state:returned.state,
       first_red:required(returned.first_red,'BINS_VERSION_CONSUMER_FIRST_RED_REQUIRED'),
       work_ref:scope.work_ref,
       resource_ref:scope.resource_ref,
       version_ref:scope.version_ref,
+      ...readContinuation(returned,scope),
       authority_granted:false,return_certified:false,apply_return_verified:false,
     });
   }
