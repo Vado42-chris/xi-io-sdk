@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { recoverInboxRuntime } from '../src/recovery/inbox-runtime.mjs';
 
 let hostileCount=0;
@@ -173,6 +176,34 @@ assert.equal(hostileCount,100);
 assert.equal(expected,100);
 assert.equal(falseGreen,0);
 
+// Exercise the real repository inspector, not a caller-supplied CURRENT row.
+const originRoot=fs.mkdtempSync(path.join(os.tmpdir(),'inbox-origin-fixture-'));
+let originCases=0;
+try {
+ const allowed=['https://github.com/Vado42-chris/xi-io-Inbox','git@github.com:Vado42-chris/xi-io-Inbox','ssh://git@github.com/Vado42-chris/xi-io-Inbox','git://github.com/Vado42-chris/xi-io-Inbox'];
+ const denied=['https://notgithub.com/Vado42-chris/xi-io-Inbox','https://evil.test/github.com/Vado42-chris/xi-io-Inbox','file:///tmp/github.com/Vado42-chris/xi-io-Inbox','https://github.com.evil.test/Vado42-chris/xi-io-Inbox','https://github.com/other/xi-io-Inbox','https://user@github.com/Vado42-chris/xi-io-Inbox'];
+ for(const origin of [...allowed,...denied].flatMap(value=>[value,value+'.git'])) {
+  const canonical=allowed.includes(origin.replace(/\.git$/,''));let remoteReads=0,starts=0;
+  const exec=(command,args)=>{
+   assert.equal(command,'git');const key=args.join(' ');let stdout='';
+   if(key==='rev-parse --is-inside-work-tree')stdout='true';
+   else if(key==='rev-parse --show-toplevel')stdout=originRoot;
+   else if(key==='remote get-url origin')stdout=origin;
+   else if(key==='rev-parse HEAD')stdout='a'.repeat(40);
+   else if(key==='branch --show-current')stdout='main';
+   else if(key==='status --porcelain=v1')stdout='';
+   else if(key==='ls-remote origin refs/heads/main'){remoteReads++;stdout='a'.repeat(40)+'\trefs/heads/main';}
+   else throw Error('Unexpected command '+key);
+   return {ok:true,status:0,stdout,stderr:''};
+  };
+  const observed=recoverInboxRuntime({execute:true,exec,repoCandidates:()=>[originRoot],runtimeInspect:()=>({state:'PASS_CURRENT'}),startRuntime:()=>{starts++;return {ok:true};},headMatchCheck:()=>({state:'PASS'})});
+  assert.equal(observed.repositories[0].state,canonical?'CURRENT_CLEAN':'WRONG_ORIGIN',origin);
+  assert.equal(remoteReads,canonical?1:0,origin);assert.equal(starts,canonical?1:0,origin);
+  assert.equal(observed.state,canonical?'PASS_RUNTIME_CURRENT':'BLOCKED',origin);originCases++;
+ }
+} finally {fs.rmSync(originRoot,{recursive:true,force:true});}
+assert.equal(originCases,20);
+
 console.log(JSON.stringify({
   schema:'xiio.cli.inbox-runtime-recovery-hostile-100/v1',
   result:'PASS',
@@ -199,6 +230,7 @@ console.log(JSON.stringify({
     'CURRENT_SOURCE != RUNTIME_HEAD_MATCH',
     'GMAIL_SEND_DEFAULT_OFF'
   ],
+  canonical_origin_cases:originCases,
   provider_effects:0,
   authority_granted:false
 },null,2));
