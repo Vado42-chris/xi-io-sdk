@@ -368,6 +368,44 @@ await assert.rejects(runWorkerLifecycleAttempt({
   await assert.rejects(runWorkerLifecycleAttempt({binding,receiverBinding:{...receiverBinding,conversation_ref:''},jobId:'fixture:job'}),{code:'RECEIVER_BINDING_REQUIRED'});
 }
 
+// The caller and asynchronous owner callbacks cannot retarget an admitted
+// attempt by mutating the original eight-field worker binding mid-flight.
+for(const mutationPoint of ['qualify','request','wake']) {
+  const keys=['project_id','work_id','assignment_ref','attempt_id','agent_id','source_generation','return_ref','operation_ref'];
+  const original=Object.fromEntries(keys.map(key=>[key,`fixture:${key}`]));
+  const callerBinding={...original};
+  const stored=[];
+  let mutationObserved=false;
+  const mutate=()=>{
+    callerBinding.work_id='foreign:work';
+    callerBinding.return_ref='foreign:return';
+    mutationObserved=true;
+  };
+  const result={...original,state:'COMPLETE',result_ref:'fixture:result'};
+  const applied={...original,state:'APPLIED',result_ref:'fixture:result',receipt_ref:'fixture:receipt'};
+  const completed=await runWorkerLifecycleAttempt({
+    binding:callerBinding,jobId:`fixture:mutation:${mutationPoint}`,
+    history:async()=>stored.map(entry=>structuredClone(entry)),
+    current:async value=>assert.deepEqual(value,original),
+    dependenciesDone:async value=>{assert.deepEqual(value,original);return true;},
+    append:async(_job,type,data)=>stored.push({type,data:structuredClone(data)}),
+    checkpoint:async(_phase,value)=>assert.deepEqual(value,original),
+    qualifiedHost:{
+      qualify:async ({binding})=>{assert.deepEqual(binding,original);if(mutationPoint==='qualify') mutate();return {...original,state:'ALLOWED',admission_ref:'fixture:admission'};},
+      request:async ({binding})=>{assert.deepEqual(binding,original);if(mutationPoint==='request') mutate();return result;},
+    },
+    applyReturn:{apply:async ({binding})=>{assert.deepEqual(binding,original);return applied;}},
+    publishReturn:async (_job,wake)=>assert.equal(wake.return_ref,original.return_ref),
+    wakeConsumer:async wake=>{if(mutationPoint==='wake') mutate();return {...wake,state:'CONSUMED'};},
+    digest:JSON.stringify,
+  });
+  assert.equal(mutationObserved,true);
+  assert.equal(completed.state,'COMPLETE');
+  assert.equal(completed.return_ref,original.return_ref);
+  for(const event of stored) for(const key of keys) assert.equal(event.data[key],original[key]);
+  assert.equal(stored.at(-1).type,'WAKE_ACK');
+}
+
 console.log(JSON.stringify({
   state:'PASS',
   schema:catalog.schema,
