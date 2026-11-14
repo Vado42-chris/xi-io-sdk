@@ -456,6 +456,22 @@ test('existing requester-only Switchboard byte return yields real contents, not 
   assert.equal(calls.execute,0);assert.equal(calls.readRequester,1);
   assert.equal(calls.readPreserved,0,'SDK must NOT call BINS direct for remote content');
 });
+test('requester-only broker denial cannot disclose bytes or mint a success receipt',async()=>{
+  const o=make(),b=await bound(o);
+  // A native broker must independently identify the current requester. This
+  // source test proves only that its refusal stays a refusal at the SDK edge.
+  behavior.brokerReturnOverride=()=>{throw Error('REQUESTER_SESSION_FORBIDDEN');};
+  const deniedReturn=await o.readFile(b,selectedFile);
+  assert.equal(deniedReturn.state,'BLOCKED');
+  assert.equal(deniedReturn.first_red,'REQUESTER_SESSION_FORBIDDEN');
+  assert.equal(deniedReturn.authority_granted,false);
+  assert.equal(deniedReturn.provider_effect,false);
+  assert.equal(deniedReturn.apply_return_verified,false);
+  assert.equal(Object.hasOwn(deniedReturn,'contentBase64'),false);
+  assert.equal(JSON.stringify(deniedReturn).includes(FILE_BYTES.toString('base64')),false);
+  assert.equal(calls.readRequester,1);
+  assert.equal(calls.readPreserved,0,'must not fall back to direct BINS read');
+});
 test('no approval yields exact Ward challenge scoped to the broker return and Work generation',async()=>{
   const o=make(),b=await bound(o);
   behavior.admission=request=>({
