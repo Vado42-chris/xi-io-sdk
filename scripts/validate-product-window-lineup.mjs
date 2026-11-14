@@ -26,8 +26,13 @@ assert.equal(compiled.effect_authority,0);
 assert.equal(stampAllProducts(options).length,2);
 assert.deepEqual(stampAllProducts(options)[0].frame_controls,['MINIMIZE','MAXIMIZE_RESTORE','CLOSE']);
 assert.equal(compileProductWindowSession({product_ref:'product:a',...options}).stage,'INTERMEDIARY');
-assert.equal(productWindowProductStage({product_ref:'product:a',project_ref:'p',chat_ref:'c',
-  body_ref:'body',...options}).stage,'PRODUCT_BODY');
+const body=productWindowProductStage({product_ref:'product:a',project_ref:'p',chat_ref:'c',
+  body_ref:'body',...options});
+assert.equal(body.stage,'PRODUCT_BODY');
+assert.equal(body.project_management,'SUPPLIED_UNVERIFIED');
+assert.equal(body.chat,'SUPPLIED_UNVERIFIED');
+assert.equal(body.authority.body_mounted,false);
+assert.equal(body.authority.effect_authority,0);
 assert.throws(()=>compileProductWindowRegistry(),/STUDIO_REGISTRY_UNBOUND/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[...product_catalog,product_catalog[0]]}),/DUPLICATE/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[{...product_catalog[0],studio_product_id:'invented'}]}),/NOT_STUDIO_MEMBER/);
