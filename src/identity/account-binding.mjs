@@ -52,7 +52,7 @@ export function observeAccount(input = {}) {
   const provider = text(input.provider, 'PROVIDER_REQUIRED', 64).toLowerCase();
   if (!OBSERVED_VIA.includes(input.observed_via)) refuse('ACCOUNT_NOT_OBSERVED');
   const subject = input.subject_id;
-  if (!(Number.isInteger(subject) && subject > 0) && !(typeof subject === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(subject))) {
+  if (!(Number.isSafeInteger(subject) && subject > 0) && !(typeof subject === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(subject))) {
     refuse('SUBJECT_ID_REQUIRED');
   }
   const login = text(input.login, 'LOGIN_REQUIRED', 128);
