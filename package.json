@@ -197,6 +197,6 @@
     "check:zed-products-mcp": "node scripts/check-zed-products-mcp.mjs",
     "check:mcp-stdio-shared": "node scripts/check-mcp-stdio-shared.mjs",
     "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs && node --test scripts/validate-product-window-connection.test.mjs",
-    "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs"
+    "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs test/bins-worker-consumer-joined.test.mjs"
   }
 }
