@@ -26,6 +26,52 @@ const bounded = (value, max=512) =>
 
 const canonicalIds = Object.freeze(ROTFL_ORDER_STEPS.map((step)=>step.id));
 
+// Source discovery is structural evidence, never a Ward/worker admission claim.
+// Caller-supplied graphs are untrusted. Every parent must be traversed to an
+// explicit original source before a managed plan can claim that it was reused.
+export function resolveManagedSourceGraph(input={}) {
+  const nodes=Array.isArray(input.nodes)?input.nodes:[];
+  const byId=new Map();
+  const errors=[];
+  for(const node of nodes) {
+    if(!bounded(node?.id)||byId.has(node.id)) { errors.push('SOURCE_NODE_ID_DUPLICATE_OR_INVALID');continue; }
+    byId.set(node.id,node);
+  }
+  const root=input.selected_ref;
+  const visited=new Set();
+  const active=new Set();
+  const originals=new Set();
+  const assigned=new Set();
+  const walk=(id)=>{
+    if(active.has(id)) {errors.push('SOURCE_CYCLE:'+id);return;}
+    if(visited.has(id)) return;
+    const node=byId.get(id);
+    if(!node) {errors.push('SOURCE_MISSING:'+id);return;}
+    visited.add(id);active.add(id);
+    if(!bounded(node.repo)||!bounded(node.generation)) errors.push('SOURCE_PROVENANCE_UNBOUND:'+id);
+    if(node.kind==='original') {
+      if((node.parents??[]).length) errors.push('SOURCE_ORIGINAL_HAS_PARENTS:'+id);
+      originals.add(id);
+    } else {
+      if(!Array.isArray(node.parents)||!node.parents.length) errors.push('SOURCE_ANCESTRY_MISSING:'+id);
+      else for(const parent of node.parents) walk(parent);
+    }
+    if(node.kind==='work') {
+      if(!bounded(node.agent_id)||!bounded(node.assigned_pr_ref)) errors.push('SOURCE_WORK_ASSIGNMENT_UNBOUND:'+id);
+      else assigned.add(node.agent_id+'|'+node.assigned_pr_ref);
+    }
+    active.delete(id);
+  };
+  if(!bounded(root)) errors.push('SOURCE_SELECTION_UNBOUND');
+  else walk(root);
+  if(!originals.size) errors.push('SOURCE_ORIGINAL_UNRESOLVED');
+  const deduped=[...new Set(errors)];
+  return Object.freeze({schema:'xiio.sdk.managed-source-resolution/v1',ok:deduped.length===0,
+    selected_ref:bounded(root)?root:null,original_refs:[...originals].sort(),
+    visited_refs:[...visited].sort(),assignment_refs:[...assigned].sort(),
+    errors:deduped,authority_granted:false,provider_effect:false});
+}
+
 const managedCurrentFields = Object.freeze([
   'provider_current_ref',
   'studio_handoff_ref',
@@ -97,6 +143,7 @@ export function validateRotflOrderOfOperations(value) {
     }
     if (managedCurrent.owner_restatement_count===null) errors.push('ROTFL_OOR_OWNER_RESTATEMENT_COUNT_REQUIRED');
     else if (managedCurrent.owner_restatement_count!==0) errors.push('ROTFL_OOR_OWNER_RESTATEMENT_NONZERO');
+    if (value.source_resolution && !value.source_resolution.ok) errors.push('ROTFL_OOR_SOURCE_ANCESTRY_UNRESOLVED');
   }
   const managedBound=managedCurrentBound(managedCurrent);
   if (value.managed_current_bound !== managedBound) errors.push('ROTFL_OOR_MANAGED_CURRENT_STATE_MISMATCH');
@@ -140,6 +187,7 @@ export function compileRotflOrderOfOperations(input={}) {
     source_generation: input.source_generation || null,
     managed_current: managedCurrent,
     managed_current_bound: managedCurrentBound(managedCurrent),
+    source_resolution: input.source_graph ? resolveManagedSourceGraph(input.source_graph) : null,
     steps: ROTFL_ORDER_STEPS.map((step)=>({...step})),
     completed_step_ids: completed,
     current_step_id: completed.length < canonicalIds.length ? canonicalIds[completed.length] : null,
