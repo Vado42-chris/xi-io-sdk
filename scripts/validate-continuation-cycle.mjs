@@ -45,6 +45,19 @@ test('PASS_WITH_STRANDED_RESULT_EATS_BEFORE_STOP', () => {
   assert.deepEqual(result.returns.stranded, ['result:1']);
 });
 
+
+test('RETURNED_RESULT_WITHOUT_RECEIVING_APPLY_CANNOT_CLOSE_CADENCE', () => {
+  for (const applied of [undefined, false, null]) {
+    const input = base();
+    input.returns = [{ id: 'result:sent', state: 'RESULT', returned: true, applied }];
+    const result = compileContinuationCycle(input);
+    assert.equal(result.terminal, false);
+    assert.equal(result.disposition, 'EAT_REQUIRED');
+    assert.deepEqual(result.returns.results, ['result:sent']);
+    assert.deepEqual(result.returns.stranded, ['result:sent']);
+  }
+});
+
 test('PASS_WITH_REAPER_RESIDUE_REAPS', () => {
   const input = base();
   input.residue = [{ id: 'ghost:1', class: 'ORPHANED_NEXT' }];
@@ -198,7 +211,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 19,
+  cases: 20,
   self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,
