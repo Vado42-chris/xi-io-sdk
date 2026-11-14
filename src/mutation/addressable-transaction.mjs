@@ -66,7 +66,10 @@ export function reduceRevisionRead(selection,observation={}){
   const requested=required(selection?.revision,'REQUESTED_REVISION');
   const state=typeof observation.state==='string'?observation.state.trim().toUpperCase():'';
   if(state==='UNAVAILABLE'){
-    const identity=compareImmutableSelection(selection,{...observation,revision:requested});
+    // Absence is compatible with an unavailable result, but a supplied
+    // different revision must not be overwritten into a matching identity.
+    const unavailable={...observation};
+    const identity=compareImmutableSelection(selection,{...unavailable,revision:unavailable.revision??requested});
     return Object.freeze({
       schema:'xiio.revision-read-result/v1',
       state:identity.match?'UNAVAILABLE':'REFUSED',
@@ -151,6 +154,9 @@ export function compileAddressableTransaction(input={}){
 
 export function reduceAddressableTransaction(plan,observation={}){
   if(plan?.schema!==ADDRESSABLE_TRANSACTION_SCHEMA) throw new Error('ADDRESSABLE_TRANSACTION_PLAN_REQUIRED');
+  // Plans can be reconstructed from storage. Reapply the original compiler's
+  // selection/preimage invariant rather than trusting their schema label.
+  plan=compileAddressableTransaction(plan);
   const selection=compareImmutableSelection(plan.selection,observation.selection||{});
   const dirty=observation.dirty_buffer===true||Boolean(plan.dirty_buffer_ref);
   const preimageRevision=optional(observation.preimage_revision);
