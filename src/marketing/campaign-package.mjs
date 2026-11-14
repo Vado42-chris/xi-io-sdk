@@ -12,7 +12,10 @@ export function validateCampaignPackage(input) {
   if (!Array.isArray(assets) || !Array.isArray(channels)) throw Error('CAMPAIGN_COLLECTIONS_INVALID');
   const seen = new Set();
   for (const asset of assets) {
-    if (!asset || ![asset.asset_ref, asset.version_ref].every(nonempty) || !binsDigest(asset.digest)) throw Error('CAMPAIGN_ASSET_CUSTODY_MISSING');
+    // Asset identity is presentation ownership. BINS resource_ref is the
+    // independently addressable custody identity, not a filename or path.
+    if (!asset || ![asset.asset_ref, asset.resource_ref, asset.version_ref].every(nonempty)
+      || !binsDigest(asset.digest)) throw Error('CAMPAIGN_ASSET_CUSTODY_MISSING');
     if (seen.has(asset.asset_ref)) throw Error('CAMPAIGN_DUPLICATE_ASSET');
     seen.add(asset.asset_ref);
   }
