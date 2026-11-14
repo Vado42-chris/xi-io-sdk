@@ -475,6 +475,25 @@ test('requester-only broker denial cannot disclose bytes or mint a success recei
   assert.equal(calls.readRequester,1);
   assert.equal(calls.readPreserved,0,'must not fall back to direct BINS read');
 });
+test('real Switchboard DEVICE_RETURN failures retain precise owner and never disclose bytes',async()=>{
+  // Error codes below are thrown by the existing Switchboard requester-only
+  // /returns/:ref/bytes implementation, not invented SDK grant states.
+  for(const code of ['DEVICE_RETURN_BYTES_NOT_FOUND',
+    'DEVICE_RETURN_BINS_VERIFIER_UNBOUND','DEVICE_RETURN_BINS_READBACK_MISMATCH',
+    'DEVICE_RETURN_BYTES_CUSTODY_CORRUPT']){
+    const o=make(),b=await bound(o);
+    behavior.brokerReturnOverride=()=>{throw Error(code);};
+    const result=await o.readFile(b,selectedFile);
+    assert.equal(result.state,'BLOCKED',code);
+    assert.equal(result.first_red,code);
+    assert.equal(result.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER',code);
+    assert.equal(result.required_repair.action,'BIND_OR_REPAIR_REQUESTER_ONLY_RETURN_BYTES',code);
+    assert.equal(result.authority_granted,false);
+    assert.equal(result.apply_return_verified,false);
+    assert.equal(Object.hasOwn(result,'contentBase64'),false);
+    assert.equal(calls.readPreserved,0,'never bypass the broker with a direct BINS read');
+  }
+});
 test('no approval yields exact Ward challenge scoped to the broker return and Work generation',async()=>{
   const o=make(),b=await bound(o);
   behavior.admission=request=>({
