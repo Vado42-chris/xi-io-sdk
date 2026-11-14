@@ -1,6 +1,9 @@
 // Portable, provider-neutral campaign package contract. No effects or authority.
 const states = new Set(['UNCONFIGURED', 'CONFIGURED', 'AUTHORIZED', 'VERIFIED']);
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
+const binsDigest = digest => digest && typeof digest === 'object' && !Array.isArray(digest)
+  && digest.algorithm === 'sha256' && typeof digest.value === 'string'
+  && /^[a-f0-9]{64}$/i.test(digest.value);
 
 export function validateCampaignPackage(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Error('CAMPAIGN_PACKAGE_INVALID');
@@ -9,7 +12,7 @@ export function validateCampaignPackage(input) {
   if (!Array.isArray(assets) || !Array.isArray(channels)) throw Error('CAMPAIGN_COLLECTIONS_INVALID');
   const seen = new Set();
   for (const asset of assets) {
-    if (!asset || ![asset.asset_ref, asset.version_ref, asset.digest].every(nonempty)) throw Error('CAMPAIGN_ASSET_CUSTODY_MISSING');
+    if (!asset || ![asset.asset_ref, asset.version_ref].every(nonempty) || !binsDigest(asset.digest)) throw Error('CAMPAIGN_ASSET_CUSTODY_MISSING');
     if (seen.has(asset.asset_ref)) throw Error('CAMPAIGN_DUPLICATE_ASSET');
     seen.add(asset.asset_ref);
   }

@@ -2,13 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateCampaignPackage, inspectGameCampaignIntake} from '../src/marketing/campaign-package.mjs';
 
-const base = () => ({product_ref:'product:veilrift',product_generation:'generation:1',campaign_ref:'campaign:launch',assets:[{asset_ref:'asset:hero',version_ref:'version:1',digest:'sha256:abc'}],channels:[{channel_ref:'channel:site',state:'CONFIGURED'}]});
+const base = () => ({product_ref:'product:veilrift',product_generation:'generation:1',campaign_ref:'campaign:launch',assets:[{asset_ref:'asset:hero',version_ref:'version:1',digest:{algorithm:'sha256',value:'a'.repeat(64)}}],channels:[{channel_ref:'channel:site',state:'CONFIGURED'}]});
 test('portable package remains a claim, never a grant or provider result',()=>{
   const value=validateCampaignPackage(base());
   assert.equal(value.effect_authorized,false);assert.equal(value.publication_verified,false);
 });
 test('assets require custody and no duplicate identities',()=>{
   assert.throws(()=>validateCampaignPackage({...base(),assets:[{asset_ref:'asset:hero'}]}),/CAMPAIGN_ASSET_CUSTODY_MISSING/);
+  for(const digest of ['sha256:'+'a'.repeat(64),{algorithm:'sha256',value:'not-a-digest'},{algorithm:'md5',value:'a'.repeat(64)}]){
+    const x=base();x.assets[0].digest=digest;
+    assert.throws(()=>validateCampaignPackage(x),/CAMPAIGN_ASSET_CUSTODY_MISSING/);
+  }
   const x=base();x.assets.push(x.assets[0]);assert.throws(()=>validateCampaignPackage(x),/CAMPAIGN_DUPLICATE_ASSET/);
 });
 test('a verified claim requires authority and readback references but never authenticates them',()=>{
