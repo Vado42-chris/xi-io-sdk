@@ -111,6 +111,10 @@ export function compileAddressableTransaction(input={}){
   const selection=compileImmutableSelection(input.selection||{});
   const expected_revision=required(input.expected_revision??selection.revision,'EXPECTED_REVISION');
   const expected_generation=required(input.expected_generation??selection.source_generation,'EXPECTED_GENERATION');
+  // The preimage CAS must refer to the same immutable version the caller
+  // selected. An explicit override cannot quietly replace that selection.
+  if(expected_revision!==selection.revision||expected_generation!==selection.source_generation)
+    throw new Error('SELECTION_PREIMAGE_MISMATCH');
   const expected_post_revision=required(input.expected_post_revision,'EXPECTED_POST_REVISION');
   const expected_post_generation=required(input.expected_post_generation,'EXPECTED_POST_GENERATION');
   return Object.freeze({
@@ -212,4 +216,3 @@ export function reduceAddressableTransaction(plan,observation={}){
     provider_effect:false,
   });
 }
-
