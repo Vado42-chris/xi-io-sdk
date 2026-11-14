@@ -78,7 +78,9 @@ function classifyReturns(returnRows) {
       out.returned.push(id);
       if (item.applied !== true) out.stranded.push(id);
     } else if (s === 'APPLY_RETURN') {
-      out.applied.push(id);
+      // A state label without confirmed receiving application is not closure.
+      if (item.applied === true) out.applied.push(id);
+      else out.stranded.push(id);
     } else {
       out.unknown.push(id);
     }
