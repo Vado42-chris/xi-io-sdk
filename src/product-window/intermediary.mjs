@@ -1,5 +1,21 @@
 import { resolveProductWindow } from './registry.mjs';
 
+const activeConnections = new WeakMap();
+const connectionDisabled = new WeakSet();
+const pendingChats = new WeakSet();
+const chatRefreshes = new WeakMap();
+function available(control, enabled) {
+  if (!control) return;
+  if (!enabled) {
+    if (!control.disabled) connectionDisabled.add(control);
+    control.disabled = true;
+  } else if (connectionDisabled.has(control)) {
+    control.disabled = false;
+    connectionDisabled.delete(control);
+  }
+  control.setAttribute?.('aria-disabled', String(control.disabled));
+}
+
 const esc = (value) => String(value ?? '')
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -70,9 +86,9 @@ export function renderProductWindowIntermediary({
 // BINS custody. It only confirms the connected host accepted this UI request.
 export function bindProductWindowIntermediary(root, handlers = {}) {
   if (!root || typeof root.querySelector !== 'function') throw new TypeError('root must support querySelector');
+  activeConnections.get(root)?.();
   const cleanups = [];
   let disposed = false;
-  let sending = false;
   const status = root.querySelector('[data-xiio-product-window-status]');
   const report = (message) => { if (!disposed && status) status.textContent = message; };
 
@@ -80,12 +96,11 @@ export function bindProductWindowIntermediary(root, handlers = {}) {
     const el = root.querySelector(selector);
     if (!el) return;
     const handler = handlers[name];
-    if (typeof handler !== 'function') {
-      el.disabled = true;
-      el.setAttribute?.('aria-disabled', 'true');
-      return;
-    }
+    available(el, typeof handler === 'function');
+    cleanups.push(() => available(el, false));
+    if (typeof handler !== 'function') return;
     const listener = (eventValue) => {
+      if (disposed || el.disabled) return;
       try {
         const result = handler(...args(eventValue));
         Promise.resolve(result).catch(() => report('The connected action outcome is unknown. Check its current state before retrying.'));
@@ -106,17 +121,26 @@ export function bindProductWindowIntermediary(root, handlers = {}) {
   const input = form?.querySelector('[data-xiio-chat-input]');
   const sendButton = form?.querySelector('[type="submit"]');
   if (form) {
+    const refreshSend = () => {
+      available(sendButton, !disposed && typeof handlers.onChatSend === 'function');
+      sendButton?.setAttribute?.('aria-busy', String(pendingChats.has(form)));
+    };
+    chatRefreshes.set(form, refreshSend);
+    refreshSend();
+    cleanups.push(() => {
+      available(sendButton, false);
+      if (chatRefreshes.get(form) === refreshSend) chatRefreshes.delete(form);
+    });
     if (typeof handlers.onChatSend !== 'function') {
-      if (sendButton) sendButton.disabled = true;
       report('Chat is unavailable until the registered @ibal connection is ready.');
     } else {
       const submit = async (event) => {
         event.preventDefault();
-        if (sending || disposed) return;
+        if (pendingChats.has(form) || disposed || sendButton?.disabled) return;
         const message = String(input?.value || '').trim();
         if (!message) return;
-        sending = true;
-        if (sendButton) sendButton.disabled = true;
+        pendingChats.add(form);
+        refreshSend();
         try {
           // Explicit UI acceptance is mandatory. A returned undefined, false,
           // thrown error or failed promise must retain the draft.
@@ -135,8 +159,8 @@ export function bindProductWindowIntermediary(root, handlers = {}) {
           // Never turn lack of a receipt into proof of non-submission.
           report('Message acceptance is unknown. Your draft is preserved. Check the conversation before retrying.');
         } finally {
-          sending = false;
-          if (!disposed && sendButton) sendButton.disabled = false;
+          pendingChats.delete(form);
+          chatRefreshes.get(form)?.();
         }
       };
       form.addEventListener('submit', submit);
@@ -144,5 +168,12 @@ export function bindProductWindowIntermediary(root, handlers = {}) {
     }
   }
 
-  return () => { disposed = true; cleanups.splice(0).forEach((fn) => fn()); };
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    cleanups.splice(0).forEach((fn) => fn());
+    if (activeConnections.get(root) === dispose) activeConnections.delete(root);
+  };
+  activeConnections.set(root, dispose);
+  return dispose;
 }
