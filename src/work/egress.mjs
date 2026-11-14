@@ -19,6 +19,34 @@ function projection(row, i) {
   if (status === 'READ_BACK' && !String(row.provider_readback_ref || '').trim()) throw new Error(`PROVIDER_READBACK_REF_REQUIRED:${ref}`);
   if (WAKE.has(status) && !String(row.wake || '').trim()) throw new Error(`PROJECTION_WAKE_REQUIRED:${ref}`);
   if (row.registry_size_observed != null && (!Number.isSafeInteger(row.registry_size_observed) || row.registry_size_observed < 0)) throw new Error(`REGISTRY_SIZE_INVALID:${ref}`);
+  // Legal evidence destinations must be selected from the same supplied
+  // manifest and registry generation, never an arbitrary CLI directory.
+  const evidence = kind === 'EVIDENCE' || kind === 'LEGAL_EVIDENCE';
+  const membership = row.destination_membership;
+  if (evidence && (!membership || typeof membership !== 'object' || Array.isArray(membership))) {
+    throw new Error(`EVIDENCE_DESTINATION_MEMBERSHIP_REQUIRED:${ref}`);
+  }
+  if (evidence) {
+    const bound = [
+      ['manifest_ref', row.manifest_ref],
+      ['manifest_generation', row.manifest_generation],
+      ['registry_ref', row.registry_ref],
+      ['registry_generation', row.registry_generation],
+    ];
+    for (const [field, expected] of bound) {
+      if (req(membership[field], `DESTINATION_${field.toUpperCase()}_REQUIRED:${ref}`) !== expected) {
+        throw new Error(`DESTINATION_${field.toUpperCase()}_MISMATCH:${ref}`);
+      }
+    }
+    if (req(membership.registered_destination_ref, `REGISTERED_DESTINATION_REQUIRED:${ref}`) !==
+      req(membership.selected_destination_ref, `SELECTED_DESTINATION_REQUIRED:${ref}`)) {
+      throw new Error(`UNREGISTERED_EVIDENCE_DESTINATION:${ref}`);
+    }
+    if (!['legal', 'sensitive'].includes(membership.privacy_class)) {
+      throw new Error(`EVIDENCE_PRIVACY_CLASS_INVALID:${ref}`);
+    }
+    req(membership.consumer_ref, `EVIDENCE_CONSUMER_REQUIRED:${ref}`);
+  }
   return {
     projection_ref: ref,
     plugin_ref: req(row.plugin_ref, `PLUGIN_REF_REQUIRED:${ref}`),
@@ -33,6 +61,7 @@ function projection(row, i) {
     registry_generation: req(row.registry_generation, `REGISTRY_GENERATION_REQUIRED:${ref}`),
     registry_size_observed: row.registry_size_observed ?? null,
     surface_ref: req(row.surface_ref, `SURFACE_REF_REQUIRED:${ref}`),
+    destination_membership: evidence ? Object.freeze({ ...membership }) : null,
     kind,
     status,
     provider_readback_ref: String(row.provider_readback_ref || '').trim() || null,
@@ -93,6 +122,7 @@ export function compileWorkEgressProjection(input) {
       'ONE_EGRESS_BLOCK != ROOT_STOP',
       'WORK_TERMINAL != ROOT_TERMINAL',
       'SUPPLIED_READBACK_REF != AUTHENTICATED_DESTINATION_READBACK',
+      'SUPPLIED_REGISTRY_MEMBERSHIP != PROVIDER_AUTHENTICATED_MEMBERSHIP',
       'READ_BACK != OWNER_ACCEPTANCE'
     ],
   };

@@ -95,5 +95,32 @@ test('10 terminal Work cannot promote provider projection into root stop', () =>
   assert.equal(out.disposition, 'NO_OP_TERMINAL_WORK');
 });
 
-assert.equal(cases.length, 11);
+test('12 legal evidence rejects destinations outside supplied registry and manifest', () => {
+  const base=clone(fixture.projections[0]);
+  base.kind='LEGAL_EVIDENCE';
+  base.destination_membership={
+    manifest_ref:base.manifest_ref,manifest_generation:base.manifest_generation,
+    registry_ref:base.registry_ref,registry_generation:base.registry_generation,
+    registered_destination_ref:'registry:law-evidence:home',
+    selected_destination_ref:'registry:law-evidence:home',
+    privacy_class:'legal',consumer_ref:'consumer:legal-matter'
+  };
+  const input=clone(fixture);input.projections=[base];
+  const good=compileWorkEgressProjection(input);
+  assert.equal(good.projections[0].destination_membership.registered_destination_ref,'registry:law-evidence:home');
+  for(const mutant of [
+    row=>delete row.destination_membership,
+    row=>row.destination_membership.registry_generation='stale',
+    row=>row.destination_membership.manifest_ref='other',
+    row=>row.destination_membership.selected_destination_ref='arbitrary:/tmp',
+    row=>row.destination_membership.privacy_class='public',
+    row=>row.destination_membership.consumer_ref=''
+  ]) {
+    const changed=clone(input);mutant(changed.projections[0]);
+    assert.throws(()=>compileWorkEgressProjection(changed),/DESTINATION|EVIDENCE_/);
+  }
+  assert.equal(good.custody_destination_verified,false);
+});
+
+assert.equal(cases.length, 12);
 console.log(JSON.stringify({schema:'xiio.sdk.surface-egress-ten-hvt/v1',result:'PASS',cases:cases.length,false_greens:0,wordpress:'SHARED_HIGH_CARDINALITY_EGRESS'}, null, 2));
