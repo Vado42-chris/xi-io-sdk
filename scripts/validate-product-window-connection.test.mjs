@@ -10,10 +10,10 @@ function control() {
   const listeners = new Map();
   return {
     value: '', disabled: false, textContent: '',
-    addEventListener(type, fn) { listeners.set(type, fn); },
-    removeEventListener(type, fn) { if (listeners.get(type) === fn) listeners.delete(type); },
+    addEventListener(type, fn) { if (!listeners.has(type)) listeners.set(type,new Set()); listeners.get(type).add(fn); },
+    removeEventListener(type, fn) { listeners.get(type)?.delete(fn); },
     setAttribute() {},
-    fire(type, event = {}) { return listeners.get(type)?.({ preventDefault() {}, target: this, ...event }); },
+    fire(type, event = {}) { return Promise.all([...listeners.get(type)||[]].map(fn=>fn({ preventDefault() {}, target: this, ...event }))); },
   };
 }
 
@@ -116,4 +116,39 @@ test('project action failure does not claim no prior effect', async () => {
     assert.match(ui.status.textContent,/outcome is unknown/);
     assert.doesNotMatch(ui.status.textContent,/not been submitted/);
   }
+});
+
+ test('connection replacement restores only SDK-disabled controls and removes stale listeners', async () => {
+  const ui=fixture(); let oldCalls=0,newCalls=0;
+  const first=bindProductWindowIntermediary(ui.root);
+  const second=bindProductWindowIntermediary(ui.root,{onOpenProduct:()=>oldCalls++,onChatSend:()=>{oldCalls++;return {accepted:true};}});
+  assert.equal(ui.open.disabled,false);assert.equal(ui.button.disabled,false);
+  const third=bindProductWindowIntermediary(ui.root,{onOpenProduct:()=>newCalls++,onChatSend:()=>{newCalls++;return {accepted:true};}});
+  first();second();ui.input.value='hello';
+  await ui.open.fire('click');await ui.form.fire('submit');
+  assert.equal(oldCalls,0);assert.equal(newCalls,2);third();
+  assert.equal(ui.open.disabled,true);assert.equal(ui.button.disabled,true);
+});
+test('pending chat stays single flight across connection replacement', async () => {
+  const ui=fixture();ui.input.value='one';let resolve,calls=0;
+  bindProductWindowIntermediary(ui.root,{onChatSend:()=>{calls++;return new Promise(r=>resolve=r);}});
+  const first=ui.form.fire('submit');
+  const dispose=bindProductWindowIntermediary(ui.root,{onChatSend:()=>{calls++;return {accepted:true};}});
+  assert.equal(ui.button.disabled,false);await ui.form.fire('submit');assert.equal(calls,1);
+  const before=ui.status.textContent;resolve({accepted:true});await first;
+  assert.equal(ui.status.textContent,before);assert.equal(ui.input.value,'one');assert.equal(ui.button.disabled,false);
+  await ui.form.fire('submit');assert.equal(calls,2);dispose();
+});
+test('external disabled controls remain disabled on connection and settlement',async()=>{
+  const ui=fixture();ui.open.disabled=true;ui.button.disabled=true;
+  bindProductWindowIntermediary(ui.root,{onOpenProduct:()=>{throw Error('disabled');},onChatSend:()=>{throw Error('disabled');}});
+  assert.equal(ui.open.disabled,true);assert.equal(ui.button.disabled,true);
+  await ui.open.fire('click');ui.input.value='draft';await ui.form.fire('submit');assert.equal(ui.input.value,'draft');
+});
+
+test('host disable during a pending chat survives completion',async()=>{
+  const ui=fixture();ui.input.value='pending';let resolve;
+  bindProductWindowIntermediary(ui.root,{onChatSend:()=>new Promise(r=>resolve=r)});
+  const pending=ui.form.fire('submit');ui.button.disabled=true;
+  resolve({accepted:false});await pending;assert.equal(ui.button.disabled,true);
 });
