@@ -75,6 +75,31 @@ const schemaSnapshot=prepareExternalArtifactShipment({...mutableInput,descriptor
 assert.equal(schemaReads,1);
 assert.equal(schemaSnapshot.descriptor_schema,schemaSnapshot.manifest.file.payload.descriptor.schema);
 
+// Do not discard malformed bindings and silently report a dependency-free file.
+for(const field of ['dependency_bindings','projection_refs','provider_projections']){
+  for(const malformed of [{ref:'required:binding',generation:'g1'},'required:binding',false,42]){
+    const result=prepareExternalArtifactShipment({...mutableInput,[field]:malformed});
+    assert.equal(result.cube.cells[0].state,'FAIL',field);
+    assert.equal(result.cube.first_red.first_red,'PORTABLE_SEMANTIC_FILE_INVALID',field);
+    assert.deepEqual(result.manifest.file[field],malformed,field);
+    assert.equal(result.ready_to_ship,false,field);
+  }
+  for(const omitted of [undefined,null,[]]){
+    const result=prepareExternalArtifactShipment({...mutableInput,[field]:omitted});
+    assert.equal(result.cube.cells[0].state,'PASS',field);
+  }
+}
+// Accessor-backed bindings are captured once; the policy follows that snapshot.
+let bindingReads=0;
+const singleBinding=prepareExternalArtifactShipment({...mutableInput,
+  get dependency_bindings(){bindingReads++;return bindingReads===1?[{ref:'synthetic:required',generation:'g1'}]:[];}
+});
+assert.equal(bindingReads,1);
+assert.equal(singleBinding.manifest.file.dependency_bindings.length,1);
+assert.equal(singleBinding.manifest.dependency_policy,'EXPLICIT');
+assert.equal(singleBinding.cube.cells[2].count,1);
+assert.equal(singleBinding.cube.cells[2].state,'PASS');
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.external-artifact-shipment-check/v1',
   state:'PASS',
