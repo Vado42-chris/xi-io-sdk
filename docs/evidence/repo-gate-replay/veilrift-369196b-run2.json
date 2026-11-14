@@ -1,0 +1,31 @@
+{
+  "schema": "xiio.repo-gate-receipt/v1",
+  "repository": "Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026",
+  "head_sha": "369196b5b36a5af7eef48914c0adc18e6ac343b3",
+  "ref": null,
+  "event": "replay",
+  "run_id": null,
+  "runner": "replay:vm",
+  "command": "npm run verify",
+  "outcome": "success",
+  "written_at": "2026-11-09T21:45:32.034Z",
+  "hard": [
+    "GATE_PASS != LIVE",
+    "RECEIPT != OWNER_ACCEPTANCE",
+    "REPLAY_RECEIPT != GITHUB_CHECK"
+  ],
+  "replay": {
+    "schema": "xiio.repo-gate-replay/v1",
+    "gate_workflow": ".github/workflows/xiio-repo-gate.yml",
+    "tree_sha": "3d162508a44acea9a1cac5fd600377e67c57fad7",
+    "working_directory": ".",
+    "install_exit": 0,
+    "gate_exit": 0,
+    "node": "v22.23.4",
+    "bun": "1.4.4",
+    "os": "linux-x64",
+    "log_sha256": "f2e63c7a08690a93d4ff6a7b9e59e80566337fe3c4df56e01e686419f52582eb",
+    "fresh_clone": true,
+    "equivalence_status": "UNAPPROVED_PENDING_OWNER_REVIEW"
+  }
+}
