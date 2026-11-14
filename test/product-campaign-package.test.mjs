@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateCampaignPackage, inspectGameCampaignIntake} from '../src/marketing/campaign-package.mjs';
 
-const base = () => ({product_ref:'product:veilrift',product_generation:'generation:1',campaign_ref:'campaign:launch',assets:[{asset_ref:'asset:hero',version_ref:'version:1',digest:{algorithm:'sha256',value:'a'.repeat(64)}}],channels:[{channel_ref:'channel:site',state:'CONFIGURED'}]});
+const base = () => ({product_ref:'product:veilrift',product_generation:'generation:1',campaign_ref:'campaign:launch',assets:[{asset_ref:'asset:hero',resource_ref:'bins:resource:hero',version_ref:'version:1',digest:{algorithm:'sha256',value:'a'.repeat(64)}}],channels:[{channel_ref:'channel:site',state:'CONFIGURED'}]});
 test('portable package remains a claim, never a grant or provider result',()=>{
   const value=validateCampaignPackage(base());
   assert.equal(value.effect_authorized,false);assert.equal(value.publication_verified,false);
 });
 test('assets require custody and no duplicate identities',()=>{
   assert.throws(()=>validateCampaignPackage({...base(),assets:[{asset_ref:'asset:hero'}]}),/CAMPAIGN_ASSET_CUSTODY_MISSING/);
+  const missingResource=base();delete missingResource.assets[0].resource_ref;
+  assert.throws(()=>validateCampaignPackage(missingResource),/CAMPAIGN_ASSET_CUSTODY_MISSING/);
   for(const digest of ['sha256:'+'a'.repeat(64),{algorithm:'sha256',value:'not-a-digest'},{algorithm:'md5',value:'a'.repeat(64)}]){
     const x=base();x.assets[0].digest=digest;
     assert.throws(()=>validateCampaignPackage(x),/CAMPAIGN_ASSET_CUSTODY_MISSING/);
