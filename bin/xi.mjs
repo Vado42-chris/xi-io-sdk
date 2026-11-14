@@ -150,7 +150,7 @@ Pure compilers:
   xi-io flatpack reduce --input <packet.json> [--out <reduction.json>]
   xi-io flatpack expand --input <stage1.json> [--out <expansion.json>]
   xi-io flatpack continue --packet <stage1.json> --input <continuation.json> [--previous <plan.json>] [--out <plan.json>]
-  xi-io receipt fractal --consumer <id> --scale <MICRO|MESO|MACRO|META> --input <vector.json> --producer <ref> --observer <ref> --source <ref> [--readback <ref>] [--out <receipt.json>]
+  xi-io receipt fractal --consumer <id> --scale <MICRO|MESO|MACRO|META> --input <vector.json> --producer <ref> --observer <ref> --source <ref> [--readback <ref>] [--previous-receipt <unverified-ref>] [--out <receipt.json>]
   xi-io file compile --input <file.json> [--out <portable-file.json>]
   xi-io file cube --input <shipping.json> [--out <artifact-cube.json>]
   xi-io file profiles [--out <profiles.json>]
@@ -1893,6 +1893,7 @@ try {
       observer_ref:flags.observer,
       source_ref:flags.source,
       readback_ref:flags.readback||null,
+      previous_receipt:flags['previous-receipt'],
       conserved:vector,
     }), flags.out);
   } else if (family === 'product' && action === 'compile') {
