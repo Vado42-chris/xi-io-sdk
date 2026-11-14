@@ -93,3 +93,31 @@ test('Ward admission expiring before asynchronous return cannot be observed',asy
  assert.equal(result.first_red,'OATH_WARD_ADMISSION_EXPIRED_DURING_VERIFICATION');
  assert.equal(p.calls(),1);
 });
+
+test('provider mutation cannot renew the initially observed onboarding session',async()=>{
+ const initial={...onboarding,session:{...onboarding.session}};
+ let at='2026-11-14T18:00:00Z';const p=ports();
+ const result=await invoke({...p,onboarding:initial,now:()=>at,verifySession:async()=>{
+   initial.session={session_ref:'session:replacement',expires_at:'2026-11-16T00:00:00Z'};
+   at='2026-11-15T00:00:01Z';return {...identity,expires_at:'2026-11-16T00:00:00Z'};
+ }});
+ assert.equal(result.first_red,'OATH_SESSION_EXPIRED_DURING_VERIFICATION');assert.equal(p.calls(),0);
+});
+test('admission callback cannot extend the verified identity observation',async()=>{
+ const observed={...identity};const p=ports();let at='2026-11-14T18:00:00Z';
+ const result=await invoke({onboarding:{...onboarding,session:{...onboarding.session,expires_at:'2026-11-16T00:00:00Z'}},
+   now:()=>at,verifySession:async()=>observed,admit:async arg=>{
+     const decision=await p.admit(arg);observed.expires_at='2026-11-16T00:00:00Z';
+     at='2026-11-15T00:00:01Z';return {...decision,expires_at:'2026-11-16T00:00:00Z'};
+   }});
+ assert.equal(result.first_red,'OATH_WARD_ADMISSION_EXPIRED_DURING_VERIFICATION');
+ assert.equal(p.calls(),1);assert.equal(result.authority_granted,false);
+});
+test('changing expiry getter cannot replace the validated decision expiry',async()=>{
+ const p=ports();let calls=0,clock=0;
+ const result=await invoke({onboarding:{...onboarding,session:{...onboarding.session,expires_at:'2026-11-16T00:00:00Z'}},
+   now:()=>++clock<=2?'2026-11-14T18:00:00Z':'2026-11-15T00:00:01Z',
+   verifySession:async()=>({...identity,expires_at:'2026-11-16T00:00:00Z'}),
+   admit:async arg=>({...await p.admit(arg),get expires_at(){calls++;return calls===1?later:'2026-11-16T00:00:00Z';}})});
+ assert.equal(result.first_red,'OATH_WARD_ADMISSION_EXPIRED_DURING_VERIFICATION');assert.equal(calls,1);
+});
