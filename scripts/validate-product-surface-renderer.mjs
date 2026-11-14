@@ -14,6 +14,31 @@ assert.equal(normalized.actions.length, 1);
 assert.match(html, /data-xiui="page-shell"/);
 assert.match(html, /data-xiio-field="baseline-human"/);
 assert.match(html, /data-xiio-action="measure"/);
+const requirements=structuredClone(fixture);
+requirements.sections[0].rows=[
+  {label:'Execution',value:'NOT STARTED',requirement:{disposition:'ACTIONABLE',action_id:'measure'}},
+  {label:'Commissioner',value:'NOT BOUND',requirement:{disposition:'BLOCKED',blocker:'Commissioner not provisioned',owner:'Ward matter owner',recovery_action:'Provision commissioner through Ward'}},
+  {label:'Preview',value:'SYNTHETIC',requirement:{disposition:'INFORMATIONAL',explanation:'No authorized recipient view is established'}},
+];
+const requirementHtml=renderProductSurface(requirements);
+assert.match(requirementHtml,/data-xiio-requirement="actionable" data-xiio-required-action="measure"/);
+assert.match(requirementHtml,/data-xiio-requirement="blocked"/);
+assert.match(requirementHtml,/Provision commissioner through Ward/);
+assert.match(requirementHtml,/data-xiio-requirement="informational"/);
+assert.match(requirementHtml,/data-xiio-action="measure"[^>]*disabled/);
+for(const wrong of [
+  {disposition:'IMPLEMENTED',action_id:'measure'},
+  {disposition:'ACTIONABLE',action_id:'missing'},
+  {disposition:'BLOCKED',blocker:'Not bound',owner:'Ward matter owner'},
+  {disposition:'INFORMATIONAL',explanation:'Info',action_id:'measure'},
+]){
+  const invalid=structuredClone(requirements);
+  invalid.sections[0].rows[0].requirement=wrong;
+  assert.throws(()=>normalizeProductSurface(invalid));
+}
+const disabledRequirement=structuredClone(requirements);
+disabledRequirement.actions[0].disabled=true;
+assert.throws(()=>normalizeProductSurface(disabledRequirement),/declared enabled action/);
 assert.match(html, /aria-live="polite"/);
 assert.match(html, /data-tone="unknown">WAIT<\/span>/, 'row status must survive render contraction');
 assert.ok(!html.includes('<script'));
