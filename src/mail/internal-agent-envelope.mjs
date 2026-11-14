@@ -12,6 +12,8 @@ function required(v, code) {
 }
 
 function stableId(parts) {
+  // Preserve existing IDs while rejecting ambiguous tuple boundaries.
+  if (parts.some(part => part.includes('\u001f'))) throw new Error('IDENTITY_COMPONENT_SEPARATOR_INVALID');
   return crypto.createHash('sha256').update(parts.join('\u001f')).digest('hex').slice(0, 24);
 }
 
