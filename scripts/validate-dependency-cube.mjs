@@ -127,6 +127,42 @@ assert.equal(rejected,300);
  assert.equal(out.box_closed,false);
 }
 
+// A forgotten registered product remains UNKNOWN, even when omitted from
+// the prompt's affected-edge list and caller mislabels it NO_EFFECT.
+{
+ const x=base();
+ x.studio_projects.push({project_ref:'proj:artforge-child',applicability:'NO_EFFECT',priority:'P2',human_facing:true});
+ const out=compileDependencyCube(x);
+ const child=out.studio_projections.find(row=>row.project_ref==='proj:artforge-child');
+ assert.equal(child.impact_state,'UNKNOWN');
+ assert.equal(child.operation,'REBASE_READBACK');
+ assert.equal(out.denominator.projects,4);
+}
+
+// A material but unresolved dependency must not look ready to execute.
+{
+ const x=base();
+ x.internal_edges=[{edge_id:'int:unknown',dependency_key:'sdk.shared',target_ref:'sdk:shared',owner_ref:'SDK',state:'UNKNOWN',currentness:'CURRENT',wake:'QUALIFY_SHARED_DEPENDENCY',affected_project_refs:['proj:publisher']}];
+ x.external_edges=[];
+ x.glass_edges=[];
+ const out=compileDependencyCube(x);
+ const publisher=out.studio_projections.find(row=>row.project_ref==='proj:publisher');
+ assert.equal(publisher.impact_state,'UNKNOWN');
+ assert.equal(publisher.operation,'CLASSIFY_AFFECTEDNESS');
+}
+
+// Evidence-backed nonmaterial links may still earn a bounded NO_EFFECT.
+{
+ const x=base();
+ x.internal_edges=[{edge_id:'int:unrelated',dependency_key:'sdk.unrelated',target_ref:'sdk:unrelated',owner_ref:'SDK',state:'N_A_WITH_EVIDENCE',currentness:'CURRENT',material:false,evidence_refs:['receipt:unrelated'],affected_project_refs:['proj:publisher']}];
+ x.external_edges=[];
+ x.glass_edges=[];
+ const out=compileDependencyCube(x);
+ const publisher=out.studio_projections.find(row=>row.project_ref==='proj:publisher');
+ assert.equal(publisher.impact_state,'NO_EFFECT');
+}
+
+
 console.log(JSON.stringify({
  schema:'xiio.sdk.dependency-cube-check/v1',
  result:'PASS',
