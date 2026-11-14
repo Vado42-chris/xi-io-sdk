@@ -72,11 +72,13 @@ export function readRotflOrderRuntime({state_path=defaultRotflOrderStatePath()}=
 export function initializeRotflOrderRuntime({
   source_generation,
   managed_current,
+  source_graph,
   state_path=defaultRotflOrderStatePath(),
 }={}){
   const order=compileRotflOrderOfOperations({
     source_generation,
     managed_current,
+    source_graph,
     completed_step_ids:[],
     evidence_refs:{},
     preflight_refs:{},
@@ -163,6 +165,7 @@ export function advanceRotflOrderRuntime({
   const next=compileRotflOrderOfOperations({
     source_generation:order.source_generation,
     managed_current:order.managed_current,
+    source_graph:order.source_graph,
     completed_step_ids:[...(order.completed_step_ids||[]),step_id],
     evidence_refs:evidence,
     preflight_refs:preflight,

@@ -136,6 +136,27 @@ try {
     assert.equal(rotflMutationCommandClass(argv).mutation,expected,argv.join(' '));
   }
 
+  const graphState=path.join(root,'graph-order.current.json');
+  const source_graph={selected_ref:'work',expected_agent_id:'registered-agent',expected_pr_ref:'portfolio/consumer#15',nodes:[
+    {id:'original',kind:'original',repo:'portfolio/source',generation:'g1'},
+    {id:'work',kind:'work',repo:'portfolio/consumer',generation:'g2',parents:['original'],agent_id:'registered-agent',assigned_pr_ref:'portfolio/consumer#15'},
+  ]};
+  const graphInit=initializeRotflOrderRuntime({source_generation:generation,managed_current,source_graph,state_path:graphState});
+  assert.equal(graphInit.order.source_resolution.ok,true);
+  for(let i=0;i<3;i++){
+    const id='O'+i;
+    const step=advanceRotflOrderRuntime({step_id:id,evidence_ref:'e:'+id,preflight_ref:'p:'+id,current_source_generation:generation,state_path:graphState});
+    assert.equal(step.state,'PASS');
+    assert.deepEqual(step.order.source_resolution.original_refs,['original']);
+    assert.deepEqual(step.order.source_resolution.assignment_refs,['registered-agent|portfolio/consumer#15']);
+  }
+  const tampered=JSON.parse(fs.readFileSync(graphState,'utf8'));
+  tampered.source_graph.nodes[1].assigned_pr_ref='portfolio/other#15';
+  fs.writeFileSync(graphState,JSON.stringify(tampered));
+  const tamperedRead=readRotflOrderRuntime({state_path:graphState});
+  assert.equal(tamperedRead.state,'FAIL');
+  assert.equal(tamperedRead.first_red,'ROTFL_OOR_SOURCE_RESOLUTION_TAMPERED');
+
   console.log(JSON.stringify({
     schema:'xiio.sdk.rotfl-order-runtime-hostile/v1',
     state:'PASS',

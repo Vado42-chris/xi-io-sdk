@@ -134,6 +134,10 @@ export function validateRotflOrderOfOperations(value) {
   const expectedCurrent = completed.length < canonicalIds.length ? canonicalIds[completed.length] : null;
   if ((value.current_step_id ?? null) !== expectedCurrent) errors.push('ROTFL_OOR_CURRENT_STEP_MISMATCH');
 
+  if(value.source_graph){
+    const recomputed=resolveManagedSourceGraph(value.source_graph);
+    if(JSON.stringify(recomputed)!==JSON.stringify(value.source_resolution)) errors.push('ROTFL_OOR_SOURCE_RESOLUTION_TAMPERED');
+  } else if(value.source_resolution) errors.push('ROTFL_OOR_SOURCE_GRAPH_LOST');
   const managedCurrent=normalizeManagedCurrent(value.managed_current);
   if (completed.includes('O0') && !managedCurrent.provider_current_ref) {
     errors.push('ROTFL_OOR_O0_PROVIDER_CURRENT_UNBOUND');
@@ -192,6 +196,7 @@ export function compileRotflOrderOfOperations(input={}) {
     source_generation: input.source_generation || null,
     managed_current: managedCurrent,
     managed_current_bound: managedCurrentBound(managedCurrent),
+    source_graph: input.source_graph ? JSON.parse(JSON.stringify(input.source_graph)) : null,
     source_resolution: input.source_graph ? resolveManagedSourceGraph(input.source_graph) : null,
     steps: ROTFL_ORDER_STEPS.map((step)=>({...step})),
     completed_step_ids: completed,
