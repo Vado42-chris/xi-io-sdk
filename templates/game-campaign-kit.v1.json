@@ -1,0 +1,74 @@
+{
+  "schema": "xiio.sdk.game-campaign-kit-template/v1",
+  "template_id": "game-campaign-kit",
+  "status": "CANDIDATE_NOT_EXECUTABLE",
+  "white_label": true,
+  "consumer_product_ref": "REQUIRED_PRODUCT_OWNER_CANONICAL_ID",
+  "source_refs": {
+    "art_assets": "REQUIRED_REFERENCES",
+    "gameplay_capture": "REQUIRED_QUALIFIED_EVIDENCE",
+    "lore_and_claims": "REQUIRED_SOURCE",
+    "release_state": "REQUIRED_EXACT_GENERATION"
+  },
+  "components": [
+    "campaign_brief",
+    "audience_and_channels",
+    "editorial_calendar",
+    "asset_pack",
+    "campaign_page_copy",
+    "reward_tier_cost_model",
+    "funding_goal_cost_model",
+    "risk_and_fulfillment",
+    "rights_and_compliance",
+    "channel_previews",
+    "approval_receipts",
+    "publication_receipts"
+  ],
+  "channel_adapters": [
+    {
+      "id": "kickstarter",
+      "state": "NOT_CONNECTED",
+      "mode": "REVIEWABLE_EXPORT_ONLY"
+    },
+    {
+      "id": "website",
+      "state": "DISCOVERY_REQUIRED"
+    },
+    {
+      "id": "social",
+      "state": "DISCOVERY_REQUIRED"
+    },
+    {
+      "id": "email",
+      "state": "DISCOVERY_REQUIRED"
+    },
+    {
+      "id": "press",
+      "state": "DISCOVERY_REQUIRED"
+    }
+  ],
+  "existing_owners": {
+    "editorial": "xi-io-articles",
+    "publication": "xi-io-publisher",
+    "custody": "BINS",
+    "authorization": "Ward",
+    "orchestration": "Switchboard",
+    "operator_ui": "XI-IO Desktop",
+    "product_truth": "game owner registry"
+  },
+  "financial_decisions": {
+    "goal": "UNKNOWN_OWNER_DECISION",
+    "reward_prices": "UNKNOWN_OWNER_DECISION",
+    "reward_costs": "UNKNOWN_OWNER_DECISION",
+    "fulfillment": "UNKNOWN_OWNER_DECISION",
+    "tax_treatment": "REVIEW_REQUIRED",
+    "launch_date": "UNKNOWN_OWNER_DECISION"
+  },
+  "publication_contract": {
+    "external_effect": "REQUIRES_WARD_AND_OWNER_APPROVAL",
+    "independent_readback": true,
+    "provider_receipt_required": true,
+    "no_automatic_publication": true
+  },
+  "canonical_contract": "docs/contracts/game-campaign-kit-v1.md"
+}

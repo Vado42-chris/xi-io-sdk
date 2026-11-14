@@ -13,6 +13,11 @@ for (const row of fixture.cases) {
   assert.equal(result.authority_granted, false, `${row.id}.authority`);
 }
 const write = resolveWorkspaceArtifactIntent('Write Example contents. to "burnmap.txt" in the workspace root.');
+assert.equal(write.write_verification_contract.semantic_owner_ref,null,'portable intent parser must not choose a vendor or project owner');
+assert.equal(write.write_verification_contract.semantic_owner_binding_state,'UNBOUND');
+const explicitlyBound = resolveWorkspaceArtifactIntent('Write Example contents. to "burnmap.txt" in the workspace root.',{semanticOwnerRef:'tenant/example:compiler'});
+assert.equal(explicitlyBound.write_verification_contract.semantic_owner_ref,'tenant/example:compiler');
+assert.equal(explicitlyBound.write_verification_contract.semantic_owner_binding_state,'SUPPLIED_UNVERIFIED');
 assert.equal(write.requested_operation,'WRITE_TEXT');
 assert.equal(write.write_verification_contract.applies_when,true);
 assert.equal(write.write_verification_contract.tool_ack_alone_is_pass,false);

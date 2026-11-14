@@ -156,7 +156,7 @@ export function compileDependencyCube(input={}){
   ];
   const seen=new Set();for(const e of edges){if(seen.has(e.edge_id))throw new TypeError('DUPLICATE_EDGE');seen.add(e.edge_id);}
   const faces=Object.freeze(Object.fromEntries(DEPENDENCY_FACES.map(face=>[face,faceSummary(face,edges)])));
-  const byKey={};
+  const byKey=Object.create(null);
   for(const edge of edges){
     byKey[edge.dependency_key]??=[];
     byKey[edge.dependency_key].push(edge);
@@ -198,7 +198,7 @@ export function compileDependencyCube(input={}){
     ibal_impact_projection:impact,
     studio_projections,
     first_red,
-    box_closed:DEPENDENCY_FACES.every(f=>faces[f].state==='PASS')&&triangulation.every(t=>!t.contradictory_state),
+    box_closed:projects.length>0&&DEPENDENCY_FACES.every(f=>faces[f].denominator>0&&faces[f].state==='PASS')&&triangulation.every(t=>!t.contradictory_state),
     effect_authority:0,
     provider_effect:false,
     hard:[
