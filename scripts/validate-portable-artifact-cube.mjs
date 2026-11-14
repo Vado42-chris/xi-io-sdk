@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { prepareExternalArtifactShipment } from '../src/documents/prepare-external-artifact-shipment.mjs';
 import { compilePortableArtifactCube, FILE_CUBE_CELLS } from '../src/documents/portable-artifact-cube.mjs';
 import { artifactProfileCatalog, resolveArtifactProfile } from '../src/documents/artifact-profile-catalog.mjs';
 
@@ -171,12 +172,40 @@ const pdfProfile=compilePortableArtifactCube({
 assert.equal(pdfProfile.denominator,10);
 assert.deepEqual(pdfProfile.cells.map(x=>x.id),FILE_CUBE_CELLS);
 
+// Attachment length metadata must remain exact at the JSON Number boundary.
+const cell=(result,id)=>result.cells.find(row=>row.id===id);
+for(const count of [Number.MAX_SAFE_INTEGER+1,JSON.parse('9007199254740993'),1e30,1.5,-1,NaN,Infinity,'123']) {
+ const input={...good,bins_custody:{...good.bins_custody,byte_length:count},transfer_readback:{...good.transfer_readback,source_bytes:count,destination_bytes:count}};
+ const actual=compilePortableArtifactCube(input);
+ assert.notEqual(cell(actual,'F06_BINS_CUSTODY').supplied_state,'PASS');
+ assert.notEqual(cell(actual,'F07_TRANSFER_INTEGRITY').supplied_state,'PASS');
+ assert.equal(actual.closure_100,false);
+}
+for(const [section,key] of [['bins_custody','byte_length'],['transfer_readback','source_bytes'],['transfer_readback','destination_bytes']]) {
+ for(const count of [Number.MAX_SAFE_INTEGER+1,Infinity,1.5,-1,'123']) {
+  const input=structuredClone(good);input[section][key]=count;
+  const actual=compilePortableArtifactCube(input);
+  assert.notEqual(cell(actual,'F07_TRANSFER_INTEGRITY').supplied_state,'PASS');
+  assert.equal(cell(actual,'F06_BINS_CUSTODY').supplied_state,section==='bins_custody'?undefined:'PASS');
+ }
+}
+for(const count of [0,1,123,Number.MAX_SAFE_INTEGER]) {
+ const input={...good,bins_custody:{...good.bins_custody,byte_length:count},transfer_readback:{...good.transfer_readback,source_bytes:count,destination_bytes:count}};
+ assert.equal(cell(compilePortableArtifactCube(input),'F07_TRANSFER_INTEGRITY').supplied_state,'PASS');
+}
+const rounded=JSON.parse('{"source_bytes":9007199254740992,"destination_bytes":9007199254740993}');
+assert.equal(rounded.source_bytes,rounded.destination_bytes,'reproduce JSON numeric collapse');
+const shipment=prepareExternalArtifactShipment({descriptor:{schema:'synthetic.attachment/v1'},file_id:'synthetic:attachment',artifact_role:'attachment',source_ref:'source:synthetic',source_generation:'g:1',bins_custody:{...good.bins_custody,byte_length:rounded.source_bytes},transfer_readback:{...good.transfer_readback,...rounded}});
+assert.notEqual(cell(shipment.cube,'F07_TRANSFER_INTEGRITY').supplied_state,'PASS');
+assert.equal(shipment.ready_to_ship,false);assert.equal(shipment.effect_authority,0);
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.portable-artifact-cube-check/v1',
   state:'PASS',
   denominator:10,
   controls:2,
   hostiles:147,
+  exact_byte_count_regressions:28,
   file_types:['json','pdf'],
   false_green:0,
   effect_authority:0,
