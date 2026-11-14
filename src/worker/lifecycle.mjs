@@ -332,6 +332,9 @@ export async function runWorkerLifecycleAttempt({
   const sameReceiver=value=>receiver===null||receiverFields.every(key=>value?.[key]===receiver[key]);
   const clone=value=>structuredClone(value);
   if(!binding||fields.some(key=>typeof binding[key]!=='string'||!binding[key])) throw fail('WORKER_BINDING_REQUIRED');
+  // Hold the qualified attempt identity independently of caller-owned mutable
+  // input throughout every asynchronous owner callback.
+  binding=Object.freeze(bound(binding));
   if(typeof jobId!=='string'||!jobId) throw fail('JOB_ID_INVALID');
   if([history,current,dependenciesDone,append,checkpoint,publishReturn,wakeConsumer,digest,
     qualifiedHost?.qualify,qualifiedHost?.request,applyReturn?.apply].some(fn=>typeof fn!=='function')) throw fail('WORKER_OWNERS_UNBOUND');
@@ -367,15 +370,15 @@ export async function runWorkerLifecycleAttempt({
     return rows;
   }
   let events=await readHistory();
-  await current(binding);
+  await current(clone(binding));
   if(events.some(e=>e.type==='WAKE_ACK')) return {state:'COMPLETE',job_id:jobId,duplicate:true};
-  if(!await dependenciesDone(binding)) return {state:'WAIT_PREDECESSOR_RETURN',job_id:jobId};
-  if(!events.some(e=>e.type==='CLAIM')) { await append(jobId,'CLAIM',{...bound(binding)}); await checkpoint('CLAIM',binding); }
+  if(!await dependenciesDone(clone(binding))) return {state:'WAIT_PREDECESSOR_RETURN',job_id:jobId};
+  if(!events.some(e=>e.type==='CLAIM')) { await append(jobId,'CLAIM',{...bound(binding)}); await checkpoint('CLAIM',clone(binding)); }
   if(!events.some(e=>e.type==='RESULT')) {
     const admission=await qualifiedHost.qualify({binding:clone(binding)});
     if(admission?.state!=='ALLOWED' || !same(admission,binding) || !admission.admission_ref) throw fail('WORKER_ADMISSION_DENIED');
-    await current(binding); // Revalidate after asynchronous admission, before any effect.
-    if(!await dependenciesDone(binding)) return {state:'WAIT_PREDECESSOR_RETURN',job_id:jobId};
+    await current(clone(binding)); // Revalidate after asynchronous admission, before any effect.
+    if(!await dependenciesDone(clone(binding))) return {state:'WAIT_PREDECESSOR_RETURN',job_id:jobId};
     const started=events.some(e=>e.type==='EXECUTION_STARTED');
     let result;
     if(started) {
@@ -391,19 +394,19 @@ export async function runWorkerLifecycleAttempt({
       }
     } else {
       await append(jobId,'EXECUTION_STARTED',{...bound(binding),admission_ref:admission.admission_ref});
-      await checkpoint('EXECUTION_STARTED',binding);
+      await checkpoint('EXECUTION_STARTED',clone(binding));
       result=await qualifiedHost.request({binding:clone(binding),idempotencyKey:jobId});
-      await checkpoint('HOST_RESULT_RECEIVED',binding);
+      await checkpoint('HOST_RESULT_RECEIVED',clone(binding));
     }
     if(result?.state!=='COMPLETE' || !same(result,binding) || !result.result_ref) throw fail('RESULT_BINDING_INVALID');
     if(new TextEncoder().encode(JSON.stringify(result)).byteLength>1048576) throw fail('RESULT_TOO_LARGE');
-    await append(jobId,'RESULT',{...clone(result),result_digest:digest(result)}); await checkpoint('RESULT',binding);
+    await append(jobId,'RESULT',{...clone(result),result_digest:digest(result)}); await checkpoint('RESULT',clone(binding));
   }
   events=await readHistory();
   const result=events.find(e=>e.type==='RESULT').data;
   if(!events.some(e=>e.type==='RETURN')) await append(jobId,'RETURN',{...bound(binding),result_ref:result.result_ref});
   if(!events.some(e=>e.type==='APPLY_RETURN')) {
-    await current(binding);
+    await current(clone(binding));
     const started=events.some(e=>e.type==='APPLY_RETURN_STARTED');
     let applied;
     if(started) {
@@ -417,23 +420,23 @@ export async function runWorkerLifecycleAttempt({
         return {state:'UNKNOWN_APPLY_RETURN',job_id:jobId};
       }
     } else {
-      await append(jobId,'APPLY_RETURN_STARTED',bound(binding)); await checkpoint('APPLY_RETURN_STARTED',binding);
+      await append(jobId,'APPLY_RETURN_STARTED',bound(binding)); await checkpoint('APPLY_RETURN_STARTED',clone(binding));
       applied=await applyReturn.apply({binding:clone(binding),result:clone(result),idempotencyKey:jobId});
-      await checkpoint('OWNER_RETURN_RECEIVED',binding);
+      await checkpoint('OWNER_RETURN_RECEIVED',clone(binding));
     }
-    await current(binding);
+    await current(clone(binding));
     if(applied?.state!=='APPLIED' || !same(applied,binding) || !applied.receipt_ref || applied.result_ref!==result.result_ref) throw fail('RETURN_BINDING_INVALID');
-    await append(jobId,'APPLY_RETURN',clone(applied)); await checkpoint('APPLY_RETURN',binding);
+    await append(jobId,'APPLY_RETURN',clone(applied)); await checkpoint('APPLY_RETURN',clone(binding));
   }
   events=await readHistory();
   const applied=events.find(e=>e.type==='APPLY_RETURN').data;
-  await current(binding);
+  await current(clone(binding));
   const wake={schema:'xiio.hotfolder.ready.v1',wake_id:`return-${jobId}`,semantics:'WAKE_ONLY',authority_granted:false,...bound(binding),...(receiver??{}),result_ref:result.result_ref,receipt_ref:applied.receipt_ref};
-  await publishReturn(jobId,wake);
-  await checkpoint('RETURN_WAKE_READY',binding);
+  await publishReturn(jobId,clone(wake));
+  await checkpoint('RETURN_WAKE_READY',clone(binding));
   // The owner consumer must dedupe this wake_id. A repeated notification grants no execution.
   const ack=await wakeConsumer(clone(wake));
-  await current(binding);
+  await current(clone(binding));
   if(ack?.state!=='CONSUMED' || !same(ack,binding) || !sameReceiver(ack) ||
     (receiver!==null&&ack.wake_id!==wake.wake_id) || ack.receipt_ref!==applied.receipt_ref) throw fail('CONSUMER_WAKE_UNVERIFIED');
   await append(jobId,'WAKE_ACK',{...bound(binding),...(receiver??{}),receipt_ref:ack.receipt_ref});
