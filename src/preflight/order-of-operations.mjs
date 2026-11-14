@@ -58,7 +58,12 @@ export function resolveManagedSourceGraph(input={}) {
     }
     if(node.kind==='work') {
       if(!bounded(node.agent_id)||!bounded(node.assigned_pr_ref)) errors.push('SOURCE_WORK_ASSIGNMENT_UNBOUND:'+id);
-      else assigned.add(node.agent_id+'|'+node.assigned_pr_ref);
+      else {
+        if(!node.assigned_pr_ref.startsWith(node.repo+'#')) errors.push('SOURCE_WORK_REPO_PR_COLLISION:'+id);
+        if(input.expected_agent_id && node.id===root && node.agent_id!==input.expected_agent_id) errors.push('SOURCE_WORK_AGENT_COLLISION:'+id);
+        if(input.expected_pr_ref && node.id===root && node.assigned_pr_ref!==input.expected_pr_ref) errors.push('SOURCE_WORK_PR_COLLISION:'+id);
+        assigned.add(node.agent_id+'|'+node.assigned_pr_ref);
+      }
     }
     active.delete(id);
   };

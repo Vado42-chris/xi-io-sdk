@@ -19,6 +19,9 @@ for(const change of [
   g=>g.nodes[2].agent_id='',
   g=>g.nodes[2].parents=[],
   g=>g.nodes.push({...g.nodes[0]}),
+  g=>g.nodes[2].assigned_pr_ref='other/product#15',
+  g=>g.expected_agent_id='other-agent',
+  g=>g.expected_pr_ref='portfolio/consumer#99',
 ]) {
   const hostile=structuredClone(source_graph);change(hostile);
   assert.equal(resolveManagedSourceGraph(hostile).ok,false);
