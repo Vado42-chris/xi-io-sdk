@@ -265,6 +265,8 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
       ?{owner_ref:'EXISTING_LOCAL_RUNTIME_OWNER',action:'REOPEN_INSTALLED_FRAMEWORK_BYTES'}
       :result.first_red.startsWith('WARD_DISK')
       ?{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'BIND_CURRENT_NATIVE_DISK_VERIFIER'}
+      :result.first_red==='REQUESTER_SESSION_FORBIDDEN'
+      ?{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'RECHECK_AUTHENTICATED_REQUESTER_AND_CURRENT_GRANT'}
       :result.first_red.startsWith('SWITCHBOARD_RETURN')||result.first_red.startsWith('WARD_REQUESTER')
       ?{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'BIND_OR_REPAIR_REQUESTER_ONLY_RETURN_BYTES'}
       :result.first_red==='WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN'
@@ -292,7 +294,7 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
         expected_bytes:pinned?.expected_bytes??(Number.isSafeInteger(scope?.expected_bytes)&&
           scope.expected_bytes>=0?scope.expected_bytes:null),
         intent_digest:pinned?.intent_digest||null,request_digest:pinned?.request_digest||null}),
-      required_repair:Object.freeze({...repair,owner_approval_needed:false}),
+      required_repair:Object.freeze({...repair,owner_approval_needed:result.first_red==='REQUESTER_SESSION_FORBIDDEN'}),
       next_action:'REPAIR_AND_RESUME_ORIGINAL_WORK'});
   }
   const start=async (binding,scope)=>attempt(async()=>{
