@@ -66,6 +66,39 @@ assert.throws(()=>compileFractalConsumerReceiptEnvelope({
   applicability:'N_A'
 }),/NA_EVIDENCE_REF_REQUIRED/);
 
+
+
+// VeilRIFT B1 backfeed: retain caller-provided history without authenticating it.
+const base={consumer_id:'consumer',scale:'MICRO',producer_ref:'producer',observer_ref:'observer',source_ref:'source',conserved};
+const legacy=compileFractalConsumerReceiptEnvelope(base);
+assert.equal('previous_receipt' in legacy,false);
+assert.equal('previous_receipt_state' in legacy,false);
+for(const applicability of ['APPLICABLE','N_A']){
+  const input={...base,applicability,na_evidence_ref:'na:evidence'};
+  for(const ref of ['receipt:prior','missing:receipt','cycle:self','https://example.invalid/receipt#previous']){
+    const receipt=compileFractalConsumerReceiptEnvelope({...input,previous_receipt:ref,authenticated:true,verified:true});
+    assert.equal(receipt.previous_receipt,ref);
+    assert.equal(receipt.previous_receipt_state,'SUPPLIED_UNVERIFIED');
+    assert.equal(receipt.effect_authority,0);
+    assert.equal(Object.isFrozen(receipt),true);
+    assert.equal('verified' in receipt,false);
+    assert.equal('authenticated' in receipt,false);
+    assert.equal('verification_state' in receipt,false);
+  }
+  const noLink=compileFractalConsumerReceiptEnvelope({...input,previous_receipt:null});
+  assert.equal(noLink.previous_receipt,null);
+  assert.equal(noLink.previous_receipt_state,'NOT_SUPPLIED');
+  for(const invalid of ['', '  ',0,false,{},[], 'r'.repeat(1025)]){
+    assert.throws(()=>compileFractalConsumerReceiptEnvelope({...input,previous_receipt:invalid}),/PREVIOUS_RECEIPT_REQUIRED/);
+  }
+}
+assert.deepEqual(compileFractalConsumerReceiptEnvelope({...base,previous_receipt:undefined}),legacy);
+let previousReads=0;
+const changingInput={...base,get previous_receipt(){return ++previousReads===1?'receipt:stable':null;}};
+const stableReceipt=compileFractalConsumerReceiptEnvelope(changingInput);
+assert.equal(previousReads,1);
+assert.equal(stableReceipt.previous_receipt,'receipt:stable');
+assert.equal(stableReceipt.previous_receipt_state,'SUPPLIED_UNVERIFIED');
 console.log(JSON.stringify({
   schema:'xiio.sdk.fractal-consumer-receipt-envelope-check/v1',
   state:'PASS',

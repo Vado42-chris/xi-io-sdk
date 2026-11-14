@@ -12,6 +12,7 @@ function refs(v){
 function nullable(v){return v==null?null:String(v);}
 
 export function compileFractalConsumerReceiptEnvelope(input={}){
+  const previousReceipt=input.previous_receipt;
   const scale=text(input.scale,'SCALE',32).toUpperCase();
   if(!FRACTAL_SCALES.includes(scale)) throw new TypeError('SCALE_INVALID');
   const applicability=(input.applicability||'APPLICABLE').toUpperCase();
@@ -27,6 +28,12 @@ export function compileFractalConsumerReceiptEnvelope(input={}){
     source_ref:text(input.source_ref,'SOURCE_REF'),
     readback_ref:input.readback_ref?text(input.readback_ref,'READBACK_REF'):null,
     effect_authority:0,
+    // A caller-supplied predecessor is navigation evidence, never verified history.
+    // Omission preserves the existing v1 envelope; null explicitly records no link.
+    ...(previousReceipt===undefined?{}:{
+      previous_receipt:previousReceipt===null?null:text(previousReceipt,'PREVIOUS_RECEIPT'),
+      previous_receipt_state:previousReceipt===null?'NOT_SUPPLIED':'SUPPLIED_UNVERIFIED',
+    }),
   };
 
   if(applicability==='N_A'){
