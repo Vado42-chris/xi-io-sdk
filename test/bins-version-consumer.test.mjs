@@ -7,7 +7,7 @@ const sha='a'.repeat(64);
 const event={
   schema:'xiio.dataforge.legal-evidence/v1',state:'BINS_CUSTODIED',
   case_ref:'matter:1',event_id:'event:1',
-  destination_binding:{registry_ref:'registry:1',registry_generation:'gen:1',binding_ref:'binding:1'},
+  destination_binding:{registry_ref:'registry:1',registry_generation:'gen:1',binding_ref:'registry-binding:1'},
   source:{sha256:sha,size_bytes:7},
   bins:{resource_ref:'resource:1',version_ref:'version:1',
     parent_version_ref:'version:0',binding_ref:'binding:1',
@@ -27,6 +27,8 @@ test('exact BINS event produces worker.file-read scope without private paths',()
     'work_ref','work_generation','return_ref','resource_ref','version_ref',
     'storage_binding_ref','expected_sha256','expected_bytes']);
   assert.equal(result.scope.expected_bytes,7);
+  assert.equal(result.scope.storage_binding_ref,'binding:1');
+  assert.notEqual(event.destination_binding.binding_ref,result.scope.storage_binding_ref);
   assert.equal(result.parent_version_ref,'version:0');
   assert.equal(result.authority_granted,false);
   assert.equal(result.apply_return_verified,false);
