@@ -2,9 +2,12 @@ const AUTH_STATES = new Set(['AUTHENTICATED', 'UNAUTHENTICATED', 'UNKNOWN']);
 const BILLING_BLOCK_PATTERN = /(?:recent account payments? (?:have )?failed|spending limit needs? to be increased|billing\s*&\s*plans)/i;
 
 function toInt(value) {
-  if (Number.isInteger(value)) return value;
-  const parsed = Number.parseInt(String(value ?? ''), 10);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (typeof value === 'number') return Number.isSafeInteger(value) ? value : null;
+  // Provider evidence must be a whole decimal integer, not a parsed prefix
+  // or an object's coercion. Keep numeric strings used by existing adapters.
+  if (typeof value !== 'string' || !/^[+-]?\d+$/.test(value.trim())) return null;
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function parseRetryAfterMs(headers = {}) {
