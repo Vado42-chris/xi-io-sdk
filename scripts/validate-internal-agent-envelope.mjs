@@ -95,4 +95,18 @@ assert.equal(forgedNativeLooking.provider_native_proven,false);
 assert.equal(forgedNativeLooking.provider_verified_state,'UNPROVEN');
 assert.equal(forgedNativeLooking.provider_receipt_state,'SUPPLIED_UNVERIFIED');
 
+// U+001F separates identity tuple components and cannot appear within one.
+const endpointInput={principal_ref:'agent:a',address:'b@local',transport:'INBOX_LOCAL'};
+assert.equal(compileInternalAgentEndpoint(endpointInput).endpoint_ref,'agent-endpoint:2f1cb3e07bda9ab87b0fe40a');
+for(const input of [
+  {...endpointInput,principal_ref:'agent:a\u001fb'},
+  {...endpointInput,address:'b\u001fc@local'},
+]) assert.throws(()=>compileInternalAgentEndpoint(input),/IDENTITY_COMPONENT_SEPARATOR_INVALID/);
+const mailInput={ack,source_occurrence_ref:'occ:mail',subject:'mail',body_ref:'body:mail',sender:endpointInput,recipients:[{...endpointInput,principal_ref:'agent:b'}]};
+for(const input of [
+  {...mailInput,ack:{...ack,ack_id:'ack:a\u001fb'}},
+  {...mailInput,source_occurrence_ref:'occ:a\u001fb'},
+]) assert.throws(()=>compileInternalAgentMessage(input),/IDENTITY_COMPONENT_SEPARATOR_INVALID/);
+assert.equal(compileInternalAgentMessage(mailInput).authority.provider_write,false);
+
 console.log('INTERNAL_AGENT_ENVELOPE_PASS supplied_receipt_never_provider_verified=1 claimed_vs_verified_split=1 arbitrary_provider_looking_ref_rejected_as_proof=1 effects=0');
