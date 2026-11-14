@@ -124,6 +124,19 @@ test('ALREADY_APPLIED_RETURN_IS_NOT_STRANDED', () => {
   assert.equal(result.disposition, 'TERMINAL_FIXED_POINT');
 });
 
+
+test('UNCONFIRMED_APPLY_RETURN_CANNOT_LAUNDER_TERMINAL_CLOSURE', () => {
+  for (const applied of [false, undefined, null]) {
+    const input = base();
+    input.returns = [{ id: 'apply:unverified', state: 'APPLY_RETURN', applied }];
+    const result = compileContinuationCycle(input);
+    assert.equal(result.terminal, false);
+    assert.equal(result.disposition, 'EAT_REQUIRED');
+    assert.deepEqual(result.returns.applied, []);
+    assert.deepEqual(result.returns.stranded, ['apply:unverified']);
+  }
+});
+
 test('PASS_ALONE_WITH_NONCURRENT_100S_DOES_NOT_STOP', () => {
   const input = base();
   input.four_scale.MACRO = 'NOT_100';
@@ -185,7 +198,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 18,
+  cases: 19,
   self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,
