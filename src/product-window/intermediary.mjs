@@ -64,36 +64,75 @@ export function renderProductWindowIntermediary({
 </section>`.trim();
 }
 
+// A handler returning a receipt-shaped object does not prove Ward admission or
+// BINS custody. It only confirms the connected host accepted this UI request.
 export function bindProductWindowIntermediary(root, handlers = {}) {
   if (!root || typeof root.querySelector !== 'function') throw new TypeError('root must support querySelector');
   const cleanups = [];
-  const on = (selector, event, fn) => {
+  let disposed = false;
+  let sending = false;
+  const status = root.querySelector('[data-xiio-product-window-status]');
+  const report = (message) => { if (!disposed && status) status.textContent = message; };
+
+  const on = (selector, event, name, args = (e) => [e]) => {
     const el = root.querySelector(selector);
-    if (!el || typeof fn !== 'function') return;
-    el.addEventListener(event, fn);
-    cleanups.push(() => el.removeEventListener(event, fn));
+    if (!el) return;
+    const handler = handlers[name];
+    if (typeof handler !== 'function') {
+      el.disabled = true;
+      el.setAttribute?.('aria-disabled', 'true');
+      return;
+    }
+    const listener = (eventValue) => {
+      try {
+        const result = handler(...args(eventValue));
+        Promise.resolve(result).catch(() => report('Connection unavailable. Your work has not been submitted.'));
+      } catch {
+        report('Connection unavailable. Your work has not been submitted.');
+      }
+    };
+    el.addEventListener(event, listener);
+    cleanups.push(() => el.removeEventListener(event, listener));
   };
 
-  on('[data-xiio-project-select]','change',(event)=>{
-    handlers.onProjectSelect?.(event.target.value || null);
-  });
-  on('[data-xiio-project-new]','click',()=>handlers.onProjectNew?.());
-  on('[data-xiio-project-manage]','click',()=>handlers.onProjectManage?.());
-  on('[data-xiio-product-open]','click',()=>handlers.onOpenProduct?.());
+  on('[data-xiio-project-select]', 'change', 'onProjectSelect', (event) => [event.target.value || null]);
+  on('[data-xiio-project-new]', 'click', 'onProjectNew', () => []);
+  on('[data-xiio-project-manage]', 'click', 'onProjectManage', () => []);
+  on('[data-xiio-product-open]', 'click', 'onOpenProduct', () => []);
 
   const form = root.querySelector('[data-xiio-chat-form]');
-  if (form && typeof handlers.onChatSend === 'function') {
-    const submit = (event) => {
-      event.preventDefault();
-      const input = form.querySelector('[data-xiio-chat-input]');
-      const text = String(input?.value || '').trim();
-      if (!text) return;
-      handlers.onChatSend(text);
-      if (input) input.value = '';
-    };
-    form.addEventListener('submit', submit);
-    cleanups.push(() => form.removeEventListener('submit', submit));
+  const input = form?.querySelector('[data-xiio-chat-input]');
+  const sendButton = form?.querySelector('[type="submit"]');
+  if (form) {
+    if (typeof handlers.onChatSend !== 'function') {
+      if (sendButton) sendButton.disabled = true;
+      report('Chat is unavailable until the registered @ibal connection is ready.');
+    } else {
+      const submit = async (event) => {
+        event.preventDefault();
+        if (sending || disposed) return;
+        const message = String(input?.value || '').trim();
+        if (!message) return;
+        sending = true;
+        if (sendButton) sendButton.disabled = true;
+        try {
+          // Explicit UI acceptance is mandatory. A returned undefined, false,
+          // thrown error or failed promise must retain the unsent text.
+          const result = await handlers.onChatSend(message);
+          if (!result || result.accepted !== true) throw new Error('CHAT_NOT_ACCEPTED');
+          if (!disposed && input && input.value.trim() === message) input.value = '';
+          report('Message accepted by the connected host. Delivery is not yet verified.');
+        } catch {
+          report('Message not accepted. Your draft is preserved.');
+        } finally {
+          sending = false;
+          if (!disposed && sendButton) sendButton.disabled = false;
+        }
+      };
+      form.addEventListener('submit', submit);
+      cleanups.push(() => form.removeEventListener('submit', submit));
+    }
   }
 
-  return () => cleanups.splice(0).forEach((fn)=>fn());
+  return () => { disposed = true; cleanups.splice(0).forEach((fn) => fn()); };
 }
