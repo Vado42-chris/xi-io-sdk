@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { compileProductWindowRegistry, compileProductWindowSession, stampAllProducts } from '../src/product-window/registry.mjs';
 import { productWindowProductStage } from '../src/product-window/contract.mjs';
 const product_catalog=[
   {studio_product_id:'app_a',product_ref:'product:a',label:'App A',family:'GAME'},
   {studio_product_id:'app_b',product_ref:'product:b',label:'App B',family:'LEGAL'},
 ];
+const donor=JSON.parse(readFileSync(new URL('../standards/product-window-lineup.v1.json',import.meta.url),'utf8'));
+assert.equal(donor.status,'HISTORICAL_DONOR_SNAPSHOT_NOT_CURRENT');
+assert.match(donor.consumption_rule,/NO_RUNTIME_LINEUP/);
 function fixture(members=['app_a','app_b'],complete=true){
   const denominator={schema:'xiio.studio-product-denominator/v1',id:'studio-root',generation:'g1',
     categories:{studio_member_known:members,studio_membership_unknown_drift:[]},
