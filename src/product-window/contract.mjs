@@ -37,11 +37,11 @@ export function productWindowProductStage({
       controls: stamp.frame_controls,
       product_settings_location: 'INSIDE_PRODUCT_BODY',
     }),
-    project_management: 'BOUND',
-    chat: 'BOUND',
+    project_management: 'SUPPLIED_UNVERIFIED',
+    chat: 'SUPPLIED_UNVERIFIED',
     authority: Object.freeze({
       effect_authority: 0,
-      body_mounted: true,
+      body_mounted: false,
     }),
   });
 }
