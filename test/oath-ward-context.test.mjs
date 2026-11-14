@@ -78,3 +78,18 @@ test('denial, expired admission and unavailable providers are fail closed',async
    {verifySession:null}
  ])assert.equal((await invoke(override)).state,'BLOCKED');
 });
+
+test('session expiring during asynchronous identity verification refuses before Ward',async()=>{
+ const p=ports();let clock=0;
+ const result=await invoke({...p,now:()=>++clock===1?'2026-11-14T18:00:00Z':'2026-11-15T00:00:01Z'});
+ assert.equal(result.state,'BLOCKED');
+ assert.equal(result.first_red,'OATH_SESSION_EXPIRED_DURING_VERIFICATION');
+ assert.equal(p.calls(),0);
+});
+test('Ward admission expiring before asynchronous return cannot be observed',async()=>{
+ const p=ports();let clock=0;
+ const result=await invoke({...p,now:()=>++clock<=2?'2026-11-14T18:00:00Z':'2026-11-15T00:00:01Z'});
+ assert.equal(result.state,'BLOCKED');
+ assert.equal(result.first_red,'OATH_WARD_ADMISSION_EXPIRED_DURING_VERIFICATION');
+ assert.equal(p.calls(),1);
+});
