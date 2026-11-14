@@ -321,6 +321,53 @@ await assert.rejects(runWorkerLifecycleAttempt({
   assert.equal(effects,0);
 }
 
+// A legal-matter conversation cannot acknowledge a worker return intended for
+// another matter, agent principal or conversation. Generic SDK callers retain
+// the historical wake contract, while scoped callers must prove the receiver.
+{
+  const binding=Object.fromEntries(['project_id','work_id','assignment_ref','attempt_id','agent_id','source_generation','return_ref','operation_ref'].map(key=>[key,'fixture:'+key]));
+  const receiverBinding={matter_ref:'matter:fixture',agent_principal_ref:'agent:research',conversation_ref:'conversation:research'};
+  const result={...binding,state:'COMPLETE',result_ref:'fixture:result'};
+  const journal=[
+    {type:'CLAIM',data:{...binding}},
+    {type:'EXECUTION_STARTED',data:{...binding,admission_ref:'fixture:admission'}},
+    {type:'RESULT',data:{...result,result_digest:JSON.stringify(result)}},
+    {type:'RETURN',data:{...binding,result_ref:result.result_ref}},
+    {type:'APPLY_RETURN_STARTED',data:{...binding}},
+    {type:'APPLY_RETURN',data:{...binding,state:'APPLIED',result_ref:result.result_ref,receipt_ref:'fixture:receipt'}},
+  ];
+  const run=async mutate=>{
+    const stored=structuredClone(journal);
+    let wake;
+    const response=await runWorkerLifecycleAttempt({binding,receiverBinding,jobId:'fixture:job',
+      history:async()=>stored,current:async()=>{},dependenciesDone:async()=>true,
+      append:async(_job,type,data)=>stored.push({type,data}),checkpoint:async()=>{},
+      qualifiedHost:{qualify:async()=>{throw Error('UNEXPECTED_QUALIFY');},request:async()=>{throw Error('UNEXPECTED_REQUEST');}},
+      applyReturn:{apply:async()=>{throw Error('UNEXPECTED_APPLY');}},
+      publishReturn:async(_job,value)=>{wake=value;},
+      wakeConsumer:async value=>mutate({...value,state:'CONSUMED'}),digest:JSON.stringify,
+    });
+    return {response,stored,wake};
+  };
+  const valid=await run(value=>value);
+  assert.equal(valid.response.state,'COMPLETE');
+  assert.equal(valid.wake.conversation_ref,receiverBinding.conversation_ref);
+  assert.equal(valid.stored.at(-1).data.matter_ref,receiverBinding.matter_ref);
+  for(const key of Object.keys(receiverBinding)) {
+    await assert.rejects(run(value=>({...value,[key]:`foreign:${key}`})),{code:'CONSUMER_WAKE_UNVERIFIED'});
+    const replay=structuredClone(valid.stored);
+    replay.at(-1).data[key]=`foreign:${key}`;
+    await assert.rejects(runWorkerLifecycleAttempt({binding,receiverBinding,jobId:'fixture:job',
+      history:async()=>replay,current:async()=>{},dependenciesDone:async()=>true,
+      append:async()=>{throw Error('UNEXPECTED_APPEND');},checkpoint:async()=>{},
+      qualifiedHost:{qualify:async()=>{},request:async()=>{}},applyReturn:{apply:async()=>{}},
+      publishReturn:async()=>{},wakeConsumer:async()=>{},digest:JSON.stringify,
+    }),{code:'PERSISTED_WAKE_LINK_INVALID'});
+  }
+  await assert.rejects(run(value=>({...value,wake_id:'foreign:wake'})),{code:'CONSUMER_WAKE_UNVERIFIED'});
+  await assert.rejects(runWorkerLifecycleAttempt({binding,receiverBinding:{...receiverBinding,conversation_ref:''},jobId:'fixture:job'}),{code:'RECEIVER_BINDING_REQUIRED'});
+}
+
 console.log(JSON.stringify({
   state:'PASS',
   schema:catalog.schema,
