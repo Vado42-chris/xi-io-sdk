@@ -74,7 +74,8 @@ export function prepareBinsVersionRead({event, work, returned} = {}) {
     matter_ref: matterRef,
     event_id: required(event.event_id, 'BINS_VERSION_CONSUMER_EVENT_ID_REQUIRED'),
     // BINS version ancestry is distinct from SDK previous_receipt.
-    parent_version_ref: stored.parent_version_ref ?? null,
+    parent_version_ref: stored.parent_version_ref == null ? null :
+      required(stored.parent_version_ref, 'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'),
     scope,
     authority_granted: false, custody_independently_verified: false,
     return_certified: false, apply_return_verified: false,
