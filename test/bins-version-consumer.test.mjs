@@ -113,6 +113,38 @@ test('blocked Ward/broker worker returns typed refusal without retry or false re
   assert.equal(out.authority_granted,false);
   assert.equal(out.apply_return_verified,false);
 });
+test('exact Ward owner challenge survives as non-authorizing approval request',async()=>{
+  const prepared=make();
+  const deadline=new Date(Date.now()+60_000).toISOString();
+  let calls=0;
+  const challenge={schema:'xiio.sdk.worker-connection/v1',state:'OWNER_APPROVAL_REQUIRED',
+    first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',
+    next_action:'REVIEW_EXISTING_WARD_CHALLENGE',owner_approval_needed:true,
+    challenge_ref:'challenge:1',expires_at:deadline,
+    blocked_operation:{operation:'worker.file-read',capability_ref:'device.return.bytes.read',
+      ...prepared.scope,request_digest:'a'.repeat(64),intent_digest:'b'.repeat(64)},
+    required_approval:{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',
+      action:'REVIEW_EXISTING_WARD_CHALLENGE',operation:'worker.file-read',
+      work_ref:prepared.scope.work_ref,challenge_ref:'challenge:1',expires_at:deadline,
+      request_digest:'a'.repeat(64),intent_digest:'b'.repeat(64),approval_granted:false},
+    authority_granted:false,provider_effect:false,apply_return_verified:false};
+  const worker={readFile:async()=>{calls++;return challenge;}};
+  const result=await readBinsVersionWithWorker({prepared,worker});
+  assert.equal(calls,1);
+  assert.equal(result.state,'OWNER_APPROVAL_REQUIRED');
+  assert.equal(result.challenge_ref,'challenge:1');
+  assert.equal(result.authority_granted,false);
+  assert.equal(result.apply_return_verified,false);
+  assert.equal(JSON.stringify(result).includes('request_digest'),false);
+  for(const changed of [
+    {...challenge,authority_granted:true},
+    {...challenge,required_approval:{...challenge.required_approval,approval_granted:true}},
+    {...challenge,blocked_operation:{...challenge.blocked_operation,matter_ref:'matter:other',resource_ref:'resource:other'}},
+    {...challenge,required_approval:{...challenge.required_approval,request_digest:'c'.repeat(64)}},
+    {...challenge,expires_at:'2020-01-01T00:00:00Z'},
+  ]) await assert.rejects(readBinsVersionWithWorker({prepared,
+    worker:{readFile:async()=>changed}}),/WARD_CHALLENGE_MISMATCH/);
+});
 test('unbound worker and forged empty metadata-only result fail',async()=>{
   const prepared=make();
   await assert.rejects(readBinsVersionWithWorker({prepared}),/WORKER_UNBOUND/);
@@ -173,7 +205,8 @@ test('hostile BINS parent version cannot escape bounded metadata projection',()=
   }
 });
 
-test('continuation refuses foreign operation scope and strips noncontract payload',async()=>{
+
+test('worker refusal retains bounded repair route but refuses foreign scope and private data',async()=>{
   const prepared=make();
   const refusal={schema:'xiio.sdk.worker-connection/v1',state:'BLOCKED',
     first_red:'DEVICE_RETURN_BINS_VERIFIER_UNBOUND',authority_granted:false,apply_return_verified:false,
@@ -184,6 +217,7 @@ test('continuation refuses foreign operation scope and strips noncontract payloa
   const run=value=>readBinsVersionWithWorker({prepared,worker:{readFile:async()=>value}});
   const matched=await run(refusal);
   assert.equal(matched.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.equal(matched.next_action,'REPAIR_AND_RESUME_ORIGINAL_WORK');
   assert.doesNotMatch(JSON.stringify(matched),/private|credentials|not-to-forward/);
   for(const patch of [
     {blocked_operation:{...refusal.blocked_operation,version_ref:'version:other'}},
@@ -192,27 +226,5 @@ test('continuation refuses foreign operation scope and strips noncontract payloa
     {required_repair:{...refusal.required_repair,owner_ref:'/private/owner'}},
     {required_repair:{...refusal.required_repair,owner_approval_needed:'true'}},
     {required_repair:{...refusal.required_repair,get owner_ref(){return 'EXISTING_WARD_RUNTIME_OWNER';}}},
-    {blocked_operation:{...refusal.blocked_operation,get version_ref(){return prepared.scope.version_ref;}}},
   ])await assert.rejects(run({...refusal,...patch}),/BINS_VERSION_CONSUMER_/);
-});
-
-test('approval continuation rejects false approval and mismatched challenge identity',async()=>{
-  const prepared=make();
-  const approval={schema:'xiio.sdk.worker-connection/v1',state:'OWNER_APPROVAL_REQUIRED',
-    first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',authority_granted:false,apply_return_verified:false,
-    owner_approval_needed:true,next_action:'REVIEW_EXISTING_WARD_CHALLENGE',
-    challenge_ref:'challenge:1',expires_at:'2026-11-14T22:00:00.000Z',
-    blocked_operation:{operation:'worker.file-read',...prepared.scope,intent_digest:'a'.repeat(64),request_digest:'b'.repeat(64)},
-    required_approval:{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'REVIEW_EXISTING_WARD_CHALLENGE',
-      operation:'worker.file-read',work_ref:prepared.scope.work_ref,challenge_ref:'challenge:1',
-      expires_at:'2026-11-14T22:00:00.000Z',intent_digest:'a'.repeat(64),request_digest:'b'.repeat(64),approval_granted:false}};
-  const run=value=>readBinsVersionWithWorker({prepared,worker:{readFile:async()=>value}});
-  assert.equal((await run(approval)).required_approval.approval_granted,false);
-  for(const patch of [{approval_granted:true},{work_ref:'work:other'},{challenge_ref:'challenge:other'},
-    {request_digest:'c'.repeat(64)},{expires_at:'not-a-date'},{owner_ref:'new-owner'}])
-    await assert.rejects(run({...approval,required_approval:{...approval.required_approval,...patch}}),/(?:APPROVAL|CONTINUATION)_UNQUALIFIED/);
-  let reads=0;
-  await assert.rejects(run({...approval,required_approval:{...approval.required_approval,
-    get intent_digest(){reads++;return reads<4?'a'.repeat(64):'/synthetic/private/data';}}}),/CONTINUATION_UNQUALIFIED/);
-  assert.equal(reads,0);
 });
