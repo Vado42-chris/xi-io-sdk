@@ -21,36 +21,42 @@ export async function observeOathWardContext({onboarding,work_ref,matter_ref,res
       throw Error('OATH_ONBOARDING_NOT_AUTHENTICATED');
     const account_ref=ref(onboarding.account_ref,'ACCOUNT_REF');
     const workspace_ref=ref(onboarding.workspace_ref,'WORKSPACE_REF');
-    const session_ref=ref(onboarding.session?.session_ref,'SESSION_REF');
+    // Pin the observed lifetime: later mutation is not session renewal.
+    const session=onboarding.session;
+    const session_ref=ref(session?.session_ref,'SESSION_REF');
+    const session_expires_at=session?.expires_at;
     const scope=Object.freeze({work_ref:ref(work_ref,'WORK_REF'),matter_ref:ref(matter_ref,'MATTER_REF'),
       resource_ref:ref(resource_ref,'RESOURCE_REF'),action:ref(action,'ACTION')});
     const at=Date.parse(now());
-    if(!Number.isFinite(at)||!current(onboarding.session.expires_at,at))throw Error('OATH_SESSION_EXPIRED');
+    if(!Number.isFinite(at)||!current(session_expires_at,at))throw Error('OATH_SESSION_EXPIRED');
     if(typeof verifySession!=='function'||typeof admit!=='function')throw Error('OATH_WARD_PORTS_UNBOUND');
     // Switchboard's existing first-party session binding returns this exact
     // provider observation. Its issuer does not know the D1 account_ref.
     // Correlate the two trusted readbacks by session and workspace instead.
     const identity=await verifySession({session_ref,account_ref,workspace_ref});
+    const identity_expires_at=identity?.expires_at;
+    const observed_principal_ref=identity?.principal_ref;
     if(identity?.verified!==true||identity.state!=='ACTIVE'||
       identity.session_ref!==session_ref||identity.workspace_ref!==workspace_ref||
-      !current(identity.expires_at,at))throw Error('OATH_SESSION_NOT_VERIFIED');
+      !current(identity_expires_at,at))throw Error('OATH_SESSION_NOT_VERIFIED');
     // Provider I/O may cross expiry after the initial onboarding check.
     const afterSession=Date.parse(now());
-    if(!Number.isFinite(afterSession)||!current(onboarding.session.expires_at,afterSession)||
-      !current(identity.expires_at,afterSession))throw Error('OATH_SESSION_EXPIRED_DURING_VERIFICATION');
-    const principal_ref=ref(identity.principal_ref,'PRINCIPAL_REF');
+    if(!Number.isFinite(afterSession)||!current(session_expires_at,afterSession)||
+      !current(identity_expires_at,afterSession))throw Error('OATH_SESSION_EXPIRED_DURING_VERIFICATION');
+    const principal_ref=ref(observed_principal_ref,'PRINCIPAL_REF');
     const request=Object.freeze({account_ref,workspace_ref,session_ref,principal_ref,...scope});
     const request_digest=digest(request);
     const decision=await admit({request,request_digest});
+    const decision_expires_at=decision?.expires_at;
     if(decision?.schema!=='xiio.ward.matter-action-admission/v1'||
       decision.state!=='ADMITTED'||decision.request_digest!==request_digest||
       decision.principal_ref!==principal_ref||decision.workspace_ref!==workspace_ref||
       decision.matter_ref!==matter_ref||
       decision.resource_ref!==resource_ref||decision.action!==action||
-      !current(decision.expires_at,at))throw Error('WARD_MATTER_ADMISSION_NOT_VERIFIED');
+      !current(decision_expires_at,at))throw Error('WARD_MATTER_ADMISSION_NOT_VERIFIED');
     const afterWard=Date.parse(now());
-    if(!Number.isFinite(afterWard)||!current(onboarding.session.expires_at,afterWard)||
-      !current(identity.expires_at,afterWard)||!current(decision.expires_at,afterWard))
+    if(!Number.isFinite(afterWard)||!current(session_expires_at,afterWard)||
+      !current(identity_expires_at,afterWard)||!current(decision_expires_at,afterWard))
       throw Error('OATH_WARD_ADMISSION_EXPIRED_DURING_VERIFICATION');
     const admission_ref=ref(decision.admission_ref,'ADMISSION_REF');
     return Object.freeze({schema:OATH_WARD_CONTEXT_SCHEMA,state:'ADMISSION_OBSERVED',
