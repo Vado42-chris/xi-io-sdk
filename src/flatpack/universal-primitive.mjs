@@ -251,15 +251,17 @@ export function compileUniversalProjection(doc,projectionRef){
 export function reverseUniversalProjectionReadback(source,projection){
   const ids=new Set(list(source?.primitives).map(p=>p?.identity));
   const refs=list(projection?.primitive_refs),missing=refs.filter(id=>!ids.has(id));
+  const ownIndex=(array,index)=>Object.prototype.hasOwnProperty.call(array,index);
   const sameRefs=(actual,expected)=>Array.isArray(actual)&&Array.isArray(expected)&&
     actual.length===expected.length&&new Set(actual).size===actual.length&&
-    new Set(expected).size===expected.length&&actual.every(id=>expected.includes(id));
+    new Set(expected).size===expected.length&&Array.from(actual).every((id,i)=>ownIndex(actual,i)&&expected.includes(id));
   // Compare the already-released block payload only. Private source edges must
   // never be copied to the public projection to satisfy a readback check.
   const samePublicPayload=(a,b)=>{
     if(Object.is(a,b))return true;
     if(Array.isArray(a)||Array.isArray(b))
-      return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&a.every((v,i)=>samePublicPayload(v,b[i]));
+      return Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&Array.from(a.keys()).every(i=>
+        ownIndex(a,i)===ownIndex(b,i)&&(!ownIndex(a,i)||samePublicPayload(a[i],b[i])));
     if(a&&b&&typeof a==='object'&&typeof b==='object'){
       const keys=Object.keys(a);
       return keys.length===Object.keys(b).length&&keys.every(k=>
@@ -294,3 +296,51 @@ export function reverseUniversalProjectionReadback(source,projection){
   return {schema:'xiio.sdk.publisher-reverse-readback/v1',ok,projection_ref:projection?.projection_ref,artifact_ref:projection?.artifact_ref,article_ref:projection?.article_ref,primitive_refs:refs,version_ref:projection?.lineage?.version_ref??null,source_generation:projection?.lineage?.source_generation??null,missing_primitive_refs:missing,same_source_ids:ok,first_red:firstRed,effect_ceiling:0};
 }
 
+export function compileUniversalRadialRelationshipLayout(input={}){
+  const centerRef=String(input.center_ref||'').trim();
+  if(!centerRef) throw new Error('RADIAL_CENTER_REF_REQUIRED');
+  const source=list(input.relationships);
+  const seen=new Set();
+  const relationships=source.map((raw,index)=>{
+    const targetRef=String(raw?.target_ref||raw?.product_id||raw?.ref||'').trim();
+    if(!targetRef) throw new Error(`RADIAL_TARGET_REF_REQUIRED:${index}`);
+    if(seen.has(targetRef)) throw new Error(`RADIAL_TARGET_REF_DUPLICATE:${targetRef}`);
+    seen.add(targetRef);
+    return {
+      target_ref:targetRef,
+      label:String(raw?.label||raw?.name||targetRef),
+      kind:String(raw?.kind||'relationship'),
+      metadata:clone(raw?.metadata||{})
+    };
+  });
+  const radiusRaw=Number(input.radius);
+  const radius=Number.isFinite(radiusRaw)?Math.max(0.1,Math.min(0.48,radiusRaw)):0.34;
+  const startRaw=Number(input.start_degrees);
+  const startDegrees=Number.isFinite(startRaw)?startRaw:-90;
+  const count=relationships.length;
+  const nodes=relationships.map((relationship,index)=>{
+    const angleDegrees=count?startDegrees+(360/count)*index:startDegrees;
+    const radians=angleDegrees*Math.PI/180;
+    return {
+      identity:`relationship:${centerRef}:${relationship.target_ref}`,
+      center_ref:centerRef,
+      target_ref:relationship.target_ref,
+      label:relationship.label,
+      kind:relationship.kind,
+      order:index,
+      angle_degrees:Number(angleDegrees.toFixed(6)),
+      x:Number((0.5+Math.cos(radians)*radius).toFixed(6)),
+      y:Number((0.5+Math.sin(radians)*radius).toFixed(6)),
+      metadata:relationship.metadata
+    };
+  });
+  return {
+    schema:'xiio.sdk.radial-relationship-layout/v1',
+    center_ref:centerRef,
+    radius,
+    start_degrees:startDegrees,
+    relationship_count:count,
+    nodes,
+    effect_ceiling:0
+  };
+}

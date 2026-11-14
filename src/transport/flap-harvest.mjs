@@ -41,7 +41,7 @@ export function compileFlapHarvest(input={}){
     throw new TypeError('OCCURRENCE_REF_REUSED');
   const groups=new Map();
   for(const row of rows){
-    const key=[row.canonical_identity,row.generation,row.content_sha256].join('|');
+    const key=JSON.stringify([row.canonical_identity,row.generation,row.content_sha256]);
     const bucket=groups.get(key)||[];
     bucket.push(row);
     groups.set(key,bucket);

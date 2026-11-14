@@ -51,6 +51,55 @@ assert.throws(()=>prepareExternalArtifactShipment({
   descriptor:{schema:'x'},profile_id:'invented.profile'
 }),/PROFILE_NOT_REGISTERED/);
 
+
+
+
+// Snapshot caller data before assessing the manifest, without freezing input.
+const mutableInput={file_id:'synthetic.snapshot',artifact_role:'synthetic.role',source_ref:'synthetic:source',source_generation:'g1',descriptor:{schema:'synthetic/v1',rows:[{body:'original'}]},bins_custody:{state:'UNVERIFIED',nested:{ref:'original'}}};
+const preparedSnapshot=prepareExternalArtifactShipment(mutableInput);
+mutableInput.descriptor.rows[0].body='changed';mutableInput.bins_custody.nested.ref='changed';
+assert.equal(preparedSnapshot.manifest.file.payload.descriptor.rows[0].body,'original');
+assert.equal(preparedSnapshot.manifest.bins_custody.nested.ref,'original');
+assert.equal(Object.isFrozen(mutableInput.descriptor),false);
+assert.throws(()=>{preparedSnapshot.manifest.file.payload.descriptor.rows[0].body='forged';},TypeError);
+assert.throws(()=>{preparedSnapshot.missing_cells[0].state='PASS';},TypeError);
+let descriptorReads=0;
+const getterDescriptor={schema:'synthetic/v1',get body(){descriptorReads++;return 'value-'+descriptorReads;}};
+const getterSnapshot=prepareExternalArtifactShipment({...mutableInput,descriptor:getterDescriptor});
+assert.equal(descriptorReads,1);
+assert.equal(getterSnapshot.manifest.file.payload.descriptor.body,'value-1');
+
+let schemaReads=0;
+const schemaGetter={get schema(){schemaReads++;return 'synthetic/schema-'+schemaReads;}};
+const schemaSnapshot=prepareExternalArtifactShipment({...mutableInput,descriptor:schemaGetter});
+assert.equal(schemaReads,1);
+assert.equal(schemaSnapshot.descriptor_schema,schemaSnapshot.manifest.file.payload.descriptor.schema);
+
+// Do not discard malformed bindings and silently report a dependency-free file.
+for(const field of ['dependency_bindings','projection_refs','provider_projections']){
+  for(const malformed of [{ref:'required:binding',generation:'g1'},'required:binding',false,42]){
+    const result=prepareExternalArtifactShipment({...mutableInput,[field]:malformed});
+    assert.equal(result.cube.cells[0].state,'FAIL',field);
+    assert.equal(result.cube.first_red.first_red,'PORTABLE_SEMANTIC_FILE_INVALID',field);
+    assert.deepEqual(result.manifest.file[field],malformed,field);
+    assert.equal(result.ready_to_ship,false,field);
+  }
+  for(const omitted of [undefined,null,[]]){
+    const result=prepareExternalArtifactShipment({...mutableInput,[field]:omitted});
+    assert.equal(result.cube.cells[0].state,'PASS',field);
+  }
+}
+// Accessor-backed bindings are captured once; the policy follows that snapshot.
+let bindingReads=0;
+const singleBinding=prepareExternalArtifactShipment({...mutableInput,
+  get dependency_bindings(){bindingReads++;return bindingReads===1?[{ref:'synthetic:required',generation:'g1'}]:[];}
+});
+assert.equal(bindingReads,1);
+assert.equal(singleBinding.manifest.file.dependency_bindings.length,1);
+assert.equal(singleBinding.manifest.dependency_policy,'EXPLICIT');
+assert.equal(singleBinding.cube.cells[2].count,1);
+assert.equal(singleBinding.cube.cells[2].state,'PASS');
+
 console.log(JSON.stringify({
   schema:'xiio.sdk.external-artifact-shipment-check/v1',
   state:'PASS',

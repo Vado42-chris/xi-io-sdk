@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { validateXiioCliArgs } from '../bin/xi-local-agent.mjs';
+import { validateXiioCliArgs, validateWorkspaceCommand } from '../bin/xi-local-agent.mjs';
 import { initializeRotflOrderRuntime, advanceRotflOrderRuntime } from '../src/preflight/order-runtime.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
@@ -325,6 +325,28 @@ assert.throws(
   ()=>validateXiioCliArgs(['recover','other-runner'],{executionEnabled:true}),
   /XIIO_RECOVERY_TARGET_DENIED/
 );
+// Interpreter boundary: relative script path is not enough to make arbitrary code execution bounded.
+assert.throws(()=>validateWorkspaceCommand('bash',['scripts/install-cli.sh']),/BASH_COMMAND_DENIED/);
+assert.throws(()=>validateWorkspaceCommand('bash',['-c','cat /etc/passwd']),/SHELL_STRING_DENIED/);
+assert.throws(()=>validateWorkspaceCommand('node',['bin/xi.mjs']),/NODE_COMMAND_DENIED/);
+assert.throws(()=>validateWorkspaceCommand('python3',['scripts/host-abi-observer.py']),/PYTHON_COMMAND_DENIED/);
+assert.throws(()=>validateWorkspaceCommand('npm',['test']),/COMMAND_DENIED/);
+// This tool is for syntax checks. Even an apparently read-only Git verb can
+// accept flags that write, and Git inspection already has its own bounded tool.
+for(const args of [
+  ['status'], ['pull','origin','main'], ['fetch','origin'],
+  ['switch','branch'], ['branch','-D','branch'],
+  ['diff','--output=outside.txt'], ['log','--output=outside.txt'],
+  ['show','--output=outside.txt']
+]) assert.throws(()=>validateWorkspaceCommand('git',args),/COMMAND_DENIED/);
+
+
+// Explicit syntax-check forms remain available and workspace-bounded.
+assert.deepEqual(validateWorkspaceCommand('bash',['-n','scripts/install-cli.sh']),{command:'bash',args:['-n','scripts/install-cli.sh']});
+assert.deepEqual(validateWorkspaceCommand('node',['--check','bin/xi.mjs']),{command:'node',args:['--check','bin/xi.mjs']});
+assert.deepEqual(validateWorkspaceCommand('python3',['-m','py_compile','scripts/host-abi-observer.py']),{command:'python3',args:['-m','py_compile','scripts/host-abi-observer.py']});
+assert.throws(()=>validateWorkspaceCommand('bash',['-n','../escape.sh']),/COMMAND_DENIED|PATH_DENIED/);
+
 const wrapperSource=fs.readFileSync(golden.bin,'utf8');
 assert.doesNotMatch(wrapperSource,/\beval\b|curl|wget|npm install|git clone/);
 assert.match(wrapperSource,/xiio\.cli\.wrapper-error\/v1/);

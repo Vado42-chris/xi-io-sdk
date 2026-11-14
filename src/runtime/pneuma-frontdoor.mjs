@@ -93,7 +93,6 @@ export async function executePneuma({
     lifecycle:path.join(base,'studio','lifecycle.current.json'),
     hex:path.join(base,'hex','floor.current.json'),
     search_bins:path.join(base,'studio','search-bins.current.json'),
-    remote:path.join(base,'remote-desktop.current.json'),
     ward:path.join(base,'studio','ward-adoption.current.json'),
   };
   const state=Object.fromEntries(Object.entries(files).map(([k,v])=>[k,readJson(v)]));
@@ -141,13 +140,10 @@ export async function executePneuma({
     sb?'SEARCH_BINS_READBACK_NOT_PASS':'SEARCH_BINS_READBACK_MISSING',
     {resource_ref:sb?.resource_ref||null,version_ref:sb?.version_ref||null,sha256:sb?.sha256||null});
 
-  const remote=state.remote;
-  const auth=remote?.authentication?.state||'UNKNOWN';
-  const registration=remote?.device_registration?.state||'UNKNOWN';
-  const session=remote?.live_device_session?.state||'UNKNOWN';
-  add('REMOTE_AUTH',auth==='PASS'?'PASS':'TRUE_WAIT',files.remote,auth==='PASS'?null:'REMOTE_AUTH_NOT_PASS',{observed:auth});
-  add('REMOTE_DEVICE_REGISTRATION',registration==='PASS'?'PASS':'TRUE_WAIT',files.remote,registration==='PASS'?null:'REMOTE_DEVICE_REGISTRATION_NOT_PASS',{observed:registration});
-  add('REMOTE_LIVE_SESSION',session==='PASS'?'PASS':'TRUE_WAIT',files.remote,session==='PASS'?null:'REMOTE_LIVE_SESSION_NOT_PASS',{observed:session});
+  // Native/local work does not consume a third-party desktop session as a
+  // prerequisite or fallback. Historical provider receipts remain untouched.
+  // Current native Ward/readback/bus checks below retain their own fail-closed
+  // boundaries; removing a vendor gate does not grant execution authority.
 
   const ward=state.ward;
   const wardObserved=String(ward?.state||ward?.status||'').toUpperCase();
@@ -225,7 +221,8 @@ export async function executePneuma({
       'PNEUMA_OUTPUT_CLAIM_REQUIRES_BOUND_READBACK',
       'INJECTED_STATE_ROOT != PHYSICAL_READBACK',
       'CT16_CT17_CUSTODY_CANNOT_BE_INFERRED',
-      'REMOTE_AUTH_PASS != LIVE_SESSION_PASS',
+      'LEGACY_PROVIDER_STATE != NATIVE_WORK_PREREQUISITE',
+      'NATIVE_CONNECTION_FAILURE != THIRD_PARTY_FALLBACK',
       'BUS_URL_CONFIGURED != BUS_REACHABLE',
       'PNEUMA_RECURSION_PASS != ROTFL_LOOP_CLOSED',
       'BLAST_RADIUS_MUST_SURVIVE_EVERY_PROJECTION_DEPTH',

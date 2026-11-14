@@ -6,44 +6,49 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { evaluateAgentResponseRealization } from '../evaluation/tool-verb-fidelity.mjs';
 
-const DEFAULT_CUBE_ROOT = process.env.XIIO_CUBE_ROOT
-  || '/media/chrishallberg/Storage 22/001_Flatpack_installs/xi-io-studio/workspaces';
+export function resolveCubeRoot(flags = {}, env = process.env) {
+  // A white-label installation has no implicit user, product or volume name.
+  const project = String(flags.project || '').trim();
+  if (project && (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(project) || project === '..')) return null;
+  const configured = flags.cube || env.XIIO_CUBE_ROOT;
+  if (!configured || !String(configured).trim()) return null;
+  const root = path.resolve(String(configured));
+  // An explicit --cube identifies the selected Cube, not a parent folder.
+  return project && !flags.cube ? path.join(root, project) : root;
+}
 
-export function resolveCubeRoot(flags = {}) {
-  if (flags.cube) return path.resolve(String(flags.cube));
-  if (flags.project) {
-    const named = path.join(DEFAULT_CUBE_ROOT, String(flags.project));
-    if (fs.existsSync(named)) return named;
-  }
-  return path.resolve(DEFAULT_CUBE_ROOT);
+function cubeRootFailure(cubeRoot, flags = {}) {
+  if (flags.project && !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(String(flags.project))) return 'CUBE_PROJECT_REF_INVALID';
+  if (!cubeRoot) return 'CUBE_ROOT_UNCONFIGURED';
+  try { if (fs.statSync(cubeRoot).isDirectory()) return null; } catch { /* unavailable */ }
+  return 'CUBE_ROOT_NOT_FOUND';
 }
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function regularFile(filePath) {
+  try { const stat = fs.lstatSync(filePath); return stat.isFile() && !stat.isSymbolicLink(); }
+  catch { return false; }
+}
+
 function listBugsLedgers(cubeRoot) {
+  if (!cubeRoot || !fs.existsSync(cubeRoot)) return [];
   return fs.readdirSync(cubeRoot)
     .filter((n) => /^CUBE\.bugs\..*\.json$/i.test(n))
+    .filter((n) => regularFile(path.join(cubeRoot, n)))
     .sort()
     .map((n) => path.join(cubeRoot, n));
 }
 
-function findBugsLedger(cubeRoot) {
-  const ledgers = listBugsLedgers(cubeRoot);
-  if (!ledgers.length) return null;
-  const preferred = path.join(cubeRoot, 'CUBE.bugs.linux-business-os.20261012.json');
-  if (ledgers.includes(preferred)) return preferred;
-  return ledgers[ledgers.length - 1];
-}
-
 function findBusinessRecord(cubeRoot) {
-  const preferred = path.join(cubeRoot, 'CUBE.business-record.xi-io-studio.20261012.json');
-  if (fs.existsSync(preferred)) return preferred;
-  const entries = fs.readdirSync(cubeRoot).filter((n) => /^CUBE\.business-record\..*\.json$/i.test(n));
-  if (!entries.length) return null;
-  entries.sort();
-  return path.join(cubeRoot, entries[entries.length - 1]);
+  if (!cubeRoot || !fs.existsSync(cubeRoot)) return null;
+  const entries = fs.readdirSync(cubeRoot)
+    .filter((n) => /^CUBE\.business-record\..*\.json$/i.test(n))
+    .filter((n) => regularFile(path.join(cubeRoot, n)));
+  // Without an explicit ledger binding multiple business records are ambiguous.
+  return entries.length === 1 ? path.join(cubeRoot, entries[0]) : null;
 }
 
 function loadBugs(cubeRoot) {
@@ -77,23 +82,27 @@ function bugById(bugs, id) {
 
 export function quorumStatus({ flags = {} } = {}) {
   const cubeRoot = resolveCubeRoot(flags);
-  const { ledgerPath, bugs, business_record, ledger } = loadBugs(cubeRoot);
+  const rootRed = cubeRootFailure(cubeRoot, flags);
+  const { ledgerPath, bugs, business_record } = loadBugs(cubeRoot);
   const recordPath = business_record && path.isAbsolute(String(business_record))
     ? business_record
     : business_record
       ? path.join(cubeRoot, business_record)
       : findBusinessRecord(cubeRoot);
+  const recordRelative = recordPath && cubeRoot ? path.relative(cubeRoot, recordPath) : null;
+  const recordEscapes = recordRelative !== null && (recordRelative === '..' || recordRelative.startsWith(`..${path.sep}`) || path.isAbsolute(recordRelative));
+  const recordUnreadable = Boolean(recordPath && !recordEscapes && !regularFile(recordPath));
   let record = null;
-  if (recordPath && fs.existsSync(recordPath)) record = readJson(recordPath);
+  if (recordPath && !recordEscapes && regularFile(recordPath)) record = readJson(recordPath);
   const open = bugs.filter((b) => b.state === 'OPEN' || b.state === 'IN_PROGRESS').length;
   return Object.freeze({
     schema: 'xiio.cli.quorum.status/v1',
-    state: ledgerPath ? 'PASS' : 'TRUE_WAIT',
-    first_red: ledgerPath ? null : 'CUBE_BUGS_LEDGER_ABSENT',
-    project: flags.project || record?.project || 'xi-io-studio',
+    state: !rootRed && ledgerPath && !recordEscapes && !recordUnreadable ? 'PASS' : 'TRUE_WAIT',
+    first_red: rootRed || (recordEscapes ? 'CUBE_BUSINESS_RECORD_OUTSIDE_ROOT' : recordUnreadable ? 'CUBE_BUSINESS_RECORD_UNREADABLE' : ledgerPath ? null : 'CUBE_BUGS_LEDGER_ABSENT'),
+    project: flags.project || record?.project || null,
     cube_root: cubeRoot,
     bugs_ledger: ledgerPath,
-    business_record: recordPath,
+    business_record: recordEscapes || recordUnreadable ? null : recordPath,
     monetization: record?.monetization || null,
     bug_count: bugs.length,
     bugs_open: open,
@@ -110,11 +119,12 @@ export function quorumStatus({ flags = {} } = {}) {
 
 export function quorumBugs({ flags = {} } = {}) {
   const cubeRoot = resolveCubeRoot(flags);
+  const rootRed = cubeRootFailure(cubeRoot, flags);
   const { ledgerPath, bugs } = loadBugs(cubeRoot);
   return Object.freeze({
     schema: 'xiio.cli.quorum.bugs/v1',
-    state: ledgerPath ? 'PASS' : 'TRUE_WAIT',
-    first_red: ledgerPath ? null : 'CUBE_BUGS_LEDGER_ABSENT',
+    state: !rootRed && ledgerPath ? 'PASS' : 'TRUE_WAIT',
+    first_red: rootRed || (ledgerPath ? null : 'CUBE_BUGS_LEDGER_ABSENT'),
     cube_root: cubeRoot,
     bugs_ledger: ledgerPath,
     bugs: bugs.map((b) => Object.freeze({
@@ -132,13 +142,14 @@ export function quorumBugs({ flags = {} } = {}) {
 
 export function quorumVotes({ bugId, flags = {} } = {}) {
   const cubeRoot = resolveCubeRoot(flags);
+  const rootRed = cubeRootFailure(cubeRoot, flags);
   const { ledgerPath, bugs } = loadBugs(cubeRoot);
   const bug = bugById(bugs, bugId);
   if (!bug) {
     return Object.freeze({
       schema: 'xiio.cli.quorum.votes/v1',
       state: 'TRUE_WAIT',
-      first_red: 'BUG_UUID_NOT_FOUND',
+      first_red: rootRed || 'BUG_UUID_NOT_FOUND',
       bug_uuid: bugId || null,
       cube_root: cubeRoot,
       bugs_ledger: ledgerPath,
@@ -166,17 +177,18 @@ export function quorumVotes({ bugId, flags = {} } = {}) {
 /**
  * Local review: assessment text is gated. Without --assessment, returns the
  * prompt shape only (no invented Ollama call). With --assessment, gate then
- * optionally append to ledger when --write (default false).
+ * refuse ledger mutation even if --write is requested without Ward admission.
  */
 export function quorumReview({ bugId, flags = {}, assessmentText = null } = {}) {
   const cubeRoot = resolveCubeRoot(flags);
-  const { ledgerPath, bugs, ledger } = loadBugs(cubeRoot);
+  const rootRed = cubeRootFailure(cubeRoot, flags);
+  const { bugs } = loadBugs(cubeRoot);
   const bug = bugById(bugs, bugId);
   if (!bug) {
     return Object.freeze({
       schema: 'xiio.cli.quorum.review/v1',
       state: 'TRUE_WAIT',
-      first_red: 'BUG_UUID_NOT_FOUND',
+      first_red: rootRed || 'BUG_UUID_NOT_FOUND',
       bug_uuid: bugId || null,
       effect_authority: 0,
     });
@@ -233,26 +245,18 @@ export function quorumReview({ bugId, flags = {}, assessmentText = null } = {}) 
       : 'Assessment blocked — not counted as a council vote.',
   };
 
-  let wrote = false;
-  if (flags.write && ledgerPath && gate.pass) {
-    const nextBugs = bugs.map((b) => {
-      if (b.bug_uuid !== bug.bug_uuid) return b;
-      const votes = [...(b.votes || []), vote];
-      return { ...b, votes };
-    });
-    const next = { ...ledger, bugs: nextBugs, stamped_at_review: vote.at };
-    fs.writeFileSync(ledgerPath, `${JSON.stringify(next, null, 2)}\n`);
-    wrote = true;
-  }
-
+  // Passing the response-realization gate is not a Ward lease. This SDK
+  // surface cannot grant a consequential ledger write, even when --write is set.
+  const writeRefused = Boolean(flags.write);
   return Object.freeze({
     schema: 'xiio.cli.quorum.review/v1',
-    state: gate.pass ? 'PASS' : 'BLOCKED',
+    state: gate.pass && !writeRefused ? 'PASS' : 'BLOCKED',
+    first_red: writeRefused ? 'WARD_LEDGER_WRITE_ADMISSION_REQUIRED' : gate.pass ? null : 'ASSESSMENT_GATE_REJECTED',
     mode: 'GATED_ASSESSMENT',
     bug_uuid: bug.bug_uuid,
     gate,
     vote,
-    wrote_to_ledger: wrote,
+    wrote_to_ledger: false,
     effect_authority: 0,
     authority_granted: false,
     hard: [
@@ -265,13 +269,14 @@ export function quorumReview({ bugId, flags = {}, assessmentText = null } = {}) 
 
 export function quorumDispatchDryRun({ bugId, flags = {} } = {}) {
   const cubeRoot = resolveCubeRoot(flags);
+  const rootRed = cubeRootFailure(cubeRoot, flags);
   const { bugs } = loadBugs(cubeRoot);
   const bug = bugById(bugs, bugId);
   if (!bug) {
     return Object.freeze({
       schema: 'xiio.cli.quorum.dispatch/v1',
       state: 'TRUE_WAIT',
-      first_red: 'BUG_UUID_NOT_FOUND',
+      first_red: rootRed || 'BUG_UUID_NOT_FOUND',
       effect_authority: 0,
     });
   }
@@ -299,14 +304,16 @@ export function quorumDispatchDryRun({ bugId, flags = {} } = {}) {
 export function quorumReturnObserve({ workUuid, flags = {} } = {}) {
   const cubeRoot = resolveCubeRoot(flags);
   const needle = String(workUuid || '').trim();
-  const candidates = fs.readdirSync(cubeRoot)
+  const rootRed = cubeRootFailure(cubeRoot, flags);
+  const candidates = rootRed ? [] : fs.readdirSync(cubeRoot)
     .filter((n) => /RETURN|READBACK|PROOF/i.test(n) && n.endsWith('.json'))
+    .filter((n) => regularFile(path.join(cubeRoot, n)))
     .filter((n) => !needle || n.includes(needle) || fs.readFileSync(path.join(cubeRoot, n), 'utf8').includes(needle))
     .slice(0, 32);
   return Object.freeze({
     schema: 'xiio.cli.quorum.return/v1',
     state: candidates.length ? 'PASS' : 'TRUE_WAIT',
-    first_red: candidates.length ? null : 'RETURN_RECEIPT_NOT_FOUND',
+    first_red: rootRed || (candidates.length ? null : 'RETURN_RECEIPT_NOT_FOUND'),
     work_uuid: needle || null,
     cube_root: cubeRoot,
     receipts: candidates.map((n) => path.join(cubeRoot, n)),

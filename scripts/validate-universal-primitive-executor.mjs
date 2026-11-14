@@ -162,6 +162,17 @@ const reorderedKeys=structuredClone(projection);
 reorderedKeys.blocks[0]=Object.fromEntries(Object.entries(reorderedKeys.blocks[0]).reverse());
 assert.equal(reverseUniversalProjectionReadback(deleted.artifact,reorderedKeys).ok,true);
 
+// In-process sparse arrays must not masquerade as equal public projection bytes.
+const sparseSource=structuredClone(deleted.artifact);
+sparseSource.primitives[0].content={rows:[['a','b'],['c','d']]};
+const sparseProjection=compileUniversalProjection(sparseSource,'projection:microsite');
+assert.equal(reverseUniversalProjectionReadback(sparseSource,sparseProjection).ok,true);
+const sparseTamper=structuredClone(sparseProjection);
+delete sparseTamper.blocks[0].content.rows[0][0];
+assert.equal(reverseUniversalProjectionReadback(sparseSource,sparseTamper).first_red,'PROJECTION_BLOCK_CONTENT');
+const sparseRefs=structuredClone(sparseProjection);
+delete sparseRefs.primitive_refs[0];
+assert.equal(reverseUniversalProjectionReadback(sparseSource,sparseRefs).first_red,'PROJECTION_PRIMITIVE_REFS');
 const subset=structuredClone(deleted.artifact);
 subset.projection_recipes[0].primitive_refs=['p:headline'];
 subset.primitives.find(p=>p.identity==='p:image').authority.visibility='PRIVATE';

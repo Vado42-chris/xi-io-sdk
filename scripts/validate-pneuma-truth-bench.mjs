@@ -29,6 +29,9 @@ async function candidate(id,opts,expect){
  const server=net.createServer(s=>s.end()); await new Promise((r,j)=>server.listen(0,'127.0.0.1',e=>e?j(e):r()));
  const port=server.address().port;
  const out=await executePneuma({root:'local',aries:'root',bus:`ws://127.0.0.1:${port}/aries/bus`,exec_rotfl:true,state_root:root});
+ assert.equal(out.checks.some(row=>row.id.startsWith('REMOTE_')),false,id+': legacy provider is not a native check');
+ assert.equal(out.authority_granted,false);
+ assert.equal(out.claims.rotfl_loop_closed,false);
  await new Promise(r=>server.close(r)); fs.rmSync(root,{recursive:true,force:true});
  assert.equal(out.state,expect.state,id); if(expect.first_red) assert.equal(out.first_red,expect.first_red,id);
  results.push({id,state:out.state,first_red:out.first_red,proof_scope:out.proof_scope,false_green:out.state==='PASS'});
@@ -36,51 +39,51 @@ async function candidate(id,opts,expect){
 await candidate('CONTROL_SYNTHETIC_ALL_GREEN',{}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
 await candidate('GEMINI_SANDBOX_LOCAL_SOCKET_THEATER',{}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
 await candidate('CHAOS_STEP3_BLAST_DRIFT',{blast:'blast:drift'}, {state:'FAIL',first_red:'BLAST_RADIUS_DIGEST_DRIFT'});
-await candidate('CHAOS_REMOTE_OFFLINE',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
-const offlineBefore=results.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length;
-await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_1',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
-await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_2',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
-await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_3',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
-const offlineAfter=results.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length;
+await candidate('CHAOS_REMOTE_OFFLINE',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
+const offlineBefore=results.filter(x=>x.id.startsWith('CHAOS_REMOTE_OFFLINE')).length;
+await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_1',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
+await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_2',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
+await candidate('CHAOS_REMOTE_OFFLINE_REPEAT_3',{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
+const offlineAfter=results.filter(x=>x.id.startsWith('CHAOS_REMOTE_OFFLINE')).length;
 assert.equal(offlineAfter-offlineBefore,3);
 const burstStart=results.length;
 for(let i=1;i<=20;i+=1){
-  await candidate('CHAOS_REMOTE_OFFLINE_BURST_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+  await candidate('CHAOS_REMOTE_OFFLINE_BURST_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
 }
 const burst=results.slice(burstStart);
 assert.equal(burst.length,20);
 assert.equal(burst.filter(x=>x.state==='TRUE_WAIT').length,20);
-assert.equal(burst.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length,20);
+assert.equal(burst.filter(x=>x.first_red==='SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK').length,20);
 const uniqueBurstTruth=new Set(burst.map(x=>x.state+'|'+x.first_red+'|'+x.proof_scope));
 assert.equal(uniqueBurstTruth.size,1);
 const groupStart=results.length;
 for(let group=1;group<=2;group+=1){
   for(let i=1;i<=10;i+=1){
-    await candidate('CHAOS_REMOTE_OFFLINE_GROUP_'+group+'_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+    await candidate('CHAOS_REMOTE_OFFLINE_GROUP_'+group+'_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
   }
 }
 const grouped=results.slice(groupStart);
 assert.equal(grouped.length,20);
 assert.equal(grouped.filter(x=>x.state==='TRUE_WAIT').length,20);
-assert.equal(grouped.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length,20);
+assert.equal(grouped.filter(x=>x.first_red==='SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK').length,20);
 const groupedTruth=new Set(grouped.map(x=>x.state+'|'+x.first_red+'|'+x.proof_scope));
 assert.equal(groupedTruth.size,1);
 const groupDenominators=[grouped.slice(0,10).length,grouped.slice(10,20).length];
 assert.deepEqual(groupDenominators,[10,10]);
 const loopUnitStart=results.length;
 for(let i=1;i<=10;i+=1){
-  await candidate('PNEUMA_LOOP_1_LEFT_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+  await candidate('PNEUMA_LOOP_1_LEFT_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
 }
 const loopBoundaryIndex=results.length;
 for(let i=1;i<=10;i+=1){
-  await candidate('PNEUMA_LOOP_1_RIGHT_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'REMOTE_LIVE_SESSION_NOT_PASS'});
+  await candidate('PNEUMA_LOOP_1_RIGHT_'+String(i).padStart(2,'0'),{live:'FAIL_CURRENT'}, {state:'TRUE_WAIT',first_red:'SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK'});
 }
 const loopUnit=results.slice(loopUnitStart);
 assert.equal(loopUnit.length,20);
 assert.equal(loopBoundaryIndex-loopUnitStart,10);
 assert.equal(results.length-loopBoundaryIndex,10);
 assert.equal(loopUnit.filter(x=>x.state==='TRUE_WAIT').length,20);
-assert.equal(loopUnit.filter(x=>x.first_red==='REMOTE_LIVE_SESSION_NOT_PASS').length,20);
+assert.equal(loopUnit.filter(x=>x.first_red==='SYNTHETIC_STATE_ROOT_NOT_PHYSICAL_READBACK').length,20);
 const loopUnitTruth=new Set(loopUnit.map(x=>x.state+'|'+x.first_red+'|'+x.proof_scope));
 assert.equal(loopUnitTruth.size,1);
 const sandboxTheater=results.find(x=>x.id==='GEMINI_SANDBOX_LOCAL_SOCKET_THEATER');

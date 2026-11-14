@@ -167,6 +167,48 @@ export function compileGraduationPreflight(input) {
   };
 }
 
+/** Read-only owner-question gate. A standing conditional grant is never minted here.
+ * Agents must finish the pre-owner release preflight before soliciting a new decision.
+ * Claimed preflight/standing refs are structural inputs, not authenticated Ward grants.
+ */
+export function assessReleaseOwnerQuestion(preflight, options = {}) {
+  if (preflight?.schema !== 'xiio.sdk.graduation-preflight/v1' ||
+      preflight.profile !== 'RELEASE_P0_P13' || !Array.isArray(preflight.cells)) {
+    throw new TypeError('RELEASE_PREFLIGHT_REQUIRED');
+  }
+  const prerequisites = GRADUATION_PROFILES.RELEASE_P0_P13.slice(0, 9).map(([id]) => id);
+  const matched = prerequisites.every((id, index) => {
+    const cell = preflight.cells[index];
+    return cell?.id === id && (cell.state === 'PASS' || cell.state === 'N_A_WITH_REASON') &&
+      Array.isArray(cell.evidence_refs) && cell.evidence_refs.length > 0 && !cell.defect;
+  });
+  const standing = bounded(options.standing_conditional_policy_ref);
+  const approvalCell = preflight.cells[9];
+  const approvalAlreadyRecorded = approvalCell?.id === 'P9' &&
+    ['PASS', 'N_A_WITH_REASON'].includes(approvalCell.state) && approvalCell.evidence_refs?.length > 0 && !approvalCell.defect;
+  const genuinelyNew = options.new_owner_choice_required === true && !approvalAlreadyRecorded;
+  const disposition = !matched ? 'CONTINUE_PREFLIGHT'
+    : standing ? 'VERIFY_EXISTING_CONDITIONAL_POLICY'
+      : genuinelyNew ? 'OWNER_QUESTION_ELIGIBLE' : 'CONTINUE_EXISTING_WORK';
+  return Object.freeze({
+    schema: 'xiio.sdk.release-owner-question/v1',
+    subject_ref: preflight.subject_ref,
+    source_generation: preflight.source_generation,
+    disposition,
+    owner_question_eligible: disposition === 'OWNER_QUESTION_ELIGIBLE',
+    first_unqualified_cell: matched ? null : prerequisites.find((id, index) => {
+      const cell = preflight.cells[index];
+      return cell?.id !== id || !['PASS', 'N_A_WITH_REASON'].includes(cell.state) ||
+        !cell.evidence_refs?.length || cell.defect;
+    }),
+    standing_policy_ref: standing ? options.standing_conditional_policy_ref : null,
+    authority_granted: false,
+    provider_effect: false,
+    hard: ['PREFLIGHT_INCOMPLETE!=ASK_OWNER', 'STANDING_POLICY_REF!=WARD_ADMISSION',
+      'CONDITIONAL_OWNER_AUTHORIZATION!=BLANKET_EFFECT_AUTHORITY', 'SDK_QUESTION_ELIGIBLE!=OWNER_APPROVED'],
+  });
+}
+
 export function profileCatalog() {
   return {
     schema: 'xiio.sdk.graduation-profile-catalog/v1',

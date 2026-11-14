@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
+import { compileStudioRegistryIntake } from './studio-registry-intake.mjs';
 
 export const PRODUCT_BASELINE_SCHEMA = 'xiio.sdk.product-capability-baseline/v1';
 export const PRODUCT_BASELINE_CELLS = Object.freeze([
@@ -40,6 +41,7 @@ function normalizeObservation(value = {}) {
 export function compileProductCapabilityBaseline(input) {
   const hexCurrentness = bindHexFloorCurrentness(input?.hex_floor);
   if (!input || typeof input !== 'object' || !Array.isArray(input.products) || !input.products.length) throw new TypeError('products required');
+  const studioDiscovery = compileStudioRegistryIntake(input.studio_registry);
   const seen = new Set();
   const products = input.products.map((product) => {
     if (!product || typeof product !== 'object' || Array.isArray(product)) throw new TypeError('product must be an object');
@@ -54,6 +56,7 @@ export function compileProductCapabilityBaseline(input) {
     const repoRefs = refs(product.repo_refs, 'repo_refs');
     return {
       product_ref: productRef,
+      studio_product_id: optionalText(product.studio_product_id),
       project_ref: optionalText(product.project_ref),
       product_class: productClass,
       repo_refs: repoRefs,
@@ -73,11 +76,24 @@ export function compileProductCapabilityBaseline(input) {
     };
   }).sort((a,b)=>a.product_ref.localeCompare(b.product_ref));
   const cellDenominator = products.length * PRODUCT_BASELINE_CELLS.length;
+  const presentedMemberIds = new Set(products.map(product => product.studio_product_id).filter(Boolean));
+  const missingMemberIds = studioDiscovery.member_ids.filter(id => !presentedMemberIds.has(id));
+  const unknownMappingRefs = products.filter(product => !product.studio_product_id)
+    .map(product => product.product_ref);
   const payload = {
     schema: PRODUCT_BASELINE_SCHEMA,
     source_generation: text(input.source_generation, 'source_generation'),
     observed_at: text(input.observed_at, 'observed_at'),
     product_denominator: products.length,
+    canonical_studio_product_denominator: studioDiscovery.member_count,
+    studio_registry_discovery: studioDiscovery,
+    missing_canonical_member_ids: missingMemberIds,
+    unbound_studio_product_refs: unknownMappingRefs,
+    canonical_member_coverage_100: studioDiscovery.counted_from_canonical_registry &&
+      studioDiscovery.registry_count_consistent &&
+      missingMemberIds.length === 0 && unknownMappingRefs.length === 0,
+    relationship_graph_complete: studioDiscovery.relationship_complete,
+    affected_set_closed: false,
     cells_per_product: PRODUCT_BASELINE_CELLS.length,
     cell_denominator: cellDenominator,
     verified_resolved_cells:0,
@@ -105,7 +121,10 @@ export function compileProductCapabilityBaseline(input) {
       'SUPPLIED_COVERAGE != CLOSURE_100',
       'PRODUCT_WITHOUT_REPO != MISSING_PRODUCT',
       'UNKNOWN != NO_EFFECT',
+      'SCOPED_INPUT_PRODUCT_COUNT != STUDIO_PRODUCT_DENOMINATOR',
+      'PARTIAL_GRAPH != AFFECTED_SET_CLOSED',
     ],
   };
   return { ...payload, product_baseline_generation: digest(payload) };
 }
+

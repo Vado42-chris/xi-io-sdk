@@ -99,6 +99,26 @@ try {
   assert.equal(stale.admitted,false);
   assert.equal(stale.first_red,'ROTFL_OOR_SOURCE_GENERATION_DRIFT');
 
+  // A persisted O11 pass cannot become its own current-generation authority.
+  // Every SDK adopter must supply the resolved generation on admission/advance.
+  const unboundGenerations=[
+    undefined,null,false,0,{},[],'',' ','UNKNOWN','unknown','UNVERIFIED',
+    'null','undefined',' '+generation,generation+' ','x'.repeat(513),
+  ];
+  for(const current_source_generation of unboundGenerations){
+    const before=fs.readFileSync(state);
+    const refused=requireRotflMutationAdmission({state_path:state,current_source_generation});
+    assert.equal(refused.admitted,false);
+    assert.equal(refused.first_red,'ROTFL_OOR_CURRENT_SOURCE_GENERATION_UNBOUND');
+    const blockedAdvance=advanceRotflOrderRuntime({
+      step_id:'O12',evidence_ref:'evidence:O12',preflight_ref:'preflight:O12',
+      current_source_generation,state_path:state,
+    });
+    assert.equal(blockedAdvance.advanced,false);
+    assert.equal(blockedAdvance.first_red,'ROTFL_OOR_CURRENT_SOURCE_GENERATION_UNBOUND');
+    assert.deepEqual(fs.readFileSync(state),before);
+  }
+
   for(const [argv,expected] of [
     [['--execute'],true],
     [['pneuma','--exec-rotfl'],true],
@@ -116,12 +136,34 @@ try {
     assert.equal(rotflMutationCommandClass(argv).mutation,expected,argv.join(' '));
   }
 
+  const graphState=path.join(root,'graph-order.current.json');
+  const source_graph={selected_ref:'work',expected_agent_id:'registered-agent',expected_pr_ref:'portfolio/consumer#15',nodes:[
+    {id:'original',kind:'original',repo:'portfolio/source',generation:'g1'},
+    {id:'work',kind:'work',repo:'portfolio/consumer',generation:'g2',parents:['original'],agent_id:'registered-agent',assigned_pr_ref:'portfolio/consumer#15'},
+  ]};
+  const graphInit=initializeRotflOrderRuntime({source_generation:generation,managed_current,source_graph,state_path:graphState});
+  assert.equal(graphInit.order.source_resolution.ok,true);
+  for(let i=0;i<3;i++){
+    const id='O'+i;
+    const step=advanceRotflOrderRuntime({step_id:id,evidence_ref:'e:'+id,preflight_ref:'p:'+id,current_source_generation:generation,state_path:graphState});
+    assert.equal(step.state,'PASS');
+    assert.deepEqual(step.order.source_resolution.original_refs,['original']);
+    assert.deepEqual(step.order.source_resolution.assignment_refs,['registered-agent|portfolio/consumer#15']);
+  }
+  const tampered=JSON.parse(fs.readFileSync(graphState,'utf8'));
+  tampered.source_graph.nodes[1].assigned_pr_ref='portfolio/other#15';
+  fs.writeFileSync(graphState,JSON.stringify(tampered));
+  const tamperedRead=readRotflOrderRuntime({state_path:graphState});
+  assert.equal(tamperedRead.state,'FAIL');
+  assert.equal(tamperedRead.first_red,'ROTFL_OOR_SOURCE_RESOLUTION_TAMPERED');
+
   console.log(JSON.stringify({
     schema:'xiio.sdk.rotfl-order-runtime-hostile/v1',
     state:'PASS',
     mutation_before_o11:'BLOCKED',
     mutation_after_o11:'ADMITTED_NO_EFFECT_AUTHORITY',
     generation_drift:'BLOCKED',
+    unbound_generation_cases:unboundGenerations.length,
     illegal_skip:'BLOCKED',
     missing_proof:'BLOCKED',
     command_classification:'PASS',

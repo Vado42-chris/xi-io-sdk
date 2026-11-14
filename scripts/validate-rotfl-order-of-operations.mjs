@@ -91,3 +91,4 @@ console.log(JSON.stringify({
   result:'PASS',
   effects:0
 }));
+import './validate-managed-source-graph.mjs';

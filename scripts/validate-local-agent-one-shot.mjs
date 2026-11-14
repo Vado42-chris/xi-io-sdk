@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initializeRotflOrderRuntime, advanceRotflOrderRuntime } from '../src/preflight/order-runtime.mjs';
+import { validateWorkspaceCommand } from '../bin/xi-local-agent.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
@@ -57,7 +58,11 @@ assert.match(agent,/automatic_cloud_fallback:false/);
 assert.match(agent,/provider_effect:false/);
 assert.match(agent,/RESULT -> RETURN -> APPLY_RETURN/);
 assert.match(agent,/SHELL_STRING_DENIED/);
-assert.match(agent,/GIT_COMMAND_DENIED/);
+// Exercise the real gate rather than matching a retired error string.
+for(const args of [
+  ['status'], ['pull','origin','main'], ['switch','main'],
+  ['branch','-D','feature'], ['diff','--output=outside.txt']
+]) assert.throws(()=>validateWorkspaceCommand('git',args),/COMMAND_DENIED/);
 assert.match(agent,/TOOL_SPIN_LIMIT/);
 assert.doesNotMatch(agent,/api\.openai\.com|anthropic\.com|generativelanguage\.googleapis\.com/i);
 

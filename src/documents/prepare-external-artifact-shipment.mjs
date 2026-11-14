@@ -1,3 +1,4 @@
+import { freezeStructure } from './immutable-structure.mjs';
 import { compilePortableArtifactCube } from './portable-artifact-cube.mjs';
 import { resolveArtifactProfile } from './artifact-profile-catalog.mjs';
 
@@ -18,10 +19,16 @@ export function prepareExternalArtifactShipment(input={}){
   if(!sourceRef) throw new TypeError('SOURCE_REF_REQUIRED');
   if(!sourceGeneration) throw new TypeError('SOURCE_GENERATION_REQUIRED');
 
+  // Preserve supplied bindings for the canonical semantic-file validator.
+  // Malformed input must not disappear into an apparently dependency-free file.
+  const dependencyBindings=input.dependency_bindings??[];
+  const projectionRefs=input.projection_refs??[];
+  const providerProjections=input.provider_projections??[];
+
   const profile=resolveArtifactProfile(profileId);
   if(profile.state!=='PASS') throw new TypeError('PROFILE_NOT_REGISTERED');
 
-  const manifest={
+  const manifest=freezeStructure(structuredClone({
     cube_id:text(input.cube_id)||`file-cube:${fileId}`,
     file:{
       file_id:fileId,
@@ -30,11 +37,11 @@ export function prepareExternalArtifactShipment(input={}){
       profile_id:profileId,
       payload:{descriptor},
       source_bindings:[{ref:sourceRef,generation:sourceGeneration,role:'primary'}],
-      dependency_bindings:Array.isArray(input.dependency_bindings)?input.dependency_bindings:[],
-      projection_refs:Array.isArray(input.projection_refs)?input.projection_refs:[],
-      provider_projections:Array.isArray(input.provider_projections)?input.provider_projections:[],
+      dependency_bindings:dependencyBindings,
+      projection_refs:projectionRefs,
+      provider_projections:providerProjections,
     },
-    dependency_policy:text(input.dependency_policy)||(Array.isArray(input.dependency_bindings)&&input.dependency_bindings.length?'EXPLICIT':'NONE_REQUIRED'),
+    dependency_policy:text(input.dependency_policy)||(Array.isArray(dependencyBindings)&&dependencyBindings.length===0?'NONE_REQUIRED':'EXPLICIT'),
     parser_profile:{profile_id:profileId},
     consumer_profile:{profile_id:profileId},
     hex_floor:input.hex_floor||null,
@@ -45,17 +52,17 @@ export function prepareExternalArtifactShipment(input={}){
     parser_readback:input.parser_readback||{},
     consumer_readback:input.consumer_readback||{},
     authority_gate:input.authority_gate||{required:false,held:false},
-  };
+  }));
 
   const cube=compilePortableArtifactCube(manifest);
   return Object.freeze({
     schema:'xiio.sdk.external-artifact-shipment-preparation/v1',
-    descriptor_schema:text(descriptor.schema),
+    descriptor_schema:text(manifest.file.payload.descriptor.schema),
     source_ref:sourceRef,
     source_generation:sourceGeneration,
     manifest:Object.freeze(manifest),
     cube,
-    missing_cells:Object.freeze(cube.cells.filter((x)=>x.state!=='PASS').map((x)=>({
+    missing_cells:freezeStructure(cube.cells.filter((x)=>x.state!=='PASS').map((x)=>({
       id:x.id,state:x.state,first_red:x.first_red||null
     }))),
     ready_to_ship:cube.closure_100,
@@ -69,3 +76,4 @@ export function prepareExternalArtifactShipment(input={}){
     ])
   });
 }
+

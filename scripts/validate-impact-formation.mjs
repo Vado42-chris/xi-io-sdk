@@ -21,7 +21,28 @@ test('capacity constrains principals but not denominator',()=>{const i=base();i.
 test('upstream sorts before downstream',()=>{const i=base();i.nodes=[node('repo:down',{direction:'DOWNSTREAM',priority:'P0'}),node('repo:up',{direction:'UPSTREAM',priority:'P4'})];const r=compileImpactFormation(i);assert.equal(r.detonations[0].target_ref,'repo:up')});
 test('higher pressure sorts first inside wave',()=>{const i=base();i.nodes=[node('repo:a',{user_impact:0}),node('repo:b',{priority:'P0',risk:4,user_impact:4,time_pressure:4,fanout:4,cognitive_load:4})];const r=compileImpactFormation(i);assert.equal(r.detonations[0].target_ref,'repo:b')});
 test('same input produces stable UUIDs',()=>{const a=compileImpactFormation(base()),b=compileImpactFormation(base());assert.deepEqual(a.detonations.map(x=>x.detonation_uuid),b.detonations.map(x=>x.detonation_uuid))});
+test('local stale or unknown dependencies cannot be burned as runnable',()=>{
+  for (const upstream of [
+    node('repo:source',{state:'UNKNOWN'}),
+    node('repo:source',{currentness:'STALE'}),
+    node('repo:source',{runnable:false}),
+  ]) {
+    const i=base();
+    i.nodes=[node('repo:consumer',{dependencies:['repo:source']}),upstream];
+    const r=compileImpactFormation(i);
+    const consumer=r.plans.find(p=>p.ref==='repo:consumer');
+    assert.equal(consumer.operation,'WAIT_DEPENDENCY');
+    assert.deepEqual(consumer.unresolved_local_dependency_refs,['repo:source']);
+    assert(consumer.blockers.includes('LOCAL_DEPENDENCY_NOT_CURRENT_OR_RUNNABLE'));
+    assert(!consumer.roles.includes('EXECUTE_RESOLVE'));
+  }
+});
+test('external edge dependencies remain owned by their existing executor',()=>{
+  const i=base();i.nodes=[node('repo:consumer',{dependencies:['edge:ward']})];
+  const r=compileImpactFormation(i);
+  assert.equal(r.plans[0].operation,'BURN_AFFECTED_CELL');
+});
 test('duplicate refs reject',()=>{const i=base();i.nodes=[node('repo:a'),node('repo:a')];assert.throws(()=>compileImpactFormation(i),/duplicate/) });
 test('pressure is planning metric not 100',()=>{const r=compileImpactFormation(base());assert(r.hard.includes('PRESSURE_SCORE != COMPLETION_100'));assert.equal(r.authority_granted,false)});
 test('unbound worker pool cannot fabricate exact agent count',()=>{const r=compileImpactFormation(base());assert.equal(r.exact_materializable_principal_count,null);assert.equal(r.staffing_count_state,'ROLE_SEAT_AND_PRINCIPAL_FLOOR_ONLY')});
-console.log('IMPACT_FORMATION_PASS 13/13');
+console.log('IMPACT_FORMATION_PASS 15/15');

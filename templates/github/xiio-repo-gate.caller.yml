@@ -1,0 +1,25 @@
+# Copy to .github/workflows/xiio-repo-gate.yml in any xi-io repository.
+# The gate logic lives once in Vado42-chris/xi-io-sdk; this file only chooses
+# where it runs and which command is the repository's gate of record.
+name: xi-io repo gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    # Pin a qualified SDK generation (full commit SHA). Consumers do not auto-track SDK main;
+    # bump the pin deliberately after the new generation is qualified for this repo.
+    uses: Vado42-chris/xi-io-sdk/.github/workflows/xiio-repo-gate.yml@<SDK_COMMIT_SHA>
+    with:
+      # Private repo: the owner's self-hosted xi-io runner (Aries).
+      # Public repo: '"ubuntu-latest"' (GitHub-hosted minutes are free for public repos).
+      runner: '["self-hosted","linux","x64"]'
+      # Empty = first existing package script of: check, verify, test.
+      gate_command: ''
