@@ -139,3 +139,64 @@ test('hostile BINS parent version cannot escape bounded metadata projection',()=
     assert.throws(()=>make(e),{message:'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'});
   }
 });
+
+const successfulRead=scope=>({schema:'xiio.sdk.worker-connection/v1',
+  state:'REQUESTER_FILE_BYTES_MATCHED',...scope,bytes:7,sha256:sha,
+  contentBase64:content.toString('base64'),readback_ref:'readback:1',
+  authority_granted:false,apply_return_verified:false});
+
+test('async scope replacement cannot substitute a different returned version',async()=>{
+  const original=make();
+  const prepared={...original};
+  const replacement=Object.freeze({...original.scope,version_ref:'version:other'});
+  let calls=0;
+  await assert.rejects(readBinsVersionWithWorker({prepared,worker:{readFile:async(_binding,scope)=>{
+    calls++;
+    assert.strictEqual(scope,original.scope);
+    await Promise.resolve();
+    prepared.scope=replacement;
+    return successfulRead(replacement);
+  }}}),/READBACK_IDENTITY_MISMATCH/);
+  assert.equal(calls,1);
+});
+
+test('async parent replacement does not reject correct bytes or misattribute refusal',async()=>{
+  for(const blocked of [false,true]){
+    const original=make();
+    const prepared={...original};
+    const result=await readBinsVersionWithWorker({prepared,worker:{readFile:async(_binding,scope)=>{
+      await Promise.resolve();
+      prepared.scope=Object.freeze({...scope,work_ref:'work:other',resource_ref:'resource:other',version_ref:'version:other'});
+      return blocked ? {state:'BLOCKED',first_red:'WARD_ADMISSION_UNAVAILABLE'} : successfulRead(scope);
+    }}});
+    assert.equal(result.resource_ref,original.scope.resource_ref);
+    assert.equal(result.version_ref,original.scope.version_ref);
+    if(blocked)assert.equal(result.work_ref,original.scope.work_ref);
+    assert.equal(result.authority_granted,false);
+  }
+});
+
+test('prepared scope accessor is captured once before invoking worker',async()=>{
+  const original=make();
+  let reads=0;
+  const prepared=Object.freeze({...original,get scope(){
+    return ++reads===1 ? original.scope : Object.freeze({...original.scope,version_ref:'version:other'});
+  }});
+  const result=await readBinsVersionWithWorker({prepared,worker:{readFile:async(_binding,scope)=>successfulRead(scope)}});
+  assert.equal(reads,1);
+  assert.equal(result.version_ref,original.scope.version_ref);
+});
+
+test('frozen scope accessors and malformed reconstructed coordinates refuse before IO',async()=>{
+  const original=make();
+  let calls=0,getters=0;
+  for(const scope of [
+    Object.freeze({...original.scope,get version_ref(){getters++;return 'version:1';}}),
+    Object.freeze({...original.scope,expected_bytes:16385}),
+    Object.freeze({...original.scope,expected_sha256:'not-a-digest'}),
+    Object.freeze({...original.scope,version_ref:'/private/path'}),
+    Object.freeze({...original.scope,extra:'unscoped'}),
+  ])await assert.rejects(readBinsVersionWithWorker({prepared:{...original,scope},worker:{readFile:async()=>{calls++;}}}));
+  assert.equal(calls,0);
+  assert.equal(getters,0);
+});
