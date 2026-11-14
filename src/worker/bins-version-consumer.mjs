@@ -38,14 +38,14 @@ export function prepareBinsVersionRead({event, work, returned} = {}) {
   const destination = event.destination_binding;
   required(destination?.registry_ref, 'BINS_VERSION_CONSUMER_REGISTRY_REQUIRED');
   required(destination?.registry_generation, 'BINS_VERSION_CONSUMER_REGISTRY_GENERATION_REQUIRED');
-  const bindingRef = required(destination?.binding_ref, 'BINS_VERSION_CONSUMER_BINDING_REQUIRED');
+  required(destination?.binding_ref, 'BINS_VERSION_CONSUMER_REGISTRY_BINDING_REQUIRED');
   const stored = event.bins || {};
   const coordinate = stored.custody_coordinate || {};
   const resourceRef = required(stored.resource_ref, 'BINS_VERSION_CONSUMER_RESOURCE_REQUIRED');
   const versionRef = required(stored.version_ref, 'BINS_VERSION_CONSUMER_VERSION_REQUIRED');
   equal(coordinate.resource_ref, resourceRef, 'BINS_VERSION_CONSUMER_RESOURCE_MISMATCH');
   equal(coordinate.version_ref, versionRef, 'BINS_VERSION_CONSUMER_VERSION_MISMATCH');
-  equal(stored.binding_ref, bindingRef, 'BINS_VERSION_CONSUMER_BINDING_MISMATCH');
+  const storageBindingRef = required(stored.binding_ref, 'BINS_VERSION_CONSUMER_STORAGE_BINDING_REQUIRED');
   const digest = coordinate.sha256;
   if (typeof digest !== 'string' || !SHA.test(digest)) {
     throw new Error('BINS_VERSION_CONSUMER_DIGEST_INVALID');
@@ -59,13 +59,13 @@ export function prepareBinsVersionRead({event, work, returned} = {}) {
     'BINS_VERSION_CONSUMER_WORK_GENERATION_MISMATCH');
   equal(returned?.resource_ref, resourceRef, 'BINS_VERSION_CONSUMER_RETURN_RESOURCE_MISMATCH');
   equal(returned?.version_ref, versionRef, 'BINS_VERSION_CONSUMER_RETURN_VERSION_MISMATCH');
-  equal(returned?.storage_binding_ref, bindingRef, 'BINS_VERSION_CONSUMER_RETURN_BINDING_MISMATCH');
+  equal(returned?.storage_binding_ref, storageBindingRef, 'BINS_VERSION_CONSUMER_RETURN_BINDING_MISMATCH');
   const scope = Object.freeze({
     work_ref: required(work.work_ref, 'BINS_VERSION_CONSUMER_WORK_REQUIRED'),
     work_generation: required(work.work_generation, 'BINS_VERSION_CONSUMER_WORK_GENERATION_REQUIRED'),
     return_ref: required(returned.return_ref, 'BINS_VERSION_CONSUMER_RETURN_REQUIRED'),
     resource_ref: resourceRef, version_ref: versionRef,
-    storage_binding_ref: bindingRef, expected_sha256: digest, expected_bytes: size,
+    storage_binding_ref: storageBindingRef, expected_sha256: digest, expected_bytes: size,
   });
   return Object.freeze({
     schema: BINS_VERSION_CONSUMER_SCHEMA,
