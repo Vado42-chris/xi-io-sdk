@@ -48,6 +48,27 @@ const bad=spawnSync(process.execPath,[
 ],{encoding:'utf8'});
 assert.notEqual(bad.status,0);
 
+// Exercise the actual existing CLI forwarding into the public receipt compiler.
+const args=['bin/xi.mjs','receipt','fractal','--consumer','HEX','--scale','MICRO','--input',vectorPath,'--producer','hex:producer','--observer','benchmark:observer','--source','hex:projection'];
+assert.equal('previous_receipt' in body,false);
+for(const consumer of ['product:alpha','product:beta']){
+  const ownArgs=[...args];ownArgs[ownArgs.indexOf('--consumer')+1]=consumer;
+  const linked=spawnSync(process.execPath,[...ownArgs,'--previous-receipt','receipt:prior'],{encoding:'utf8'});
+  assert.equal(linked.status,0,linked.stderr);
+  const result=JSON.parse(linked.stdout);
+  assert.equal(result.consumer_id,consumer);
+  assert.equal(result.previous_receipt,'receipt:prior');
+  assert.equal(result.previous_receipt_state,'SUPPLIED_UNVERIFIED');
+  assert.equal(result.effect_authority,0);
+  assert.equal('parent_version_ref' in result,false);
+}
+for(const value of ['', ' ', 'r'.repeat(1025)]){
+  const invalid=spawnSync(process.execPath,[...args,'--previous-receipt',value],{encoding:'utf8'});
+  assert.notEqual(invalid.status,0);
+}
+const missing=spawnSync(process.execPath,[...args,'--previous-receipt'],{encoding:'utf8'});
+assert.notEqual(missing.status,0);
+
 fs.rmSync(tmp,{recursive:true,force:true});
 console.log(JSON.stringify({
   schema:'xiio.sdk.fractal-consumer-receipt-cli-check/v1',
