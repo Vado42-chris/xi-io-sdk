@@ -53,6 +53,25 @@ const claimedComplete = compileStudioRegistryIntake({...supplied,relationship_gr
 assert.equal(claimedComplete.relationship_complete,true);
 assert.equal(claimedComplete.full_affected_set_closed,false);
 assert.equal(claimedComplete.source.currentness,'SUPPLIED_UNVERIFIED');
+// Explicit malformed unresolved declarations must not disappear as an empty set.
+for (const unresolved_candidate_nodes of [new Array(1), null, undefined, {}, {id:'pending'}, [{}], [null], [{id:' '}], ['pending']]) {
+  const graph={...populatedGraph,unresolved_candidate_nodes};
+  const result=compileStudioRegistryIntake({...supplied,relationship_graph:graph});
+  assert.equal(result.relationship_complete,false);
+  assert(result.blockers.includes('STUDIO_GRAPH_UNRESOLVED_CANDIDATES_INVALID'));
+  assert.equal(result.full_affected_set_closed,false);
+  assert.equal(result.authority_granted,false);
+  assert.equal(compileStudioRoster({state_root:'/tmp/sandbox-fixture',studio_registry:{...supplied,relationship_graph:graph}}).relationship_complete,false);
+  assert.equal(compileProductCapabilityBaseline({source_generation:'G1',observed_at:'2026-11-14',studio_registry:{...supplied,relationship_graph:graph},products:[{product_ref:'product:case',studio_product_id:'case_app'}]}).relationship_graph_complete,false);
+}
+const omittedCandidates={...populatedGraph};
+delete omittedCandidates.unresolved_candidate_nodes;
+assert.equal(compileStudioRegistryIntake({...supplied,relationship_graph:omittedCandidates}).relationship_complete,true);
+for (const id of [undefined,null,'', ' ']) {
+  const result=compileStudioRegistryIntake({...supplied,denominator:{...denominator,id},relationship_graph:{...populatedGraph,root_ref:id}});
+  assert.equal(result.relationship_complete,false);
+  assert.equal(result.state,'BLOCKED_SOURCE_MISMATCH');
+}
 const driftedDenominator={...denominator,counts:{studio_member_known:99,studio_membership_denominator:99}};
 assert(compileStudioRegistryIntake({...supplied,denominator:driftedDenominator}).blockers.includes('STUDIO_DENOMINATOR_COUNT_DRIFT'));
 

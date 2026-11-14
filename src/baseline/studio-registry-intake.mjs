@@ -93,7 +93,9 @@ export function compileStudioRegistryIntake(input = {}) {
   if (graph.schema !== 'xiio.studio-relationship-graph/v1') {
     throw new TypeError('STUDIO_RELATIONSHIP_GRAPH_SCHEMA_INVALID');
   }
-  if (graph.root_ref !== denominator.id) blockers.push('STUDIO_GRAPH_DENOMINATOR_ID_MISMATCH');
+  if (!safeText(denominator.id) || !safeText(graph.root_ref) || graph.root_ref !== denominator.id) {
+    blockers.push('STUDIO_GRAPH_DENOMINATOR_ID_MISMATCH');
+  }
   if (!source.graph_ref) blockers.push('STUDIO_GRAPH_SOURCE_REF_UNBOUND');
   if (!safeText(graph.generation)) blockers.push('STUDIO_GRAPH_GENERATION_UNBOUND');
   const nodes = items(graph.product_nodes);
@@ -102,12 +104,16 @@ export function compileStudioRegistryIntake(input = {}) {
     !nodes.some(node => node?.id === id && node?.membership === 'MEMBER'));
   if (new Set(nodeIds).size !== nodeIds.length) blockers.push('STUDIO_GRAPH_DUPLICATE_PRODUCT_NODE');
   if (missing_graph_member_ids.length) blockers.push('STUDIO_GRAPH_MEMBER_COVERAGE_INCOMPLETE');
-  const unresolved_relationship_ids = items(graph.unresolved_candidate_nodes)
+  const unresolvedCandidates = graph.unresolved_candidate_nodes;
+  const malformedCandidates = hasOwn(graph, 'unresolved_candidate_nodes') &&
+    (!Array.isArray(unresolvedCandidates) || Array.from(unresolvedCandidates).some(node => !object(node) || !safeText(node.id)));
+  if (malformedCandidates) blockers.push('STUDIO_GRAPH_UNRESOLVED_CANDIDATES_INVALID');
+  const unresolved_relationship_ids = items(unresolvedCandidates)
     .map(node => safeText(node?.id)).filter(Boolean);
   if (unresolved_relationship_ids.length) blockers.push('STUDIO_GRAPH_UNRESOLVED_CANDIDATES');
   if (graph.complete !== true) blockers.push('STUDIO_RELATIONSHIP_GRAPH_PARTIAL');
   const relationship_complete = graph.complete === true &&
-    !missing_graph_member_ids.length && !unresolved_relationship_ids.length &&
+    !missing_graph_member_ids.length && !unresolved_relationship_ids.length && !malformedCandidates &&
     !blockers.includes('STUDIO_GRAPH_DENOMINATOR_ID_MISMATCH') &&
     !blockers.includes('STUDIO_GRAPH_DUPLICATE_PRODUCT_NODE');
   const state = blockers.includes('STUDIO_GRAPH_DENOMINATOR_ID_MISMATCH')
