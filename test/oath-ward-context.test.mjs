@@ -18,7 +18,8 @@ function ports(){
    admissionCalls++;
    assert.equal(request_digest,sha(request));
    return {schema:'xiio.ward.matter-action-admission/v1',state:'ADMITTED',
-     request_digest,principal_ref:request.principal_ref,matter_ref:request.matter_ref,
+     request_digest,principal_ref:request.principal_ref,workspace_ref:request.workspace_ref,
+     matter_ref:request.matter_ref,
      resource_ref:request.resource_ref,action:request.action,
      admission_ref:'ward:1',expires_at:later};
  },calls:()=>admissionCalls};
@@ -62,7 +63,7 @@ test('missing onboarding workspace cannot contact Oath or Ward',async()=>{
  assert.equal(p.calls(),0);
 });
 test('Ward must admit exact matter, resource, action and principal',async()=>{
- for(const field of ['matter_ref','resource_ref','action','principal_ref','request_digest']){
+ for(const field of ['workspace_ref','matter_ref','resource_ref','action','principal_ref','request_digest']){
    const p=ports();
    const result=await invoke({...p,admit:async arg=>({...await p.admit(arg),[field]:'wrong'})});
    assert.equal(result.first_red,'WARD_MATTER_ADMISSION_NOT_VERIFIED',field);
