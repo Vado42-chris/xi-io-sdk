@@ -32,7 +32,7 @@ const wait=(id,first_red,detail={})=>({id,state:'TRUE_WAIT',first_red,...safeDet
 const fail=(id,first_red,detail={})=>({id,state:'FAIL',first_red,...safeDetail(detail)});
 
 function sha(v){const x=text(v)?.toLowerCase();return x&&SHA.test(x)?x:null;}
-function bytes(v){return Number.isInteger(v)&&v>=0?v:null;}
+function bytes(v){return Number.isSafeInteger(v)&&v>=0?v:null;}
 
 export function compilePortableArtifactCube(input={}){
   let file=null;
