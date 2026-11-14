@@ -20,6 +20,7 @@ export async function observeOathWardContext({onboarding,work_ref,matter_ref,res
       onboarding.ward_admission!==false||onboarding.provider_effect!==false)
       throw Error('OATH_ONBOARDING_NOT_AUTHENTICATED');
     const account_ref=ref(onboarding.account_ref,'ACCOUNT_REF');
+    const workspace_ref=ref(onboarding.workspace_ref,'WORKSPACE_REF');
     const session_ref=ref(onboarding.session?.session_ref,'SESSION_REF');
     const scope=Object.freeze({work_ref:ref(work_ref,'WORK_REF'),matter_ref:ref(matter_ref,'MATTER_REF'),
       resource_ref:ref(resource_ref,'RESOURCE_REF'),action:ref(action,'ACTION')});
@@ -29,19 +30,21 @@ export async function observeOathWardContext({onboarding,work_ref,matter_ref,res
     const identity=await verifySession({session_ref,account_ref});
     if(identity?.schema!=='xiio.oath.verified-session/v1'||identity.state!=='VERIFIED_CURRENT'||
       identity.session_ref!==session_ref||identity.account_ref!==account_ref||
+      identity.workspace_ref!==workspace_ref||
       identity.current!==true||!current(identity.expires_at,at))throw Error('OATH_SESSION_NOT_VERIFIED');
     const principal_ref=ref(identity.principal_ref,'PRINCIPAL_REF');
-    const request=Object.freeze({account_ref,session_ref,principal_ref,...scope});
+    const request=Object.freeze({account_ref,workspace_ref,session_ref,principal_ref,...scope});
     const request_digest=digest(request);
     const decision=await admit({request,request_digest});
     if(decision?.schema!=='xiio.ward.matter-action-admission/v1'||
       decision.state!=='ADMITTED'||decision.request_digest!==request_digest||
-      decision.principal_ref!==principal_ref||decision.matter_ref!==matter_ref||
+      decision.principal_ref!==principal_ref||decision.workspace_ref!==workspace_ref||
+      decision.matter_ref!==matter_ref||
       decision.resource_ref!==resource_ref||decision.action!==action||
       !current(decision.expires_at,at))throw Error('WARD_MATTER_ADMISSION_NOT_VERIFIED');
     const admission_ref=ref(decision.admission_ref,'ADMISSION_REF');
     return Object.freeze({schema:OATH_WARD_CONTEXT_SCHEMA,state:'ADMISSION_OBSERVED',
-      account_ref,principal_ref,...scope,request_digest,admission_ref,
+      account_ref,workspace_ref,principal_ref,...scope,request_digest,admission_ref,
       authority_granted:false,ward_admission:false,provider_effect:false,
       next:'REVALIDATE_WITH_WARD_AT_EFFECT_BOUNDARY'});
   }catch(error){
