@@ -144,7 +144,23 @@ export function compileImpactFormation(input) {
     if (seen.has(node.ref)) throw new TypeError('duplicate node ref');
     seen.add(node.ref);
   }
-  const plans = input.nodes.map(node => nodePlan(root, node));
+  // An explicitly linked node cannot be scheduled before a locally known red
+  // dependency. External dependency refs remain with their owning edge/runner.
+  const byRef = new Map(input.nodes.map(node => [node.ref, node]));
+  const plans = input.nodes.map(node => {
+    const unresolved = node.dependencies.filter(dep => {
+      const prerequisite = byRef.get(dep);
+      return prerequisite && (prerequisite.state === 'UNKNOWN'
+        || prerequisite.currentness !== 'CURRENT' || prerequisite.runnable !== true);
+    });
+    const planned = nodePlan(root, unresolved.length ? { ...node, runnable: false } : node);
+    if (!unresolved.length || planned.operation !== 'WAIT_DEPENDENCY') return planned;
+    return {
+      ...planned,
+      blockers: [...planned.blockers, 'LOCAL_DEPENDENCY_NOT_CURRENT_OR_RUNNABLE'],
+      unresolved_local_dependency_refs: unresolved,
+    };
+  });
   const detonations = plans.flatMap(p => p.detonations).sort((a,b) =>
     a.wave - b.wave || b.pressure - a.pressure || a.target_ref.localeCompare(b.target_ref, 'en') || a.role.localeCompare(b.role, 'en'));
   const requestedSeats = plans.reduce((n,p) => n + p.requested_role_seats, 0);
