@@ -96,3 +96,36 @@ console.log(JSON.stringify({
   stale_generation:'REBASE_REQUIRED',
   event_projection:'payload.data',
 },null,2));
+
+// Preserve full identity tuples when caller text contains delimiters.
+{
+const collisionHash='a'.repeat(64);
+const rows=[{occurrence_ref:'first',canonical_identity:'resource|revision',generation:'g1',content_sha256:collisionHash,content_bytes:1},{occurrence_ref:'second',canonical_identity:'resource',generation:'revision|g1',content_sha256:collisionHash,content_bytes:1}];
+const result=compileFlapHarvest({occurrences:rows,current_generation:'g1'});
+assert.equal(result.unique_content_identities,2,'distinct canonical identity/generation tuples must not collapse');
+assert.equal(result.duplicate_occurrences,0);
+assert.equal(result.resume.state,'REBASE_REQUIRED');
+assert.equal(result.provider_effect,false);
+const reversed=compileFlapHarvest({occurrences:[...rows].reverse(),current_generation:'g1'});
+assert.deepEqual(result.identities,reversed.identities);
+for (let i=0;i<100;i++) {
+ const a={...rows[0],canonical_identity:`r${i}|part`,generation:'g'}, b={...rows[1],canonical_identity:`r${i}`,generation:'part|g'};
+ const out=compileFlapHarvest({occurrences:[a,b],current_generation:'g'});
+ assert.equal(out.unique_content_identities,2);
+ assert.equal(out.identities.flatMap(x=>x.occurrence_refs).length,2);
+}
+console.log('PASS collision pair, order invariance, stale refusal, 100 tuple collisions');
+
+}
+
+// Existing public cache keys and checkpoint behavior stay compatible.
+{
+  const unusual=['pipe|value','back\\slash','quote"value','nul\0value','snow雪','["json", "looking"]'];
+  for(const identity of unusual){
+    const input={current_generation:'G1',occurrences:[{...occurrences[0],canonical_identity:identity}]};
+    const original=compileFlapHarvest(input);
+    const resumed=compileFlapHarvest({...input,checkpoint:{committed:true,acknowledged:false,generation:'G1',cache_key:original.identities[0].cache_key}});
+    assert.equal(resumed.resume.state,'READBACK_EXISTING_RECEIPT');
+    assert.equal(resumed.identities[0].cache_key,original.identities[0].cache_key);
+  }
+}
