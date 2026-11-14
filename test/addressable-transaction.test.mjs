@@ -49,6 +49,21 @@ const baseObservation=()=>({
   wake_acknowledged:true,
 });
 
+test('transaction preimage must be the selected revision and generation',()=>{
+  for(const override of [
+    {expected_revision:'other-revision'},
+    {expected_generation:'other-generation'},
+  ]) {
+    assert.throws(()=>compileAddressableTransaction({
+      transaction_ref:'tx:drift',
+      selection:selection(),
+      expected_post_revision:'3',
+      expected_post_generation:'source:g2',
+      ...override,
+    }),/SELECTION_PREIMAGE_MISMATCH/);
+  }
+});
+
 test('immutable selection rejects stale proposition, matter, workspace, original and document',()=>{
   const expected=compileImmutableSelection(selection());
   for(const key of ['proposition_ref','matter_ref','workspace_ref','original_ref','document_ref']){
