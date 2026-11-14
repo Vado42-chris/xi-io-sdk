@@ -97,4 +97,32 @@ const hostedStarted = normalizeHostedRunnerObservation({
 assert.equal(hostedStarted.admission_state, 'START_OBSERVED');
 assert.equal(hostedStarted.failure_class, null);
 
-console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=8 source_failure_false_green=0 invented_retry=0 fallback_authority=0 hosted_billing_preflight=1');
+// These four observations share one numeric boundary. Malformed evidence
+// must not become a runner start, HTTP response or evidenced retry duration.
+const malformedNumbers = ['1garbage', '1.5', '1e3', '0x10', '', ' ', 1.5, NaN, Infinity,
+  Number.MAX_SAFE_INTEGER + 1, '9007199254740992', [], [1], {}, {toString:()=> '1'}, true, null, undefined];
+for (const value of malformedNumbers) {
+  for (const field of ['runner_id', 'steps_count']) {
+    const result = normalizeHostedRunnerObservation({[field]:value});
+    assert.equal(result[field], null);
+    assert.equal(result.admission_state, 'UNKNOWN');
+    assert.equal(result.effect_authority, false);
+  }
+  const failure = normalizeProviderFailure({http_status:value,retry_after_ms:value});
+  assert.equal(failure.http_status,null);
+  assert.equal(failure.provider_reached,false);
+  assert.equal(failure.retry_after_ms,null);
+  assert.equal(failure.retry_timing_state,'UNKNOWN');
+  assert.equal(failure.automatic_retry_authorized,false);
+}
+for (const value of [42, '42', ' 42 ', '+42', '0042', Number.MAX_SAFE_INTEGER]) {
+  const result=normalizeHostedRunnerObservation({runner_id:value});
+  assert.equal(result.runner_id,Number(value));
+  assert.equal(result.admission_state,'START_OBSERVED');
+}
+assert.equal(normalizeHostedRunnerObservation({runner_id:'0',steps_count:'0',conclusion:'failure'}).admission_state,'HOLD_PROVIDER_START_FAILURE');
+assert.equal(normalizeHostedRunnerObservation({runner_id:-1}).runner_id,-1);
+assert.equal(normalizeHostedRunnerObservation({runner_id:'bad',steps:[{}]}).admission_state,'START_OBSERVED','valid independent step evidence remains usable');
+assert.equal(normalizeProviderFailure({http_status:'401',retry_after_ms:'20'}).retry_after_ms,20);
+
+console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=8 numeric_hostiles=18 source_failure_false_green=0 invented_retry=0 fallback_authority=0 hosted_billing_preflight=1');
