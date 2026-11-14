@@ -40,7 +40,8 @@ export async function observeOathWardContext({onboarding,work_ref,matter_ref,res
     const decision=await admit({request,request_digest});
     if(decision?.schema!=='xiio.ward.matter-action-admission/v1'||
       decision.state!=='ADMITTED'||decision.request_digest!==request_digest||
-      decision.principal_ref!==principal_ref||decision.matter_ref!==matter_ref||
+      decision.principal_ref!==principal_ref||decision.workspace_ref!==workspace_ref||
+      decision.matter_ref!==matter_ref||
       decision.resource_ref!==resource_ref||decision.action!==action||
       !current(decision.expires_at,at))throw Error('WARD_MATTER_ADMISSION_NOT_VERIFIED');
     const admission_ref=ref(decision.admission_ref,'ADMISSION_REF');
