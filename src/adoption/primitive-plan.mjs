@@ -104,8 +104,12 @@ export function derivePrimitiveAdoptionPlan({ catalog, requiredPrimitiveIds, obs
   };
 }
 
-export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedConsumerIds, consumerRosterRef, consumerRosterGeneration, recipeBaseline, hexFloor=null }) {
+export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedConsumerIds, consumerRosterRef, consumerRosterGeneration, unresolvedMembershipCount, recipeBaseline, hexFloor=null }) {
   if (!Array.isArray(consumers)) throw new TypeError('consumers must be an array');
+  if (unresolvedMembershipCount !== undefined &&
+      (!Number.isSafeInteger(unresolvedMembershipCount) || unresolvedMembershipCount < 0)) {
+    throw new TypeError('unresolvedMembershipCount must be a nonnegative safe integer');
+  }
   const expected = expectedConsumerIds === undefined ? null : ids(expectedConsumerIds, 'expectedConsumerIds');
   const expectedSet = new Set(expected || []);
   const rosterRef = text(consumerRosterRef);
@@ -163,7 +167,8 @@ export function deriveAffectedPrimitiveConsumers({ catalog, consumers, expectedC
     hex_projection_ref: bindHexFloorCurrentness(hexFloor).projection_ref,
     missing_consumers: missing,
     undeclared_consumers: unexpected,
-    supplied_denominator_coverage_complete: denominatorBound && !missing.length && !unexpected.length,
+    unresolved_membership_count: unresolvedMembershipCount ?? null,
+    supplied_denominator_coverage_complete: denominatorBound && unresolvedMembershipCount === 0 && !missing.length && !unexpected.length,
     affected: rows.filter((row) => row.state === 'AFFECTED'),
     no_effect: [],
     unverified: rows.filter((row) => row.state === 'UNVERIFIED'),
