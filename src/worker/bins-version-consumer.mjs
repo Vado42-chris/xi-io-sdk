@@ -160,6 +160,46 @@ export async function readBinsVersionWithWorker({prepared,worker,binding}={}) {
     throw new Error('BINS_VERSION_CONSUMER_WORKER_UNBOUND');
   }
   const returned=await worker.readFile(binding,scope);
+  if(returned?.state==='OWNER_APPROVAL_REQUIRED') {
+    const operation=returned.blocked_operation;
+    const approval=returned.required_approval;
+    if(returned.schema!=='xiio.sdk.worker-connection/v1'||
+       returned.first_red!=='WARD_EXACT_OWNER_APPROVAL_REQUIRED'||
+       returned.next_action!=='REVIEW_EXISTING_WARD_CHALLENGE'||
+       returned.owner_approval_needed!==true||
+       returned.authority_granted!==false||returned.provider_effect!==false||
+       returned.apply_return_verified!==false||
+       operation?.operation!=='worker.file-read'||
+       operation.capability_ref!=='device.return.bytes.read'||
+       approval?.owner_ref!=='EXISTING_WARD_RUNTIME_OWNER'||
+       approval.action!=='REVIEW_EXISTING_WARD_CHALLENGE'||
+       approval.operation!=='worker.file-read'||approval.approval_granted!==false||
+       approval.work_ref!==scope.work_ref||operation.work_ref!==scope.work_ref||
+       operation.work_generation!==scope.work_generation||
+       operation.return_ref!==scope.return_ref||
+       operation.resource_ref!==scope.resource_ref||
+       operation.version_ref!==scope.version_ref||
+       operation.storage_binding_ref!==scope.storage_binding_ref||
+       operation.expected_sha256!==scope.expected_sha256||
+       operation.expected_bytes!==scope.expected_bytes||
+       approval.challenge_ref!==returned.challenge_ref||
+       approval.request_digest!==operation.request_digest||
+       approval.intent_digest!==operation.intent_digest||
+       approval.expires_at!==returned.expires_at||
+       typeof approval.request_digest!=='string'||!SHA.test(approval.request_digest)||
+       typeof approval.intent_digest!=='string'||!SHA.test(approval.intent_digest)||
+       !(Date.parse(returned.expires_at)>Date.now())) {
+      throw new Error('BINS_VERSION_CONSUMER_WARD_CHALLENGE_MISMATCH');
+    }
+    return Object.freeze({schema:BINS_VERSION_CONSUMER_SCHEMA,
+      state:'OWNER_APPROVAL_REQUIRED',
+      first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',
+      next_action:'REVIEW_EXISTING_WARD_CHALLENGE',
+      challenge_ref:required(returned.challenge_ref,'BINS_VERSION_CONSUMER_CHALLENGE_REF_INVALID'),
+      work_ref:scope.work_ref,resource_ref:scope.resource_ref,version_ref:scope.version_ref,
+      owner_approval_needed:true,authority_granted:false,
+      return_certified:false,apply_return_verified:false});
+  }
   if(returned?.state==='BLOCKED') {
     // Leave the worker's typed refusal with the originating Work. Never
     // retry an uncertain effect or relabel a refused read as successful.

@@ -113,6 +113,38 @@ test('blocked Ward/broker worker returns typed refusal without retry or false re
   assert.equal(out.authority_granted,false);
   assert.equal(out.apply_return_verified,false);
 });
+test('exact Ward owner challenge survives as non-authorizing approval request',async()=>{
+  const prepared=make();
+  const deadline=new Date(Date.now()+60_000).toISOString();
+  let calls=0;
+  const challenge={schema:'xiio.sdk.worker-connection/v1',state:'OWNER_APPROVAL_REQUIRED',
+    first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',
+    next_action:'REVIEW_EXISTING_WARD_CHALLENGE',owner_approval_needed:true,
+    challenge_ref:'challenge:1',expires_at:deadline,
+    blocked_operation:{operation:'worker.file-read',capability_ref:'device.return.bytes.read',
+      ...prepared.scope,request_digest:'a'.repeat(64),intent_digest:'b'.repeat(64)},
+    required_approval:{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',
+      action:'REVIEW_EXISTING_WARD_CHALLENGE',operation:'worker.file-read',
+      work_ref:prepared.scope.work_ref,challenge_ref:'challenge:1',expires_at:deadline,
+      request_digest:'a'.repeat(64),intent_digest:'b'.repeat(64),approval_granted:false},
+    authority_granted:false,provider_effect:false,apply_return_verified:false};
+  const worker={readFile:async()=>{calls++;return challenge;}};
+  const result=await readBinsVersionWithWorker({prepared,worker});
+  assert.equal(calls,1);
+  assert.equal(result.state,'OWNER_APPROVAL_REQUIRED');
+  assert.equal(result.challenge_ref,'challenge:1');
+  assert.equal(result.authority_granted,false);
+  assert.equal(result.apply_return_verified,false);
+  assert.equal(JSON.stringify(result).includes('request_digest'),false);
+  for(const changed of [
+    {...challenge,authority_granted:true},
+    {...challenge,required_approval:{...challenge.required_approval,approval_granted:true}},
+    {...challenge,blocked_operation:{...challenge.blocked_operation,matter_ref:'matter:other',resource_ref:'resource:other'}},
+    {...challenge,required_approval:{...challenge.required_approval,request_digest:'c'.repeat(64)}},
+    {...challenge,expires_at:'2020-01-01T00:00:00Z'},
+  ]) await assert.rejects(readBinsVersionWithWorker({prepared,
+    worker:{readFile:async()=>changed}}),/WARD_CHALLENGE_MISMATCH/);
+});
 test('unbound worker and forged empty metadata-only result fail',async()=>{
   const prepared=make();
   await assert.rejects(readBinsVersionWithWorker({prepared}),/WORKER_UNBOUND/);
