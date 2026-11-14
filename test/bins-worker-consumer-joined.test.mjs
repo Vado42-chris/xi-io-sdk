@@ -35,7 +35,7 @@ const observedWorker={
   installation_ref:'installation:one',binding_ref:'worker:binding:one',
   installation_sha256:'a'.repeat(64)
 };
-function harness({brokerOverride,denyWard=false}={}){
+function harness({brokerOverride,denyWard=false,requireApproval=false}={}){
   const calls={admit:0,broker:0,localRead:0,verifyDisk:0};
   const ports={
     readAccount:async()=>({
@@ -74,6 +74,12 @@ function harness({brokerOverride,denyWard=false}={}){
       admit:async request=>{
         calls.admit++;
         if(denyWard) throw new Error('WARD_ADMISSION_UNAVAILABLE');
+        if(requireApproval)return {schema:'xiio.ward.worker-operation-admission/v1',
+          state:'APPROVAL_REQUIRED',operation:request.operation,
+          worker_ref:request.worker_ref,device_ref:request.device_ref,
+          work_ref:request.work_ref,owner_principal_ref:request.owner_principal_ref,
+          request_digest:request.request_digest,intent_digest:request.intent_digest,
+          approval_ref:null,challenge_ref:'challenge:one',expires_at:'2026-10-28T14:40:00.000Z'};
         return {schema:'xiio.ward.worker-operation-admission/v1',state:'ADMITTED',
           operation:request.operation,request_digest:request.request_digest,
           worker_ref:request.worker_ref,device_ref:request.device_ref,
@@ -149,4 +155,30 @@ test('wrong source matter refuses before worker admission',async()=>{
   }),/MATTER_MISMATCH/);
   assert.equal(calls.admit,0);
   assert.equal(calls.broker,0);
+});
+
+
+test('existing Ward challenge survives BINS adapter without approval or byte dispatch',async()=>{
+  const {worker,calls}=harness({requireApproval:true});
+  const binding=await worker.bind(selected);
+  const result=await readBinsVersionWithWorker({prepared:prepareBinsVersionRead({event,work,returned}),worker,binding});
+  assert.equal(result.state,'OWNER_APPROVAL_REQUIRED');
+  assert.equal(result.challenge_ref,'challenge:one');
+  assert.equal(result.required_approval.approval_granted,false);
+  assert.equal(result.required_approval.work_ref,work.work_ref);
+  assert.equal(result.next_action,'REVIEW_EXISTING_WARD_CHALLENGE');
+  assert.equal(result.authority_granted,false);
+  assert.equal(result.apply_return_verified,false);
+  assert.equal(calls.admit,1);assert.equal(calls.broker,0);
+});
+
+test('existing SDK refusal keeps its exact repair route through BINS adapter',async()=>{
+  const {worker,calls}=harness({denyWard:true});
+  const binding=await worker.bind(selected);
+  const result=await readBinsVersionWithWorker({prepared:prepareBinsVersionRead({event,work,returned}),worker,binding});
+  assert.equal(result.state,'BLOCKED');
+  assert.equal(result.required_repair.owner_ref,'EXISTING_WARD_RUNTIME_OWNER');
+  assert.equal(result.next_action,'REPAIR_AND_RESUME_ORIGINAL_WORK');
+  assert.equal(result.blocked_operation.resource_ref,returned.resource_ref);
+  assert.equal(calls.admit,1);assert.equal(calls.broker,0);
 });
