@@ -134,26 +134,43 @@ export function checkBinsVersionReadReturn(prepared, readback) {
  * This glue neither creates a Ward grant nor performs APPLY_RETURN.
  */
 export async function readBinsVersionWithWorker({prepared,worker,binding}={}) {
+  // Read caller-controlled accessors exactly once. A frozen object may still
+  // expose a getter returning a different frozen scope on each access. Pin
+  // owned scalar fields before the asynchronous worker admission boundary.
+  const sourceScope=prepared?.scope;
   if(prepared?.schema!==BINS_VERSION_CONSUMER_SCHEMA ||
      prepared.state!=='REQUEST_SCOPE_PREPARED_UNVERIFIED' ||
-     !Object.isFrozen(prepared.scope)) {
+     !sourceScope || !Object.isFrozen(sourceScope)) {
     throw new Error('BINS_VERSION_CONSUMER_SCOPE_NOT_PREPARED');
   }
+  const keys=['work_ref','work_generation','return_ref','resource_ref','version_ref',
+    'storage_binding_ref','expected_sha256','expected_bytes'];
+  if(Object.keys(sourceScope).length!==keys.length ||
+     !keys.every(key=>Object.hasOwn(sourceScope,key))) {
+    throw new Error('BINS_VERSION_CONSUMER_SCOPE_FIELDS_INVALID');
+  }
+  const scope=Object.freeze(Object.fromEntries(keys.map(key=>[key,sourceScope[key]])));
+  for(const key of keys.slice(0,6)) required(scope[key],'BINS_VERSION_CONSUMER_SCOPE_IDENTITY_INVALID');
+  if(typeof scope.expected_sha256!=='string'||!SHA.test(scope.expected_sha256))
+    throw new Error('BINS_VERSION_CONSUMER_SCOPE_DIGEST_INVALID');
+  boundedBytes(scope.expected_bytes);
+  const pinned=Object.freeze({schema:BINS_VERSION_CONSUMER_SCHEMA,
+    state:'REQUEST_SCOPE_PREPARED_UNVERIFIED',scope});
   if(!worker || typeof worker.readFile!=='function') {
     throw new Error('BINS_VERSION_CONSUMER_WORKER_UNBOUND');
   }
-  const returned=await worker.readFile(binding,prepared.scope);
+  const returned=await worker.readFile(binding,scope);
   if(returned?.state==='BLOCKED') {
     // Leave the worker's typed refusal with the originating Work. Never
     // retry an uncertain effect or relabel a refused read as successful.
     return Object.freeze({
       schema:BINS_VERSION_CONSUMER_SCHEMA,state:'BLOCKED',
       first_red:required(returned.first_red,'BINS_VERSION_CONSUMER_FIRST_RED_REQUIRED'),
-      work_ref:prepared.scope.work_ref,
-      resource_ref:prepared.scope.resource_ref,
-      version_ref:prepared.scope.version_ref,
+      work_ref:scope.work_ref,
+      resource_ref:scope.resource_ref,
+      version_ref:scope.version_ref,
       authority_granted:false,return_certified:false,apply_return_verified:false,
     });
   }
-  return checkBinsVersionReadReturn(prepared,returned);
+  return checkBinsVersionReadReturn(pinned,returned);
 }
