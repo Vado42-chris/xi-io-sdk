@@ -123,3 +123,19 @@ test('unbound worker and forged empty metadata-only result fail',async()=>{
     })}
   }),/RETURN_BYTES_MISSING/);
 });
+
+test('optional BINS parent version accepts null or a bounded version reference',()=>{
+  assert.equal(make({...event,bins:{...event.bins,parent_version_ref:null}}).parent_version_ref,null);
+  assert.equal(make({...event,bins:{...event.bins,parent_version_ref:undefined}}).parent_version_ref,null);
+  assert.equal(make().parent_version_ref,'version:0');
+});
+test('hostile BINS parent version cannot escape bounded metadata projection',()=>{
+  for(const parent_version_ref of [
+    {path:'/private/legal/record',secret:'internal'}, ['/private/legal/record'],
+    '', ' ', 'version with spaces', '/private/legal/record',
+    'v'.repeat(193), 42, true,
+  ]){
+    const e={...event,bins:{...event.bins,parent_version_ref}};
+    assert.throws(()=>make(e),{message:'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'});
+  }
+});
