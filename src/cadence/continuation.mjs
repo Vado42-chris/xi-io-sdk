@@ -73,7 +73,8 @@ function classifyReturns(returnRows) {
     const s = state(item.state);
     if (s === 'RESULT') {
       out.results.push(id);
-      if (item.returned !== true) out.stranded.push(id);
+      // Transport completion alone is not receiving-application completion.
+      if (item.returned !== true || item.applied !== true) out.stranded.push(id);
     } else if (s === 'RETURN') {
       out.returned.push(id);
       if (item.applied !== true) out.stranded.push(id);
