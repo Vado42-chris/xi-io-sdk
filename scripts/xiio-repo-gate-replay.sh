@@ -9,6 +9,12 @@ REPO=${1:?owner/repo}; SHA=${2:?commit sha}; GATE=${3:-}; WD=${4:-.}
 OUT=${XIIO_REPLAY_OUT:-$PWD/xiio-replay-$(echo "$REPO" | tr / _)-${SHA:0:12}}
 mkdir -p "$OUT" || exit 2
 OUT=$(realpath -e "$OUT") || exit 2
+# A replay receipt is an immutable attempt result. Reusing an output directory
+# must not erase the prior evidence or turn a later attempt into the same one.
+if [ -f "$OUT/xiio-gate-receipt.json" ] || [ -L "$OUT/xiio-gate-receipt.json" ]; then
+  echo "XIIO_REPLAY=BLOCKED first_red=RECEIPT_ALREADY_EXISTS"
+  exit 2
+fi
 WORK=$(mktemp -d) || exit 2
 trap 'rm -r -- "$WORK"' EXIT
 LOG="$OUT/gate.log"

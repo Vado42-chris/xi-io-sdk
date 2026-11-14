@@ -132,3 +132,16 @@ bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 short-sha \
 [ "$invalid_rc" = 2 ] || { echo "FAIL: invalid SHA admitted"; exit 1; }
 grep -q 'first_red=SHA_NOT_FULL_40_HEX' "$TEMP/invalid.log" || exit 1
 echo 'PASS: partial SHA rejected before checkout'
+
+# Reusing a prior attempt's evidence target must fail without changing bytes.
+before=$(sha256sum "$TEMP/out-success/xiio-gate-receipt.json" | cut -d' ' -f1)
+collision_rc=0
+XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" \
+  XIIO_REPLAY_WORK_REF='game:159#sprite:188' XIIO_REPLAY_OUT="$TEMP/out-success" \
+  bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" true \
+    >"$TEMP/collision.log" || collision_rc=$?
+[ "$collision_rc" = 2 ] || { echo 'FAIL: existing receipt overwritten'; exit 1; }
+grep -q 'first_red=RECEIPT_ALREADY_EXISTS' "$TEMP/collision.log" || exit 1
+after=$(sha256sum "$TEMP/out-success/xiio-gate-receipt.json" | cut -d' ' -f1)
+[ "$before" = "$after" ] || { echo 'FAIL: existing receipt bytes changed'; exit 1; }
+echo 'PASS: immutable receipt target refuses replay collision'
