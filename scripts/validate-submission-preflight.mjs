@@ -32,4 +32,13 @@ out = compileSubmissionPreflight(base({provider_observation:{}})); assert.equal(
 out = compileSubmissionPreflight(base({provider_currentness:{state:'UNKNOWN',readback_ref:null,admission_ref:'admission:provider-job'}})); assert.equal(out.state,'LOCAL_SIM_READY_PROVIDER_CURRENTNESS_WAIT');
 out = compileSubmissionPreflight(base({provider_currentness:{state:'CURRENT',readback_ref:'readback:provider-current',admission_ref:null}})); assert.equal(out.state,'LOCAL_SIM_READY_PROVIDER_ADMISSION_WAIT');
 const bad=ack('YES'); bad.attempt_count=1; assert.throws(()=>compileSubmissionPreflight(base({local_ack:bad})),/LOCAL_ACK_ATTEMPT_MUST_BE_ZERO/);
-console.log(JSON.stringify({schema:'xiio.sdk.submission-preflight-check/v2',result:'PASS',hostiles:8,provider_effects:0,hard:['LOCAL_ACK_FIRST','PROVIDER_ADMISSION_HOLD=>PROVIDER_ATTEMPT_0','PRE_RUNNER_BILLING_FAILURE!=SOURCE_FAILURE']},null,2));
+// Exercise the existing consumer: malformed runner evidence cannot open the
+// submission path even when the other supplied preflight fields are present.
+for (const value of ['1garbage',1.5,'2e9',[1],Number.MAX_SAFE_INTEGER+1]) {
+  const result=compileSubmissionPreflight(base({provider_observation:{runner_id:value,steps:[]}}));
+  assert.equal(result.state,'LOCAL_SIM_READY_PROVIDER_START_READBACK_WAIT');
+  assert.equal(result.provider.submission_eligible,false);
+  assert.equal(result.meter.provider_attempt_units,0);
+  assert.equal(result.effects,0);
+}
+console.log(JSON.stringify({schema:'xiio.sdk.submission-preflight-check/v2',result:'PASS',hostiles:13,provider_effects:0,hard:['LOCAL_ACK_FIRST','PROVIDER_ADMISSION_HOLD=>PROVIDER_ATTEMPT_0','PRE_RUNNER_BILLING_FAILURE!=SOURCE_FAILURE']},null,2));
