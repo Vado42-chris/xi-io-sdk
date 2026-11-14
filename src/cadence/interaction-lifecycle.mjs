@@ -164,10 +164,13 @@ export function compileInteractionLifecycle(input) {
     if (!close.owner_load_ref) fail(failures, 'CLOSE_WITHOUT_OWNER_LOAD_ACCOUNTING');
     if (!close.next_ref && !close.wait_ref && !close.terminal_ref) fail(failures, 'CLOSE_WITHOUT_NEXT_WAIT_OR_TERMINAL');
     if (child.accountedClose !== child.declared) fail(failures, 'CHILD_CLOSE_DENOMINATOR_INCOMPLETE');
+    if (close.remaining_red_refs.length > 0 && !close.next_ref && !close.wait_ref) {
+      fail(failures, 'REMAINING_REDS_WITHOUT_NEXT_OR_WAIT');
+    }
 
     if (!close.result_ref) closeNextAction = 'PRODUCE_RESULT';
     else if (!close.burndown_receipt_ref) closeNextAction = 'CLOSE_BURNDOWN';
-    else if (!close.denominator_delta_ref || close.verification_refs.length === 0 || !close.owner_load_ref || (!close.next_ref && !close.wait_ref && !close.terminal_ref)) {
+    else if (!close.denominator_delta_ref || close.verification_refs.length === 0 || !close.owner_load_ref || (!close.next_ref && !close.wait_ref && !close.terminal_ref) || (close.remaining_red_refs.length > 0 && !close.next_ref && !close.wait_ref)) {
       closeNextAction = 'COMPLETE_BURNDOWN_ACCOUNTING';
     } else if (child.accountedClose !== child.declared) closeNextAction = 'RESOLVE_CHILD_CLOSE_DENOMINATOR';
     else if (!close.return_ref) closeNextAction = 'COMPILE_RETURN';
@@ -189,6 +192,7 @@ export function compileInteractionLifecycle(input) {
       && failures.length === 0
       && unresolvedSiblings.length === 0
       && !machineResolvableNext
+      && close?.remaining_red_refs.length === 0
       && close?.terminal_ref,
   );
 
