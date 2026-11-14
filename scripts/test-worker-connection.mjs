@@ -464,6 +464,9 @@ test('requester-only broker denial cannot disclose bytes or mint a success recei
   const deniedReturn=await o.readFile(b,selectedFile);
   assert.equal(deniedReturn.state,'BLOCKED');
   assert.equal(deniedReturn.first_red,'REQUESTER_SESSION_FORBIDDEN');
+  assert.equal(deniedReturn.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.equal(deniedReturn.required_repair.action,'RECHECK_AUTHENTICATED_REQUESTER_AND_CURRENT_GRANT');
+  assert.equal(deniedReturn.required_repair.owner_approval_needed,true);
   assert.equal(deniedReturn.authority_granted,false);
   assert.equal(deniedReturn.provider_effect,false);
   assert.equal(deniedReturn.apply_return_verified,false);
