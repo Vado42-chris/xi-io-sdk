@@ -267,7 +267,8 @@ export function createSharedWorkerConnection({ports,clock=()=>new Date().toISOSt
       ?{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'BIND_CURRENT_NATIVE_DISK_VERIFIER'}
       :result.first_red==='REQUESTER_SESSION_FORBIDDEN'
       ?{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'RECHECK_AUTHENTICATED_REQUESTER_AND_CURRENT_GRANT'}
-      :result.first_red.startsWith('SWITCHBOARD_RETURN')||result.first_red.startsWith('WARD_REQUESTER')
+      :result.first_red.startsWith('DEVICE_RETURN_')||
+        result.first_red.startsWith('SWITCHBOARD_RETURN')||result.first_red.startsWith('WARD_REQUESTER')
       ?{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'BIND_OR_REPAIR_REQUESTER_ONLY_RETURN_BYTES'}
       :result.first_red==='WORKER_DIRECT_PATH_OR_UNSCOPED_FIELD_FORBIDDEN'
       ?{owner_ref:'EXISTING_BINS_RESOURCE_OWNER',action:'RESOLVE_PATH_TO_AUTHORIZED_RESOURCE_VERSION'}
