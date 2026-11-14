@@ -32,6 +32,7 @@ import { derivePrimitiveAdoptionPlan } from '@xi-io/sdk/adoption';
 import { compileImpactFormation } from '@xi-io/sdk/ibal/impact-formation';
 import { compileMultiThreadWorkProjection } from '@xi-io/sdk/projections/multithread-work';
 import { compileContinuationCycle } from '@xi-io/sdk/cadence';
+import { compileInteractionLifecycle, INTERACTION_LIFECYCLE_SCHEMA } from '@xi-io/sdk/cadence/interaction-lifecycle';
 import { resolveLexiconCommand } from '@xi-io/sdk/command-lexicon/resolve';
 import { compileFlapHarvest } from '@xi-io/sdk/transport/flap-harvest';
 import { evaluateApiBlackholeClaim } from '@xi-io/sdk/evaluation/api-blackhole-proof-envelope';
@@ -150,6 +151,33 @@ assert.equal(impact.detonation_denominator, 3);
 assert.equal(impact.semantic_cube.denominator, 27);
 assert.equal(impact.exact_materializable_principal_count, null);
 
+// Existing lifecycle through its installed public export, not a new scheduler.
+// Supplied refs are structural test input, never authenticated execution.
+assert.equal(INTERACTION_LIFECYCLE_SCHEMA, 'xiio.sdk.interaction-lifecycle/v1');
+const interaction = {
+  interaction_id:'interaction:package', actor_ref:'agent:package', root_ref:'root:package',
+  return_target_ref:'return:package', cadence_policy_ref:'cadence:package',
+  accepted_base_ref:'repo:main@g1', opened_current_ref:'repo:main@g1', latest_current_ref:'repo:main@g1',
+  first_red_ref:'red:package', collision_ref:'collision:package', expected_result:'SOURCE_ONLY',
+  sibling_policy:'CONTINUE_RUNNABLE', effect_ceiling:'NONE', standup_receipt_ref:'standup:package',
+  disclosure:{source_visibility:'INTERNAL',target_visibility:'INTERNAL'}, machine_resolvable_next:true,
+};
+const lifecycle=compileInteractionLifecycle(interaction);
+assert.equal(lifecycle.status,'OPEN_CURRENT');
+assert.equal(lifecycle.next_action,'CONTINUE_MACHINE_RESOLVABLE_NEXT');
+assert.equal(lifecycle.root_stop_allowed,false);
+assert.equal(lifecycle.authority_granted,false);
+assert.equal(lifecycle.provider_effect,false);
+const moved=compileInteractionLifecycle({...interaction,latest_current_ref:'repo:main@g2'});
+assert.equal(moved.next_action,'REBASE_CURRENT_TRUTH');
+assert.equal(moved.root_stop_allowed,false);
+const noStandup=compileInteractionLifecycle({...interaction,standup_receipt_ref:null});
+assert.equal(noStandup.next_action,'OPEN_STANDUP');
+assert.equal(noStandup.authority_granted,false);
+const prematureClose=compileInteractionLifecycle({...interaction,close:{result_ref:'result:package'}});
+assert.equal(prematureClose.next_action,'CLOSE_BURNDOWN');
+assert.equal(prematureClose.root_stop_allowed,false);
+
 const continuation = compileContinuationCycle({
   root_ref: 'root:package-canary', worker_ref: 'worker:package-canary', subject_generation: 'g1', current_generation: 'g1',
   phase_event: 'POST_RESULT', pass_state: 'PASS', four_scale: { MICRO: '100', MESO: '100', MACRO: '100', META: '100' },
@@ -263,7 +291,7 @@ console.log('XIIO_SDK_CLEAN_CONSUMER PASS');
   assert.equal(rejoin.result.authority_granted, false);
   assert.equal(rejoin.result.provider_effect, false);
 
-  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 multithread_work=1 cadence_continuation=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 installed_snap55=1 snap55_replay_precise=1 repo_relative_imports=0');
+  console.log('XIIO_SDK_PACKAGE_CONSUMER PASS source=package catalog_driven_imports=1 withheld_primitive_recovered=1 impact_formation=1 multithread_work=1 cadence_continuation=1 interaction_lifecycle=1 self_drive=1 rejoin_cli=1 lexicon_resolution=1 installed_cli_executed=1 installed_snap55=1 snap55_replay_precise=1 repo_relative_imports=0');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
