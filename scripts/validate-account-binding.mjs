@@ -6,6 +6,22 @@ import { compileIbalTeamKit } from '../src/ibal/team-kit.mjs';
 const at = '2026-10-12T18:45:00-06:00';
 const refusal = (fn, code) => assert.throws(fn, (e) => e.code === code, `expected ${code}`);
 
+// Numeric provider identities must be exact before they become stable principals.
+const accountInput={provider:'provider',login:'account',observed_via:'provider_api_readback',observed_at:at};
+for (const subject_id of [Number.MAX_SAFE_INTEGER+1,JSON.parse('9007199254740993'),1e30,1.5,NaN,Infinity,0,-1]) {
+  refusal(()=>observeAccount({...accountInput,subject_id}),'SUBJECT_ID_REQUIRED');
+}
+for(const subject_id of [1,Number.MAX_SAFE_INTEGER]) {
+  assert.equal(observeAccount({...accountInput,subject_id}).subject_id,String(subject_id));
+}
+const largeA=observeAccount({...accountInput,subject_id:'9007199254740992'});
+const largeB=observeAccount({...accountInput,subject_id:'9007199254740993'});
+assert.notEqual(largeA.principal_ref,largeB.principal_ref);
+refusal(()=>chooseAccount([largeA,largeB],'account',{chosen_by:'person:owner'}),'CHOICE_AMBIGUOUS');
+const largeChoice=chooseAccount([largeA,largeB],largeB.principal_ref,{chosen_by:'person:owner'});
+assert.equal(bindOwner({team_ref:'team:exact'},largeChoice).owner_principal_ref,largeB.principal_ref);
+assert.equal(largeChoice.authority_granted,false);
+
 /* The real case: one person, two GitHub accounts, browser signed in to the wrong one. */
 const browserAccount = observeAccount({ provider: 'GitHub', subject_id: 1111, login: 'hallberg-personal', observed_via: 'oauth_readback', observed_at: at });
 const workAccount = observeAccount({ provider: 'github', subject_id: 2222, login: 'Vado42-chris', observed_via: 'provider_api_readback', observed_at: at });
@@ -60,5 +76,6 @@ console.log(JSON.stringify({
   schema: 'xiio.sdk.account-binding-check/v1',
   result: 'PASS',
   cases: 22,
+  numeric_identity_regressions: 'PASS_8_REFUSALS_2_SAFE_BOUNDARIES_EXACT_STRING_SELECTION',
   hard: ['BROWSER_SESSION != CHOSEN_ACCOUNT', 'EMAIL != PRINCIPAL', 'LOGIN != PRINCIPAL', 'TYPED_LOGIN != OBSERVED_ACCOUNT', 'OWNER_BOUND != AUTHORITY_GRANTED', 'TOKEN_NEVER_ECHOED'],
 }, null, 2));
