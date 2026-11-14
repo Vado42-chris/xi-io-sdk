@@ -242,3 +242,32 @@ test('malformed optional identities are refused without disallowing variable ref
  const variable={...selection(),workspace_ref:'tenant-defined/α',matter_ref:'custom:project',record_ref:null,proposition_ref:null};
  assert.equal(compareImmutableSelection(variable,variable).match,true);
 });
+
+
+test('reconstructed transaction cannot replace immutable selection with a newer preimage',()=>{
+  for(const override of [
+    {expected_revision:'4'}, {expected_generation:'source:new'},
+  ]) {
+    const reconstructed={...plan(),...override};
+    const observation={...baseObservation(),preimage_revision:reconstructed.expected_revision,
+      preimage_generation:reconstructed.expected_generation};
+    assert.throws(()=>reduceAddressableTransaction(reconstructed,observation),/SELECTION_PREIMAGE_MISMATCH/);
+  }
+  const restored=JSON.parse(JSON.stringify(plan()));
+  assert.deepEqual(reduceAddressableTransaction(restored,baseObservation()),
+    reduceAddressableTransaction(plan(),baseObservation()));
+});
+
+test('unavailable result cannot conceal a different supplied revision',()=>{
+  const selected=compileImmutableSelection(selection());
+  for(const revision of ['49',2,'']) {
+    const result=reduceRevisionRead(selected,{...selection(),revision,state:'UNAVAILABLE'});
+    assert.equal(result.state,'REFUSED');
+    assert.equal(result.selection_match,false);
+    assert.equal(result.first_red,'SELECTION_DRIFT_REVISION');
+    assert.equal(result.authority_granted,false);
+  }
+  for(const revision of [undefined,null,'2']) {
+    assert.equal(reduceRevisionRead(selected,{...selection(),revision,state:'UNAVAILABLE'}).state,'UNAVAILABLE');
+  }
+});
