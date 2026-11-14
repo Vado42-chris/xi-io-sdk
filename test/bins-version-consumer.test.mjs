@@ -85,7 +85,8 @@ test('existing worker readFile invoked once with exact BINS scope and matched by
   const worker={readFile:async(actualBinding,scope)=>{
     calls++;
     assert.strictEqual(actualBinding,binding);
-    assert.strictEqual(scope,prepared.scope);
+    assert.deepEqual(scope,prepared.scope);
+    assert.equal(Object.isFrozen(scope),true);
     return {
       schema:'xiio.sdk.worker-connection/v1',state:'REQUESTER_FILE_BYTES_MATCHED',
       ...scope,bytes:content.length,sha256:sha,contentBase64:content.toString('base64'),
@@ -122,6 +123,38 @@ test('unbound worker and forged empty metadata-only result fail',async()=>{
       authority_granted:false,apply_return_verified:false
     })}
   }),/RETURN_BYTES_MISSING/);
+});
+
+test('async worker cannot rebind a prepared scope through a frozen getter',async()=>{
+  const exact=make();
+  const foreign=Object.freeze({...exact.scope,resource_ref:'resource:foreign',version_ref:'version:foreign'});
+  let reads=0;
+  const prepared=Object.freeze({schema:exact.schema,state:exact.state,
+    get scope(){return ++reads===1?exact.scope:foreign;}});
+  let seen;
+  const result=await readBinsVersionWithWorker({prepared,worker:{readFile:async(_binding,scope)=>{
+    seen=scope;
+    await Promise.resolve();
+    return {schema:'xiio.sdk.worker-connection/v1',state:'REQUESTER_FILE_BYTES_MATCHED',
+      ...scope,bytes:content.length,sha256:sha,contentBase64:content.toString('base64'),
+      readback_ref:'readback:1',authority_granted:false,apply_return_verified:false};
+  }}});
+  assert.equal(reads,1);
+  assert.equal(seen.resource_ref,'resource:1');
+  assert.equal(result.resource_ref,'resource:1');
+});
+test('rebound worker result is rejected against one pinned original scope',async()=>{
+  const exact=make();
+  const foreign=Object.freeze({...exact.scope,resource_ref:'resource:foreign'});
+  let reads=0;
+  const prepared=Object.freeze({schema:exact.schema,state:exact.state,
+    get scope(){return ++reads===1?exact.scope:foreign;}});
+  await assert.rejects(readBinsVersionWithWorker({prepared,worker:{readFile:async()=>({
+    schema:'xiio.sdk.worker-connection/v1',state:'REQUESTER_FILE_BYTES_MATCHED',
+    ...foreign,bytes:content.length,sha256:sha,contentBase64:content.toString('base64'),
+    readback_ref:'readback:1',authority_granted:false,apply_return_verified:false,
+  })}}),/READBACK_IDENTITY_MISMATCH/);
+  assert.equal(reads,1);
 });
 
 test('optional BINS parent version accepts null or a bounded version reference',()=>{
