@@ -118,7 +118,7 @@ class Element {
   removeEventListener(_event, callback) { this.listeners.delete(callback); }
   checkValidity() { return this.nativeValid; }
   reportValidity() { this.reports += 1; }
-  async click() { for (const callback of this.listeners) await callback(); }
+  async click() { for (const callback of [...this.listeners]) await callback(); }
 }
 function dom(fields = [], buttons = [new Element({ 'data-xiio-action': 'measure', 'data-xiio-action-disabled': 'false', 'data-xiio-action-pending': 'true' }, { disabled: true })]) {
   const result = { textContent: '' };
@@ -148,6 +148,45 @@ const firstCleanup = cleanup;
 cleanup = bindProductSurface(root, { onAction: value => calls.push(value) });
 firstCleanup(); await root.buttons[0].click(); assert.equal(calls.length, 3, 'rebinding must not duplicate actions or let old cleanup disable new binding');
 cleanup(); assert.equal(root.buttons[0].disabled, true); await root.buttons[0].click(); assert.equal(calls.length, 3);
+// Pending callback liveness must prevent repeated effects, even after rebinding.
+const pendingRoot = dom();
+let releaseAction, pendingCalls = 0;
+const pendingResult = new Promise(resolve => { releaseAction = resolve; });
+const stopPending = bindProductSurface(pendingRoot, { onAction: async () => { pendingCalls++; await pendingResult; } });
+const firstAction = pendingRoot.buttons[0].click();
+assert.equal(pendingRoot.buttons[0].getAttribute('aria-busy'), 'true');
+await pendingRoot.buttons[0].click();
+assert.equal(pendingCalls, 1);
+const stopReplacement = bindProductSurface(pendingRoot, { onAction: () => { pendingCalls++; } });
+await pendingRoot.buttons[0].click();
+assert.equal(pendingCalls, 1, 'rebinding cannot repeat a still-running callback');
+releaseAction(); await firstAction;
+assert.equal(pendingRoot.buttons[0].getAttribute('aria-busy'), 'false');
+await pendingRoot.buttons[0].click(); assert.equal(pendingCalls, 2);
+stopPending(); stopReplacement();
+// Pending work on one action does not suppress another independent action.
+const independent = dom([], ['one','two'].map(id => new Element({
+  'data-xiio-action':id, 'data-xiio-action-disabled':'false', 'data-xiio-action-pending':'true',
+}, {disabled:true})));
+let finishOne; const onePending=new Promise(resolve=>{finishOne=resolve;});
+const independentCalls=[];
+const stopIndependent=bindProductSurface(independent,{onAction:async({actionId})=>{
+  independentCalls.push(actionId); if(actionId==='one')await onePending;
+}});
+const activeOne=independent.buttons[0].click();
+await independent.buttons[1].click();
+assert.deepEqual(independentCalls,['one','two']);
+stopIndependent(); finishOne(); await activeOne;
+assert.equal(independent.buttons[0].disabled,true,'late resolution cannot re-enable a disposed action');
+assert.equal(independent.buttons[0].getAttribute('aria-busy'),'false');
+// Rejection releases only the invocation lock, not host disable or result state.
+const failedRoot = dom();
+const stopFailed = bindProductSurface(failedRoot, { onAction: async ({button}) => { button.disabled = true; throw new Error('provider unavailable'); } });
+await assert.rejects(failedRoot.buttons[0].click(), /provider unavailable/);
+assert.equal(failedRoot.buttons[0].getAttribute('aria-busy'), 'false');
+assert.equal(failedRoot.buttons[0].disabled, true);
+stopFailed();
+
 const hostDisabled = dom([], [new Element({ 'data-xiio-action': 'blocked', 'data-xiio-action-disabled': 'true', 'data-xiio-action-pending': 'true' }, { disabled: true })]);
 const stopDisabled = bindProductSurface(hostDisabled, { onAction: () => { throw new Error('host-disabled action invoked'); } });
 assert.equal(hostDisabled.buttons[0].disabled, true); await hostDisabled.buttons[0].click(); stopDisabled();
@@ -173,6 +212,7 @@ console.log(JSON.stringify({
   hostile_cases: 13,
   caller_verified_downgraded: true,
   host_observation_and_action_regressions: 'PASS',
+  async_action_single_flight_rebind_and_rejection: 'PASS',
   source_dom_contract_tests: true,
   browser_or_runtime_qualification_claim: false,
   semantic_status_preserved: true,

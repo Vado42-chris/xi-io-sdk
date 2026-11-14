@@ -23,6 +23,9 @@ const MAX_ROWS_PER_SECTION = 100;
 const MAX_ACTIONS = 20;
 const MAX_TEXT = 2000;
 const activeBindings = new WeakMap();
+// A callback still running on a button survives listener replacement.
+// This is invocation liveness, never proof of provider success or admission.
+const pendingActions = new WeakSet();
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -304,8 +307,9 @@ export function bindProductSurface(root, { onAction = null } = {}) {
     button.disabled = bindingDisabled;
     button.setAttribute('aria-disabled', String(button.disabled));
     button.setAttribute('data-xiio-action-pending', String(!onAction));
+    button.setAttribute('aria-busy', String(pendingActions.has(button)));
     const handler = async () => {
-      if (!active || button.disabled || !onAction) return;
+      if (!active || button.disabled || !onAction || pendingActions.has(button)) return;
       const validation = validateProductSurfaceValues(root);
       if (!validation.valid) {
         for (const field of root.querySelectorAll('[data-xiio-field]')) {
@@ -319,7 +323,14 @@ export function bindProductSurface(root, { onAction = null } = {}) {
       if (result?.textContent === 'Correct the invalid fields before continuing.') result.textContent = '';
       const actionId = button.getAttribute('data-xiio-action');
       const values = collectProductSurfaceValues(root);
-      await onAction({ actionId, values, button, root });
+      pendingActions.add(button);
+      button.setAttribute('aria-busy', 'true');
+      try {
+        await onAction({ actionId, values, button, root });
+      } finally {
+        pendingActions.delete(button);
+        button.setAttribute('aria-busy', 'false');
+      }
     };
     button.addEventListener('click', handler);
     cleanups.push(() => {
