@@ -172,3 +172,47 @@ test('hostile BINS parent version cannot escape bounded metadata projection',()=
     assert.throws(()=>make(e),{message:'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'});
   }
 });
+
+test('continuation refuses foreign operation scope and strips noncontract payload',async()=>{
+  const prepared=make();
+  const refusal={schema:'xiio.sdk.worker-connection/v1',state:'BLOCKED',
+    first_red:'DEVICE_RETURN_BINS_VERIFIER_UNBOUND',authority_granted:false,apply_return_verified:false,
+    next_action:'REPAIR_AND_RESUME_ORIGINAL_WORK',
+    blocked_operation:{operation:'worker.file-read',...prepared.scope},
+    required_repair:{owner_ref:'EXISTING_SWITCHBOARD_RETURN_OWNER',action:'BIND_OR_REPAIR_REQUESTER_ONLY_RETURN_BYTES',owner_approval_needed:false},
+    private_payload:'/private/case',credentials:'not-to-forward'};
+  const run=value=>readBinsVersionWithWorker({prepared,worker:{readFile:async()=>value}});
+  const matched=await run(refusal);
+  assert.equal(matched.required_repair.owner_ref,'EXISTING_SWITCHBOARD_RETURN_OWNER');
+  assert.doesNotMatch(JSON.stringify(matched),/private|credentials|not-to-forward/);
+  for(const patch of [
+    {blocked_operation:{...refusal.blocked_operation,version_ref:'version:other'}},
+    {blocked_operation:{...refusal.blocked_operation,expected_sha256:'a'.repeat(64)}},
+    {schema:'untrusted'}, {authority_granted:true},
+    {required_repair:{...refusal.required_repair,owner_ref:'/private/owner'}},
+    {required_repair:{...refusal.required_repair,owner_approval_needed:'true'}},
+    {required_repair:{...refusal.required_repair,get owner_ref(){return 'EXISTING_WARD_RUNTIME_OWNER';}}},
+    {blocked_operation:{...refusal.blocked_operation,get version_ref(){return prepared.scope.version_ref;}}},
+  ])await assert.rejects(run({...refusal,...patch}),/BINS_VERSION_CONSUMER_/);
+});
+
+test('approval continuation rejects false approval and mismatched challenge identity',async()=>{
+  const prepared=make();
+  const approval={schema:'xiio.sdk.worker-connection/v1',state:'OWNER_APPROVAL_REQUIRED',
+    first_red:'WARD_EXACT_OWNER_APPROVAL_REQUIRED',authority_granted:false,apply_return_verified:false,
+    owner_approval_needed:true,next_action:'REVIEW_EXISTING_WARD_CHALLENGE',
+    challenge_ref:'challenge:1',expires_at:'2026-11-14T22:00:00.000Z',
+    blocked_operation:{operation:'worker.file-read',...prepared.scope,intent_digest:'a'.repeat(64),request_digest:'b'.repeat(64)},
+    required_approval:{owner_ref:'EXISTING_WARD_RUNTIME_OWNER',action:'REVIEW_EXISTING_WARD_CHALLENGE',
+      operation:'worker.file-read',work_ref:prepared.scope.work_ref,challenge_ref:'challenge:1',
+      expires_at:'2026-11-14T22:00:00.000Z',intent_digest:'a'.repeat(64),request_digest:'b'.repeat(64),approval_granted:false}};
+  const run=value=>readBinsVersionWithWorker({prepared,worker:{readFile:async()=>value}});
+  assert.equal((await run(approval)).required_approval.approval_granted,false);
+  for(const patch of [{approval_granted:true},{work_ref:'work:other'},{challenge_ref:'challenge:other'},
+    {request_digest:'c'.repeat(64)},{expires_at:'not-a-date'},{owner_ref:'new-owner'}])
+    await assert.rejects(run({...approval,required_approval:{...approval.required_approval,...patch}}),/(?:APPROVAL|CONTINUATION)_UNQUALIFIED/);
+  let reads=0;
+  await assert.rejects(run({...approval,required_approval:{...approval.required_approval,
+    get intent_digest(){reads++;return reads<4?'a'.repeat(64):'/synthetic/private/data';}}}),/CONTINUATION_UNQUALIFIED/);
+  assert.equal(reads,0);
+});
