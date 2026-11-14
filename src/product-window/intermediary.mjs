@@ -88,9 +88,9 @@ export function bindProductWindowIntermediary(root, handlers = {}) {
     const listener = (eventValue) => {
       try {
         const result = handler(...args(eventValue));
-        Promise.resolve(result).catch(() => report('Connection unavailable. Your work has not been submitted.'));
+        Promise.resolve(result).catch(() => report('The connected action outcome is unknown. Check its current state before retrying.'));
       } catch {
-        report('Connection unavailable. Your work has not been submitted.');
+        report('The connected action outcome is unknown. Check its current state before retrying.');
       }
     };
     el.addEventListener(event, listener);
@@ -119,13 +119,21 @@ export function bindProductWindowIntermediary(root, handlers = {}) {
         if (sendButton) sendButton.disabled = true;
         try {
           // Explicit UI acceptance is mandatory. A returned undefined, false,
-          // thrown error or failed promise must retain the unsent text.
+          // thrown error or failed promise must retain the draft.
           const result = await handlers.onChatSend(message);
-          if (!result || result.accepted !== true) throw new Error('CHAT_NOT_ACCEPTED');
+          const accepted = result?.accepted;
+          if (accepted !== true) {
+            report(accepted === false
+              ? 'Message not accepted by the connected host. Your draft is preserved.'
+              : 'Message acceptance is unknown. Your draft is preserved. Check the conversation before retrying.');
+            return;
+          }
           if (!disposed && input && input.value.trim() === message) input.value = '';
           report('Message accepted by the connected host. Delivery is not yet verified.');
         } catch {
-          report('Message not accepted. Your draft is preserved.');
+          // A transport failure can follow a successful host-side effect.
+          // Never turn lack of a receipt into proof of non-submission.
+          report('Message acceptance is unknown. Your draft is preserved. Check the conversation before retrying.');
         } finally {
           sending = false;
           if (!disposed && sendButton) sendButton.disabled = false;

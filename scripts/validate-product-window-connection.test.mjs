@@ -81,3 +81,39 @@ test('rendered product identity remains escaped', () => {
   assert.match(html, /&lt;img&gt;/);
   assert.doesNotMatch(html, /<img>/);
 });
+
+
+test('host acceptance followed by lost response remains unknown, never safe-to-retry proof', async () => {
+  const ui=fixture(); let effects=0;
+  ui.input.value='preserve me';
+  bindProductWindowIntermediary(ui.root,{onChatSend:async()=>{effects++;throw Error('response lost');}});
+  await ui.form.fire('submit');
+  assert.equal(effects,1);
+  assert.equal(ui.input.value,'preserve me');
+  assert.match(ui.status.textContent,/acceptance is unknown/);
+  assert.match(ui.status.textContent,/before retrying/);
+  assert.doesNotMatch(ui.status.textContent,/not accepted|not been submitted/);
+});
+
+test('explicit host rejection differs from missing acceptance receipt', async () => {
+  for(const accepted of [false,undefined,'true']) {
+    const ui=fixture();ui.input.value='draft';
+    bindProductWindowIntermediary(ui.root,{onChatSend:()=>({accepted})});
+    await ui.form.fire('submit');
+    assert.match(ui.status.textContent,accepted===false?/not accepted by the connected host/:/acceptance is unknown/);
+    assert.equal(ui.input.value,'draft');
+  }
+});
+
+test('project action failure does not claim no prior effect', async () => {
+  for(const asyncFailure of [false,true]) {
+    const ui=fixture();let effects=0;
+    bindProductWindowIntermediary(ui.root,{onProjectNew:()=>{
+      effects++;if(asyncFailure)return Promise.reject(Error('lost response'));throw Error('lost response');
+    }});
+    ui.newProject.fire('click');await Promise.resolve();await Promise.resolve();
+    assert.equal(effects,1);
+    assert.match(ui.status.textContent,/outcome is unknown/);
+    assert.doesNotMatch(ui.status.textContent,/not been submitted/);
+  }
+});
