@@ -110,7 +110,8 @@
     "./product-window/intermediary": "./src/product-window/intermediary.mjs",
     "./styles/product-window.css": "./src/styles/product-window.css",
     "./worker/bins-version-consumer": "./src/worker/bins-version-consumer.mjs",
-    "./graphs/host-dependency-edges": "./src/graphs/host-dependency-edges.mjs"
+    "./graphs/host-dependency-edges": "./src/graphs/host-dependency-edges.mjs",
+    "./graphs/host-dependency-trinity": "./src/graphs/host-dependency-trinity.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
@@ -137,7 +138,7 @@
     "check:progress-gated-roles": "node scripts/validate-progress-gated-roles.mjs",
     "check:qual-quant-topography": "node scripts/validate-qual-quant-topography.mjs",
     "check:crm-current-bridge": "node scripts/validate-crm-current-bridge.mjs",
-    "check:dependency-cube": "node scripts/validate-dependency-cube.mjs && node scripts/validate-host-dependency-edges.mjs",
+    "check:dependency-cube": "node scripts/validate-dependency-cube.mjs && node scripts/validate-host-dependency-edges.mjs && node scripts/validate-host-dependency-trinity.mjs",
     "check:triage-ingress": "node scripts/validate-triage-ingress.mjs",
     "check:ibal-team-kit": "node scripts/validate-ibal-team-kit.mjs",
     "check:two-sided-provider-meter": "node scripts/validate-two-sided-provider-meter.mjs",
