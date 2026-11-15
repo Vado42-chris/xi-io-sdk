@@ -13,8 +13,8 @@
  * The result grants no authority: it is a copy, not an approval.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, existsSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { mkdirSync, existsSync, lstatSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
+import { join, basename, dirname, resolve } from 'node:path';
 
 export const REMOTE_FILE_PULL_SCHEMA = 'xiio.remote-file-pull/v1';
 
@@ -37,6 +37,29 @@ export const PROVIDER_ADAPTERS = Object.freeze({
 const safeName = (name) => basename(String(name)).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'file';
 
 /**
+ * A caller's storage root is not automatically an admitted target. Refuse
+ * symlinked roots and ancestors before any credential or network operation.
+ * Recheck around awaits and before publishing, since the parent can change.
+ */
+function stagingDirectorySafe(targetDir) {
+  if (typeof targetDir !== 'string' || !targetDir.trim()) return false;
+  try {
+    let current = resolve(targetDir);
+    const destination = current;
+    while (true) {
+      const stat = lstatSync(current, {throwIfNoEntry: false});
+      if (stat?.isSymbolicLink()) return false;
+      if (current === destination && stat && !stat.isDirectory()) return false;
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    return true;
+  } catch { return false; }
+}
+
+
+/**
  * @param {object} options
  * @param {string} options.provider           key of PROVIDER_ADAPTERS
  * @param {string} options.folderId           remote folder id
@@ -50,6 +73,7 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
   const adapter = PROVIDER_ADAPTERS[provider];
   if (!adapter) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'PROVIDER_UNKNOWN' };
   if (!folderId || !targetDir || typeof getAccessToken !== 'function') return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'ARGS_REQUIRED' };
+  if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   const token = await getAccessToken();
   if (!token) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'HOST_AUTH_REQUIRED' };
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -72,7 +96,9 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
   const refused = [];
   const skipped = [];
   const claimedLocalNames = new Map();
+  if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   if (!dryRun) mkdirSync(targetDir, { recursive: true });
+  if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   for (const file of listed) {
     if (!accept(file)) { skipped.push({ id: file.id, name: file.name, reason: 'NOT_ACCEPTED' }); continue; }
     if (typeof file.mimeType === 'string' && file.mimeType.startsWith('application/vnd.google-apps.')) {
@@ -80,7 +106,9 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     }
     const declared = adapter.declaredBytes(file);
     if (!Number.isSafeInteger(declared) || declared < 0) { refused.push({ id: file.id, name: file.name, reason: 'DECLARED_SIZE_REQUIRED' }); continue; }
+    if (!stagingDirectorySafe(targetDir)) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     const response = await fetcher(adapter.downloadUrl(file.id), auth);
+    if (!stagingDirectorySafe(targetDir)) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     if (!response.ok) { refused.push({ id: file.id, name: file.name, reason: 'DOWNLOAD_FAILED', status: response.status }); continue; }
     const bytes = Buffer.from(await response.arrayBuffer());
     if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
@@ -103,6 +131,7 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     claimedLocalNames.set(localName, {remote_id: file.id, sha256});
     const receipt = { provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local };
     if (dryRun) { skipped.push({ id: file.id, name: file.name, reason: 'DRY_RUN_WOULD_COPY', local, bytes: bytes.length, sha256 }); continue; }
+    if (!stagingDirectorySafe(targetDir)) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     const temporary = join(targetDir, `.${localName}.${randomUUID()}.partial`);
     let descriptor = null;
     try {
@@ -115,6 +144,7 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
       if (staged.length !== declared || stagedDigest !== sha256) throw new Error('STAGED_BYTES_VERIFICATION_FAILED');
       // A same-directory hard link publishes the complete verified inode atomically and
       // fails with EEXIST instead of replacing a file created by a concurrent process.
+      if (!stagingDirectorySafe(targetDir)) throw new Error('STAGING_DIRECTORY_UNSAFE');
       linkSync(temporary, local);
       unlinkSync(temporary);
       written.push(receipt);
