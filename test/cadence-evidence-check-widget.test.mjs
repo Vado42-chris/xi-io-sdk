@@ -41,5 +41,5 @@ test('labels are escaped by SDK surface renderer and never execute',()=>{
  const x=fixture();x.article_groups[0].checkpoints[0].label='<script>alert(1)</script>';
  const html=renderCadenceEvidenceWidget(x);
  assert.doesNotMatch(html,/<script>/);
- assert.match(html,/&lt;script&gt;/);
+ assert.doesNotMatch(html,/alert\(1\)|&lt;script&gt;/);
 });
