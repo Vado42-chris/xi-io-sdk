@@ -75,15 +75,15 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
   if (!dryRun) mkdirSync(targetDir, { recursive: true });
   for (const file of listed) {
     if (!accept(file)) { skipped.push({ id: file.id, name: file.name, reason: 'NOT_ACCEPTED' }); continue; }
-    const response = await fetcher(adapter.downloadUrl(file.id), auth);
-    if (!response.ok) { refused.push({ id: file.id, name: file.name, reason: 'DOWNLOAD_FAILED', status: response.status }); continue; }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    const declared = adapter.declaredBytes(file);
-    if (!Number.isSafeInteger(declared) || declared < 0) { refused.push({ id: file.id, name: file.name, reason: 'DECLARED_SIZE_REQUIRED' }); continue; }
-    if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
     if (typeof file.mimeType === 'string' && file.mimeType.startsWith('application/vnd.google-apps.')) {
       refused.push({ id: file.id, name: file.name, reason: 'NATIVE_WORKSPACE_EXPORT_REQUIRED', mime_type: file.mimeType }); continue;
     }
+    const declared = adapter.declaredBytes(file);
+    if (!Number.isSafeInteger(declared) || declared < 0) { refused.push({ id: file.id, name: file.name, reason: 'DECLARED_SIZE_REQUIRED' }); continue; }
+    const response = await fetcher(adapter.downloadUrl(file.id), auth);
+    if (!response.ok) { refused.push({ id: file.id, name: file.name, reason: 'DOWNLOAD_FAILED', status: response.status }); continue; }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const localName = safeName(file.name);
     const local = join(targetDir, localName);
