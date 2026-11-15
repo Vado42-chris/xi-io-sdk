@@ -31,12 +31,21 @@ export function hostDependencyTrinity(input) {
   const coverageGaps = allKeys.flatMap(key => REQUIRED_ENVIRONMENTS
     .filter(environment => !requirementKeys[environment].includes(key))
     .map(environment => ({ environment, dependency_key: key })));
+  const identityDrift = allKeys.flatMap(key => {
+    const bindings = REQUIRED_ENVIRONMENTS.flatMap(environment => result[environment]
+      .filter(edge => edge.dependency_key === key)
+      .map(edge => ({ environment, owner_ref: edge.owner_ref, face: edge.face })));
+    return new Set(bindings.map(edge => `${edge.owner_ref}:${edge.face}`)).size > 1
+      ? [{ dependency_key: key, bindings }] : [];
+  });
   return Object.freeze({
     schema: 'xiio.host-dependency-trinity-projection/v1',
     host_ref: [...hostRefs][0],
     environments: Object.freeze(result),
     denominator: Object.freeze({ environments: 3, bindings: Object.values(result).reduce((n, edges) => n + edges.length, 0) }),
     coverage_gaps: Object.freeze(coverageGaps),
+    identity_drift: Object.freeze(identityDrift),
+    runtime_first_red: 'AUTHENTICATED_HOST_PROVIDER_READBACK_REQUIRED',
     state: 'UNKNOWN', currentness: 'UNKNOWN', provider_effect: false, authority_granted: false,
   });
 }
