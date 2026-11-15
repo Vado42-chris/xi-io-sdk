@@ -52,6 +52,10 @@ Standalone SAM_LAW, VeilRIFT, x42s, @ibal, Benchmark and any future registered p
 
 Run `npm run check:dependency-cube`, including the `@xi-io/sdk/install/product-closure` test. Reject unknown/foreign product identity, absent target, duplicate dependencies, cycles and implicit suite selection. This plan is structural only. Before install or update, the authorized HEX owner must bind every node to qualified platform/provider artifacts, required APIs and services, independent installed-generation readback, rollback and Ward admission. Never treat `PLAN_ONLY` as an installed or operational result. Cube native installer ownership remains with `xi-io-cli-cube` PR #27; adoption and browser/user acceptance are separate receiving gates.
 
+## Product-neutral media ingress and consumer egress
+
+A product may ingest any source format that a qualified decoder actually supports, but runtime egress format, transparency, geometry and acceptance checks belong to the consuming product's canonical asset-class contract. Before converting, pulling, masking, uploading or publishing, discover the product registry and class, then resolve dimension and slot variables through its current theme/consumer records. Do not hard-code game, theme, slot, file path, output format or unbuilt theme denominator in SDK tooling. Preserve unmodified original custody and source fingerprints independently from runtime derivative receipts. Refuse missing class or unsupported format, truncated data, symlink/path escapes and absent consumer endpoints; do not upgrade a staged byte copy to owner approval or APPLY_RETURN. VeilRIFT `cube.manifest.json#asset_classes` is one receiving dogfood example, not the SDK's central product catalogue. Reconcile the current owner before changing receiving scripts or acceptance tests.
+
 ## ACK ROTFL template invariant
 
 Distributed ACKs and ACK Item Trinity share one ROTFL context.
