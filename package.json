@@ -137,7 +137,7 @@
     "check:progress-gated-roles": "node scripts/validate-progress-gated-roles.mjs",
     "check:qual-quant-topography": "node scripts/validate-qual-quant-topography.mjs",
     "check:crm-current-bridge": "node scripts/validate-crm-current-bridge.mjs",
-    "check:dependency-cube": "node scripts/validate-dependency-cube.mjs",
+    "check:dependency-cube": "node scripts/validate-dependency-cube.mjs && node scripts/validate-host-dependency-edges.mjs",
     "check:triage-ingress": "node scripts/validate-triage-ingress.mjs",
     "check:ibal-team-kit": "node scripts/validate-ibal-team-kit.mjs",
     "check:two-sided-provider-meter": "node scripts/validate-two-sided-provider-meter.mjs",
