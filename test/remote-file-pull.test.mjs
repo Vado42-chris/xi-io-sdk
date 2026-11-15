@@ -221,3 +221,40 @@ test('a staging directory replaced by a symlink during download cannot publish b
     assert.equal(existsSync(join(base,'old-stage','private.pdf')),false);
   } finally {rmSync(base,{recursive:true,force:true});}
 });
+
+test('same-name distinct remote objects with identical bytes cannot share one receipt',async()=>{
+ const base=mkdtempSync(join(tmpdir(),'pull-identical-collision-'));
+ try{
+  const body=Buffer.from('identical');
+  const {fetcher}=fakeDrive([
+   {id:'first',name:'Record?.pdf',mimeType:'application/pdf',body},
+   {id:'second',name:'Record*.pdf',mimeType:'application/pdf',body},
+  ]);
+  const result=await pullRemoteFolder({
+   provider:'google_drive',folderId:'F',targetDir:base,getAccessToken:()=> 'K',fetcher,
+  });
+  assert.equal(result.ok,false);
+  assert.equal(result.written.length,1);
+  assert.equal(result.written[0].remote_id,'first');
+  assert.equal(result.refused[0].reason,'LOCAL_NAME_COLLISION');
+  assert.equal(result.refused[0].conflicts_with_remote_id,'first');
+  assert.deepEqual(readFileSync(join(base,'Record-.pdf')),body);
+ }finally{rmSync(base,{recursive:true,force:true});}
+});
+
+test('dot and dot-dot provider names cannot become filesystem destinations',async()=>{
+ const base=mkdtempSync(join(tmpdir(),'pull-dot-'));
+ try{
+  const body=Buffer.from('private');
+  const {fetcher}=fakeDrive([
+   {id:'a',name:'.',mimeType:'application/pdf',body},
+   {id:'b',name:'..',mimeType:'application/pdf',body},
+  ]);
+  const result=await pullRemoteFolder({
+   provider:'google_drive',folderId:'F',targetDir:base,getAccessToken:()=> 'K',fetcher,
+  });
+  assert.equal(result.ok,false);
+  assert.equal(result.written.length,0);
+  assert.deepEqual(result.refused.map(x=>x.reason),['INVALID_LOCAL_NAME','INVALID_LOCAL_NAME']);
+ }finally{rmSync(base,{recursive:true,force:true});}
+});
