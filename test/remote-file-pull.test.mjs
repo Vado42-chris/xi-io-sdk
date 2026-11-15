@@ -87,3 +87,71 @@ test('pagination limit refuses an incomplete remote inventory before downloading
     assert.equal(existsSync(dir),false);
   } finally { rmSync(dir,{recursive:true,force:true}); }
 });
+
+
+test('distinct remote files that normalize to one local name are refused without overwrite', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    const files = [
+      { id: 'one', name: 'Case File.pdf', mimeType: 'application/pdf', body: Buffer.from('first') },
+      { id: 'two', name: 'Case@File.pdf', mimeType: 'application/pdf', body: Buffer.from('second') },
+    ];
+    const { fetcher } = fakeDrive(files);
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher });
+    assert.equal(out.ok, false);
+    assert.equal(out.refused[0].reason, 'LOCAL_NAME_COLLISION');
+    assert.deepEqual(readFileSync(join(dir, 'Case-File.pdf')), files[0].body);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('missing declared size is refused before any destination write', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    const body = Buffer.from('no declared length');
+    const fetcher = async (url) => url.includes('?q=')
+      ? Response.json({ files: [{ id: 'unknown-size', name: 'unknown.pdf', mimeType: 'application/pdf' }] })
+      : new Response(body);
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher });
+    assert.equal(out.ok, false);
+    assert.equal(out.refused[0].reason, 'DECLARED_SIZE_REQUIRED');
+    assert.equal(existsSync(join(dir, 'unknown.pdf')), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('native Google Workspace documents are typed as requiring export', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    const fetcher = async (url) => url.includes('?q=')
+      ? Response.json({ files: [{ id: 'native-doc', name: 'Pleading', mimeType: 'application/vnd.google-apps.document', size: '0' }] })
+      : new Response(new Uint8Array());
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher });
+    assert.equal(out.ok, false);
+    assert.equal(out.refused[0].reason, 'NATIVE_WORKSPACE_EXPORT_REQUIRED');
+    assert.equal(out.written.length, 0);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('dry run reports planned files without claiming writes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    const { fetcher } = fakeDrive([{ id: 'a1', name: 'plan.pdf', mimeType: 'application/pdf', body: Buffer.from('plan') }]);
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher, dryRun: true });
+    assert.equal(out.ok, true);
+    assert.equal(out.written.length, 0);
+    assert.equal(out.skipped[0].reason, 'DRY_RUN_WOULD_COPY');
+    assert.equal(existsSync(join(dir, 'plan.pdf')), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('page-cap exhaustion refuses an incomplete folder listing', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    let pages = 0;
+    const fetcher = async () => { pages += 1; return Response.json({ files: [], nextPageToken: 'more-' + pages }); };
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher });
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'LIST_PAGINATION_LIMIT');
+    assert.equal(pages, 50);
+    assert.equal(out.written, undefined);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
