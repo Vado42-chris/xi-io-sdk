@@ -55,19 +55,23 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
   const listed = [];
-  for (let next = null, guard = 0; guard < 50; guard += 1) {
+  let next = null;
+  let complete = false;
+  for (let guard = 0; guard < 50; guard += 1) {
     const response = await fetcher(adapter.listUrl(folderId, next), auth);
     if (response.status === 401 || response.status === 403) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'HOST_AUTH_REQUIRED', status: response.status };
     if (!response.ok) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'LIST_FAILED', status: response.status };
     const page = adapter.readPage(await response.json());
     listed.push(...page.files);
-    if (!page.next) break;
+    if (!page.next) { complete = true; break; }
     next = page.next;
   }
+  if (!complete) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'LIST_PAGINATION_LIMIT', listed: listed.length, authority_granted: false };
 
   const written = [];
   const refused = [];
   const skipped = [];
+  const claimedLocalNames = new Map();
   if (!dryRun) mkdirSync(targetDir, { recursive: true });
   for (const file of listed) {
     if (!accept(file)) { skipped.push({ id: file.id, name: file.name, reason: 'NOT_ACCEPTED' }); continue; }
@@ -77,10 +81,22 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     const declared = adapter.declaredBytes(file);
     if (declared != null && declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const local = join(targetDir, safeName(file.name));
-    if (existsSync(local) && createHash('sha256').update(readFileSync(local)).digest('hex') === sha256) {
-      skipped.push({ id: file.id, name: file.name, reason: 'ALREADY_PRESENT', local }); continue;
+    const localName = safeName(file.name);
+    const local = join(targetDir, localName);
+    const priorRemote = claimedLocalNames.get(localName);
+    if (priorRemote && priorRemote.sha256 !== sha256) {
+      refused.push({ id: file.id, name: file.name, reason: 'LOCAL_NAME_COLLISION', local, conflicts_with_remote_id: priorRemote.remote_id });
+      continue;
     }
+    if (existsSync(local)) {
+      const existingDigest = createHash('sha256').update(readFileSync(local)).digest('hex');
+      if (existingDigest === sha256) {
+        skipped.push({ id: file.id, name: file.name, reason: 'ALREADY_PRESENT', local }); continue;
+      }
+      refused.push({ id: file.id, name: file.name, reason: 'LOCAL_NAME_COLLISION', local });
+      continue;
+    }
+    claimedLocalNames.set(localName, {remote_id: file.id, sha256});
     if (!dryRun) writeFileSync(local, bytes);
     written.push({ provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local });
   }
