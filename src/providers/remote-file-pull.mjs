@@ -12,8 +12,8 @@
  * Each written file gets a receipt line: provider, remote id, name, bytes, sha256, local path.
  * The result grants no authority: it is a copy, not an approval.
  */
-import { createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, renameSync, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
 export const REMOTE_FILE_PULL_SCHEMA = 'xiio.remote-file-pull/v1';
@@ -79,7 +79,11 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     if (!response.ok) { refused.push({ id: file.id, name: file.name, reason: 'DOWNLOAD_FAILED', status: response.status }); continue; }
     const bytes = Buffer.from(await response.arrayBuffer());
     const declared = adapter.declaredBytes(file);
-    if (declared != null && declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
+    if (!Number.isSafeInteger(declared) || declared < 0) { refused.push({ id: file.id, name: file.name, reason: 'DECLARED_SIZE_REQUIRED' }); continue; }
+    if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
+    if (typeof file.mimeType === 'string' && file.mimeType.startsWith('application/vnd.google-apps.')) {
+      refused.push({ id: file.id, name: file.name, reason: 'NATIVE_WORKSPACE_EXPORT_REQUIRED', mime_type: file.mimeType }); continue;
+    }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const localName = safeName(file.name);
     const local = join(targetDir, localName);
@@ -97,8 +101,20 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
       continue;
     }
     claimedLocalNames.set(localName, {remote_id: file.id, sha256});
-    if (!dryRun) writeFileSync(local, bytes);
-    written.push({ provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local });
+    const receipt = { provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local };
+    if (dryRun) { skipped.push({ id: file.id, name: file.name, reason: 'DRY_RUN_WOULD_COPY', local, bytes: bytes.length, sha256 }); continue; }
+    const temporary = join(targetDir, `.${localName}.${randomUUID()}.partial`);
+    try {
+      writeFileSync(temporary, bytes, { flag: 'wx' });
+      const staged = readFileSync(temporary);
+      const stagedDigest = createHash('sha256').update(staged).digest('hex');
+      if (staged.length !== declared || stagedDigest !== sha256) throw new Error('STAGED_BYTES_VERIFICATION_FAILED');
+      renameSync(temporary, local);
+      written.push(receipt);
+    } catch (error) {
+      try { if (existsSync(temporary)) unlinkSync(temporary); } catch {}
+      refused.push({ id: file.id, name: file.name, reason: 'ATOMIC_WRITE_FAILED', detail: error?.message || 'unknown' });
+    }
   }
   return { schema: REMOTE_FILE_PULL_SCHEMA, ok: refused.length === 0, provider: adapter.id, folder_id: folderId, listed: listed.length, written, refused, skipped, dry_run: dryRun, authority_granted: false };
 }
