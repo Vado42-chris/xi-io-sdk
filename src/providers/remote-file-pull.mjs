@@ -99,6 +99,15 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
   if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   if (!dryRun) mkdirSync(targetDir, { recursive: true });
   if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
+  // Pin the exact directory inode for this batch. A different ordinary directory
+  // swapped into the same path during a provider await is not an admitted target.
+  const pinned = lstatSync(targetDir, {throwIfNoEntry:false});
+  const sameStagingDirectory = () => {
+    if (!stagingDirectorySafe(targetDir)) return false;
+    const now = lstatSync(targetDir, {throwIfNoEntry:false});
+    return !!pinned && !!now && now.isDirectory() &&
+      now.dev === pinned.dev && now.ino === pinned.ino;
+  };
   for (const file of listed) {
     if (!accept(file)) { skipped.push({ id: file.id, name: file.name, reason: 'NOT_ACCEPTED' }); continue; }
     if (typeof file.mimeType === 'string' && file.mimeType.startsWith('application/vnd.google-apps.')) {
@@ -106,9 +115,9 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     }
     const declared = adapter.declaredBytes(file);
     if (!Number.isSafeInteger(declared) || declared < 0) { refused.push({ id: file.id, name: file.name, reason: 'DECLARED_SIZE_REQUIRED' }); continue; }
-    if (!stagingDirectorySafe(targetDir)) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
+    if (!sameStagingDirectory()) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     const response = await fetcher(adapter.downloadUrl(file.id), auth);
-    if (!stagingDirectorySafe(targetDir)) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
+    if (!sameStagingDirectory()) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     if (!response.ok) { refused.push({ id: file.id, name: file.name, reason: 'DOWNLOAD_FAILED', status: response.status }); continue; }
     const bytes = Buffer.from(await response.arrayBuffer());
     if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
@@ -136,7 +145,7 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     claimedLocalNames.set(localName, {remote_id: file.id, sha256});
     const receipt = { provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local };
     if (dryRun) { skipped.push({ id: file.id, name: file.name, reason: 'DRY_RUN_WOULD_COPY', local, bytes: bytes.length, sha256 }); continue; }
-    if (!stagingDirectorySafe(targetDir)) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
+    if (!sameStagingDirectory()) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     const temporary = join(targetDir, `.${localName}.${randomUUID()}.partial`);
     let descriptor = null;
     try {
@@ -149,7 +158,7 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
       if (staged.length !== declared || stagedDigest !== sha256) throw new Error('STAGED_BYTES_VERIFICATION_FAILED');
       // A same-directory hard link publishes the complete verified inode atomically and
       // fails with EEXIST instead of replacing a file created by a concurrent process.
-      if (!stagingDirectorySafe(targetDir)) throw new Error('STAGING_DIRECTORY_UNSAFE');
+      if (!sameStagingDirectory()) throw new Error('STAGING_DIRECTORY_UNSAFE');
       linkSync(temporary, local);
       unlinkSync(temporary);
       written.push(receipt);
