@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync, symlinkSync, renameSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pullRemoteFolder, PROVIDER_ADAPTERS } from '../src/providers/remote-file-pull.mjs';
@@ -84,7 +84,7 @@ test('pagination limit refuses an incomplete remote inventory before downloading
     assert.equal(result.ok,false);
     assert.equal(result.reason,'LIST_PAGINATION_LIMIT');
     assert.equal(calls,50);
-    assert.equal(existsSync(dir),false);
+    assert.deepEqual(readdirSync(dir), [], 'pagination refusal leaves staging empty');
   } finally { rmSync(dir,{recursive:true,force:true}); }
 });
 
