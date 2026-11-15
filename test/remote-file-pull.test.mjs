@@ -260,6 +260,26 @@ test('a staging directory swapped for a different real directory during download
   } finally {rmSync(base,{recursive:true,force:true});}
 });
 
+test('a staging directory removed during download refuses without escaping or throwing',async()=>{
+  const base=mkdtempSync(join(tmpdir(),'pull-directory-removed-'));
+  try {
+    const dest=join(base,'stage');mkdirSync(dest);
+    const body=Buffer.from('legal fixture bytes');
+    const fetcher=async url=>{
+      if(url.includes('?q=')) return Response.json({files:[{
+        id:'file',name:'evidence.pdf',mimeType:'application/pdf',size:String(body.length),
+      }]});
+      rmSync(dest,{recursive:true});
+      return new Response(body);
+    };
+    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',
+      targetDir:dest,getAccessToken:()=> 'K',fetcher});
+    assert.equal(result.ok,false);
+    assert.equal(result.refused[0].reason,'STAGING_DIRECTORY_UNSAFE');
+    assert.equal(existsSync(join(dest,'evidence.pdf')),false);
+  } finally {rmSync(base,{recursive:true,force:true});}
+});
+
 test('same-name distinct remote objects with identical bytes cannot share one receipt',async()=>{
  const base=mkdtempSync(join(tmpdir(),'pull-identical-collision-'));
  try{
