@@ -109,7 +109,8 @@
     "./product-window/contract": "./src/product-window/contract.mjs",
     "./product-window/intermediary": "./src/product-window/intermediary.mjs",
     "./styles/product-window.css": "./src/styles/product-window.css",
-    "./worker/bins-version-consumer": "./src/worker/bins-version-consumer.mjs"
+    "./worker/bins-version-consumer": "./src/worker/bins-version-consumer.mjs",
+    "./graphs/host-dependency-edges": "./src/graphs/host-dependency-edges.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
@@ -199,6 +200,7 @@
     "check:zed-products-mcp": "node scripts/check-zed-products-mcp.mjs",
     "check:mcp-stdio-shared": "node scripts/check-mcp-stdio-shared.mjs",
     "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs && node --test scripts/validate-product-window-connection.test.mjs",
-    "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs test/bins-worker-consumer-joined.test.mjs"
+    "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs test/bins-worker-consumer-joined.test.mjs",
+    "check:host-dependency-edges": "node scripts/validate-host-dependency-edges.mjs"
   }
 }
