@@ -46,6 +46,12 @@ When a product requires hosting or email, discover its **existing** canonical ma
 
 The SDK projection is structural. Even a fully declared trinity always returns `UNKNOWN` runtime state and `AUTHENTICATED_HOST_PROVIDER_READBACK_REQUIRED`. No static manifest, placeholder endpoint, stub adapter, asserted provider receipt, GitHub workflow or Cloudflare Access login can establish executable API capacity. A receiving owner must independently prove current deployment generation, actual endpoint/service/D1/email binding, authenticated Ward principal/action grant, executable request, persisted effect, independent readback, revocation and `RETURN/APPLY_RETURN` for each environment. An endpoint without an admitted operation and provider readback remains unverified. Do not fabricate URLs, secrets, provider adapters or another hosting registry.
 
+## Product-scoped HEX installation closure (2026-11-15)
+
+Standalone SAM_LAW, VeilRIFT, x42s, @ibal, Benchmark and any future registered product reuse the existing Cube CLI/HEX engine. A product installation is its selected canonical product plus the transitive dependency closure from its accepted registry, not the suite's fixed six-component baseline. Only explicit suite mode selects all registered products. Headless services do not need product windows; do not introduce a second installer UI or hard-coded product list.
+
+Run `npm run check:dependency-cube`, including the `@xi-io/sdk/install/product-closure` test. Reject unknown/foreign product identity, absent target, duplicate dependencies, cycles and implicit suite selection. This plan is structural only. Before install or update, the authorized HEX owner must bind every node to qualified platform/provider artifacts, required APIs and services, independent installed-generation readback, rollback and Ward admission. Never treat `PLAN_ONLY` as an installed or operational result. Cube native installer ownership remains with `xi-io-cli-cube` PR #27; adoption and browser/user acceptance are separate receiving gates.
+
 ## ACK ROTFL template invariant
 
 Distributed ACKs and ACK Item Trinity share one ROTFL context.
