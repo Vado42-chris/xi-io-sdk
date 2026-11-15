@@ -19,6 +19,7 @@
     "./callables": "./src/callables/resolve.mjs",
     "./adoption": "./src/adoption/primitive-plan.mjs",
     "./providers": "./src/providers/state.mjs",
+    "./providers/remote-file-pull": "./src/providers/remote-file-pull.mjs",
     "./wakes": "./src/wakes/envelope.mjs",
     "./ibal": "./src/ibal/canary.mjs",
     "./ibal/impact-formation": "./src/ibal/impact-formation.mjs",

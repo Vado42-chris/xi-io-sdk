@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pullRemoteFolder, PROVIDER_ADAPTERS } from '../src/providers/remote-file-pull.mjs';
+
+const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4, 5, 6]);
+function fakeDrive(files, { truncate = new Set(), status = 200 } = {}) {
+  const calls = [];
+  const fetcher = async (url, init) => {
+    calls.push({ url, auth: init?.headers?.Authorization });
+    if (status !== 200) return new Response('no', { status });
+    if (url.includes('?q=')) return Response.json({ files: files.map(({ body, ...f }) => ({ ...f, size: String(body.length) })) });
+    const id = decodeURIComponent(url.split('/files/')[1].split('?')[0]);
+    const f = files.find((x) => x.id === id);
+    return new Response(truncate.has(id) ? f.body.subarray(0, 3) : f.body);
+  };
+  return { fetcher, calls };
+}
+
+test('copies every accepted file with exact bytes and a receipt, using the supplied key', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    const { fetcher, calls } = fakeDrive([{ id: 'a1', name: 'Hero One.png', mimeType: 'image/png', body: png }, { id: 'b2', name: 'notes.txt', mimeType: 'text/plain', body: Buffer.from('x') }]);
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher, accept: (f) => f.mimeType.startsWith('image/') });
+    assert.equal(out.ok, true);
+    assert.equal(out.written.length, 1);
+    assert.deepEqual(readFileSync(join(dir, 'Hero-One.png')), png);
+    assert.equal(out.skipped[0].reason, 'NOT_ACCEPTED');
+    assert.ok(calls.every((c) => c.auth === 'Bearer K'));
+    assert.equal(out.authority_granted, false);
+    const again = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher, accept: (f) => f.mimeType.startsWith('image/') });
+    assert.equal(again.written.length, 0);
+    assert.equal(again.skipped.find((s) => s.id === 'a1').reason, 'ALREADY_PRESENT');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a cut-off download is refused and nothing is written for it', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-'));
+  try {
+    const { fetcher } = fakeDrive([{ id: 'a1', name: 'cut.png', mimeType: 'image/png', body: png }], { truncate: new Set(['a1']) });
+    const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher });
+    assert.equal(out.ok, false);
+    assert.equal(out.refused[0].reason, 'TRUNCATED');
+    assert.equal(existsSync(join(dir, 'cut.png')), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('missing or rejected keys and unknown providers fail with typed states', async () => {
+  assert.equal((await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: '/tmp/x', getAccessToken: () => '' })).reason, 'HOST_AUTH_REQUIRED');
+  const { fetcher } = fakeDrive([], { status: 401 });
+  assert.equal((await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: '/tmp/x', getAccessToken: () => 'K', fetcher })).reason, 'HOST_AUTH_REQUIRED');
+  assert.equal((await pullRemoteFolder({ provider: 'nope', folderId: 'F', targetDir: '/tmp/x', getAccessToken: () => 'K' })).reason, 'PROVIDER_UNKNOWN');
+  assert.match(PROVIDER_ADAPTERS.google_drive.read_scope, /drive\.readonly$/);
+});
