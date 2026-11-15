@@ -13,7 +13,7 @@
  * The result grants no authority: it is a copy, not an approval.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, existsSync, lstatSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
+import { constants as fsConstants, mkdirSync, existsSync, lstatSync, fstatSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
 import { join, basename, dirname, resolve } from 'node:path';
 
 export const REMOTE_FILE_PULL_SCHEMA = 'xiio.remote-file-pull/v1';
@@ -137,7 +137,39 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
       continue;
     }
     if (existsSync(local)) {
-      const existingDigest = createHash('sha256').update(readFileSync(local)).digest('hex');
+      // A same-name preexisting file is not necessarily an earlier copy of this
+      // provider object. Never follow symlinks, hardlinks, or changed inodes to
+      // decide that private bytes are "already present".
+      let existingDigest;
+      let descriptor = null;
+      try {
+        if (!stagingDirectorySafe(targetDir) ||
+            typeof fsConstants.O_NOFOLLOW !== 'number' ||
+            typeof fsConstants.O_NONBLOCK !== 'number') {
+          throw new Error('EXISTING_SOURCE_READ_BOUNDARY_UNAVAILABLE');
+        }
+        const stat = lstatSync(local);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+          throw new Error('EXISTING_SOURCE_NOT_REGULAR');
+        }
+        descriptor = openSync(local, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+        const opened = fstatSync(descriptor);
+        if (!opened.isFile() || opened.nlink !== 1 ||
+            opened.dev !== stat.dev || opened.ino !== stat.ino ||
+            opened.size !== stat.size) {
+          throw new Error('EXISTING_SOURCE_CHANGED_ON_OPEN');
+        }
+        existingDigest = createHash('sha256').update(readFileSync(descriptor)).digest('hex');
+      } catch {
+        refused.push({ id: file.id, name: file.name, reason: 'LOCAL_NAME_UNTRUSTED', local });
+        continue;
+      } finally {
+        if (descriptor !== null) closeSync(descriptor);
+      }
+      if (!stagingDirectorySafe(targetDir)) {
+        refused.push({ id: file.id, name: file.name, reason: 'STAGING_DIRECTORY_UNSAFE' });
+        continue;
+      }
       if (existingDigest === sha256) {
         skipped.push({ id: file.id, name: file.name, reason: 'ALREADY_PRESENT', local }); continue;
       }
