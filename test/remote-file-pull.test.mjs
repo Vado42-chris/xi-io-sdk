@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, renameSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, existsSync, symlinkSync, linkSync, writeFileSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pullRemoteFolder, PROVIDER_ADAPTERS } from '../src/providers/remote-file-pull.mjs';
@@ -172,6 +172,43 @@ test('page-cap exhaustion refuses an incomplete folder listing', async () => {
     assert.equal(pages, 50);
     assert.equal(out.written, undefined);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('existing matching-byte symlink refuses instead of reading another storage location', async () => {
+  const base=mkdtempSync(join(tmpdir(),'pull-existing-symlink-'));
+  try {
+    const stage=join(base,'stage'),outside=join(base,'outside.pdf');
+    mkdirSync(stage);
+    const body=Buffer.from('outside-private-bytes');
+    writeFileSync(outside,body);
+    symlinkSync(outside,join(stage,'record.pdf'));
+    const {fetcher}=fakeDrive([{id:'one',name:'record.pdf',mimeType:'application/pdf',body}]);
+    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',
+      targetDir:stage,getAccessToken:()=> 'K',fetcher});
+    assert.equal(result.ok,false);
+    assert.equal(result.written.length,0);
+    assert.equal(result.refused[0].reason,'LOCAL_NAME_UNTRUSTED');
+    assert.equal(result.skipped.some(item=>item.reason==='ALREADY_PRESENT'),false);
+    assert.deepEqual(readFileSync(outside),body);
+  }finally{rmSync(base,{recursive:true,force:true});}
+});
+
+test('existing hardlinked file refuses even with matching provider bytes', async () => {
+  const base=mkdtempSync(join(tmpdir(),'pull-existing-hardlink-'));
+  try {
+    const stage=join(base,'stage'),outside=join(base,'private.pdf');
+    mkdirSync(stage);
+    const body=Buffer.from('private-hardlinked-evidence');
+    writeFileSync(outside,body);
+    linkSync(outside,join(stage,'record.pdf'));
+    const {fetcher}=fakeDrive([{id:'one',name:'record.pdf',mimeType:'application/pdf',body}]);
+    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',
+      targetDir:stage,getAccessToken:()=> 'K',fetcher});
+    assert.equal(result.ok,false);
+    assert.equal(result.written.length,0);
+    assert.equal(result.refused[0].reason,'LOCAL_NAME_UNTRUSTED');
+    assert.deepEqual(readFileSync(outside),body);
+  }finally{rmSync(base,{recursive:true,force:true});}
 });
 
 test('a symlinked staging directory refuses before requesting provider credentials', async () => {
