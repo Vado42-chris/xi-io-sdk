@@ -70,8 +70,10 @@ function stagingDirectorySafe(targetDir) {
  * @param {boolean} [options.dryRun]
  */
 export async function pullRemoteFolder({ provider, folderId, targetDir, getAccessToken, accept = () => true, fetcher = fetch, dryRun = false } = {}) {
+  // Prototype-inherited names are not registered providers. Reject them before any
+  // credential retrieval, filesystem access, or network request.
+  if (!Object.hasOwn(PROVIDER_ADAPTERS, provider)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'PROVIDER_UNKNOWN' };
   const adapter = PROVIDER_ADAPTERS[provider];
-  if (!adapter) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'PROVIDER_UNKNOWN' };
   if (!folderId || !targetDir || typeof getAccessToken !== 'function') return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'ARGS_REQUIRED' };
   if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   const token = await getAccessToken();
