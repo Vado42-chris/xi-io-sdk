@@ -40,6 +40,12 @@ STATIC_GREEN != RUNTIME_ROTFL_GREEN
 RESULT != RETURN != APPLY_RETURN
 ```
 
+## Hosting dependency trinity cold-start gate (VeilRIFT dogfood, 2026-11-15)
+
+When a product requires hosting or email, discover its **existing** canonical manifest and project owner before assuming any deployment. Run `npm run check:dependency-cube`, including `validate-host-dependency-edges` and `validate-host-dependency-trinity`. The SDK `@xi-io/sdk/graphs/host-dependency-trinity` validates exactly `development`, `test` and `production`, typed host/environment identities, and every requirement's owner, target, face and affected consumers. Inspect `coverage_gaps` and `identity_drift` on every intake. A missing binding, changed owner/face, truncated field or unknown project is not a safe fallback.
+
+The SDK projection is structural. Even a fully declared trinity always returns `UNKNOWN` runtime state and `AUTHENTICATED_HOST_PROVIDER_READBACK_REQUIRED`. No static manifest, placeholder endpoint, stub adapter, asserted provider receipt, GitHub workflow or Cloudflare Access login can establish executable API capacity. A receiving owner must independently prove current deployment generation, actual endpoint/service/D1/email binding, authenticated Ward principal/action grant, executable request, persisted effect, independent readback, revocation and `RETURN/APPLY_RETURN` for each environment. An endpoint without an admitted operation and provider readback remains unverified. Do not fabricate URLs, secrets, provider adapters or another hosting registry.
+
 ## ACK ROTFL template invariant
 
 Distributed ACKs and ACK Item Trinity share one ROTFL context.

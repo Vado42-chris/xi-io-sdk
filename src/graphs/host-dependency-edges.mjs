@@ -6,8 +6,10 @@ const KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const FACES = new Set(['INTERNAL', 'EXTERNAL', 'GLASS']);
 
 export function hostDependencyEdges(manifest) {
-  if (manifest?.schema !== 'xiio.host-dependencies/v1' || !KEY.test(manifest.host_ref) ||
-      !KEY.test(manifest.environment_ref) || !Array.isArray(manifest.requirements) ||
+  if (manifest?.schema !== 'xiio.host-dependencies/v1' ||
+      typeof manifest.host_ref !== 'string' || !KEY.test(manifest.host_ref) ||
+      typeof manifest.environment_ref !== 'string' || !KEY.test(manifest.environment_ref) ||
+      !Array.isArray(manifest.requirements) ||
       manifest.requirements.length === 0) throw new TypeError('HOST_DEPENDENCY_MANIFEST_INVALID');
   const seen = new Set();
   return manifest.requirements.map((requirement) => {

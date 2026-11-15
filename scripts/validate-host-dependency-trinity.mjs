@@ -11,6 +11,8 @@ const result=hostDependencyTrinity(input);
 assert.equal(result.denominator.environments,3);
 assert.equal(result.denominator.bindings,9);
 assert.equal(result.coverage_gaps.length,0);
+assert.equal(result.identity_drift.length,0);
+assert.equal(result.runtime_first_red,'AUTHENTICATED_HOST_PROVIDER_READBACK_REQUIRED');
 assert(result.environments.production.every(edge=>edge.state==='UNKNOWN'&&edge.currentness==='UNKNOWN'));
 assert.equal(result.provider_effect,false);
 assert.equal(result.authority_granted,false);
@@ -21,6 +23,27 @@ assert.throws(()=>hostDependencyTrinity({...input,environments:{...input.environ
 const different=structuredClone(input);
 different.environments.test.requirements.pop();
 assert.deepEqual(hostDependencyTrinity(different).coverage_gaps,[{environment:'test',dependency_key:'host.ward'}]);
+const drift=structuredClone(input);
+drift.environments.production.requirements[2].owner_ref='different-ward';
+assert.deepEqual(hostDependencyTrinity(drift).identity_drift,[{
+  dependency_key:'host.ward',bindings:[
+    {environment:'development',owner_ref:'admission',face:'GLASS'},
+    {environment:'test',owner_ref:'admission',face:'GLASS'},
+    {environment:'production',owner_ref:'different-ward',face:'GLASS'},
+  ],
+}]);
+const malformed=structuredClone(input);
+malformed.environments.test.requirements[0].affected_project_refs=[];
+assert.throws(()=>hostDependencyTrinity(malformed),/HOST_DEPENDENCY_REQUIREMENT_INVALID/);
+const truncated=structuredClone(input);
+delete truncated.environments.test.requirements[0].target_ref;
+assert.throws(()=>hostDependencyTrinity(truncated),/HOST_DEPENDENCY_REQUIREMENT_INVALID/);
+const coerced=structuredClone(input);
+coerced.environments.development.host_ref={toString:()=> 'host:game'};
+assert.throws(()=>hostDependencyTrinity(coerced),/HOST_DEPENDENCY_MANIFEST_INVALID/);
+const numeric=structuredClone(input);
+numeric.environments.production.host_ref=123;
+assert.throws(()=>hostDependencyTrinity(numeric),/HOST_DEPENDENCY_MANIFEST_INVALID/);
 const forged=structuredClone(input);
 forged.environments.development.requirements[0].state='PASS';
 assert.equal(hostDependencyTrinity(forged).environments.development[0].state,'UNKNOWN');
