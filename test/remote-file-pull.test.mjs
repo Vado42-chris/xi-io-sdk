@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync, symlinkSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pullRemoteFolder, PROVIDER_ADAPTERS } from '../src/providers/remote-file-pull.mjs';
@@ -157,4 +157,67 @@ test('page-cap exhaustion refuses an incomplete folder listing', async () => {
     assert.equal(pages, 50);
     assert.equal(out.written, undefined);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a symlinked staging directory refuses before requesting provider credentials', async () => {
+  const base=mkdtempSync(join(tmpdir(),'pull-symlink-target-'));
+  try {
+    const real=join(base,'real'),link=join(base,'alias');
+    mkdirSync(real);
+    symlinkSync(real,link,'dir');
+    let keys=0,requests=0;
+    const result=await pullRemoteFolder({
+      provider:'google_drive',folderId:'F',targetDir:link,
+      getAccessToken:()=>{keys++;return 'K';},
+      fetcher:async()=>{requests++;throw Error('unsafe directory must not reach network');},
+    });
+    assert.equal(result.ok,false);
+    assert.equal(result.reason,'STAGING_DIRECTORY_UNSAFE');
+    assert.equal(keys,0);
+    assert.equal(requests,0);
+    assert.equal(existsSync(join(real,'asset.png')),false);
+  } finally {rmSync(base,{recursive:true,force:true});}
+});
+
+test('a symlink in a staging parent cannot redirect a new output directory',async()=>{
+  const base=mkdtempSync(join(tmpdir(),'pull-symlink-parent-'));
+  try {
+    const real=join(base,'real'),link=join(base,'alias');
+    mkdirSync(real);
+    symlinkSync(real,link,'dir');
+    const result=await pullRemoteFolder({
+      provider:'google_drive',folderId:'F',targetDir:join(link,'new-child'),
+      getAccessToken:()=>{throw Error('must deny before token');},
+    });
+    assert.equal(result.reason,'STAGING_DIRECTORY_UNSAFE');
+    assert.equal(existsSync(join(real,'new-child')),false);
+  } finally {rmSync(base,{recursive:true,force:true});}
+});
+
+test('a staging directory replaced by a symlink during download cannot publish bytes',async()=>{
+  const base=mkdtempSync(join(tmpdir(),'pull-symlink-race-'));
+  try {
+    const dest=join(base,'stage'),outside=join(base,'outside');
+    mkdirSync(dest);mkdirSync(outside);
+    const body=Buffer.from('private-case');
+    let moved=false;
+    const fetcher=async url=>{
+      if(url.includes('?q=')) return Response.json({files:[{
+        id:'file',name:'private.pdf',mimeType:'application/pdf',size:String(body.length),
+      }]});
+      renameSync(dest,join(base,'old-stage'));
+      symlinkSync(outside,dest,'dir');
+      moved=true;
+      return new Response(body);
+    };
+    const result=await pullRemoteFolder({
+      provider:'google_drive',folderId:'F',targetDir:dest,
+      getAccessToken:()=> 'K',fetcher,
+    });
+    assert.equal(moved,true);
+    assert.equal(result.ok,false);
+    assert.equal(result.refused[0].reason,'STAGING_DIRECTORY_UNSAFE');
+    assert.equal(existsSync(join(outside,'private.pdf')),false);
+    assert.equal(existsSync(join(base,'old-stage','private.pdf')),false);
+  } finally {rmSync(base,{recursive:true,force:true});}
 });
