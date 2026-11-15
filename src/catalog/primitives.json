@@ -34,8 +34,8 @@
     "PLATFORM_CONTRACT_MUST_PROJECT_THROUGH_FLATPACK"
   ],
   "dispatch": {
-    "expected": 42,
-    "materialized_primitives": 42,
+    "expected": 43,
+    "materialized_primitives": 43,
     "known_gaps": 6,
     "counter_semantics": "playground surfaces materialized/expected; DISPATCH_COUNTER!=BINS_CURRENT; not LIVE",
     "catalog_currentness_vs_bins": "UNPROVEN_SOFT_JOIN",
@@ -586,6 +586,21 @@
       "source": "src/worker/lifecycle.mjs",
       "specifier": "@xi-io/sdk/worker/lifecycle",
       "styles": [],
+      "maturity": "CANDIDATE"
+    },
+    {
+      "id": "cadence-evidence-check-widget",
+      "callable_uuid": "9f05cf7f-536b-56a6-bdd9-e1bed1e8990b",
+      "family": "cadence",
+      "kind": "component",
+      "export": "buildCadenceEvidenceWidgetSurface|renderCadenceEvidenceWidget",
+      "source": "src/cadence/evidence-check-widget.mjs",
+      "specifier": "@xi-io/sdk/cadence/evidence-check-widget",
+      "style": "src/styles/core.css",
+      "styles": [
+        "@xi-io/sdk/styles/core.css",
+        "@xi-io/sdk/styles/shell.css"
+      ],
       "maturity": "CANDIDATE"
     }
   ],
