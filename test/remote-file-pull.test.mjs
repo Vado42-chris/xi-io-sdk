@@ -121,13 +121,16 @@ test('missing declared size is refused before any destination write', async () =
 test('native Google Workspace documents are typed as requiring export', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pull-'));
   try {
-    const fetcher = async (url) => url.includes('?q=')
-      ? Response.json({ files: [{ id: 'native-doc', name: 'Pleading', mimeType: 'application/vnd.google-apps.document', size: '0' }] })
-      : new Response(new Uint8Array());
+    let downloads = 0;
+    const fetcher = async (url) => {
+      if (url.includes('?q=')) return Response.json({ files: [{ id: 'native-doc', name: 'Pleading', mimeType: 'application/vnd.google-apps.document', size: '0' }] });
+      downloads += 1; return new Response(new Uint8Array());
+    };
     const out = await pullRemoteFolder({ provider: 'google_drive', folderId: 'F', targetDir: dir, getAccessToken: () => 'K', fetcher });
     assert.equal(out.ok, false);
     assert.equal(out.refused[0].reason, 'NATIVE_WORKSPACE_EXPORT_REQUIRED');
     assert.equal(out.written.length, 0);
+    assert.equal(downloads, 0, 'native Workspace document is classified before unsupported alt=media download');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
