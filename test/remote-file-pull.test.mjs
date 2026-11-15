@@ -54,3 +54,36 @@ test('missing or rejected keys and unknown providers fail with typed states', as
   assert.equal((await pullRemoteFolder({ provider: 'nope', folderId: 'F', targetDir: '/tmp/x', getAccessToken: () => 'K' })).reason, 'PROVIDER_UNKNOWN');
   assert.match(PROVIDER_ADAPTERS.google_drive.read_scope, /drive\.readonly$/);
 });
+
+test('different remote files with the same sanitized name are refused without overwriting', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-collision-'));
+  try {
+    const one = Buffer.from('first file');
+    const two = Buffer.from('second file');
+    const {fetcher} = fakeDrive([
+      {id:'first',name:'case notes?.pdf',mimeType:'application/pdf',body:one},
+      {id:'second',name:'case notes*.pdf',mimeType:'application/pdf',body:two},
+    ]);
+    const result = await pullRemoteFolder({provider:'google_drive',folderId:'F',targetDir:dir,getAccessToken:()=> 'K',fetcher});
+    assert.equal(result.ok,false);
+    assert.equal(result.written.length,1);
+    assert.equal(result.refused[0].reason,'LOCAL_NAME_COLLISION');
+    assert.deepEqual(readFileSync(join(dir,'case-notes-.pdf')),one);
+  } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+
+test('pagination limit refuses an incomplete remote inventory before downloading or writing', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pull-pages-'));
+  try {
+    let calls=0;
+    const fetcher=async(url)=>{
+      calls++;
+      return Response.json({files:[],nextPageToken:'next-'+calls});
+    };
+    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',targetDir:dir,getAccessToken:()=> 'K',fetcher});
+    assert.equal(result.ok,false);
+    assert.equal(result.reason,'LIST_PAGINATION_LIMIT');
+    assert.equal(calls,50);
+    assert.equal(existsSync(dir),false);
+  } finally { rmSync(dir,{recursive:true,force:true}); }
+});
