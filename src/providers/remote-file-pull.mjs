@@ -13,7 +13,7 @@
  * The result grants no authority: it is a copy, not an approval.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, renameSync, unlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
 export const REMOTE_FILE_PULL_SCHEMA = 'xiio.remote-file-pull/v1';
@@ -104,16 +104,24 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     const receipt = { provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local };
     if (dryRun) { skipped.push({ id: file.id, name: file.name, reason: 'DRY_RUN_WOULD_COPY', local, bytes: bytes.length, sha256 }); continue; }
     const temporary = join(targetDir, `.${localName}.${randomUUID()}.partial`);
+    let descriptor = null;
     try {
-      writeFileSync(temporary, bytes, { flag: 'wx' });
+      descriptor = openSync(temporary, 'wx', 0o600);
+      writeSync(descriptor, bytes);
+      fsyncSync(descriptor);
+      closeSync(descriptor); descriptor = null;
       const staged = readFileSync(temporary);
       const stagedDigest = createHash('sha256').update(staged).digest('hex');
       if (staged.length !== declared || stagedDigest !== sha256) throw new Error('STAGED_BYTES_VERIFICATION_FAILED');
-      renameSync(temporary, local);
+      // A same-directory hard link publishes the complete verified inode atomically and
+      // fails with EEXIST instead of replacing a file created by a concurrent process.
+      linkSync(temporary, local);
+      unlinkSync(temporary);
       written.push(receipt);
     } catch (error) {
+      try { if (descriptor !== null) closeSync(descriptor); } catch {}
       try { if (existsSync(temporary)) unlinkSync(temporary); } catch {}
-      refused.push({ id: file.id, name: file.name, reason: 'ATOMIC_WRITE_FAILED', detail: error?.message || 'unknown' });
+      refused.push({ id: file.id, name: file.name, reason: error?.code === 'EEXIST' ? 'LOCAL_NAME_COLLISION' : 'ATOMIC_WRITE_FAILED', detail: error?.message || 'unknown' });
     }
   }
   return { schema: REMOTE_FILE_PULL_SCHEMA, ok: refused.length === 0, provider: adapter.id, folder_id: folderId, listed: listed.length, written, refused, skipped, dry_run: dryRun, authority_granted: false };
