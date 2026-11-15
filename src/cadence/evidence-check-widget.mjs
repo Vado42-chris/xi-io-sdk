@@ -7,14 +7,15 @@ const ID=/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,255}$/;
 function need(ok,reason){if(!ok)throw new TypeError(reason);}
 function id(v,label){need(typeof v==='string'&&ID.test(v),label+'_INVALID');return v;}
 function text(v,label){need(typeof v==='string'&&v.trim()&&v.length<=160,label+'_INVALID');return v;}
-function safeCheck(row) {
+function safeCheck(row,index) {
   need(row&&typeof row==='object'&&!Array.isArray(row),'CHECKPOINT_REQUIRED');
   id(row.id,'CHECKPOINT_ID');text(row.label,'CHECKPOINT_LABEL');
   need(PHASES.has(row.phase),'CHECKPOINT_PHASE_INVALID');
   need(DISPLAY.has(row.display_state),'CHECKPOINT_DISPLAY_STATE_INVALID');
   need(typeof row.has_receipt==='boolean'&&typeof row.source_generation_supplied==='boolean','CHECKPOINT_EVIDENCE_FLAG_INVALID');
   if(row.display_state==='REPORTED_PASS') need(row.has_receipt&&row.source_generation_supplied,'REPORTED_PASS_NO_RECEIPT');
-  return {label:row.label,value:row.display_state,status:{
+  // Free-form descriptions may contain case data. Only render generic phase identifiers.
+  return {label:row.phase+' checkpoint '+(index+1),value:row.display_state,status:{
     label:row.display_state==='REPORTED_PASS'?'Reported, awaiting host verification':
       row.display_state==='REPORTED_N_A'?'Not applicable, reported':row.display_state.replaceAll('_',' '),
     tone:row.display_state==='FAIL'?'critical':row.display_state==='UNKNOWN'?'unknown':'warning'}};
@@ -33,10 +34,10 @@ export function buildCadenceEvidenceWidgetSurface(widget) {
     need(Array.isArray(group.checkpoints)&&group.checkpoints.length>0&&group.checkpoints.length<=64,'GROUP_CHECKPOINTS_INVALID');
     return {id:'group-'+index,title:group.phase.charAt(0)+group.phase.slice(1).toLowerCase(),
       summary:'Reported checkpoint observations, not effect authority.',
-      rows:group.checkpoints.map(row=>{
+      rows:group.checkpoints.map((row,checkIndex)=>{
         need(row.phase===group.phase,'CHECKPOINT_GROUP_PHASE_MISMATCH');
         need(!seen.has(row.id),'DUPLICATE_CHECKPOINT');seen.add(row.id);
-        return safeCheck(row);
+        return safeCheck(row,checkIndex);
       })};
   });
   need(seen.size===widget.checkpoint_count,'CHECKPOINT_COUNT_MISMATCH');
