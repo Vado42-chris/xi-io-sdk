@@ -80,10 +80,10 @@ test('pagination limit refuses an incomplete remote inventory before downloading
       calls++;
       return Response.json({files:[],nextPageToken:'next-'+calls});
     };
-    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',targetDir:dir,getAccessToken:()=> 'K',fetcher});
+    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',targetDir:join(dir,'out'),getAccessToken:()=> 'K',fetcher});
     assert.equal(result.ok,false);
     assert.equal(result.reason,'LIST_PAGINATION_LIMIT');
     assert.equal(calls,50);
-    assert.equal(existsSync(dir),false);
+    assert.equal(existsSync(join(dir,'out')),false);
   } finally { rmSync(dir,{recursive:true,force:true}); }
 });
