@@ -222,6 +222,29 @@ test('a staging directory replaced by a symlink during download cannot publish b
   } finally {rmSync(base,{recursive:true,force:true});}
 });
 
+test('a staging directory swapped for a different real directory during download refuses publication',async()=>{
+  const base=mkdtempSync(join(tmpdir(),'pull-directory-swap-'));
+  try {
+    const dest=join(base,'stage'),outside=join(base,'outside');
+    mkdirSync(dest);mkdirSync(outside);
+    const body=Buffer.from('legal fixture bytes');
+    const fetcher=async url=>{
+      if(url.includes('?q=')) return Response.json({files:[{
+        id:'file',name:'evidence.pdf',mimeType:'application/pdf',size:String(body.length),
+      }]});
+      renameSync(dest,join(base,'original-stage'));
+      renameSync(outside,dest);
+      return new Response(body);
+    };
+    const result=await pullRemoteFolder({provider:'google_drive',folderId:'F',
+      targetDir:dest,getAccessToken:()=> 'K',fetcher});
+    assert.equal(result.ok,false);
+    assert.equal(result.refused[0].reason,'STAGING_DIRECTORY_UNSAFE');
+    assert.equal(existsSync(join(dest,'evidence.pdf')),false);
+    assert.equal(existsSync(join(base,'original-stage','evidence.pdf')),false);
+  } finally {rmSync(base,{recursive:true,force:true});}
+});
+
 test('same-name distinct remote objects with identical bytes cannot share one receipt',async()=>{
  const base=mkdtempSync(join(tmpdir(),'pull-identical-collision-'));
  try{
