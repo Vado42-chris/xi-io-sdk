@@ -13,7 +13,7 @@
  * The result grants no authority: it is a copy, not an approval.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
 export const REMOTE_FILE_PULL_SCHEMA = 'xiio.remote-file-pull/v1';
