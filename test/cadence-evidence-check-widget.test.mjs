@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {buildCadenceEvidenceWidgetSurface,renderCadenceEvidenceWidget} from '../src/cadence/evidence-check-widget.mjs';
 function fixture(){
  return {schema:'xiio.cadence.evidence-check-widget/v1',workflow_ref:'work:one',product_ref:'product:test',
- generation:'g1',state:'REVIEW_REQUIRED',checkpoint_count:2,
+ generation:'g1',state:'REVIEW_REQUIRED',checkpoint_count:2,reported_count:1,outstanding_count:1,
  effect_authority:false,ready_for_external_effect:false,
  provider_readback_verified_by_widget:false,public_content_included:false,
  article_groups:[
@@ -42,4 +42,13 @@ test('labels are escaped by SDK surface renderer and never execute',()=>{
  const html=renderCadenceEvidenceWidget(x);
  assert.doesNotMatch(html,/<script>/);
  assert.doesNotMatch(html,/alert\(1\)|&lt;script&gt;/);
+});
+
+test('forged reported count, completion state and repeated phases fail closed',()=>{
+ const wrong=fixture();wrong.reported_count=2;
+ assert.throws(()=>buildCadenceEvidenceWidgetSurface(wrong),/CHECKPOINT_SUMMARY_MISMATCH/);
+ const completed=fixture();completed.state='SUPPLIED_CHECKS_COMPLETE_NOT_AUTHORIZED';
+ assert.throws(()=>buildCadenceEvidenceWidgetSurface(completed),/CHECKPOINT_STATE_MISMATCH/);
+ const repeated=fixture();repeated.article_groups[1].phase='SOURCE';repeated.article_groups[1].checkpoints[0].phase='SOURCE';
+ assert.throws(()=>buildCadenceEvidenceWidgetSurface(repeated),/DUPLICATE_GROUP_PHASE/);
 });
