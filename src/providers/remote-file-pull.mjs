@@ -12,9 +12,9 @@
  * Each written file gets a receipt line: provider, remote id, name, bytes, sha256, local path.
  * The result grants no authority: it is a copy, not an approval.
  */
-import { createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { constants as fsConstants, mkdirSync, existsSync, lstatSync, fstatSync, readFileSync, openSync, writeSync, fsyncSync, closeSync, linkSync, unlinkSync } from 'node:fs';
+import { join, basename, dirname, resolve } from 'node:path';
 
 export const REMOTE_FILE_PULL_SCHEMA = 'xiio.remote-file-pull/v1';
 
@@ -37,6 +37,29 @@ export const PROVIDER_ADAPTERS = Object.freeze({
 const safeName = (name) => basename(String(name)).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'file';
 
 /**
+ * A caller's storage root is not automatically an admitted target. Refuse
+ * symlinked roots and ancestors before any credential or network operation.
+ * Recheck around awaits and before publishing, since the parent can change.
+ */
+function stagingDirectorySafe(targetDir) {
+  if (typeof targetDir !== 'string' || !targetDir.trim()) return false;
+  try {
+    let current = resolve(targetDir);
+    const destination = current;
+    while (true) {
+      const stat = lstatSync(current, {throwIfNoEntry: false});
+      if (stat?.isSymbolicLink()) return false;
+      if (current === destination && stat && !stat.isDirectory()) return false;
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    return true;
+  } catch { return false; }
+}
+
+
+/**
  * @param {object} options
  * @param {string} options.provider           key of PROVIDER_ADAPTERS
  * @param {string} options.folderId           remote folder id
@@ -47,9 +70,12 @@ const safeName = (name) => basename(String(name)).replace(/[^A-Za-z0-9._-]+/g, '
  * @param {boolean} [options.dryRun]
  */
 export async function pullRemoteFolder({ provider, folderId, targetDir, getAccessToken, accept = () => true, fetcher = fetch, dryRun = false } = {}) {
+  // Prototype-inherited names are not registered providers. Reject them before any
+  // credential retrieval, filesystem access, or network request.
+  if (!Object.hasOwn(PROVIDER_ADAPTERS, provider)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'PROVIDER_UNKNOWN' };
   const adapter = PROVIDER_ADAPTERS[provider];
-  if (!adapter) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'PROVIDER_UNKNOWN' };
   if (!folderId || !targetDir || typeof getAccessToken !== 'function') return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'ARGS_REQUIRED' };
+  if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   const token = await getAccessToken();
   if (!token) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'HOST_AUTH_REQUIRED' };
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -72,24 +98,78 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
   const refused = [];
   const skipped = [];
   const claimedLocalNames = new Map();
+  if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
   if (!dryRun) mkdirSync(targetDir, { recursive: true });
+  if (!stagingDirectorySafe(targetDir)) return { schema: REMOTE_FILE_PULL_SCHEMA, ok: false, reason: 'STAGING_DIRECTORY_UNSAFE', authority_granted: false };
+  // Pin the exact directory inode for this batch. A different ordinary directory
+  // swapped into the same path during a provider await is not an admitted target.
+  const pinned = lstatSync(targetDir, {throwIfNoEntry:false});
+  const sameStagingDirectory = () => {
+    if (!stagingDirectorySafe(targetDir)) return false;
+    const now = lstatSync(targetDir, {throwIfNoEntry:false});
+    return !!pinned && !!now && now.isDirectory() &&
+      now.dev === pinned.dev && now.ino === pinned.ino;
+  };
   for (const file of listed) {
     if (!accept(file)) { skipped.push({ id: file.id, name: file.name, reason: 'NOT_ACCEPTED' }); continue; }
+    if (typeof file.mimeType === 'string' && file.mimeType.startsWith('application/vnd.google-apps.')) {
+      refused.push({ id: file.id, name: file.name, reason: 'NATIVE_WORKSPACE_EXPORT_REQUIRED', mime_type: file.mimeType }); continue;
+    }
+    const declared = adapter.declaredBytes(file);
+    if (!Number.isSafeInteger(declared) || declared < 0) { refused.push({ id: file.id, name: file.name, reason: 'DECLARED_SIZE_REQUIRED' }); continue; }
+    if (!sameStagingDirectory()) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     const response = await fetcher(adapter.downloadUrl(file.id), auth);
+    if (!sameStagingDirectory()) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
     if (!response.ok) { refused.push({ id: file.id, name: file.name, reason: 'DOWNLOAD_FAILED', status: response.status }); continue; }
     const bytes = Buffer.from(await response.arrayBuffer());
-    const declared = adapter.declaredBytes(file);
-    if (declared != null && declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
+    if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const localName = safeName(file.name);
+    if (localName === '.' || localName === '..') {
+      refused.push({id:file.id,name:file.name,reason:'INVALID_LOCAL_NAME'}); continue;
+    }
     const local = join(targetDir, localName);
     const priorRemote = claimedLocalNames.get(localName);
-    if (priorRemote && priorRemote.sha256 !== sha256) {
+    // A matching digest is not sufficient identity: two provider objects must
+    // never silently share one destination/receipt.
+    if (priorRemote) {
       refused.push({ id: file.id, name: file.name, reason: 'LOCAL_NAME_COLLISION', local, conflicts_with_remote_id: priorRemote.remote_id });
       continue;
     }
     if (existsSync(local)) {
-      const existingDigest = createHash('sha256').update(readFileSync(local)).digest('hex');
+      // A same-name preexisting file is not necessarily an earlier copy of this
+      // provider object. Never follow symlinks, hardlinks, or changed inodes to
+      // decide that private bytes are "already present".
+      let existingDigest;
+      let descriptor = null;
+      try {
+        if (!stagingDirectorySafe(targetDir) ||
+            typeof fsConstants.O_NOFOLLOW !== 'number' ||
+            typeof fsConstants.O_NONBLOCK !== 'number') {
+          throw new Error('EXISTING_SOURCE_READ_BOUNDARY_UNAVAILABLE');
+        }
+        const stat = lstatSync(local);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+          throw new Error('EXISTING_SOURCE_NOT_REGULAR');
+        }
+        descriptor = openSync(local, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+        const opened = fstatSync(descriptor);
+        if (!opened.isFile() || opened.nlink !== 1 ||
+            opened.dev !== stat.dev || opened.ino !== stat.ino ||
+            opened.size !== stat.size) {
+          throw new Error('EXISTING_SOURCE_CHANGED_ON_OPEN');
+        }
+        existingDigest = createHash('sha256').update(readFileSync(descriptor)).digest('hex');
+      } catch {
+        refused.push({ id: file.id, name: file.name, reason: 'LOCAL_NAME_UNTRUSTED', local });
+        continue;
+      } finally {
+        if (descriptor !== null) closeSync(descriptor);
+      }
+      if (!stagingDirectorySafe(targetDir)) {
+        refused.push({ id: file.id, name: file.name, reason: 'STAGING_DIRECTORY_UNSAFE' });
+        continue;
+      }
       if (existingDigest === sha256) {
         skipped.push({ id: file.id, name: file.name, reason: 'ALREADY_PRESENT', local }); continue;
       }
@@ -97,8 +177,30 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
       continue;
     }
     claimedLocalNames.set(localName, {remote_id: file.id, sha256});
-    if (!dryRun) writeFileSync(local, bytes);
-    written.push({ provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local });
+    const receipt = { provider: adapter.id, remote_id: file.id, name: file.name, mime_type: file.mimeType ?? null, bytes: bytes.length, sha256, local };
+    if (dryRun) { skipped.push({ id: file.id, name: file.name, reason: 'DRY_RUN_WOULD_COPY', local, bytes: bytes.length, sha256 }); continue; }
+    if (!sameStagingDirectory()) { refused.push({ id:file.id, name:file.name, reason:'STAGING_DIRECTORY_UNSAFE' }); continue; }
+    const temporary = join(targetDir, `.${localName}.${randomUUID()}.partial`);
+    let descriptor = null;
+    try {
+      descriptor = openSync(temporary, 'wx', 0o600);
+      writeSync(descriptor, bytes);
+      fsyncSync(descriptor);
+      closeSync(descriptor); descriptor = null;
+      const staged = readFileSync(temporary);
+      const stagedDigest = createHash('sha256').update(staged).digest('hex');
+      if (staged.length !== declared || stagedDigest !== sha256) throw new Error('STAGED_BYTES_VERIFICATION_FAILED');
+      // A same-directory hard link publishes the complete verified inode atomically and
+      // fails with EEXIST instead of replacing a file created by a concurrent process.
+      if (!sameStagingDirectory()) throw new Error('STAGING_DIRECTORY_UNSAFE');
+      linkSync(temporary, local);
+      unlinkSync(temporary);
+      written.push(receipt);
+    } catch (error) {
+      try { if (descriptor !== null) closeSync(descriptor); } catch {}
+      try { if (existsSync(temporary)) unlinkSync(temporary); } catch {}
+      refused.push({ id: file.id, name: file.name, reason: error?.code === 'EEXIST' ? 'LOCAL_NAME_COLLISION' : 'ATOMIC_WRITE_FAILED', detail: error?.message || 'unknown' });
+    }
   }
   return { schema: REMOTE_FILE_PULL_SCHEMA, ok: refused.length === 0, provider: adapter.id, folder_id: folderId, listed: listed.length, written, refused, skipped, dry_run: dryRun, authority_granted: false };
 }
