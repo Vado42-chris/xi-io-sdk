@@ -114,9 +114,14 @@ export async function pullRemoteFolder({ provider, folderId, targetDir, getAcces
     if (declared !== bytes.length) { refused.push({ id: file.id, name: file.name, reason: 'TRUNCATED', declared, received: bytes.length }); continue; }
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const localName = safeName(file.name);
+    if (localName === '.' || localName === '..') {
+      refused.push({id:file.id,name:file.name,reason:'INVALID_LOCAL_NAME'}); continue;
+    }
     const local = join(targetDir, localName);
     const priorRemote = claimedLocalNames.get(localName);
-    if (priorRemote && priorRemote.sha256 !== sha256) {
+    // A matching digest is not sufficient identity: two provider objects must
+    // never silently share one destination/receipt.
+    if (priorRemote) {
       refused.push({ id: file.id, name: file.name, reason: 'LOCAL_NAME_COLLISION', local, conflicts_with_remote_id: priorRemote.remote_id });
       continue;
     }
