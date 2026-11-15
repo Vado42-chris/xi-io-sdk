@@ -28,9 +28,12 @@ export function buildCadenceEvidenceWidgetSurface(widget) {
     &&widget.provider_readback_verified_by_widget===false&&widget.public_content_included===false,'WIDGET_AUTHORITY_FORBIDDEN');
   need(Array.isArray(widget.article_groups)&&widget.article_groups.length>=1&&widget.article_groups.length<=8,'ARTICLE_GROUPS_INVALID');
   const seen=new Set();
+  const phaseSeen=new Set();
   const sections=widget.article_groups.map((group,index)=>{
     need(group&&typeof group==='object'&&!Array.isArray(group),'GROUP_INVALID');
     id(group.id,'GROUP_ID');need(PHASES.has(group.phase),'GROUP_PHASE_INVALID');
+    need(!phaseSeen.has(group.phase),'DUPLICATE_GROUP_PHASE');
+    phaseSeen.add(group.phase);
     need(Array.isArray(group.checkpoints)&&group.checkpoints.length>0&&group.checkpoints.length<=64,'GROUP_CHECKPOINTS_INVALID');
     return {id:'group-'+index,title:group.phase.charAt(0)+group.phase.slice(1).toLowerCase(),
       summary:'Reported checkpoint observations, not effect authority.',
@@ -41,6 +44,12 @@ export function buildCadenceEvidenceWidgetSurface(widget) {
       })};
   });
   need(seen.size===widget.checkpoint_count,'CHECKPOINT_COUNT_MISMATCH');
+  const reported=[...widget.article_groups].flatMap(group=>group.checkpoints).filter(row=>
+    ['REPORTED_PASS','REPORTED_N_A'].includes(row.display_state)).length;
+  const remaining=seen.size-reported;
+  need(widget.reported_count===reported && widget.outstanding_count===remaining,'CHECKPOINT_SUMMARY_MISMATCH');
+  need(widget.state===(remaining===0?'SUPPLIED_CHECKS_COMPLETE_NOT_AUTHORIZED':'REVIEW_REQUIRED'),
+       'CHECKPOINT_STATE_MISMATCH');
   const surface={
     schema:'xiio.sdk.product-surface/v1',
     surface_id:'cadence-evidence-check',
