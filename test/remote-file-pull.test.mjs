@@ -55,6 +55,21 @@ test('missing or rejected keys and unknown providers fail with typed states', as
   assert.match(PROVIDER_ADAPTERS.google_drive.read_scope, /drive\.readonly$/);
 });
 
+test('prototype-inherited provider keys refuse before credentials or network access', async () => {
+  let credentials = 0, requests = 0;
+  for (const provider of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+    const result = await pullRemoteFolder({
+      provider, folderId:'fixture-folder', targetDir:'/tmp/untrusted-target',
+      getAccessToken:()=>{ credentials++; throw Error('must not request credential'); },
+      fetcher:()=>{ requests++; throw Error('must not request provider'); },
+    });
+    assert.equal(result.ok,false);
+    assert.equal(result.reason,'PROVIDER_UNKNOWN');
+  }
+  assert.equal(credentials,0);
+  assert.equal(requests,0);
+});
+
 test('different remote files with the same sanitized name are refused without overwriting', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pull-collision-'));
   try {
