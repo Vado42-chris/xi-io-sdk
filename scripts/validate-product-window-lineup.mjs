@@ -33,8 +33,10 @@ assert.deepEqual(session.launch_surfaces,launch_surfaces);
 assert.equal(session.product.intermediary_template,'XIIO_WHITE_LABEL_INTERMEDIARY');
 assert.doesNotMatch(JSON.stringify(session),/SAM_LAW|sam-law/i);
 const body=productWindowProductStage({product_ref:'product:a',project_ref:'p',chat_ref:'c',
-  body_ref:'body',...options});
+  body_ref:'body',launch_surfaces,...options});
 assert.equal(body.stage,'PRODUCT_BODY');
+assert.equal(body.launch_surface,'surface:local');
+assert.deepEqual(body.launch_surfaces,launch_surfaces);
 assert.equal(body.project_management,'SUPPLIED_UNVERIFIED');
 assert.equal(body.chat,'SUPPLIED_UNVERIFIED');
 assert.equal(body.authority.body_mounted,false);
