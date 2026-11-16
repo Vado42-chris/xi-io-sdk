@@ -22,6 +22,8 @@ export function createEventIntent(input={}){
 
 export function admitEvent(intent,admission={},now=()=>new Date().toISOString(),{verifyAdmission}={}){
   if(intent?.schema!==EVENT_CONSUMPTION_SCHEMA||intent.state!=='INTENT')throw new TypeError('EVENT_INTENT_REQUIRED');
+  const recomputed=createEventIntent(intent);
+  if(recomputed.event_identity_sha256!==intent.event_identity_sha256||recomputed.dedupe_ref!==intent.dedupe_ref)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
   if(admission?.schema!=='xiio.ward.event-consumption-admission/v1'||admission.state!=='ADMITTED')throw new TypeError('EVENT_ADMISSION_REQUIRED');
   if(typeof verifyAdmission!=='function')throw new TypeError('TRUSTED_ADMISSION_VERIFIER_REQUIRED');
   const verified=verifyAdmission({intent,admission});
@@ -52,9 +54,12 @@ function verifyReceipt(admitted,receipt){
  */
 export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},receipt={}){
   if(admitted?.schema!==EVENT_CONSUMPTION_SCHEMA||admitted.state!=='ADMITTED')throw new TypeError('ADMITTED_EVENT_REQUIRED');
+  const recomputed=createEventIntent(admitted);
+  if(recomputed.event_identity_sha256!==admitted.event_identity_sha256||recomputed.dedupe_ref!==admitted.dedupe_ref)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
   if(typeof readConsumption!=='function'||typeof consumeOnce!=='function')throw new TypeError('DURABLE_CONSUMPTION_STORE_REQUIRED');
   const prior=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(prior){
+    if(prior.state!=='CONSUMED')throw new TypeError('DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED');
     if(prior.dedupe_ref!==admitted.dedupe_ref||prior.consumer_ref!==admitted.consumer_ref||prior.event_identity_sha256!==admitted.event_identity_sha256) {
       throw new TypeError('DURABLE_CONSUMPTION_RECORD_MISMATCH');
     }
@@ -63,6 +68,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
   verifyReceipt(admitted,receipt);
   const stored=await consumeOnce({admitted,receipt});
   if(stored?.state==='DUPLICATE'){
+    if(stored.dedupe_ref!==admitted.dedupe_ref||stored.consumer_ref!==admitted.consumer_ref||stored.event_identity_sha256!==admitted.event_identity_sha256)throw new TypeError('DURABLE_CONSUMPTION_RECORD_MISMATCH');
     return Object.freeze({...admitted,state:'DUPLICATE',consumed:false,duplicate:true,first_red:'EVENT_ALREADY_CONSUMED',consumption_record_ref:ref(stored.consumption_record_ref,'CONSUMPTION_RECORD_REF_REQUIRED')});
   }
   if(stored?.state!=='CONSUMED'||stored.dedupe_ref!==admitted.dedupe_ref||stored.consumer_ref!==admitted.consumer_ref||
@@ -71,7 +77,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
   }
   const reopened=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(!reopened||reopened.state!=='CONSUMED'||reopened.consumption_record_ref!==stored.consumption_record_ref||
-     reopened.dedupe_ref!==admitted.dedupe_ref||reopened.event_identity_sha256!==admitted.event_identity_sha256) {
+     reopened.consumer_ref!==admitted.consumer_ref||reopened.dedupe_ref!==admitted.dedupe_ref||reopened.event_identity_sha256!==admitted.event_identity_sha256) {
     throw new TypeError('DURABLE_CONSUMPTION_READBACK_UNVERIFIED');
   }
   return Object.freeze({
