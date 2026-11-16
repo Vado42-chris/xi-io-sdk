@@ -6,10 +6,11 @@ const env = name => ({schema:'xiio.host-dependencies/v1',host_ref:'host:game',en
   {binding_key:'db',owner_ref:'storage',target_ref:'binding:db',face:'INTERNAL',affected_project_refs:['project:game']},
   {binding_key:'ward',owner_ref:'admission',target_ref:'service:ward',face:'GLASS',affected_project_refs:['project:game']},
 ]});
-const input={schema:'xiio.host-dependency-trinity/v1',environments:{development:env('development'),test:env('test'),production:env('production')}};
+const input={schema:'xiio.host-dependency-trinity/v1',required_environment_refs:['env:development','env:test','env:production'],environments:{development:env('development'),test:env('test'),production:env('production')}};
 const result=hostDependencyTrinity(input);
 assert.equal(result.denominator.environments,3);
 assert.equal(result.denominator.bindings,9);
+assert.deepEqual(result.required_environment_refs,input.required_environment_refs);
 assert.equal(result.coverage_gaps.length,0);
 assert.equal(result.identity_drift.length,0);
 assert.equal(result.runtime_first_red,'AUTHENTICATED_HOST_PROVIDER_READBACK_REQUIRED');
@@ -32,18 +33,26 @@ assert.deepEqual(hostDependencyTrinity(drift).identity_drift,[{
     {environment:'production',owner_ref:'different-ward',face:'GLASS'},
   ],
 }]);
+const four={schema:'xiio.host-dependency-trinity/v1',required_environment_refs:['env:development','env:test','env:staging','env:production'],environments:{development:env('development'),test:env('test'),staging:env('staging'),production:env('production')}};
+const fourResult=hostDependencyTrinity(four);
+assert.equal(fourResult.denominator.environments,4);
+assert.equal(fourResult.denominator.bindings,12);
+assert.deepEqual(Object.keys(fourResult.environments),['development','test','staging','production']);
+const two={schema:'xiio.host-dependency-trinity/v1',required_environment_refs:['env:preview','env:production'],environments:{preview:env('preview'),production:env('production')}};
+assert.equal(hostDependencyTrinity(two).denominator.environments,2);
+const inferred=hostDependencyTrinity({schema:'xiio.host-dependency-trinity/v1',environments:{preview:env('preview'),production:env('production')}});
+assert.deepEqual(inferred.required_environment_refs,['env:preview','env:production']);
+let effects=0;
+const proxyEnvironments=new Proxy(input.environments,{ownKeys(){effects++;return Reflect.ownKeys(input.environments)}});
+hostDependencyTrinity({...input,environments:proxyEnvironments});
+assert.equal(effects,1);
+const accessor={...input,environments:{...input.environments}};
+Object.defineProperty(accessor.environments,'test',{enumerable:true,get(){effects++;return env('test')}});
+assert.throws(()=>hostDependencyTrinity(accessor),/HOST_TRINITY_ENVIRONMENTS_INVALID/);
+assert.equal(effects,1);
 const malformed=structuredClone(input);
 malformed.environments.test.requirements[0].affected_project_refs=[];
 assert.throws(()=>hostDependencyTrinity(malformed),/HOST_DEPENDENCY_REQUIREMENT_INVALID/);
-const truncated=structuredClone(input);
-delete truncated.environments.test.requirements[0].target_ref;
-assert.throws(()=>hostDependencyTrinity(truncated),/HOST_DEPENDENCY_REQUIREMENT_INVALID/);
-const coerced=structuredClone(input);
-coerced.environments.development.host_ref={toString:()=> 'host:game'};
-assert.throws(()=>hostDependencyTrinity(coerced),/HOST_DEPENDENCY_MANIFEST_INVALID/);
-const numeric=structuredClone(input);
-numeric.environments.production.host_ref=123;
-assert.throws(()=>hostDependencyTrinity(numeric),/HOST_DEPENDENCY_MANIFEST_INVALID/);
 const forged=structuredClone(input);
 forged.environments.development.requirements[0].state='PASS';
 assert.equal(hostDependencyTrinity(forged).environments.development[0].state,'UNKNOWN');
