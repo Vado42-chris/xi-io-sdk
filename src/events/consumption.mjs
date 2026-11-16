@@ -37,15 +37,14 @@ export function createEventIntent(input={}){
   }))}`;
   return Object.freeze({
     schema:EVENT_CONSUMPTION_SCHEMA,state:'INTENT',...identity,
-    consumption_identity_sha256,event_identity_sha256:consumption_identity_sha256,
-    dedupe_ref,effect_idempotency_key,authority_granted:false,consumed:false,
+    consumption_identity_sha256,dedupe_ref,effect_idempotency_key,authority_granted:false,consumed:false,
   });
 }
 
 export function admitEvent(intent,admission={},now=()=>new Date().toISOString(),{verifyAdmission}={}){
   if(intent?.schema!==EVENT_CONSUMPTION_SCHEMA||intent.state!=='INTENT')throw new TypeError('EVENT_INTENT_REQUIRED');
   const recomputed=createEventIntent(intent);
-  if(recomputed.event_identity_sha256!==intent.event_identity_sha256||recomputed.dedupe_ref!==intent.dedupe_ref)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
+  if(recomputed.consumption_identity_sha256!==intent.consumption_identity_sha256||recomputed.dedupe_ref!==intent.dedupe_ref)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
   if(admission?.schema!=='xiio.ward.event-consumption-admission/v1'||admission.state!=='ADMITTED')throw new TypeError('EVENT_ADMISSION_REQUIRED');
   if(typeof verifyAdmission!=='function')throw new TypeError('TRUSTED_ADMISSION_VERIFIER_REQUIRED');
   const verified=verifyAdmission({intent,admission});
@@ -77,7 +76,7 @@ function verifyReceipt(admitted,receipt){
 export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},receipt={}){
   if(admitted?.schema!==EVENT_CONSUMPTION_SCHEMA||admitted.state!=='ADMITTED')throw new TypeError('ADMITTED_EVENT_REQUIRED');
   const recomputed=createEventIntent(admitted);
-  if(recomputed.event_identity_sha256!==admitted.event_identity_sha256||recomputed.dedupe_ref!==admitted.dedupe_ref)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
+  if(recomputed.consumption_identity_sha256!==admitted.consumption_identity_sha256||recomputed.dedupe_ref!==admitted.dedupe_ref)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
   if(typeof readConsumption!=='function'||typeof consumeOnce!=='function')throw new TypeError('DURABLE_CONSUMPTION_STORE_REQUIRED');
   const prior=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(prior){
