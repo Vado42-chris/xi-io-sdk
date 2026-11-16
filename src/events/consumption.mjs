@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 export const EVENT_CONSUMPTION_SCHEMA='xiio.sdk.event-consumption/v1';
 const REF=/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,191}$/;
-const REF_FIELDS=['event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation'];
+const REF_FIELDS=['source_ref','delivery_ref','event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation'];
 const ref=(v,k)=>{if(typeof v!=='string'||!REF.test(v))throw new TypeError(k);return v;};
 const sha=v=>createHash('sha256').update(v).digest('hex');
 const canonical=v=>JSON.stringify(Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))));
@@ -13,10 +13,22 @@ export function createEventIntent(input={}){
   const payload_sha256=String(input.payload_sha256||'');
   if(!/^[a-f0-9]{64}$/.test(payload_sha256))throw new TypeError('PAYLOAD_SHA256_REQUIRED');
   Object.assign(identity,{payload_sha256});
-  const event_identity_sha256=sha(canonical(identity));
+  // Event/source/delivery/occurrence identities remain provider/canonical coordinates.
+  // This digest identifies this exact consumption tuple; it is not EVENT_ID.
+  const consumption_identity_sha256=sha(canonical(identity));
+  const dedupe_ref=`consumption:${consumption_identity_sha256}`;
+  const effect_idempotency_key=`effect:${sha(canonical({
+    event_ref:identity.event_ref,
+    occurrence_ref:identity.occurrence_ref,
+    consumer_ref:identity.consumer_ref,
+    work_ref:identity.work_ref,
+    generation:identity.generation,
+    payload_sha256:identity.payload_sha256,
+  }))}`;
   return Object.freeze({
-    schema:EVENT_CONSUMPTION_SCHEMA,state:'INTENT',...identity,event_identity_sha256,
-    dedupe_ref:`event:${event_identity_sha256}`,authority_granted:false,consumed:false,
+    schema:EVENT_CONSUMPTION_SCHEMA,state:'INTENT',...identity,
+    consumption_identity_sha256,event_identity_sha256:consumption_identity_sha256,
+    dedupe_ref,effect_idempotency_key,authority_granted:false,consumed:false,
   });
 }
 
@@ -28,7 +40,7 @@ export function admitEvent(intent,admission={},now=()=>new Date().toISOString(),
   if(typeof verifyAdmission!=='function')throw new TypeError('TRUSTED_ADMISSION_VERIFIER_REQUIRED');
   const verified=verifyAdmission({intent,admission});
   if(!verified||verified.state!=='VERIFIED'||verified.admission_ref!==admission.admission_ref||verified.lease_ref!==admission.lease_ref)throw new TypeError('EVENT_ADMISSION_PROVENANCE_UNVERIFIED');
-  for(const key of [...REF_FIELDS,'event_identity_sha256','dedupe_ref']){
+  for(const key of [...REF_FIELDS,'consumption_identity_sha256','dedupe_ref','effect_idempotency_key']){
     if(admission[key]!==intent[key])throw new TypeError('EVENT_ADMISSION_IDENTITY_MISMATCH');
   }
   ref(admission.admission_ref,'ADMISSION_REF_REQUIRED');ref(admission.lease_ref,'LEASE_REF_REQUIRED');
@@ -39,7 +51,7 @@ export function admitEvent(intent,admission={},now=()=>new Date().toISOString(),
 
 function verifyReceipt(admitted,receipt){
   if(receipt?.schema!=='xiio.consumer.apply-return-readback/v1'||receipt.state!=='APPLY_RETURN_READ_BACK')throw new TypeError('APPLY_RETURN_READBACK_REQUIRED');
-  for(const key of [...REF_FIELDS,'event_identity_sha256','dedupe_ref']){
+  for(const key of [...REF_FIELDS,'consumption_identity_sha256','dedupe_ref','effect_idempotency_key']){
     if(receipt[key]!==admitted[key])throw new TypeError('CONSUMPTION_RECEIPT_IDENTITY_MISMATCH');
   }
   ref(receipt.apply_return_ref,'APPLY_RETURN_REF_REQUIRED');ref(receipt.readback_ref,'READBACK_REF_REQUIRED');
@@ -60,7 +72,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
   const prior=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(prior){
     if(prior.state!=='CONSUMED')throw new TypeError('DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED');
-    if(prior.dedupe_ref!==admitted.dedupe_ref||prior.consumer_ref!==admitted.consumer_ref||prior.event_identity_sha256!==admitted.event_identity_sha256) {
+    if(prior.dedupe_ref!==admitted.dedupe_ref||prior.consumer_ref!==admitted.consumer_ref||prior.consumption_identity_sha256!==admitted.consumption_identity_sha256) {
       throw new TypeError('DURABLE_CONSUMPTION_RECORD_MISMATCH');
     }
     return Object.freeze({...admitted,state:'DUPLICATE',consumed:false,duplicate:true,first_red:'EVENT_ALREADY_CONSUMED',consumption_record_ref:ref(prior.consumption_record_ref,'CONSUMPTION_RECORD_REF_REQUIRED')});
@@ -68,16 +80,16 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
   verifyReceipt(admitted,receipt);
   const stored=await consumeOnce({admitted,receipt});
   if(stored?.state==='DUPLICATE'){
-    if(stored.dedupe_ref!==admitted.dedupe_ref||stored.consumer_ref!==admitted.consumer_ref||stored.event_identity_sha256!==admitted.event_identity_sha256)throw new TypeError('DURABLE_CONSUMPTION_RECORD_MISMATCH');
+    if(stored.dedupe_ref!==admitted.dedupe_ref||stored.consumer_ref!==admitted.consumer_ref||stored.consumption_identity_sha256!==admitted.consumption_identity_sha256)throw new TypeError('DURABLE_CONSUMPTION_RECORD_MISMATCH');
     return Object.freeze({...admitted,state:'DUPLICATE',consumed:false,duplicate:true,first_red:'EVENT_ALREADY_CONSUMED',consumption_record_ref:ref(stored.consumption_record_ref,'CONSUMPTION_RECORD_REF_REQUIRED')});
   }
   if(stored?.state!=='CONSUMED'||stored.dedupe_ref!==admitted.dedupe_ref||stored.consumer_ref!==admitted.consumer_ref||
-     stored.event_identity_sha256!==admitted.event_identity_sha256||stored.consumption_record_ref!==receipt.consumption_record_ref) {
+     stored.consumption_identity_sha256!==admitted.consumption_identity_sha256||stored.consumption_record_ref!==receipt.consumption_record_ref) {
     throw new TypeError('DURABLE_CONSUMPTION_WRITE_UNVERIFIED');
   }
   const reopened=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(!reopened||reopened.state!=='CONSUMED'||reopened.consumption_record_ref!==stored.consumption_record_ref||
-     reopened.consumer_ref!==admitted.consumer_ref||reopened.dedupe_ref!==admitted.dedupe_ref||reopened.event_identity_sha256!==admitted.event_identity_sha256) {
+     reopened.consumer_ref!==admitted.consumer_ref||reopened.dedupe_ref!==admitted.dedupe_ref||reopened.consumption_identity_sha256!==admitted.consumption_identity_sha256) {
     throw new TypeError('DURABLE_CONSUMPTION_READBACK_UNVERIFIED');
   }
   return Object.freeze({
@@ -85,7 +97,8 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
     apply_return_ref:receipt.apply_return_ref,readback_ref:receipt.readback_ref,
     consumption_record_ref:stored.consumption_record_ref,authority_granted:false,
     hard:Object.freeze([
-      'EVENT_ID != PAYLOAD_ID','OCCURRENCE_ID != EVENT_ID','DELIVERY_ID != EVENT_ID','DELIVERED != CONSUMED',
+      'SOURCE_ID != DELIVERY_ID','DELIVERY_ID != EVENT_ID','EVENT_ID != OCCURRENCE_ID','EVENT_ID != GENERATION','EVENT_ID != PAYLOAD_DIGEST',
+      'CONSUMPTION_ID != EVENT_ID','EFFECT_IDEMPOTENCY_KEY != EFFECT_AUTHORITY','DELIVERED != CONSUMED',
       'SAME_OCCURRENCE_NEW_GENERATION != DUPLICATE_EVENT',
       'ACK != APPLY_RETURN','APPLY_RETURN != READ_BACK','DUPLICATE_EVENT != SECOND_EFFECT',
       'EVENT_ADDRESS != AUTHORITY','CALLER_HISTORY != DEDUPE_AUTHORITY','CALLER_ADMISSION != TRUSTED_ADMISSION',
