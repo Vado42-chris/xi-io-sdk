@@ -94,5 +94,7 @@ test('redelivery changes delivery/consumption identity without aliasing canonica
  assert.equal(redelivery.event_ref,intent.event_ref);
  assert.equal(redelivery.occurrence_ref,intent.occurrence_ref);
  assert.notEqual(redelivery.delivery_ref,intent.delivery_ref);
- assert.notEqual(redelivery.consumption_identity_sha256,intent.consumption_identity_sha256);
+ assert.equal(redelivery.consumption_identity_sha256,intent.consumption_identity_sha256);
+ assert.equal(redelivery.dedupe_ref,intent.dedupe_ref);
+ assert.equal(redelivery.effect_idempotency_key,intent.effect_idempotency_key);
 });
