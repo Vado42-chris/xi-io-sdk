@@ -17,9 +17,16 @@ const own=(object,key,code='XIIO_PRODUCT_WINDOW_ACCESSOR_REFUSED')=>{
   if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new TypeError(code);
   return descriptor.value;
 };
+const ownOptional=(object,key,code='XIIO_PRODUCT_WINDOW_ACCESSOR_REFUSED')=>{
+  if(!object||typeof object!=='object'||Array.isArray(object))throw new TypeError(code);
+  const descriptor=Object.getOwnPropertyDescriptor(object,key);
+  if(!descriptor)return undefined;
+  if(!Object.hasOwn(descriptor,'value'))throw new TypeError(code);
+  return descriptor.value;
+};
 export function compileProductWindowRegistry(input={}){
-  const studio_registry=own(input,'studio_registry');
-  const product_catalog=own(input,'product_catalog');
+  const studio_registry=ownOptional(input,'studio_registry');
+  const product_catalog=ownOptional(input,'product_catalog');
   const intake=compileStudioRegistryIntake(studio_registry);
   if(!intake.counted_from_canonical_registry||!intake.registry_count_consistent||
      !intake.source.denominator_ref||!intake.denominator_generation)
