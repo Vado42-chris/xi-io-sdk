@@ -1,7 +1,7 @@
 import { compileStudioRegistryIntake } from '../baseline/studio-registry-intake.mjs';
 export const PRODUCT_WINDOW_SCHEMA = 'xiio.product-window-registry/v1';
 export const PRODUCT_WINDOW_CONTRACT = 'xiio.product-window-contract/v1';
-export const PRODUCT_WINDOW_TEMPLATE = 'SAM_LAW_WHITE_LABEL_INTERMEDIARY';
+export const PRODUCT_WINDOW_TEMPLATE = 'XIIO_WHITE_LABEL_INTERMEDIARY';
 const SHARED = Object.freeze({
   host:'HEX', intermediary_template:PRODUCT_WINDOW_TEMPLATE,
   frame_settings:Object.freeze(['BLACK_LEVEL']),
@@ -11,7 +11,22 @@ const SHARED = Object.freeze({
   linux_surface:'REQUIRED',empire_os_surface:'REQUIRED',effect_authority:0,
 });
 const required=(value,name)=>{if(typeof value!=='string'||!value.trim())throw new TypeError(name+'_REQUIRED');return value.trim();};
-export function compileProductWindowRegistry({studio_registry,product_catalog}={}){
+const own=(object,key,code='XIIO_PRODUCT_WINDOW_ACCESSOR_REFUSED')=>{
+  if(!object||typeof object!=='object'||Array.isArray(object))throw new TypeError(code);
+  const descriptor=Object.getOwnPropertyDescriptor(object,key);
+  if(!descriptor||!Object.hasOwn(descriptor,'value'))throw new TypeError(code);
+  return descriptor.value;
+};
+const ownOptional=(object,key,code='XIIO_PRODUCT_WINDOW_ACCESSOR_REFUSED')=>{
+  if(!object||typeof object!=='object'||Array.isArray(object))throw new TypeError(code);
+  const descriptor=Object.getOwnPropertyDescriptor(object,key);
+  if(!descriptor)return undefined;
+  if(!Object.hasOwn(descriptor,'value'))throw new TypeError(code);
+  return descriptor.value;
+};
+export function compileProductWindowRegistry(input={}){
+  const studio_registry=ownOptional(input,'studio_registry');
+  const product_catalog=ownOptional(input,'product_catalog');
   const intake=compileStudioRegistryIntake(studio_registry);
   if(!intake.counted_from_canonical_registry||!intake.registry_count_consistent||
      !intake.source.denominator_ref||!intake.denominator_generation)
@@ -19,17 +34,17 @@ export function compileProductWindowRegistry({studio_registry,product_catalog}={
   if(!Array.isArray(product_catalog))throw new TypeError('XIIO_PRODUCT_CATALOG_REQUIRED');
   const known=new Set(intake.member_ids),refs=new Set(),ids=new Set(),products=[];
   for(const candidate of product_catalog){
-    const studio_product_id=required(candidate?.studio_product_id,'STUDIO_PRODUCT_ID');
-    const product_ref=required(candidate?.product_ref,'PRODUCT_REF');
+    const studio_product_id=required(own(candidate,'studio_product_id'),'STUDIO_PRODUCT_ID');
+    const product_ref=required(own(candidate,'product_ref'),'PRODUCT_REF');
     if(!known.has(studio_product_id))throw new Error('XIIO_PRODUCT_NOT_STUDIO_MEMBER:'+studio_product_id);
     if(refs.has(product_ref)||ids.has(studio_product_id))throw new Error('XIIO_PRODUCT_CATALOG_DUPLICATE');
     refs.add(product_ref);ids.add(studio_product_id);
     products.push(Object.freeze({
       product_ref,studio_product_id,
-      label:required(candidate?.label,'PRODUCT_LABEL'),
-      family:required(candidate?.family,'PRODUCT_FAMILY'),
-      lifecycle:typeof candidate.lifecycle==='string'&&candidate.lifecycle.trim()?candidate.lifecycle.trim():'UNKNOWN',
-      body_owner:typeof candidate.body_owner==='string'&&candidate.body_owner.trim()?candidate.body_owner.trim():null,
+      label:required(own(candidate,'label'),'PRODUCT_LABEL'),
+      family:required(own(candidate,'family'),'PRODUCT_FAMILY'),
+      lifecycle:Object.hasOwn(candidate,'lifecycle')&&typeof own(candidate,'lifecycle')==='string'&&own(candidate,'lifecycle').trim()?own(candidate,'lifecycle').trim():'UNKNOWN',
+      body_owner:Object.hasOwn(candidate,'body_owner')&&typeof own(candidate,'body_owner')==='string'&&own(candidate,'body_owner').trim()?own(candidate,'body_owner').trim():null,
       shared_window:SHARED,
     }));
   }
@@ -58,14 +73,18 @@ export function productWindowStamp(productRef,options){
     lifecycle:item.lifecycle,body_owner:item.body_owner,...SHARED});
 }
 export function compileProductWindowSession({
-  product_ref,project_ref=null,chat_ref=null,launch_surface='LOCAL_LINUX',
+  product_ref,project_ref=null,chat_ref=null,launch_surface=null,launch_surfaces,
   studio_registry,product_catalog,
 }={}){
   const stamp=productWindowStamp(product_ref,{studio_registry,product_catalog});
-  if(!['LOCAL_LINUX','EMPIRE_OS'].includes(launch_surface))throw new Error('XIIO_PRODUCT_WINDOW_SURFACE_INVALID');
+  if(!Array.isArray(launch_surfaces)||!launch_surfaces.length)throw new Error('XIIO_PRODUCT_WINDOW_SURFACES_UNBOUND');
+  const registered=launch_surfaces.map((surface)=>required(surface,'LAUNCH_SURFACE'));
+  if(new Set(registered).size!==registered.length)throw new Error('XIIO_PRODUCT_WINDOW_SURFACES_DUPLICATE');
+  const selected=launch_surface==null?registered[0]:required(launch_surface,'LAUNCH_SURFACE');
+  if(!registered.includes(selected))throw new Error('XIIO_PRODUCT_WINDOW_SURFACE_INVALID');
   return Object.freeze({
     schema:'xiio.product-window-session/v1',product:stamp,stage:'INTERMEDIARY',
-    launch_surface,project_ref,chat_ref,
+    launch_surface:selected,launch_surfaces:Object.freeze([...registered]),project_ref,chat_ref,
     intermediary:Object.freeze({
       template:SHARED.intermediary_template,show_product_identity:true,
       show_project_manager:true,show_chat:true,show_recent_or_current_project:true,
