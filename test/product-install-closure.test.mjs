@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {resolveProductInstallClosure, PRODUCT_INSTALL_CLOSURE_SCHEMA} from './product-install-closure.mjs';
+import {resolveProductInstallClosure, PRODUCT_INSTALL_CLOSURE_SCHEMA} from '../src/install/product-install-closure.mjs';
 
 const registry = {
   law: {ref:'law',kind:'product',dependencies:['ward','bins','mail']},
@@ -45,4 +45,22 @@ test('forged identity and malformed graph refused',()=>{
 });
 test('unknown mode cannot silently select suite',()=>{
   assert.throws(()=>plan({mode:'anything'}),/INSTALL_SCOPE_INVALID/);
+});
+
+test('registry getter cannot cause an effect during planning',()=>{
+  let effects=0;
+  const malicious={...registry};
+  Object.defineProperty(malicious,'ward',{enumerable:true,get(){effects++;return registry.ward;}});
+  assert.throws(()=>plan({registry:malicious}),/INSTALL_ACCESSOR_REFUSED/);
+  assert.equal(effects,0);
+});
+test('node and dependency-index getters cannot execute during planning',()=>{
+  let effects=0;
+  const changed={...registry, law:{...registry.law}};
+  Object.defineProperty(changed.law,'kind',{enumerable:true,get(){effects++;return 'product';}});
+  assert.throws(()=>plan({registry:changed}),/INSTALL_ACCESSOR_REFUSED/);
+  const deps=['ward','bins','mail'];
+  Object.defineProperty(deps, '0', {enumerable:true, get(){effects++;return 'ward';}});
+  assert.throws(()=>plan({registry:{...registry,law:{...registry.law,dependencies:deps}}}),/INSTALL_ACCESSOR_REFUSED/);
+  assert.equal(effects,0);
 });
