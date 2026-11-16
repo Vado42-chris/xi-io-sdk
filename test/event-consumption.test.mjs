@@ -48,9 +48,9 @@ test('same provider object with a new generation is a distinct consumable event'
  const nextIntent=createEventIntent({source_ref:'source:provider:object:1',delivery_ref:'delivery:2',event_ref:'event:save',occurrence_ref:'occurrence:1',producer_ref:'product:a',consumer_ref:'product:b',work_ref:'work:1',generation:'g2',payload_sha256:digest});
  assert.notEqual(nextIntent.consumption_identity_sha256,intent.consumption_identity_sha256);
  assert.notEqual(nextIntent.dedupe_ref,intent.dedupe_ref);
- const nextAdmission={...admission,generation:'g2',event_identity_sha256:nextIntent.consumption_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,admission_ref:'admission:2',lease_ref:'lease:2'};
+ const nextAdmission={...admission,delivery_ref:nextIntent.delivery_ref,generation:'g2',consumption_identity_sha256:nextIntent.consumption_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,effect_idempotency_key:nextIntent.effect_idempotency_key,admission_ref:'admission:2',lease_ref:'lease:2'};
  const nextAdmitted=admitEvent(nextIntent,nextAdmission,()=> '2026-11-16T17:00:00Z',trustedAdmission);
- const nextReceipt={...receipt,generation:'g2',event_identity_sha256:nextIntent.consumption_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,apply_return_ref:'apply:2',readback_ref:'readback:2',consumption_record_ref:'consumption:2'};
+ const nextReceipt={...receipt,delivery_ref:nextIntent.delivery_ref,generation:'g2',consumption_identity_sha256:nextIntent.consumption_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,effect_idempotency_key:nextIntent.effect_idempotency_key,apply_return_ref:'apply:2',readback_ref:'readback:2',consumption_record_ref:'consumption:2'};
  const s=store();
  const done=await consumeEvent(nextAdmitted,s.ports,nextReceipt);
  assert.equal(done.state,'CONSUMED');
@@ -64,11 +64,11 @@ test('caller-shaped admission cannot substitute for trusted admission provenance
 });
 
 test('pending durable record is not completed consumption and must not silently drop event',async()=>{
- const pending={state:'EFFECT_STARTED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,event_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:'consumption:pending'};
+ const pending={state:'EFFECT_STARTED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:'consumption:pending'};
  await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>pending,consumeOnce:async()=>{throw Error('must not blindly retry')}},receipt),/DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED/);
 });
 test('reopened record for another product cannot verify consumption',async()=>{
- let reads=0;const record={state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,event_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};
+ let reads=0;const record={state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};
  await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>++reads===1?null:{...record,consumer_ref:'product:other'},consumeOnce:async()=>record},receipt),/DURABLE_CONSUMPTION_READBACK_UNVERIFIED/);
 });
 test('atomic duplicate result from different identity must not drop this event',async()=>{
@@ -89,7 +89,7 @@ test('source delivery event occurrence generation payload and effect identities 
  assert.notEqual(intent.effect_idempotency_key,intent.dedupe_ref);
  assert.equal(intent.authority_granted,false);
 });
-test('redelivery changes delivery/consumption identity without aliasing canonical event id',()=>{
+test('redelivery changes delivery evidence without changing durable consumption identity',()=>{
  const redelivery=createEventIntent({source_ref:'source:provider:object:1',delivery_ref:'delivery:retry-2',event_ref:'event:save',occurrence_ref:'occurrence:1',producer_ref:'product:a',consumer_ref:'product:b',work_ref:'work:1',generation:'g1',payload_sha256:digest});
  assert.equal(redelivery.event_ref,intent.event_ref);
  assert.equal(redelivery.occurrence_ref,intent.occurrence_ref);
