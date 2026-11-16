@@ -79,7 +79,8 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
     apply_return_ref:receipt.apply_return_ref,readback_ref:receipt.readback_ref,
     consumption_record_ref:stored.consumption_record_ref,authority_granted:false,
     hard:Object.freeze([
-      'EVENT_ID != PAYLOAD_ID','OCCURRENCE_ID != EVENT_ID','DELIVERED != CONSUMED',
+      'EVENT_ID != PAYLOAD_ID','OCCURRENCE_ID != EVENT_ID','DELIVERY_ID != EVENT_ID','DELIVERED != CONSUMED',
+      'SAME_OCCURRENCE_NEW_GENERATION != DUPLICATE_EVENT',
       'ACK != APPLY_RETURN','APPLY_RETURN != READ_BACK','DUPLICATE_EVENT != SECOND_EFFECT',
       'EVENT_ADDRESS != AUTHORITY','CALLER_HISTORY != DEDUPE_AUTHORITY','CALLER_ADMISSION != TRUSTED_ADMISSION',
       'CONSUMPTION_WRITE != CONSUMPTION_READBACK',
