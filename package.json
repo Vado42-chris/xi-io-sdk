@@ -113,7 +113,8 @@
     "./worker/bins-version-consumer": "./src/worker/bins-version-consumer.mjs",
     "./graphs/host-dependency-edges": "./src/graphs/host-dependency-edges.mjs",
     "./graphs/host-dependency-trinity": "./src/graphs/host-dependency-trinity.mjs",
-    "./cadence/evidence-check-widget": "./src/cadence/evidence-check-widget.mjs"
+    "./cadence/evidence-check-widget": "./src/cadence/evidence-check-widget.mjs",
+    "./identity/global-admin-projection": "./src/identity/global-admin-projection.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
@@ -204,6 +205,7 @@
     "check:mcp-stdio-shared": "node scripts/check-mcp-stdio-shared.mjs",
     "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs && node --test scripts/validate-product-window-connection.test.mjs",
     "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs test/bins-worker-consumer-joined.test.mjs",
-    "check:host-dependency-edges": "node scripts/validate-host-dependency-edges.mjs"
+    "check:host-dependency-edges": "node scripts/validate-host-dependency-edges.mjs",
+    "check:global-admin-projection": "node --test scripts/test-global-admin-projection.mjs"
   }
 }
