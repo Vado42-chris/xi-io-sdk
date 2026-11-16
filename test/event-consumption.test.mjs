@@ -42,3 +42,16 @@ test('expired Ward admission is refused before consumption',()=>{
 test('unverified durable write or reopen is refused',async()=>{
  await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,event_identity_sha256:intent.event_identity_sha256,consumption_record_ref:'wrong'})},receipt),/DURABLE_CONSUMPTION_WRITE_UNVERIFIED/);
 });
+
+test('same provider object with a new generation is a distinct consumable event',async()=>{
+ const nextIntent=createEventIntent({event_ref:'event:save',occurrence_ref:'occurrence:1',producer_ref:'product:a',consumer_ref:'product:b',work_ref:'work:1',generation:'g2',payload_sha256:digest});
+ assert.notEqual(nextIntent.event_identity_sha256,intent.event_identity_sha256);
+ assert.notEqual(nextIntent.dedupe_ref,intent.dedupe_ref);
+ const nextAdmission={...admission,generation:'g2',event_identity_sha256:nextIntent.event_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,admission_ref:'admission:2',lease_ref:'lease:2'};
+ const nextAdmitted=admitEvent(nextIntent,nextAdmission,()=> '2026-11-16T17:00:00Z');
+ const nextReceipt={...receipt,generation:'g2',event_identity_sha256:nextIntent.event_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,apply_return_ref:'apply:2',readback_ref:'readback:2',consumption_record_ref:'consumption:2'};
+ const s=store();
+ const done=await consumeEvent(nextAdmitted,s.ports,nextReceipt);
+ assert.equal(done.state,'CONSUMED');
+ assert.equal(s.effects(),1);
+});
