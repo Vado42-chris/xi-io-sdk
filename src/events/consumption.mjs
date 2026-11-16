@@ -20,16 +20,19 @@ export function createEventIntent(input={}){
   });
 }
 
-export function admitEvent(intent,admission={},now=()=>new Date().toISOString()){
+export function admitEvent(intent,admission={},now=()=>new Date().toISOString(),{verifyAdmission}={}){
   if(intent?.schema!==EVENT_CONSUMPTION_SCHEMA||intent.state!=='INTENT')throw new TypeError('EVENT_INTENT_REQUIRED');
   if(admission?.schema!=='xiio.ward.event-consumption-admission/v1'||admission.state!=='ADMITTED')throw new TypeError('EVENT_ADMISSION_REQUIRED');
+  if(typeof verifyAdmission!=='function')throw new TypeError('TRUSTED_ADMISSION_VERIFIER_REQUIRED');
+  const verified=verifyAdmission({intent,admission});
+  if(!verified||verified.state!=='VERIFIED'||verified.admission_ref!==admission.admission_ref||verified.lease_ref!==admission.lease_ref)throw new TypeError('EVENT_ADMISSION_PROVENANCE_UNVERIFIED');
   for(const key of [...REF_FIELDS,'event_identity_sha256','dedupe_ref']){
     if(admission[key]!==intent[key])throw new TypeError('EVENT_ADMISSION_IDENTITY_MISMATCH');
   }
   ref(admission.admission_ref,'ADMISSION_REF_REQUIRED');ref(admission.lease_ref,'LEASE_REF_REQUIRED');
   const expires=instant(admission.expires_at,'ADMISSION_EXPIRES_AT_REQUIRED');
   if(Date.parse(expires)<=Date.parse(instant(now(),'CLOCK_INVALID')))throw new TypeError('EVENT_ADMISSION_EXPIRED');
-  return Object.freeze({...intent,state:'ADMITTED',admission_ref:admission.admission_ref,lease_ref:admission.lease_ref,expires_at:expires,authority_granted:false});
+  return Object.freeze({...intent,state:'ADMITTED',admission_ref:admission.admission_ref,lease_ref:admission.lease_ref,expires_at:expires,admission_provenance_ref:ref(verified.provenance_ref,'ADMISSION_PROVENANCE_REF_REQUIRED'),authority_granted:false});
 }
 
 function verifyReceipt(admitted,receipt){
@@ -78,7 +81,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
     hard:Object.freeze([
       'EVENT_ID != PAYLOAD_ID','OCCURRENCE_ID != EVENT_ID','DELIVERED != CONSUMED',
       'ACK != APPLY_RETURN','APPLY_RETURN != READ_BACK','DUPLICATE_EVENT != SECOND_EFFECT',
-      'EVENT_ADDRESS != AUTHORITY','CALLER_HISTORY != DEDUPE_AUTHORITY',
+      'EVENT_ADDRESS != AUTHORITY','CALLER_HISTORY != DEDUPE_AUTHORITY','CALLER_ADMISSION != TRUSTED_ADMISSION',
       'CONSUMPTION_WRITE != CONSUMPTION_READBACK',
     ]),
   });
