@@ -1,7 +1,13 @@
 /** Resolve a registered product's install scope without performing effects. */
 export const PRODUCT_INSTALL_CLOSURE_SCHEMA = 'xiio.product-install-closure/v1';
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+function readOwnData(object, key) {
+  const descriptor = Object.getOwnPropertyDescriptor(object, key);
+  if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) {
+    throw new TypeError('INSTALL_ACCESSOR_REFUSED:' + String(key));
+  }
+  return descriptor.value;
+}
 
 export function resolveProductInstallClosure(input) {
   if (input?.schema !== PRODUCT_INSTALL_CLOSURE_SCHEMA ||
@@ -13,14 +19,23 @@ export function resolveProductInstallClosure(input) {
   if (!ids.length || ids.some(id => !KEY.test(id))) throw new TypeError('INSTALL_REGISTRY_INVALID');
   const normalized = new Map();
   for (const id of ids) {
-    const node = registry[id];
-    if (!node || typeof node !== 'object' || Array.isArray(node) || node.ref !== id ||
-        !['product', 'service'].includes(node.kind) ||
-        !Array.isArray(node.dependencies) || node.dependencies.some(d => typeof d !== 'string' || !KEY.test(d)) ||
-        new Set(node.dependencies).size !== node.dependencies.length || node.dependencies.includes(id)) {
+    const node = readOwnData(registry, id);
+    if (!node || typeof node !== 'object' || Array.isArray(node)) {
       throw new TypeError('INSTALL_NODE_INVALID:' + id);
     }
-    normalized.set(id, node);
+    const ref = readOwnData(node, 'ref');
+    const kind = readOwnData(node, 'kind');
+    const declaredDependencies = readOwnData(node, 'dependencies');
+    if (!Array.isArray(declaredDependencies)) throw new TypeError('INSTALL_NODE_INVALID:' + id);
+    const dependencies = Array.from({ length: declaredDependencies.length }, (_, index) =>
+      readOwnData(declaredDependencies, String(index)));
+    if (ref !== id ||
+        !['product', 'service'].includes(kind) ||
+        dependencies.some(d => typeof d !== 'string' || !KEY.test(d)) ||
+        new Set(dependencies).size !== dependencies.length || dependencies.includes(id)) {
+      throw new TypeError('INSTALL_NODE_INVALID:' + id);
+    }
+    normalized.set(id, { ref, kind, dependencies });
   }
   if (!normalized.has(input.product_ref) || normalized.get(input.product_ref).kind !== 'product') {
     throw new TypeError('INSTALL_PRODUCT_UNKNOWN');
