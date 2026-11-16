@@ -54,4 +54,12 @@ const expanded=compileProductWindowRegistry({studio_registry:fixture(['app_a','a
   product_catalog:[...product_catalog,{studio_product_id:'app_c',product_ref:'product:c',label:'App C',family:'NEW'}]});
 assert.equal(expanded.products.length,3);
 assert.equal(expanded.state,'SUPPLIED_UNVERIFIED');
+let accessorEffects=0;
+const hostileCatalog=[...product_catalog];
+Object.defineProperty(hostileCatalog[0],'label',{enumerable:true,get(){accessorEffects++;return 'forged';}});
+assert.throws(()=>compileProductWindowRegistry({studio_registry:fixture(),product_catalog:hostileCatalog}),/ACCESSOR_REFUSED/);
+const hostileInput={product_catalog,studio_registry:fixture()};
+Object.defineProperty(hostileInput,'product_catalog',{enumerable:true,get(){accessorEffects++;return product_catalog;}});
+assert.throws(()=>compileProductWindowRegistry(hostileInput),/ACCESSOR_REFUSED/);
+assert.equal(accessorEffects,0);
 console.log('product-window-studio-registry: PASS');
