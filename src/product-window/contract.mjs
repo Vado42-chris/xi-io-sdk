@@ -15,11 +15,12 @@ export function productWindowProductStage({
   project_ref,
   chat_ref,
   body_ref,
-  launch_surface = 'LOCAL_LINUX',
+  launch_surface = null,
+  launch_surfaces,
   studio_registry,
   product_catalog,
 } = {}) {
-  const session = compileProductWindowSession({ product_ref, project_ref, chat_ref, launch_surface, studio_registry, product_catalog });
+  const session = compileProductWindowSession({ product_ref, project_ref, chat_ref, launch_surface, launch_surfaces, studio_registry, product_catalog });
   const stamp = session.product;
   if (!body_ref || typeof body_ref !== 'string') throw new Error('XIIO_PRODUCT_BODY_REF_REQUIRED');
   if (!project_ref || typeof project_ref !== 'string') throw new Error('XIIO_PRODUCT_PROJECT_REF_REQUIRED');
@@ -28,7 +29,8 @@ export function productWindowProductStage({
     schema: 'xiio.product-window-session/v1',
     product: stamp,
     stage: 'PRODUCT_BODY',
-    launch_surface,
+    launch_surface: session.launch_surface,
+    launch_surfaces: session.launch_surfaces,
     project_ref,
     chat_ref,
     body_ref,
