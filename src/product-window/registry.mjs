@@ -1,7 +1,7 @@
 import { compileStudioRegistryIntake } from '../baseline/studio-registry-intake.mjs';
 export const PRODUCT_WINDOW_SCHEMA = 'xiio.product-window-registry/v1';
 export const PRODUCT_WINDOW_CONTRACT = 'xiio.product-window-contract/v1';
-export const PRODUCT_WINDOW_TEMPLATE = 'SAM_LAW_WHITE_LABEL_INTERMEDIARY';
+export const PRODUCT_WINDOW_TEMPLATE = 'XIIO_WHITE_LABEL_INTERMEDIARY';
 const SHARED = Object.freeze({
   host:'HEX', intermediary_template:PRODUCT_WINDOW_TEMPLATE,
   frame_settings:Object.freeze(['BLACK_LEVEL']),
@@ -58,14 +58,18 @@ export function productWindowStamp(productRef,options){
     lifecycle:item.lifecycle,body_owner:item.body_owner,...SHARED});
 }
 export function compileProductWindowSession({
-  product_ref,project_ref=null,chat_ref=null,launch_surface='LOCAL_LINUX',
+  product_ref,project_ref=null,chat_ref=null,launch_surface=null,launch_surfaces,
   studio_registry,product_catalog,
 }={}){
   const stamp=productWindowStamp(product_ref,{studio_registry,product_catalog});
-  if(!['LOCAL_LINUX','EMPIRE_OS'].includes(launch_surface))throw new Error('XIIO_PRODUCT_WINDOW_SURFACE_INVALID');
+  if(!Array.isArray(launch_surfaces)||!launch_surfaces.length)throw new Error('XIIO_PRODUCT_WINDOW_SURFACES_UNBOUND');
+  const registered=launch_surfaces.map((surface)=>required(surface,'LAUNCH_SURFACE'));
+  if(new Set(registered).size!==registered.length)throw new Error('XIIO_PRODUCT_WINDOW_SURFACES_DUPLICATE');
+  const selected=launch_surface==null?registered[0]:required(launch_surface,'LAUNCH_SURFACE');
+  if(!registered.includes(selected))throw new Error('XIIO_PRODUCT_WINDOW_SURFACE_INVALID');
   return Object.freeze({
     schema:'xiio.product-window-session/v1',product:stamp,stage:'INTERMEDIARY',
-    launch_surface,project_ref,chat_ref,
+    launch_surface:selected,launch_surfaces:Object.freeze([...registered]),project_ref,chat_ref,
     intermediary:Object.freeze({
       template:SHARED.intermediary_template,show_product_identity:true,
       show_project_manager:true,show_chat:true,show_recent_or_current_project:true,
