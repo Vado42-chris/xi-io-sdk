@@ -15,7 +15,17 @@ export function createEventIntent(input={}){
   Object.assign(identity,{payload_sha256});
   // Event/source/delivery/occurrence identities remain provider/canonical coordinates.
   // This digest identifies this exact consumption tuple; it is not EVENT_ID.
-  const consumption_identity_sha256=sha(canonical(identity));
+  const consumptionIdentity={
+    source_ref:identity.source_ref,
+    event_ref:identity.event_ref,
+    occurrence_ref:identity.occurrence_ref,
+    producer_ref:identity.producer_ref,
+    consumer_ref:identity.consumer_ref,
+    work_ref:identity.work_ref,
+    generation:identity.generation,
+    payload_sha256:identity.payload_sha256,
+  };
+  const consumption_identity_sha256=sha(canonical(consumptionIdentity));
   const dedupe_ref=`consumption:${consumption_identity_sha256}`;
   const effect_idempotency_key=`effect:${sha(canonical({
     event_ref:identity.event_ref,
@@ -97,7 +107,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
     apply_return_ref:receipt.apply_return_ref,readback_ref:receipt.readback_ref,
     consumption_record_ref:stored.consumption_record_ref,authority_granted:false,
     hard:Object.freeze([
-      'SOURCE_ID != DELIVERY_ID','DELIVERY_ID != EVENT_ID','EVENT_ID != OCCURRENCE_ID','EVENT_ID != GENERATION','EVENT_ID != PAYLOAD_DIGEST',
+      'SOURCE_ID != DELIVERY_ID','DELIVERY_ID != EVENT_ID','DELIVERY_ID != CONSUMPTION_ID','EVENT_ID != OCCURRENCE_ID','EVENT_ID != GENERATION','EVENT_ID != PAYLOAD_DIGEST',
       'CONSUMPTION_ID != EVENT_ID','EFFECT_IDEMPOTENCY_KEY != EFFECT_AUTHORITY','DELIVERED != CONSUMED',
       'SAME_OCCURRENCE_NEW_GENERATION != DUPLICATE_EVENT',
       'ACK != APPLY_RETURN','APPLY_RETURN != READ_BACK','DUPLICATE_EVENT != SECOND_EFFECT',
