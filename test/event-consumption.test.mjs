@@ -72,7 +72,7 @@ test('reopened record for another product cannot verify consumption',async()=>{
  await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>++reads===1?null:{...record,consumer_ref:'product:other'},consumeOnce:async()=>record},receipt),/DURABLE_CONSUMPTION_READBACK_UNVERIFIED/);
 });
 test('atomic duplicate result from different identity must not drop this event',async()=>{
- await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'DUPLICATE',dedupe_ref:'wrong',consumer_ref:'product:other',event_identity_sha256:'wrong',consumption_record_ref:'consumption:other'})},receipt),/DURABLE_CONSUMPTION_RECORD_MISMATCH/);
+ await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'DUPLICATE',dedupe_ref:'wrong',consumer_ref:'product:other',consumption_identity_sha256:'wrong',consumption_record_ref:'consumption:other'})},receipt),/DURABLE_CONSUMPTION_RECORD_MISMATCH/);
 });
 test('changed consumer retaining stale hash is refused even with verified admission reference',()=>{
  const altered={...intent,consumer_ref:'product:other'};
