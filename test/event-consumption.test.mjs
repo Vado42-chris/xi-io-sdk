@@ -98,3 +98,8 @@ test('redelivery changes delivery evidence without changing durable consumption 
  assert.equal(redelivery.dedupe_ref,intent.dedupe_ref);
  assert.equal(redelivery.effect_idempotency_key,intent.effect_idempotency_key);
 });
+
+test('caller cannot change deterministic effect key while retaining valid consumption digest',()=>{
+ const changed={...intent,effect_idempotency_key:'effect:other'};
+ assert.throws(()=>admitEvent(changed,{...admission,effect_idempotency_key:'effect:other'},()=> '2026-11-16T17:00:00Z',trustedAdmission),/EVENT_IDENTITY_DIGEST_MISMATCH/);
+});
