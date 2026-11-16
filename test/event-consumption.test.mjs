@@ -49,7 +49,7 @@ test('same provider object with a new generation is a distinct consumable event'
  assert.notEqual(nextIntent.event_identity_sha256,intent.event_identity_sha256);
  assert.notEqual(nextIntent.dedupe_ref,intent.dedupe_ref);
  const nextAdmission={...admission,generation:'g2',event_identity_sha256:nextIntent.event_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,admission_ref:'admission:2',lease_ref:'lease:2'};
- const nextAdmitted=admitEvent(nextIntent,nextAdmission,()=> '2026-11-16T17:00:00Z');
+ const nextAdmitted=admitEvent(nextIntent,nextAdmission,()=> '2026-11-16T17:00:00Z',trustedAdmission);
  const nextReceipt={...receipt,generation:'g2',event_identity_sha256:nextIntent.event_identity_sha256,dedupe_ref:nextIntent.dedupe_ref,apply_return_ref:'apply:2',readback_ref:'readback:2',consumption_record_ref:'consumption:2'};
  const s=store();
  const done=await consumeEvent(nextAdmitted,s.ports,nextReceipt);
