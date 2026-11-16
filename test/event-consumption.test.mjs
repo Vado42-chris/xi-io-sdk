@@ -62,3 +62,19 @@ test('caller-shaped admission cannot substitute for trusted admission provenance
  assert.throws(()=>admitEvent(intent,admission,()=> '2026-11-16T17:00:00Z',{verifyAdmission:()=>({state:'VERIFIED',admission_ref:'admission:forged',lease_ref:'lease:1',provenance_ref:'provider:caller'})}),/EVENT_ADMISSION_PROVENANCE_UNVERIFIED/);
  assert.throws(()=>admitEvent(intent,admission,()=> '2026-11-16T17:00:00Z',{verifyAdmission:()=>({state:'VERIFIED',admission_ref:'admission:1',lease_ref:'lease:forged',provenance_ref:'provider:caller'})}),/EVENT_ADMISSION_PROVENANCE_UNVERIFIED/);
 });
+
+test('pending durable record is not completed consumption and must not silently drop event',async()=>{
+ const pending={state:'EFFECT_STARTED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,event_identity_sha256:intent.event_identity_sha256,consumption_record_ref:'consumption:pending'};
+ await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>pending,consumeOnce:async()=>{throw Error('must not blindly retry')}},receipt),/DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED/);
+});
+test('reopened record for another product cannot verify consumption',async()=>{
+ let reads=0;const record={state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,event_identity_sha256:intent.event_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};
+ await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>++reads===1?null:{...record,consumer_ref:'product:other'},consumeOnce:async()=>record},receipt),/DURABLE_CONSUMPTION_READBACK_UNVERIFIED/);
+});
+test('atomic duplicate result from different identity must not drop this event',async()=>{
+ await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'DUPLICATE',dedupe_ref:'wrong',consumer_ref:'product:other',event_identity_sha256:'wrong',consumption_record_ref:'consumption:other'})},receipt),/DURABLE_CONSUMPTION_RECORD_MISMATCH/);
+});
+test('changed consumer retaining stale hash is refused even with verified admission reference',()=>{
+ const altered={...intent,consumer_ref:'product:other'};
+ assert.throws(()=>admitEvent(altered,{...admission,consumer_ref:'product:other'},()=> '2026-11-16T17:00:00Z',trustedAdmission),/EVENT_IDENTITY_DIGEST_MISMATCH/);
+});
