@@ -1,0 +1,12 @@
+{
+  "schema": "xiio.user-access-path/v1",
+  "steps": [
+    "account identity bound",
+    "product entitlement issued",
+    "operation AccessGrant issued",
+    "metered budget reserved",
+    "billing admission issued",
+    "provider attempt separately effect-authorized"
+  ],
+  "role_only_access": false
+}
