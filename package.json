@@ -116,7 +116,9 @@
     "./cadence/evidence-check-widget": "./src/cadence/evidence-check-widget.mjs",
     "./events/consumption": "./src/events/consumption.mjs",
     "./install/product-closure": "./src/install/product-install-closure.mjs",
-    "./identity/global-admin-projection": "./src/identity/global-admin-projection.mjs"
+    "./identity/global-admin-projection": "./src/identity/global-admin-projection.mjs",
+    "./billing/product-entitlement": "./src/billing/product-entitlement.mjs",
+    "./billing/product-entitlement-binding": "./src/billing/product-entitlement-binding.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
