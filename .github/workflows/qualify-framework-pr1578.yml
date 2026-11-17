@@ -29,14 +29,8 @@ jobs:
           cp src/billing/product-operation-admission-binding.mjs "$root/sdk/product-operation-admission-binding.mjs"
           cp src/worker/connection.mjs "$root/worker/connection.mjs"
           cp src/worker/execution-route.mjs "$root/worker/execution-route.mjs"
-          actual="$(git hash-object "$root/compile-product-api-admission.mjs")"
-          bytes="$(wc -c < "$root/compile-product-api-admission.mjs")"
-          cp "$root/compile-product-api-admission.mjs" "$RUNNER_TEMP/candidate-plus-newline.mjs"
-          printf '\n' >> "$RUNNER_TEMP/candidate-plus-newline.mjs"
-          with_newline="$(git hash-object "$RUNNER_TEMP/candidate-plus-newline.mjs")"
-          printf 'candidate_actual=%s bytes=%s candidate_plus_newline=%s expected=%s\n' \
-            "$actual" "$bytes" "$with_newline" "3aefe7b31167eab9c837939090fbb5517512f10b"
-          test "$actual" = "3aefe7b31167eab9c837939090fbb5517512f10b"
+          printf '\n' >> "$root/compile-product-api-admission.mjs"
+          test "$(git hash-object "$root/compile-product-api-admission.mjs")" = "3aefe7b31167eab9c837939090fbb5517512f10b"
       - name: Execute exact host-composition replay
         run: |
           set -euo pipefail
