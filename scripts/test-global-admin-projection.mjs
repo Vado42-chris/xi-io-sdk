@@ -81,6 +81,22 @@ test('uses shared credential custody for nested data and accessors', () => {
   assert.equal(projection.principal_ref,principal_ref);
 });
 
+test('usage quantities are exact numbers and never coerced into zero or another amount', () => {
+  for(const quantity of ['2','', ' ', false, true, null, undefined, [], [2], {}, NaN, Infinity, -Infinity, -1]){
+    assert.throws(
+      ()=>projectGlobalAdmin({...base,usage:[{...base.usage[0],quantity}]}),
+      /GLOBAL_ADMIN_USAGE_INVALID/,
+      `quantity ${String(quantity)} must be refused`,
+    );
+  }
+  for(const quantity of [0,0.5,2]){
+    const projection=projectGlobalAdmin({...base,usage:[{...base.usage[0],quantity}]});
+    assert.equal(projection.usage[0].quantity,quantity);
+    assert.ok(projection.hard.includes('USAGE_UNKNOWN!=ZERO_USAGE'));
+    assert.ok(projection.hard.includes('USAGE_INPUT!=NUMBER_COERCION'));
+  }
+});
+
 test('usage visibility cannot claim a billing effect', () => {
   const projection = projectGlobalAdmin({...base,usage:[{...base.usage[0],billing_effect:true}]});
   assert.equal(projection.usage[0].billing_effect,false);
