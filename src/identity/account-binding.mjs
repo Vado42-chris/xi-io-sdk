@@ -90,16 +90,41 @@ export function observeAccount(input = {}) {
   });
 }
 
+function canonicalObservedAccount(account) {
+  assertCredentialFreeRecord(account);
+  if (account?.kind !== 'OBSERVED_ACCOUNT' || account?.schema !== ACCOUNT_BINDING_SCHEMA) refuse('ACCOUNT_NOT_OBSERVED');
+  const canonical = observeAccount({
+    provider: account.provider,
+    subject_id: account.subject_id,
+    login: account.login,
+    observed_via: account.observed_via,
+    observed_at: account.observed_at,
+  });
+  for (const key of ['provider', 'subject_id', 'principal_ref', 'login', 'observed_via', 'observed_at']) {
+    if (account[key] !== canonical[key]) refuse('ACCOUNT_OBSERVATION_MISMATCH');
+  }
+  if (account.authority_granted !== false) refuse('ACCOUNT_OBSERVATION_MISMATCH');
+  return canonical;
+}
+
+function canonicalChosenAccount(choice) {
+  assertCredentialFreeRecord(choice);
+  if (choice?.kind !== 'CHOSEN_ACCOUNT' || choice?.schema !== ACCOUNT_BINDING_SCHEMA) refuse('OWNER_NOT_CHOSEN');
+  if (choice.authority_granted !== false) refuse('OWNER_CHOICE_INVALID');
+  const chosenBy = text(choice.chosen_by, 'CHOICE_ACTOR_REQUIRED', 128);
+  if (chosenBy === 'default' || chosenBy === 'browser_session') refuse('CHOICE_MUST_BE_THE_PERSONS');
+  return Object.freeze({ account: canonicalObservedAccount(choice.account), chosen_by: chosenBy });
+}
+
 /** The person's own pick among observed accounts. `chosen` is a principal_ref or a login. */
 export function chooseAccount(observed = [], chosen, { chosen_by } = {}) {
   if (!Array.isArray(observed) || observed.length === 0) refuse('NO_OBSERVED_ACCOUNTS');
-  for (const account of observed) {
-    if (account?.kind !== 'OBSERVED_ACCOUNT' || account?.schema !== ACCOUNT_BINDING_SCHEMA) refuse('ACCOUNT_NOT_OBSERVED');
-  }
+  assertCredentialFreeRecord(observed);
+  const accounts = observed.map(canonicalObservedAccount);
   text(chosen_by, 'CHOICE_ACTOR_REQUIRED', 128);
   if (chosen_by === 'default' || chosen_by === 'browser_session') refuse('CHOICE_MUST_BE_THE_PERSONS');
   const pick = text(chosen, 'CHOICE_REQUIRED', 256);
-  const matches = observed.filter((a) => a.principal_ref === pick || a.login.toLowerCase() === pick.toLowerCase());
+  const matches = accounts.filter((a) => a.principal_ref === pick || a.login.toLowerCase() === pick.toLowerCase());
   if (matches.length === 0) refuse('CHOSEN_ACCOUNT_NOT_OBSERVED');
   const unique = new Set(matches.map((a) => a.principal_ref));
   if (unique.size > 1) refuse('CHOICE_AMBIGUOUS');
@@ -108,7 +133,7 @@ export function chooseAccount(observed = [], chosen, { chosen_by } = {}) {
     kind: 'CHOSEN_ACCOUNT',
     account: matches[0],
     chosen_by,
-    alternatives: Object.freeze(observed.filter((a) => a.principal_ref !== matches[0].principal_ref).map((a) => a.login)),
+    alternatives: Object.freeze(accounts.filter((a) => a.principal_ref !== matches[0].principal_ref).map((a) => a.login)),
     authority_granted: false,
   });
 }
@@ -116,19 +141,20 @@ export function chooseAccount(observed = [], chosen, { chosen_by } = {}) {
 /** Stamp an owned thing (a team kit, a channel, a workspace) with its owner. */
 export function bindOwner(subject = {}, choice) {
   assertCredentialFreeRecord(subject);
-  if (choice?.kind !== 'CHOSEN_ACCOUNT' || choice?.schema !== ACCOUNT_BINDING_SCHEMA) refuse('OWNER_NOT_CHOSEN');
-  if (subject.owner_principal_ref && subject.owner_principal_ref !== choice.account.principal_ref) refuse('OWNER_ALREADY_BOUND');
+  const selected = canonicalChosenAccount(choice);
+  if (subject.owner_principal_ref && subject.owner_principal_ref !== selected.account.principal_ref) refuse('OWNER_ALREADY_BOUND');
   return Object.freeze({
     ...subject,
-    owner_principal_ref: choice.account.principal_ref,
-    owner_display: `${choice.account.provider}:${choice.account.login}`,
-    owner_observed_at: choice.account.observed_at,
+    owner_principal_ref: selected.account.principal_ref,
+    owner_display: `${selected.account.provider}:${selected.account.login}`,
+    owner_observed_at: selected.account.observed_at,
     authority_granted: false,
     hard: Object.freeze([
       'BROWSER_SESSION != CHOSEN_ACCOUNT',
       'EMAIL != PRINCIPAL',
       'LOGIN != PRINCIPAL',
       'TYPED_LOGIN != OBSERVED_ACCOUNT',
+      'CALLER_SHAPED_ACCOUNT != OBSERVED_ACCOUNT',
       'OWNER_BOUND != AUTHORITY_GRANTED',
     ]),
   });
