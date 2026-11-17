@@ -296,6 +296,10 @@ export function resolveProductEntitlementScope(input = {}) {
     currentness.state === derived.state &&
     currentness.verification_scope === 'SUPPLIED_GENERATION_AND_TIME_COMPARISON' &&
     currentness.provider_authenticated === false &&
+    currentness.authority_granted === false &&
+    currentness.provider_effect === false &&
+    currentness.billing_effect === false &&
+    currentness.effect_authority === false &&
     currentness.currentness_ref === canonicalCurrentness.currentness_ref &&
     currentness.source_ref === canonicalCurrentness.source_ref &&
     currentness.readback_ref === canonicalCurrentness.readback_ref;
