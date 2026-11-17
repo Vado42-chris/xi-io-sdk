@@ -1,0 +1,8 @@
+{
+  "schema": "xiio.next-consumer/v1",
+  "consumer_repository": "Vado42-chris/xi-io.net",
+  "consumer_path": "scripts/compile-product-api-admission.mjs",
+  "next_change": "replace caller AccessGrant and billing booleans with typed SDK binding resolutions",
+  "then": "consume Framework admission in Inbox outbox dispatch",
+  "installed_claim": false
+}
