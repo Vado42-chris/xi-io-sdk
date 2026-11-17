@@ -1,0 +1,39 @@
+{
+  "schema": "xiio.sdk.product-operation-admission-evidence/v1",
+  "observed_at": "2026-11-17T14:00:00Z",
+  "source_base": "75084677526990763675fbb5659a1af6a82aa9bc",
+  "consumer": "product-api-admission",
+  "closed_gap": "caller-supplied AccessGrant and billing booleans lacked typed generation-bound SDK records",
+  "contracts": [
+    "xiio.sdk.product-access-grant-binding/v1",
+    "xiio.sdk.product-access-grant-currentness/v1",
+    "xiio.sdk.product-billing-admission-binding/v1",
+    "xiio.sdk.product-billing-admission-currentness/v1"
+  ],
+  "hostiles": {
+    "admin_bypass_refused": true,
+    "superadmin_bypass_refused": true,
+    "cloned_currentness_refused": true,
+    "entitlement_substitution_refused": true,
+    "access_grant_substitution_refused": true,
+    "meter_substitution_refused": true,
+    "quantity_overrun_refused": true,
+    "revoked_grant_refused": true,
+    "budget_exceeded_refused": true,
+    "secret_fields_refused": true
+  },
+  "authority": {
+    "provider_attempt_may_be_allowed": true,
+    "billing_commit_allowed": false,
+    "billing_effect_authority": false,
+    "effect_authority": false
+  },
+  "local_execution": {
+    "command": "node --test test/product-operation-admission-binding.test.mjs",
+    "tests": 6,
+    "pass": 6,
+    "fail": 0
+  },
+  "installed_acceptance_claimed": false,
+  "provider_effect_claimed": false
+}
