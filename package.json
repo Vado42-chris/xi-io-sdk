@@ -118,7 +118,8 @@
     "./install/product-closure": "./src/install/product-install-closure.mjs",
     "./identity/global-admin-projection": "./src/identity/global-admin-projection.mjs",
     "./billing/product-entitlement": "./src/billing/product-entitlement.mjs",
-    "./billing/product-entitlement-binding": "./src/billing/product-entitlement-binding.mjs"
+    "./billing/product-entitlement-binding": "./src/billing/product-entitlement-binding.mjs",
+    "./install/dependency-binding-client": "./src/install/installer-dependency-binding-client.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
@@ -211,6 +212,7 @@
     "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs test/bins-worker-consumer-joined.test.mjs",
     "check:host-dependency-edges": "node scripts/validate-host-dependency-edges.mjs",
     "check:event-consumption": "node --test test/event-consumption.test.mjs",
-    "check:product-entitlement": "node scripts/validate-product-entitlement.mjs"
+    "check:product-entitlement": "node scripts/validate-product-entitlement.mjs",
+    "check:installer-dependency-binding-client": "node --test test/installer-dependency-binding-client.test.mjs"
   }
 }
