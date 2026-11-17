@@ -6,6 +6,7 @@ on:
       - 'src/identity/account-binding.mjs'
       - 'scripts/validate-account-binding.mjs'
       - 'test/account-binding-secret-custody.test.mjs'
+      - 'test/account-binding-observation-provenance.test.mjs'
       - '.github/workflows/account-binding.yml'
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - 'src/identity/account-binding.mjs'
       - 'scripts/validate-account-binding.mjs'
       - 'test/account-binding-secret-custody.test.mjs'
+      - 'test/account-binding-observation-provenance.test.mjs'
       - '.github/workflows/account-binding.yml'
 
 permissions:
@@ -28,4 +30,4 @@ jobs:
           node-version: '20'
       - run: node --check src/identity/account-binding.mjs
       - run: node scripts/validate-account-binding.mjs
-      - run: node --test test/account-binding-secret-custody.test.mjs
+      - run: node --test test/account-binding-secret-custody.test.mjs test/account-binding-observation-provenance.test.mjs
