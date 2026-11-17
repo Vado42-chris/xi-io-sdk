@@ -1,0 +1,27 @@
+name: Product operation admission authority boundary
+
+on:
+  pull_request:
+    paths:
+      - 'src/billing/product-operation-admission-binding.mjs'
+      - 'scripts/validate-product-operation-admission-no-authority.mjs'
+      - '.github/workflows/product-operation-admission-no-authority.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/billing/product-operation-admission-binding.mjs'
+      - 'scripts/validate-product-operation-admission-no-authority.mjs'
+      - '.github/workflows/product-operation-admission-no-authority.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/validate-product-operation-admission-no-authority.mjs
