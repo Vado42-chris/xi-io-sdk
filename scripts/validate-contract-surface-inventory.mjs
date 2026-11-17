@@ -44,6 +44,20 @@ assert.equal(out.authority_granted,false);
 assert.equal(out.provider_effect,false);
 checks+=5;
 
+let effectSurface=compileContractSurfaceRecord({
+  ...base,
+  contract_id:'contract:sam-law:document-write',
+  operation_ref:'operation:sam-law:document:write',
+  effect_class:'MUTATION',
+});
+assert.equal(effectSurface.state,'CURRENT_SUPPORTED');
+assert.equal(effectSurface.structurally_callable,true);
+assert.equal(effectSurface.requires_effect_admission,true);
+assert.equal(effectSurface.callable,false);
+assert.equal(effectSurface.authority_granted,false);
+assert.equal(effectSurface.provider_effect,false);
+checks+=6;
+
 out=compileContractSurfaceRecord({...base,current:false,availability:'UNKNOWN',qualification_ref:'qualification:sam-law:document-read:g1'});
 assert.equal(out.state,'STRUCTURAL_ONLY');
 assert.equal(out.callable,false);
