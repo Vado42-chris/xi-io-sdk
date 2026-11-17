@@ -145,6 +145,15 @@ test('refuses forged currentness secrets and effect laundering', () => {
   const result = resolveProductEntitlementScope(resolution(binding, forged));
   assert.equal(result.matched, false);
   assert.ok(result.blockers.includes('ENTITLEMENT_CURRENTNESS_MISMATCH'));
+  for (const field of ['provider_authenticated', 'authority_granted', 'provider_effect', 'billing_effect', 'effect_authority']) {
+    const laundered = resolveProductEntitlementScope(resolution(binding, { ...observed, [field]: true }));
+    assert.equal(laundered.matched, false, `${field} must not survive currentness validation`);
+    assert.ok(laundered.blockers.includes('ENTITLEMENT_CURRENTNESS_MISMATCH'));
+    assert.equal(laundered.authority_granted, false);
+    assert.equal(laundered.provider_effect, false);
+    assert.equal(laundered.billing_effect, false);
+    assert.equal(laundered.effect_authority, false);
+  }
   assert.throws(() => compileProductEntitlementBinding({ ...baseInput, access_token: 'secret' }), /PRODUCT_ENTITLEMENT_SECRET_FIELD_REFUSED/);
 });
 
