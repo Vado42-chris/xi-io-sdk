@@ -1,4 +1,4 @@
-import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import crypto from 'node:crypto';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';import {pathToFileURL} from 'node:url';
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import crypto from 'node:crypto';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';import {fileURLToPath,pathToFileURL} from 'node:url';
 const installerRoot=process.env.XIIO_TEST_INSTALLER_PYTHONPATH;
 const readerPath=process.env.XIIO_TEST_FRAMEWORK_BINDING_READER;
 const generation=process.env.XIIO_TEST_SDK_GENERATION;
@@ -10,7 +10,7 @@ for(const [name,blob] of Object.entries(provenance.installer.files))assert.equal
 const {reopenVerifiedDependencyBindingReceipt}=await import(pathToFileURL(path.resolve(readerPath)));
 import {buildWorkerRuntimePackage} from '../scripts/build-worker-runtime-package.mjs';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'zr1-owner-custody-'));
-const source=new URL('../',import.meta.url).pathname;
+const source=fileURLToPath(new URL('../',import.meta.url));
 const rows=[['worker_connection_module','src/worker/connection.mjs'],['account_binding_module','src/identity/account-binding.mjs']];
 try {
  const {manifest,descriptor}=buildWorkerRuntimePackage({acceptedGeneration:generation,sourceRoot:source});
