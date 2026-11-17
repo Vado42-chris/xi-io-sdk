@@ -33,6 +33,8 @@ jobs:
           test "$(git hash-object "$root/compile-product-api-admission.mjs")" = "3aefe7b31167eab9c837939090fbb5517512f10b"
           sed -i "s/entitlement_capability_ref:'mail'/entitlement_capability_ref:'orchestration'/" \
             "$root/validate-host-composer.mjs"
+          sed -i "s/'ACCESS_GRANT_PRINCIPAL_REF_MISMATCH'/'ENTITLEMENT_PRINCIPAL_MISMATCH'/" \
+            "$root/validate-host-composer.mjs"
       - name: Execute exact host-composition replay
         run: |
           set -euo pipefail
