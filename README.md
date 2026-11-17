@@ -270,3 +270,10 @@ instead of falling back to another model server. See [qualification and remainin
 The CLI installer status probe consumes its compiled service endpoint and refuses
 redirects; a replacement receiver cannot establish that endpoint's status readback.
 Status observation remains separate from installed-generation and runtime identity.
+
+### Worker runtime installation payload
+
+[Worker runtime package](docs/worker-runtime-package.md) packages the existing
+worker connection and its complete current relative-import closure through the
+Installer's manifest/descriptor contract. It does not grant execution authority;
+consumers must independently reopen installed custody before importing it.
