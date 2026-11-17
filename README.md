@@ -245,3 +245,12 @@ A complete set contributes to `supplied_binding_count`, with state
 `SUPPLIED_UNVERIFIED`; `current_returns` remains zero until authenticated
 verification exists outside this pure projection. Distributed ACK validation
 likewise reports `STRUCTURAL_ONLY`, never worker authentication or execution.
+
+### Shared administration observations
+
+The existing `@xi-io/sdk/identity/global-admin-projection` consumer uses the
+canonical browser-safe `PRODUCT_ENTITLEMENT_STATES` vocabulary from
+`@xi-io/sdk/billing/product-entitlement`, as does the entitlement-binding producer.
+It preserves explicit `tenant_ref` on entitlement and usage rows, refuses malformed
+supplied tenant identity, and never infers tenancy or grants tenant access.
+See [the consumer qualification and claim limits](docs/global-admin-consumer-qualification-20261117.md).

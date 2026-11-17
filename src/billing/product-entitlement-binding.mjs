@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { assertCredentialFreeRecord } from '../identity/account-binding.mjs';
 import {
   ENTITLEMENT_TIER,
+  PRODUCT_ENTITLEMENT_STATES,
   PRODUCT_CAPABILITIES,
   PRODUCT_ENTITLEMENT_SCHEMA,
   compileProductEntitlement,
@@ -10,7 +11,7 @@ import {
 export const PRODUCT_ENTITLEMENT_BINDING_SCHEMA = 'xiio.sdk.product-entitlement-binding/v1';
 export const PRODUCT_ENTITLEMENT_CURRENTNESS_SCHEMA = 'xiio.sdk.product-entitlement-currentness/v1';
 
-const STATES = new Set(['ACTIVE', 'PENDING', 'SUSPENDED', 'REVOKED', 'EXPIRED']);
+const STATES = new Set(PRODUCT_ENTITLEMENT_STATES);
 const CAPABILITIES = new Set(PRODUCT_CAPABILITIES);
 const SECRET_KEY = /token|password|secret|credential|api.?key|authorization/i;
 
