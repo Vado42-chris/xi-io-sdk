@@ -119,7 +119,7 @@
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
-    "check": "node scripts/validate-continuation-cycle.mjs && npm run check:product-window-lineup && node --test test/product-campaign-package.test.mjs && node scripts/validate-repo-gate-evidence.mjs && node scripts/validate-studio-registry-intake.mjs && node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:radial-relationship-layout && npm run check:worker-lifecycle-kit && npm run check:worker-connection && npm run check:cli-sandbox-wargame && npm run check:byte-reader && npm run check:interaction-platform-android && npm run check:addressable-transaction && npm run check:onboarding-current && npm run check:bins-version-consumer && node --test test/remote-file-pull.test.mjs && node --test test/cadence-evidence-check-widget.test.mjs && node scripts/validate-sdk-playground.mjs && npm run check:all-primitives-file-cube",
+    "check": "node scripts/validate-continuation-cycle.mjs && npm run check:product-window-lineup && node --test test/product-campaign-package.test.mjs && node scripts/validate-repo-gate-evidence.mjs && node scripts/validate-studio-registry-intake.mjs && node scripts/validate-recovered-km-source.mjs && npm run check:snap55 && node scripts/run-runtime-rotfl-sdk-check.mjs && npm run check:self-drive-continuation && npm run check:addressable-mutation && npm run check:universal-primitive-executor && npm run check:radial-relationship-layout && npm run check:worker-lifecycle-kit && npm run check:worker-connection && npm run check:cli-sandbox-wargame && npm run check:byte-reader && npm run check:interaction-platform-android && npm run check:addressable-transaction && npm run check:onboarding-current && npm run check:bins-version-consumer && node --test test/remote-file-pull.test.mjs && node --test test/cadence-evidence-check-widget.test.mjs && node scripts/validate-sdk-playground.mjs && npm run check:all-primitives-file-cube && npm run check:product-entitlement",
     "check:studio-registry-intake": "node scripts/validate-studio-registry-intake.mjs",
     "check:ack-item-trinity": "node scripts/validate-ack-item-trinity.mjs",
     "check:x-intersection-ux": "node scripts/validate-x-intersection-ux.mjs",
@@ -207,6 +207,7 @@
     "check:product-window-lineup": "node scripts/validate-product-window-lineup.mjs && node --test scripts/validate-product-window-connection.test.mjs",
     "check:bins-version-consumer": "node --test test/bins-version-consumer.test.mjs test/bins-worker-consumer-joined.test.mjs",
     "check:host-dependency-edges": "node scripts/validate-host-dependency-edges.mjs",
-    "check:event-consumption": "node --test test/event-consumption.test.mjs"
+    "check:event-consumption": "node --test test/event-consumption.test.mjs",
+    "check:product-entitlement": "node scripts/validate-product-entitlement.mjs"
   }
 }
