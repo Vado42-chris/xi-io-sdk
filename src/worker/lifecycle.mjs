@@ -318,9 +318,17 @@ export function compileWorkerLifecycleKit(input={}){
  */
 export async function runWorkerLifecycleAttempt({
   binding,jobId,history,current,dependenciesDone,append,checkpoint,
-  qualifiedHost,applyReturn,publishReturn,wakeConsumer,digest,
+  qualifiedHost,applyReturn,publishReturn,wakeConsumer,digest,receiverBinding,
 }={}) {
   const fail=code=>Object.assign(new Error(code),{code,status:409});
+  const receiverFields=['matter_ref','agent_principal_ref','conversation_ref'];
+  if(receiverBinding!==undefined && (!receiverBinding || receiverFields.some(key=>
+    typeof receiverBinding[key]!=='string'||!receiverBinding[key].trim()
+  ))) throw fail('RECEIVER_BINDING_REQUIRED');
+  const receiver=receiverBinding===undefined?null:Object.freeze(
+    Object.fromEntries(receiverFields.map(key=>[key,receiverBinding[key]]))
+  );
+  const sameReceiver=value=>receiver===null||receiverFields.every(key=>value?.[key]===receiver[key]);
   const fields=['project_id','work_id','assignment_ref','attempt_id','agent_id','source_generation','return_ref','operation_ref'];
   const bound=b=>Object.fromEntries(fields.map(key=>[key,b[key]]));
   const same=(a,b)=>fields.every(key=>a?.[key]===b?.[key]);
@@ -355,7 +363,7 @@ export async function runWorkerLifecycleAttempt({
         if(data.state!=='APPLIED'||!data.receipt_ref||data.result_ref!==result?.result_ref) throw fail('PERSISTED_APPLY_RETURN_LINK_INVALID');
         applied=data;
       }
-      if(event.type==='WAKE_ACK'&&data.receipt_ref!==applied?.receipt_ref) throw fail('PERSISTED_WAKE_LINK_INVALID');
+      if(event.type==='WAKE_ACK'&&((receiver!==null&&data.wake_id!==`return-${jobId}`)||data.receipt_ref!==applied?.receipt_ref||!sameReceiver(data))) throw fail('PERSISTED_WAKE_LINK_INVALID');
       next++;
     }
     return rows;
@@ -422,13 +430,13 @@ export async function runWorkerLifecycleAttempt({
   events=await readHistory();
   const applied=events.find(e=>e.type==='APPLY_RETURN').data;
   await current(binding);
-  const wake={schema:'xiio.hotfolder.ready.v1',wake_id:`return-${jobId}`,semantics:'WAKE_ONLY',authority_granted:false,...bound(binding),result_ref:result.result_ref,receipt_ref:applied.receipt_ref};
+  const wake={schema:'xiio.hotfolder.ready.v1',wake_id:`return-${jobId}`,semantics:'WAKE_ONLY',authority_granted:false,...bound(binding),...(receiver||{}),result_ref:result.result_ref,receipt_ref:applied.receipt_ref};
   await publishReturn(jobId,wake);
   await checkpoint('RETURN_WAKE_READY',binding);
   // The owner consumer must dedupe this wake_id. A repeated notification grants no execution.
   const ack=await wakeConsumer(clone(wake));
   await current(binding);
-  if(ack?.state!=='CONSUMED' || !same(ack,binding) || ack.receipt_ref!==applied.receipt_ref) throw fail('CONSUMER_WAKE_UNVERIFIED');
-  await append(jobId,'WAKE_ACK',{...bound(binding),receipt_ref:ack.receipt_ref});
+  if(ack?.state!=='CONSUMED' || (receiver!==null&&ack.wake_id!==wake.wake_id) || !same(ack,binding) || !sameReceiver(ack) || ack.receipt_ref!==applied.receipt_ref) throw fail('CONSUMER_WAKE_UNVERIFIED');
+  await append(jobId,'WAKE_ACK',{...bound(binding),...(receiver||{}),wake_id:ack.wake_id,receipt_ref:ack.receipt_ref});
   return {state:'COMPLETE',job_id:jobId,result_ref:result.result_ref,return_ref:binding.return_ref};
 }

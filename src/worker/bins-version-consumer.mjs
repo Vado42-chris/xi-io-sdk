@@ -180,11 +180,14 @@ export async function readBinsVersionWithWorker({prepared,worker,binding}={}) {
   }
   const keys=['work_ref','work_generation','return_ref','resource_ref','version_ref',
     'storage_binding_ref','expected_sha256','expected_bytes'];
-  if(Object.keys(sourceScope).length!==keys.length ||
-     !keys.every(key=>Object.hasOwn(sourceScope,key))) {
+  // Frozen does not mean data-only. Reject accessors before evaluating any
+  // coordinate so a getter cannot retarget identity across the async boundary.
+  const descriptors=Object.getOwnPropertyDescriptors(sourceScope);
+  if(Reflect.ownKeys(descriptors).length!==keys.length ||
+     !keys.every(key=>descriptors[key] && Object.hasOwn(descriptors[key],'value'))) {
     throw new Error('BINS_VERSION_CONSUMER_SCOPE_FIELDS_INVALID');
   }
-  const scope=Object.freeze(Object.fromEntries(keys.map(key=>[key,sourceScope[key]])));
+  const scope=Object.freeze(Object.fromEntries(keys.map(key=>[key,descriptors[key].value])));
   for(const key of keys.slice(0,6)) required(scope[key],'BINS_VERSION_CONSUMER_SCOPE_IDENTITY_INVALID');
   if(typeof scope.expected_sha256!=='string'||!SHA.test(scope.expected_sha256))
     throw new Error('BINS_VERSION_CONSUMER_SCOPE_DIGEST_INVALID');

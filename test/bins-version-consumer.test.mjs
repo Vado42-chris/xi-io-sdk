@@ -36,6 +36,17 @@ test('exact BINS event produces worker.file-read scope without private paths',()
   assert.equal(result.apply_return_verified,false);
   assert.doesNotMatch(JSON.stringify(result),/private|secret|previous_receipt/);
 });
+test('frozen scope property accessors are refused without executing getters or worker IO',async()=>{
+  const original=make();
+  let getterCalls=0,workerCalls=0;
+  const hostile=Object.freeze({...original.scope,
+    get version_ref(){getterCalls++;return 'version:other';}});
+  await assert.rejects(readBinsVersionWithWorker({prepared:{...original,scope:hostile},
+    worker:{readFile:async()=>{workerCalls++;}}}),/BINS_VERSION_CONSUMER_SCOPE_FIELDS_INVALID/);
+  assert.equal(getterCalls,0);
+  assert.equal(workerCalls,0);
+});
+
 test('wrong matter, Work, generation, resource, version and binding refused',()=>{
   for(const [e,w,r] of [
     [event,{...work,matter_ref:'matter:other'},returned],
