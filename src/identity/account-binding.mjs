@@ -42,21 +42,31 @@ function text(value, code, max = 256) {
   return value;
 }
 
-function noSecrets(input, seen = new WeakSet()) {
-  if (input === null || (typeof input !== 'object' && typeof input !== 'function')) return;
-  if (seen.has(input)) return;
-  seen.add(input);
-  for (const key of Reflect.ownKeys(input)) {
-    if (typeof key === 'string' && SECRET_KEYS.test(key)) refuse('SECRET_FIELD_REFUSED');
-    const descriptor = Object.getOwnPropertyDescriptor(input, key);
-    if (!descriptor || !Object.hasOwn(descriptor, 'value')) refuse('ACCESSOR_FIELD_REFUSED');
-    noSecrets(descriptor.value, seen);
-  }
+export function assertCredentialFreeRecord(input, {
+  secretKeyPattern = SECRET_KEYS,
+  secretCode = 'SECRET_FIELD_REFUSED',
+  accessorCode = 'ACCESSOR_FIELD_REFUSED',
+} = {}) {
+  if (!(secretKeyPattern instanceof RegExp)) refuse('SECRET_KEY_PATTERN_INVALID');
+  const pattern = new RegExp(secretKeyPattern.source, secretKeyPattern.flags.replace(/[gy]/g, ''));
+  const seen = new WeakSet();
+  const visit = (value) => {
+    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return;
+    if (seen.has(value)) return;
+    seen.add(value);
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key === 'string' && pattern.test(key)) refuse(secretCode);
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !Object.hasOwn(descriptor, 'value')) refuse(accessorCode);
+      visit(descriptor.value);
+    }
+  };
+  visit(input);
 }
 
 /** An account the provider itself reported. */
 export function observeAccount(input = {}) {
-  noSecrets(input);
+  assertCredentialFreeRecord(input);
   const provider = text(input.provider, 'PROVIDER_REQUIRED', 64).toLowerCase();
   if (!OBSERVED_VIA.includes(input.observed_via)) refuse('ACCOUNT_NOT_OBSERVED');
   const subject = input.subject_id;
@@ -105,7 +115,7 @@ export function chooseAccount(observed = [], chosen, { chosen_by } = {}) {
 
 /** Stamp an owned thing (a team kit, a channel, a workspace) with its owner. */
 export function bindOwner(subject = {}, choice) {
-  noSecrets(subject);
+  assertCredentialFreeRecord(subject);
   if (choice?.kind !== 'CHOSEN_ACCOUNT' || choice?.schema !== ACCOUNT_BINDING_SCHEMA) refuse('OWNER_NOT_CHOSEN');
   if (subject.owner_principal_ref && subject.owner_principal_ref !== choice.account.principal_ref) refuse('OWNER_ALREADY_BOUND');
   return Object.freeze({
