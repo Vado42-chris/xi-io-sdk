@@ -254,3 +254,10 @@ canonical browser-safe `PRODUCT_ENTITLEMENT_STATES` vocabulary from
 It preserves explicit `tenant_ref` on entitlement and usage rows, refuses malformed
 supplied tenant identity, and never infers tenancy or grants tenant access.
 See [the consumer qualification and claim limits](docs/global-admin-consumer-qualification-20261117.md).
+
+### Compass receiver continuity
+
+The shared local Compass default HTTP probe refuses redirects for both Ollama and
+API glass-box observations. A successful replacement endpoint is not readback of
+the configured receiver. Run `npm run check:cli-compass`, included in the existing
+runtime ROTFL denominator. See [qualification and claim limits](docs/compass-receiver-identity-qualification.md).
