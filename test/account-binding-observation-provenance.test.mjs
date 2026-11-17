@@ -73,7 +73,8 @@ test('observed account accessors are refused without provider or getter executio
 test('canonical choice and direct owner binding preserve the stable subject principal', () => {
   const choice = chooseAccount([canonical], canonical.principal_ref, { chosen_by: 'person:owner' });
   const bound = bindOwner({ team_ref: 'team:canonical' }, choice);
-  assert.equal(choice.account, canonical);
+  assert.deepEqual(choice.account, canonical);
+  assert.notEqual(choice.account, canonical, 'choice owns a reconstructed canonical record');
   assert.equal(bound.owner_principal_ref, 'github:189627615');
   assert.equal(bound.owner_display, 'github:Vado42-chris');
   assert.equal(bound.authority_granted, false);
