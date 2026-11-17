@@ -1,0 +1,30 @@
+name: SDK Installer dependency binding consumer
+
+on:
+  pull_request:
+    paths:
+      - 'src/install/installer-dependency-binding-client.mjs'
+      - 'test/installer-dependency-binding-client.test.mjs'
+      - 'package.json'
+      - '.github/workflows/installer-dependency-binding-client.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/install/installer-dependency-binding-client.mjs'
+      - 'test/installer-dependency-binding-client.test.mjs'
+      - 'package.json'
+      - '.github/workflows/installer-dependency-binding-client.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: node --test test/installer-dependency-binding-client.test.mjs
