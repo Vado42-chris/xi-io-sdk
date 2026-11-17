@@ -1,0 +1,5 @@
+{
+  "schema": "xiio.review-intent/v1",
+  "review_scope": ["typed generation binding", "role bypass refusal", "meter and quantity binding", "authority neutrality"],
+  "merge_requires_current_main": true
+}
