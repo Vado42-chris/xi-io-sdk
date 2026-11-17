@@ -1,0 +1,11 @@
+{
+  "schema": "xiio.fail-closed/v1",
+  "missing_access_grant": "REFUSED",
+  "cloned_access_currentness": "REFUSED",
+  "role_mismatch": "REFUSED",
+  "missing_billing_admission": "REFUSED",
+  "cloned_billing_currentness": "REFUSED",
+  "budget_exceeded": "REFUSED",
+  "meter_mismatch": "REFUSED",
+  "quantity_exceeded": "REFUSED"
+}
