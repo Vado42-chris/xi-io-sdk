@@ -1,0 +1,11 @@
+{
+  "schema": "xiio.sdk.product-operation-admission-consumers/v1",
+  "source_generation": "75084677526990763675fbb5659a1af6a82aa9bc",
+  "consumers": [
+    {"product_ref": "product:inbox", "operation_ref": "mail:outbox-dispatch", "state": "DECLARED_NOT_CONSUMING_TYPED_ADMISSION"},
+    {"product_ref": "product:sam_law", "operation_ref": "conversation:ask", "state": "FRAMEWORK_FIXTURE_ONLY"},
+    {"product_ref": "product:cli", "operation_ref": "project:approved-edit", "state": "DECLARATION_REQUIRED"},
+    {"product_ref": "product:ibal", "operation_ref": "model:tool-transaction", "state": "DECLARATION_REQUIRED"}
+  ],
+  "note": "Consumer states identify adoption work, not product completion or installed acceptance."
+}
