@@ -150,7 +150,7 @@ export async function localRuntimeStatus() {
   let ollamaState='UNREACHABLE';
   let availableModels=[];
   try {
-    const res=await fetch(ollama+'/api/tags',{signal:AbortSignal.timeout(1500)});
+    const res=await fetch(ollama+'/api/tags',{redirect:'error',signal:AbortSignal.timeout(1500)});
     if(res.ok){
       const body=await res.json();
       availableModels=(body.models||[]).map((row)=>row?.name).filter(Boolean);
@@ -469,7 +469,7 @@ async function chat(messages,{signal}={}){
   for(let spin=0;spin<6;spin++){
     if(signal?.aborted) throw new Error('TURN_ABORTED');
     const bound=signal?AbortSignal.any([signal,AbortSignal.timeout(300000)]):AbortSignal.timeout(300000);
-    const res=await fetch(ollama+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:bound});
+    const res=await fetch(ollama+'/api/chat',{redirect:'error',method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:bound});
     if(!res.ok) throw new Error('OLLAMA_HTTP_'+res.status);
     const body=await res.json(), msg=body.message||{}; messages.push(msg);
     if(!msg.tool_calls?.length) {

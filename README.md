@@ -261,3 +261,6 @@ The shared local Compass default HTTP probe refuses redirects for both Ollama an
 API glass-box observations. A successful replacement endpoint is not readback of
 the configured receiver. Run `npm run check:cli-compass`, included in the existing
 runtime ROTFL denominator. See [qualification and claim limits](docs/compass-receiver-identity-qualification.md).
+
+Local-agent model requests preserve receiver continuity: both model discovery and
+chat refuse HTTP redirects. See [qualification and remaining deployment debt](docs/local-agent-receiver-qualification.md).
