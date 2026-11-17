@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {compileProductEntitlement} from '../src/billing/product-entitlement.mjs';
+let checks=0;
+let out=compileProductEntitlement({product_ref:'product:studio',tier:'free',required_capabilities:['documents','code_editor','export']});
+assert.equal(out.admitted,true);assert.equal(out.paid_orchestration_required,false);assert.equal(out.billing_commit_allowed,false);checks+=3;
+out=compileProductEntitlement({product_ref:'product:sam-law',tier:'free',required_capabilities:['documents','ai']});
+assert.equal(out.admitted,false);assert.deepEqual(out.withheld_capabilities,['ai']);assert.equal(out.next,'UPGRADE_OR_REMOVE_ORCHESTRATION_REQUIREMENT');checks+=3;
+out=compileProductEntitlement({product_ref:'product:sam-law',tier:'orchestrated',required_capabilities:['documents','ai','ack','orchestration']});
+assert.equal(out.admitted,true);assert.equal(out.paid_orchestration_required,true);assert.equal(out.provider_attempt_allowed,false);checks+=3;
+assert.throws(()=>compileProductEntitlement({product_ref:'product:x',tier:'free',required_capabilities:['secret_product_feature']}),/CAPABILITY_UNKNOWN/);checks++;
+assert.throws(()=>compileProductEntitlement({product_ref:'product:x',tier:'admin',required_capabilities:[]}),/ENTITLEMENT_TIER_INVALID/);checks++;
+console.log(JSON.stringify({mode:'PRODUCT_ENTITLEMENT_BOUNDARY',checks,result:'PASS',effects:0}));
