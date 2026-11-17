@@ -69,7 +69,10 @@ export function compileTwoSidedProviderMeterGate(input={}){
 
   let returnState='WAIT_PROVIDER_RESULT', returnNext='WAIT_PROVIDER_RESULT';
   let returnAllowed=false, applyReturnAllowed=false;
-  if(resultState==='RESULT'||resultState==='ERROR'){
+  if((resultState==='RESULT'||resultState==='ERROR')&&!providerAttemptAllowed){
+    returnState='REFUSE_UNADMITTED_PROVIDER_RETURN';
+    returnNext='BIND_ADMITTED_PROVIDER_ATTEMPT';
+  }else if(resultState==='RESULT'||resultState==='ERROR'){
     if(usageState!=='KNOWN'){
       returnState='WAIT_USAGE'; returnNext='BIND_PROVIDER_USAGE_OR_TYPED_UNKNOWN_AND_RECONCILE';
     }else if(receiptState!=='PRESENT'){
@@ -83,7 +86,7 @@ export function compileTwoSidedProviderMeterGate(input={}){
     }
   }
 
-  const billingCommitAllowed=returnAllowed&&usageState==='KNOWN'&&receiptState==='PRESENT'&&reconciliation==='PASS';
+  const billingCommitAllowed=providerAttemptAllowed&&returnAllowed&&usageState==='KNOWN'&&receiptState==='PRESENT'&&reconciliation==='PASS';
   const communicationReady=ownerIngressOpen && (providerAttemptAllowed || egressState==='LOCAL_SUBSTITUTE' || egressState==='ATTEMPT_0');
 
   return Object.freeze({
@@ -117,6 +120,7 @@ export function compileTwoSidedProviderMeterGate(input={}){
       'LOCAL_AVAILABLE+EXTERNAL_FIRST=FAIL',
       'BILLING_HOLD=>PROVIDER_ATTEMPT_0',
       'PROVIDER_RESULT!=RETURNED_RESULT',
+      'UNADMITTED_PROVIDER_RESULT=>NO_RETURN_NO_BILLING',
       'USAGE_UNKNOWN!=ZERO_USAGE',
       'THROTTLED!=SILENT',
       'OWNER_REPEATS_MACHINE_RESOLVABLE_PACKET=UX_FAIL'
