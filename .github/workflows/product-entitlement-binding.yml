@@ -1,0 +1,31 @@
+name: Product entitlement binding
+
+on:
+  pull_request:
+    paths:
+      - 'src/billing/product-entitlement.mjs'
+      - 'src/billing/product-entitlement-binding.mjs'
+      - 'scripts/test-product-entitlement-binding.mjs'
+      - 'package.json'
+      - '.github/workflows/product-entitlement-binding.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/billing/product-entitlement.mjs'
+      - 'src/billing/product-entitlement-binding.mjs'
+      - 'scripts/test-product-entitlement-binding.mjs'
+      - 'package.json'
+      - '.github/workflows/product-entitlement-binding.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --test scripts/test-product-entitlement-binding.mjs
