@@ -109,7 +109,10 @@ function canonicalBinding(binding) {
     'installation_sha256',
     'binding_ref',
   ];
-  const signature = Object.fromEntries(fields.map((field) => [field, ref(binding[field], `WORKER_EXECUTION_${field.toUpperCase()}_INVALID`)]));
+  const signature = Object.fromEntries(fields.map((field) => [
+    field,
+    ref(binding[field], `WORKER_EXECUTION_${field.toUpperCase()}_INVALID`),
+  ]));
   if (!SHA256.test(signature.installation_sha256)) fail('WORKER_EXECUTION_INSTALLATION_DIGEST_INVALID');
   if (
     signature.installed_generation !== signature.source_generation ||
@@ -119,7 +122,7 @@ function canonicalBinding(binding) {
   if (binding.authority_granted !== false || binding.provider_effect !== false) {
     fail('WORKER_EXECUTION_BINDING_AUTHORITY_FORGED');
   }
-  return Object.freeze({ ...signature, binding_digest: binding.binding_digest });
+  return Object.freeze({...signature, binding_digest: binding.binding_digest});
 }
 
 function canonicalLiveness(liveness, binding) {
@@ -327,7 +330,7 @@ export function createWorkerExecutionRouteQualifier({ports, clock = () => new Da
         liveness,
         canary,
       });
-      const qualified = structurallyQualify({binding: currentBinding, liveness, canary, observation: observed}, {clock});
+      const qualified = structurallyQualify({binding, liveness, canary, observation: observed}, {clock});
       const observation = qualified.observation;
       if (
         observation.runtime_ref !== requested.runtime_ref ||
