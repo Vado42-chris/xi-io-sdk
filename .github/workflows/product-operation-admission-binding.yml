@@ -1,0 +1,30 @@
+name: Product operation admission binding
+
+on:
+  pull_request:
+    paths:
+      - 'src/billing/product-operation-admission-binding.mjs'
+      - 'src/identity/account-binding.mjs'
+      - 'test/product-operation-admission-binding.test.mjs'
+      - '.github/workflows/product-operation-admission-binding.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/billing/product-operation-admission-binding.mjs'
+      - 'src/identity/account-binding.mjs'
+      - 'test/product-operation-admission-binding.test.mjs'
+      - '.github/workflows/product-operation-admission-binding.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test test/product-operation-admission-binding.test.mjs
