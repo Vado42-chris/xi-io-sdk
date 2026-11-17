@@ -4,13 +4,13 @@ import {createEventIntent,admitEvent,consumeEvent} from '../src/events/consumpti
 import {createHash} from 'node:crypto';
 const digest=createHash('sha256').update('payload').digest('hex');
 const intent=createEventIntent({source_ref:'source:provider:object:1',delivery_ref:'delivery:1',event_ref:'event:save',occurrence_ref:'occurrence:1',producer_ref:'product:a',consumer_ref:'product:b',work_ref:'work:1',generation:'g1',payload_sha256:digest});
-const admission={schema:'xiio.ward.event-consumption-admission/v1',state:'ADMITTED',...Object.fromEntries(['source_ref','delivery_ref','event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation','consumption_identity_sha256','dedupe_ref','effect_idempotency_key'].map(k=>[k,intent[k]])),admission_ref:'admission:1',lease_ref:'lease:1',expires_at:'2026-11-16T18:00:00Z'};
+const admission={schema:'xiio.ward.event-consumption-admission/v1',state:'ADMITTED',...Object.fromEntries(['source_ref','delivery_ref','event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation','consumption_identity_sha256','dedupe_ref','effect_idempotency_key'].map(k=>[k,intent[k]])),admission_ref:'admission:1',lease_ref:'lease:1',expires_at:'2099-01-01T00:00:00Z'};
 const trustedAdmission={verifyAdmission:({admission})=>({state:'VERIFIED',admission_ref:admission.admission_ref,lease_ref:admission.lease_ref,provenance_ref:'switchboard:ward:verified:1'})};
 const admitted=admitEvent(intent,admission,()=> '2026-11-16T17:00:00Z',trustedAdmission);
 const receipt={schema:'xiio.consumer.apply-return-readback/v1',state:'APPLY_RETURN_READ_BACK',...Object.fromEntries(['source_ref','delivery_ref','event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation','consumption_identity_sha256','dedupe_ref','effect_idempotency_key'].map(k=>[k,intent[k]])),apply_return_ref:'apply:1',readback_ref:'readback:1',consumption_record_ref:'consumption:1',applied:true,read_back:true};
 
-function store(){
- let record=null,effects=0;
+function store(initialRecord=null){
+ let record=initialRecord,effects=0;
  return {
   ports:{readConsumption:async()=>record,consumeOnce:async({admitted,receipt})=>{
    if(record)return {state:'DUPLICATE',...record};
@@ -20,10 +20,20 @@ function store(){
  };
 }
 
+function expiredConsumptionAdmission(){
+ return admitEvent(intent,{
+  ...admission,
+  admission_ref:'admission:expired-consumption',
+  lease_ref:'lease:expired-consumption',
+  expires_at:'2026-11-16T18:00:00Z',
+ },()=> '2026-11-16T17:00:00Z',trustedAdmission);
+}
+
 test('requires durable write plus independent reopen',async()=>{
  const s=store();const done=await consumeEvent(admitted,s.ports,receipt);
  assert.equal(done.state,'CONSUMED');assert.equal(s.effects(),1);
  assert.ok(done.hard.includes('CALLER_HISTORY != DEDUPE_AUTHORITY'));
+ assert.ok(done.hard.includes('EXPIRED_ADMISSION != NEW_EFFECT'));
 });
 test('same event after restart cannot cause second effect',async()=>{
  const s=store();await consumeEvent(admitted,s.ports,receipt);
@@ -39,6 +49,24 @@ test('delivery or apply without readback is not consumption',async()=>{
 });
 test('expired Ward admission is refused before consumption',()=>{
  assert.throws(()=>admitEvent(intent,{...admission,expires_at:'2026-11-16T16:59:59Z'},()=> '2026-11-16T17:00:00Z',trustedAdmission),/EVENT_ADMISSION_EXPIRED/);
+});
+test('admission expiring after admission cannot authorize a first durable effect',async()=>{
+ const s=store();
+ await assert.rejects(()=>consumeEvent(expiredConsumptionAdmission(),s.ports,receipt),/EVENT_ADMISSION_EXPIRED/);
+ assert.equal(s.effects(),0);
+});
+test('expired admission can reconcile an existing duplicate without a second effect',async()=>{
+ const prior={state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};
+ const s=store(prior);
+ const done=await consumeEvent(expiredConsumptionAdmission(),s.ports,receipt);
+ assert.equal(done.state,'DUPLICATE');
+ assert.equal(done.consumed,false);
+ assert.equal(s.effects(),0);
+});
+test('admitted record must retain lease and trusted provenance coordinates',async()=>{
+ for(const [field,code] of [['admission_ref','ADMISSION_REF_REQUIRED'],['lease_ref','LEASE_REF_REQUIRED'],['admission_provenance_ref','ADMISSION_PROVENANCE_REF_REQUIRED'],['expires_at','ADMISSION_EXPIRES_AT_REQUIRED']]){
+  await assert.rejects(()=>consumeEvent({...admitted,[field]:undefined},store().ports,receipt),new RegExp(code));
+ }
 });
 test('unverified durable write or reopen is refused',async()=>{
  await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:'wrong'})},receipt),/DURABLE_CONSUMPTION_WRITE_UNVERIFIED/);
