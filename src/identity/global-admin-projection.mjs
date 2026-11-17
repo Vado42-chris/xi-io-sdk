@@ -139,9 +139,9 @@ export function projectGlobalAdmin(input = {}) {
     const usage_ref = ref(row.usage_ref, 'GLOBAL_ADMIN_USAGE_REF_REQUIRED');
     if (usageRefs.has(usage_ref)) fail('GLOBAL_ADMIN_USAGE_DUPLICATE');
     usageRefs.add(usage_ref);
-    const quantity = Number(row.quantity);
+    const quantity = row.quantity;
     const unit = text(row.unit, 'GLOBAL_ADMIN_USAGE_INVALID', 64);
-    if (!Number.isFinite(quantity) || quantity < 0) fail('GLOBAL_ADMIN_USAGE_INVALID');
+    if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity < 0) fail('GLOBAL_ADMIN_USAGE_INVALID');
     return {
       principal_ref,
       usage_ref,
@@ -182,6 +182,8 @@ export function projectGlobalAdmin(input = {}) {
       'CHOSEN_ACCOUNT_PRINCIPAL!=VIEWING_PRINCIPAL_UNLESS_EQUAL',
       'CONNECTION_ACCOUNT_REF!=ACCOUNT_UNLESS_RESOLVED',
       'METERED_USAGE_EVENT!=BILLING_EFFECT',
+      'USAGE_UNKNOWN!=ZERO_USAGE',
+      'USAGE_INPUT!=NUMBER_COERCION',
       'CONNECTED_ACCOUNT_UI!=CREDENTIAL_STORE',
       'ACCOUNT_BOUND!=PROVIDER_AUTHORIZED',
       'ENTITLEMENT_VISIBLE!=EFFECT_AUTHORIZED',
