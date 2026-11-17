@@ -1,0 +1,7 @@
+{
+  "schema": "xiio.meter-boundary/v1",
+  "meter_event_is_usage_evidence": true,
+  "meter_event_is_money": false,
+  "provider_attempt_is_delivery_proof": false,
+  "billing_commit_requires_return_reconciliation": true
+}
