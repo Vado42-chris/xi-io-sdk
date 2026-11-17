@@ -1,0 +1,5 @@
+{
+  "schema": "xiio.request-authority-boundary/v1",
+  "request_may_supply": ["requested_product_ref", "requested_capability_ref", "requested_operation_ref", "requested_quantity"],
+  "request_must_not_supply": ["access_grant_current", "billing_admission_current", "is_admin", "is_superadmin", "rate_card_ref", "budget_current", "effect_authority"]
+}
