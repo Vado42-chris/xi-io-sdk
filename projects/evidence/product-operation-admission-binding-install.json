@@ -1,0 +1,8 @@
+{
+  "schema": "xiio.install-boundary/v1",
+  "source_present": true,
+  "accepted_main": false,
+  "installed_bytes_verified": false,
+  "running_generation_verified": false,
+  "operational_transaction_verified": false
+}
