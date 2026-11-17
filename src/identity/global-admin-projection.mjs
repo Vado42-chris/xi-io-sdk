@@ -26,8 +26,15 @@ function principalMatch(row, principalRef, code) {
   if (ref(row?.principal_ref, code) !== principalRef) fail(code);
 }
 
+function optionalRows(value, code) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(code);
+  return value;
+}
+
 function uniqueRefs(values, code) {
-  if (!Array.isArray(values)) return Object.freeze([]);
+  if (values === undefined) return Object.freeze([]);
+  if (!Array.isArray(values)) fail(code);
   const output = [];
   const seen = new Set();
   for (const value of values) {
@@ -77,7 +84,7 @@ export function projectGlobalAdmin(input = {}) {
   const principal_ref = ref(input.principal_ref, 'GLOBAL_ADMIN_PRINCIPAL_REQUIRED');
 
   const accountByPrincipal = new Map();
-  const accounts = Array.isArray(input.accounts) ? input.accounts.map((choice) => {
+  const accounts = optionalRows(input.accounts, 'GLOBAL_ADMIN_ACCOUNTS_INVALID').map((choice) => {
     const account = canonicalChosenAccount(choice, principal_ref);
     if (accountByPrincipal.has(account.principal_ref)) fail('GLOBAL_ADMIN_ACCOUNT_DUPLICATE');
     accountByPrincipal.set(account.principal_ref, account);
@@ -89,10 +96,10 @@ export function projectGlobalAdmin(input = {}) {
       chosen_by: principal_ref,
       authority_granted: false,
     };
-  }) : [];
+  });
 
   const connectionRefs = new Set();
-  const connections = Array.isArray(input.connections) ? input.connections.map((row) => {
+  const connections = optionalRows(input.connections, 'GLOBAL_ADMIN_CONNECTIONS_INVALID').map((row) => {
     principalMatch(row, principal_ref, 'GLOBAL_ADMIN_CONNECTION_FOREIGN_PRINCIPAL');
     const connection_ref = ref(row.connection_ref, 'GLOBAL_ADMIN_CONNECTION_REF_REQUIRED');
     if (connectionRefs.has(connection_ref)) fail('GLOBAL_ADMIN_CONNECTION_DUPLICATE');
@@ -114,10 +121,10 @@ export function projectGlobalAdmin(input = {}) {
       consumer_refs: uniqueRefs(row.consumer_refs, 'GLOBAL_ADMIN_CONSUMER_REF_INVALID'),
       authority_granted: false,
     };
-  }) : [];
+  });
 
   const entitlementRefs = new Set();
-  const entitlements = Array.isArray(input.entitlements) ? input.entitlements.map((row) => {
+  const entitlements = optionalRows(input.entitlements, 'GLOBAL_ADMIN_ENTITLEMENTS_INVALID').map((row) => {
     principalMatch(row, principal_ref, 'GLOBAL_ADMIN_ENTITLEMENT_FOREIGN_PRINCIPAL');
     const entitlement_ref = ref(row.entitlement_ref, 'GLOBAL_ADMIN_ENTITLEMENT_REF_REQUIRED');
     if (entitlementRefs.has(entitlement_ref)) fail('GLOBAL_ADMIN_ENTITLEMENT_DUPLICATE');
@@ -131,10 +138,10 @@ export function projectGlobalAdmin(input = {}) {
       state,
       authority_granted: false,
     };
-  }) : [];
+  });
 
   const usageRefs = new Set();
-  const usage = Array.isArray(input.usage) ? input.usage.map((row) => {
+  const usage = optionalRows(input.usage, 'GLOBAL_ADMIN_USAGE_COLLECTION_INVALID').map((row) => {
     principalMatch(row, principal_ref, 'GLOBAL_ADMIN_USAGE_FOREIGN_PRINCIPAL');
     const usage_ref = ref(row.usage_ref, 'GLOBAL_ADMIN_USAGE_REF_REQUIRED');
     if (usageRefs.has(usage_ref)) fail('GLOBAL_ADMIN_USAGE_DUPLICATE');
@@ -150,7 +157,7 @@ export function projectGlobalAdmin(input = {}) {
       unit,
       billing_effect: false,
     };
-  }) : [];
+  });
 
   const suppliedProvisioning = input.provisioning;
   if (suppliedProvisioning !== undefined) {
@@ -181,6 +188,7 @@ export function projectGlobalAdmin(input = {}) {
       'OBSERVED_ACCOUNT!=CHOSEN_ACCOUNT',
       'CHOSEN_ACCOUNT_PRINCIPAL!=VIEWING_PRINCIPAL_UNLESS_EQUAL',
       'CONNECTION_ACCOUNT_REF!=ACCOUNT_UNLESS_RESOLVED',
+      'MALFORMED_COLLECTION!=EMPTY_COLLECTION',
       'METERED_USAGE_EVENT!=BILLING_EFFECT',
       'USAGE_UNKNOWN!=ZERO_USAGE',
       'USAGE_INPUT!=NUMBER_COERCION',

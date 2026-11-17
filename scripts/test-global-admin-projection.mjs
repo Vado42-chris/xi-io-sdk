@@ -81,6 +81,51 @@ test('uses shared credential custody for nested data and accessors', () => {
   assert.equal(projection.principal_ref,principal_ref);
 });
 
+test('refuses malformed top-level collections instead of projecting them as empty', () => {
+  for (const [field, code] of [
+    ['accounts', 'GLOBAL_ADMIN_ACCOUNTS_INVALID'],
+    ['connections', 'GLOBAL_ADMIN_CONNECTIONS_INVALID'],
+    ['entitlements', 'GLOBAL_ADMIN_ENTITLEMENTS_INVALID'],
+    ['usage', 'GLOBAL_ADMIN_USAGE_COLLECTION_INVALID'],
+  ]) {
+    for (const value of [null, {}, 'not-an-array', 0, false]) {
+      assert.throws(() => projectGlobalAdmin({ ...base, [field]: value }), new RegExp(code), `${field} ${String(value)}`);
+    }
+  }
+});
+
+test('refuses malformed nested reference collections instead of dropping them', () => {
+  for (const scopes of [null, 'read', {}, 1]) {
+    assert.throws(
+      () => projectGlobalAdmin({...base,connections:[{...base.connections[0],scopes}]}),
+      /GLOBAL_ADMIN_SCOPE_INVALID/,
+    );
+  }
+  for (const consumer_refs of [null, 'product:sam-law', {}, 1]) {
+    assert.throws(
+      () => projectGlobalAdmin({...base,connections:[{...base.connections[0],consumer_refs}]}),
+      /GLOBAL_ADMIN_CONSUMER_REF_INVALID/,
+    );
+  }
+  for (const node_refs of [null, 'node:1', {}, 1]) {
+    assert.throws(
+      () => projectGlobalAdmin({...base,provisioning:{...base.provisioning,node_refs}}),
+      /GLOBAL_ADMIN_NODE_REF_INVALID/,
+    );
+  }
+});
+
+test('omitted optional collections remain explicit empty data, not malformed data', () => {
+  const projection = projectGlobalAdmin({principal_ref});
+  assert.deepEqual([...projection.accounts], []);
+  assert.deepEqual([...projection.connections], []);
+  assert.deepEqual([...projection.entitlements], []);
+  assert.deepEqual([...projection.usage], []);
+  assert.equal(projection.provisioning.state, 'UNREAD');
+  assert.deepEqual([...projection.provisioning.node_refs], []);
+  assert.ok(projection.hard.includes('MALFORMED_COLLECTION!=EMPTY_COLLECTION'));
+});
+
 test('usage quantities are exact numbers and never coerced into zero or another amount', () => {
   for(const quantity of ['2','', ' ', false, true, null, undefined, [], [2], {}, NaN, Infinity, -Infinity, -1]){
     assert.throws(
