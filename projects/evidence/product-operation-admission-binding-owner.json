@@ -1,0 +1,6 @@
+{
+  "schema": "xiio.contract-owner/v1",
+  "contract": "product-operation-admission-binding",
+  "owner_repository": "Vado42-chris/xi-io-sdk",
+  "consumers_must_not_fork_authority": true
+}
