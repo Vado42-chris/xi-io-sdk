@@ -277,3 +277,20 @@ Status observation remains separate from installed-generation and runtime identi
 worker connection and its complete current relative-import closure through the
 Installer's manifest/descriptor contract. It does not grant execution authority;
 consumers must independently reopen installed custody before importing it.
+
+### Persisted test-artifact conservation
+
+`@xi-io/sdk/artifacts/test` consumes the strict `snapshotSemanticPayload`
+primitive shared with `@xi-io/sdk/documents/portable-semantic-file` before compiling or
+serializing blank beds and four-view projections. Non-JSON numbers, functions,
+undefined values, cycles, sparse arrays and non-JSON objects are refused rather
+than silently changed by JSON serialization. A single detached snapshot is
+checked for private fields, so mutable accessors cannot swap a different payload
+in after that check. Source objects remain caller-owned and unfrozen.
+
+`npm run check:test-artifacts` exercises the actual compile → serialize → reopen
+consumer, including exact valid projections and hostile private/non-JSON inputs.
+This is structural data conservation, not file custody, rendered-preview identity,
+player authentication, owner approval or an installed-product result. VeilRIFT's
+asset delivery and card-preview owners remain separate consumers to qualify;
+this SDK change does not claim their automatic adoption.
