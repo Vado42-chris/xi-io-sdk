@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const INSTALLER_DEPENDENCY_BINDING_CLIENT_SCHEMA='xiio.sdk.installer-dependency-binding-client/v1';
 const REF=/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
@@ -138,4 +139,58 @@ export async function readVerifiedInstallerDependencyBinding({
   try{parsed=JSON.parse(result.stdout)}
   catch{fail('INSTALLER_DEPENDENCY_VERIFIER_JSON_INVALID')}
   return stableProjection(parsed,{dependencyId,ownerRepo,generation});
+}
+
+function sameExport(left,right,name){
+  return left?.fields?.[name]===right?.fields?.[name]
+    && left?.runtime_exports?.[name]?.sha256===right?.runtime_exports?.[name]?.sha256
+    && left?.runtime_exports?.[name]?.mode===right?.runtime_exports?.[name]?.mode
+    && left?.runtime_exports?.[name]?.destination_scope===right?.runtime_exports?.[name]?.destination_scope
+    && left?.runtime_exports?.[name]?.destination===right?.runtime_exports?.[name]?.destination;
+}
+
+export async function importVerifiedInstallerDependencyModule({
+  binding_receipt_path,
+  expected_dependency_id,
+  expected_owner_repo,
+  expected_generation,
+  export_name,
+  timeout_ms=15000,
+}={}){
+  const name=text(export_name,'INSTALLER_DEPENDENCY_EXPORT_NAME_REQUIRED',128);
+  if(!REF.test(name))fail('INSTALLER_DEPENDENCY_EXPORT_NAME_INVALID');
+  const input={binding_receipt_path,expected_dependency_id,expected_owner_repo,expected_generation,timeout_ms};
+  const before=await readVerifiedInstallerDependencyBinding(input);
+  const modulePath=before.fields[name];
+  const metadata=before.runtime_exports[name];
+  if(typeof modulePath!=='string'||!metadata)fail('INSTALLER_DEPENDENCY_EXPORT_UNBOUND');
+  let loaded;
+  try{
+    loaded=await import(`${pathToFileURL(modulePath).href}?sha256=${metadata.sha256}`);
+  }catch{
+    fail('INSTALLER_DEPENDENCY_MODULE_IMPORT_FAILED');
+  }
+  const after=await readVerifiedInstallerDependencyBinding(input);
+  if(before.dependency_id!==after.dependency_id||
+     before.owner_repo!==after.owner_repo||
+     before.accepted_generation!==after.accepted_generation||
+     before.binding_receipt_path!==after.binding_receipt_path||
+     !sameExport(before,after,name)){
+    fail('INSTALLER_DEPENDENCY_MODULE_CHANGED_DURING_IMPORT');
+  }
+  return Object.freeze({
+    schema:'xiio.sdk.installer-dependency-module-import/v1',
+    state:'VERIFIED',
+    dependency_id:after.dependency_id,
+    owner_repo:after.owner_repo,
+    accepted_generation:after.accepted_generation,
+    export_name:name,
+    module_path:after.fields[name],
+    module_sha256:after.runtime_exports[name].sha256,
+    module:loaded,
+    custody_verified:true,
+    authority_granted:false,
+    provider_effect:false,
+    effect_authority:false,
+  });
 }
