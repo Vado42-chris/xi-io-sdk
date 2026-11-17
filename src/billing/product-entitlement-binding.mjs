@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { assertCredentialFreeRecord } from '../identity/account-binding.mjs';
 import {
   ENTITLEMENT_TIER,
   PRODUCT_CAPABILITIES,
@@ -48,12 +49,12 @@ function iso(value, code) {
   return value;
 }
 
-function noSecrets(value) {
-  if (!value || typeof value !== 'object') return;
-  for (const [key, child] of Object.entries(value)) {
-    if (SECRET_KEY.test(key)) fail('PRODUCT_ENTITLEMENT_SECRET_FIELD_REFUSED');
-    if (child && typeof child === 'object') noSecrets(child);
-  }
+function assertEntitlementCredentialFree(value) {
+  assertCredentialFreeRecord(value, {
+    secretKeyPattern: SECRET_KEY,
+    secretCode: 'PRODUCT_ENTITLEMENT_SECRET_FIELD_REFUSED',
+    accessorCode: 'PRODUCT_ENTITLEMENT_ACCESSOR_FIELD_REFUSED',
+  });
 }
 
 function operations(values) {
@@ -74,7 +75,7 @@ function scopes(values) {
   const seenProductCapabilities = new Set();
   const out = values.map((row) => {
     if (!row || typeof row !== 'object' || Array.isArray(row)) fail('ENTITLEMENT_SCOPE_INVALID');
-    noSecrets(row);
+    assertEntitlementCredentialFree(row);
     const entitlement_capability_ref = ref(row.entitlement_capability_ref, 'ENTITLEMENT_CAPABILITY_REF_REQUIRED', 128);
     if (!CAPABILITIES.has(entitlement_capability_ref)) fail(`ENTITLEMENT_CAPABILITY_UNKNOWN:${entitlement_capability_ref}`);
     const product_capability_ref = ref(row.product_capability_ref, 'PRODUCT_CAPABILITY_REF_REQUIRED', 128);
@@ -116,7 +117,7 @@ function digest(binding) {
 }
 
 function canonicalBinding(input = {}) {
-  noSecrets(input);
+  assertEntitlementCredentialFree(input);
   const entitlement_ref = ref(input.entitlement_ref, 'ENTITLEMENT_REF_REQUIRED');
   const principal_ref = ref(input.principal_ref, 'ENTITLEMENT_PRINCIPAL_REF_REQUIRED');
   const tenant_ref = ref(input.tenant_ref, 'ENTITLEMENT_TENANT_REF_REQUIRED');
@@ -191,6 +192,7 @@ export function compileProductEntitlementBinding(input = {}) {
       'ENTITLEMENT_POLICY_GENERATION=SDK_POLICY_DIGEST',
       'ENTITLEMENT_GENERATION=CANONICAL_CONTENT_DIGEST',
       'ENTITLEMENT_BINDING_IS_API_DECLARATION_GENERATION_BOUND',
+      'ENTITLEMENT_RECORD!=CREDENTIAL_STORE',
     ]),
   });
 }
@@ -207,7 +209,7 @@ function deriveCurrent(binding, sourceGeneration, readbackGeneration, observedAt
 }
 
 export function compileProductEntitlementCurrentness(input = {}) {
-  noSecrets(input);
+  assertEntitlementCredentialFree(input);
   const supplied = input.binding;
   if (supplied?.schema !== PRODUCT_ENTITLEMENT_BINDING_SCHEMA) fail('ENTITLEMENT_BINDING_REQUIRED');
   const binding = compileProductEntitlementBinding(supplied);
@@ -240,6 +242,7 @@ export function compileProductEntitlementCurrentness(input = {}) {
 }
 
 export function resolveProductEntitlementScope(input = {}) {
+  assertEntitlementCredentialFree(input);
   const supplied = input.binding;
   const currentness = input.currentness;
   if (supplied?.schema !== PRODUCT_ENTITLEMENT_BINDING_SCHEMA) fail('ENTITLEMENT_BINDING_REQUIRED');
