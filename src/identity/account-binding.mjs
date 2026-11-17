@@ -42,8 +42,16 @@ function text(value, code, max = 256) {
   return value;
 }
 
-function noSecrets(input) {
-  for (const key of Object.keys(input || {})) if (SECRET_KEYS.test(key)) refuse('SECRET_FIELD_REFUSED');
+function noSecrets(input, seen = new WeakSet()) {
+  if (input === null || (typeof input !== 'object' && typeof input !== 'function')) return;
+  if (seen.has(input)) return;
+  seen.add(input);
+  for (const key of Reflect.ownKeys(input)) {
+    if (typeof key === 'string' && SECRET_KEYS.test(key)) refuse('SECRET_FIELD_REFUSED');
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) refuse('ACCESSOR_FIELD_REFUSED');
+    noSecrets(descriptor.value, seen);
+  }
 }
 
 /** An account the provider itself reported. */

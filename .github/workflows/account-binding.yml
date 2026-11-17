@@ -1,0 +1,31 @@
+name: Account binding custody
+
+on:
+  pull_request:
+    paths:
+      - 'src/identity/account-binding.mjs'
+      - 'scripts/validate-account-binding.mjs'
+      - 'test/account-binding-secret-custody.test.mjs'
+      - '.github/workflows/account-binding.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/identity/account-binding.mjs'
+      - 'scripts/validate-account-binding.mjs'
+      - 'test/account-binding-secret-custody.test.mjs'
+      - '.github/workflows/account-binding.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/identity/account-binding.mjs
+      - run: node scripts/validate-account-binding.mjs
+      - run: node --test test/account-binding-secret-custody.test.mjs
