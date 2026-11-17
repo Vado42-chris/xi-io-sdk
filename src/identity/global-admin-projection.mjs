@@ -1,4 +1,4 @@
-import { ACCOUNT_BINDING_SCHEMA, observeAccount } from './account-binding.mjs';
+import { ACCOUNT_BINDING_SCHEMA, assertCredentialFreeRecord, observeAccount } from './account-binding.mjs';
 
 export const GLOBAL_ADMIN_PROJECTION_SCHEMA = 'xiio.sdk.global-admin-projection/v1';
 const CONNECTION_STATES = new Set(['BOUND','UNBOUND','STALE','REVOKED','UNREAD','REFUSED']);
@@ -20,14 +20,6 @@ function ref(value, code) {
 function text(value, code, max = 128) {
   if (typeof value !== 'string' || !value.trim() || value.trim() !== value || value.length > max) fail(code);
   return value;
-}
-
-function noSecrets(value) {
-  if (!value || typeof value !== 'object') return;
-  for (const [key, child] of Object.entries(value)) {
-    if (SECRET_KEY.test(key)) fail('GLOBAL_ADMIN_SECRET_FIELD_REFUSED');
-    if (child && typeof child === 'object') noSecrets(child);
-  }
 }
 
 function principalMatch(row, principalRef, code) {
@@ -77,7 +69,11 @@ function freezeRows(rows) {
 
 /** Authority-neutral, principal-conserving projection for product administration widgets. */
 export function projectGlobalAdmin(input = {}) {
-  noSecrets(input);
+  assertCredentialFreeRecord(input, {
+    secretKeyPattern: SECRET_KEY,
+    secretCode: 'GLOBAL_ADMIN_SECRET_FIELD_REFUSED',
+    accessorCode: 'GLOBAL_ADMIN_ACCESSOR_FIELD_REFUSED',
+  });
   const principal_ref = ref(input.principal_ref, 'GLOBAL_ADMIN_PRINCIPAL_REQUIRED');
 
   const accountByPrincipal = new Map();
