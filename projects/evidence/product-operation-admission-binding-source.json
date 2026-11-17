@@ -1,0 +1,13 @@
+{
+  "schema": "xiio.source-evidence/v1",
+  "repository": "Vado42-chris/xi-io-sdk",
+  "base_generation": "75084677526990763675fbb5659a1af6a82aa9bc",
+  "source_files": [
+    "src/billing/product-operation-admission-binding.mjs",
+    "test/product-operation-admission-binding.test.mjs",
+    "scripts/validate-product-operation-admission-binding.mjs"
+  ],
+  "accepted_generation": null,
+  "installed_generation": null,
+  "operational_transaction_ref": null
+}
