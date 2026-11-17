@@ -57,11 +57,10 @@ assert.throws(
   ()=>compileContractSurfaceRecord({...base,qualified:false,current:true}),
   /CURRENT_REQUIRES_QUALIFIED/,
 );
-assert.throws(
-  ()=>compileContractSurfaceRecord({...base,authorized:true,authority_ref:null}),
-  /AUTHORIZED_REQUIRES_AUTHORITY_REF|REFUSED/,
-);
-checks+=3;
+out=compileContractSurfaceRecord({...base,authorized:true,authority_ref:null});
+assert.equal(out.state,'REFUSED');
+assert.ok(out.blockers.includes('AUTHORIZED_REQUIRES_AUTHORITY_REF'));
+checks+=4;
 
 out=compileContractSurfaceRecord({...base,availability:'N_A',applicable:false,qualified:false,current:false});
 assert.equal(out.state,'STRUCTURAL_ONLY');
