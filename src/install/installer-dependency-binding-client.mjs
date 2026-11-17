@@ -25,6 +25,52 @@ function object(value,code){
   }
   return value;
 }
+
+async function runInstallerReadOnly(args,{timeout_ms,prefix}){
+  const selectedPrefix=text(prefix,'INSTALLER_VERIFIER_PREFIX_REQUIRED',96);
+  return await new Promise((resolve,reject)=>{
+    const child=spawn('xi-io-installer',args,{shell:false,stdio:['ignore','pipe','pipe']});
+    let stdout='',stderr='',bytes=0,settled=false;
+    const finish=(error,value)=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timer);
+      if(error)reject(error);else resolve(value);
+    };
+    const consume=(chunk,kind)=>{
+      bytes+=chunk.length;
+      if(bytes>MAX_OUTPUT_BYTES){
+        child.kill('SIGKILL');
+        finish(Object.assign(new Error(selectedPrefix+'_OUTPUT_TOO_LARGE'),{code:selectedPrefix+'_OUTPUT_TOO_LARGE'}));
+        return;
+      }
+      if(kind==='stdout')stdout+=chunk.toString('utf8');else stderr+=chunk.toString('utf8');
+    };
+    child.stdout.on('data',chunk=>consume(chunk,'stdout'));
+    child.stderr.on('data',chunk=>consume(chunk,'stderr'));
+    child.once('error',()=>finish(Object.assign(
+      new Error(selectedPrefix+'_VERIFIER_UNAVAILABLE'),
+      {code:selectedPrefix+'_VERIFIER_UNAVAILABLE'},
+    )));
+    child.once('close',code=>{
+      if(code!==0){
+        const error=new Error(selectedPrefix+'_VERIFICATION_REFUSED');
+        error.code=selectedPrefix+'_VERIFICATION_REFUSED';
+        error.exit_code=code;
+        error.stderr=stderr.slice(0,4096);
+        return finish(error);
+      }
+      finish(null,{stdout,stderr});
+    });
+    const timer=setTimeout(()=>{
+      child.kill('SIGKILL');
+      finish(Object.assign(
+        new Error(selectedPrefix+'_VERIFICATION_TIMEOUT'),
+        {code:selectedPrefix+'_VERIFICATION_TIMEOUT'},
+      ));
+    },timeout_ms);
+  });
+}
 function stableProjection(value,{dependencyId,ownerRepo,generation}){
   const row=object(value,'INSTALLER_DEPENDENCY_RESULT_INVALID');
   if(row.schema!=='xiio.installer-dependency-binding-receipt/v1'||
@@ -100,41 +146,9 @@ export async function readVerifiedInstallerDependencyBinding({
     ownerRepo,
     generation,
   ];
-  const result=await new Promise((resolve,reject)=>{
-    const child=spawn('xi-io-installer',args,{shell:false,stdio:['ignore','pipe','pipe']});
-    let stdout='',stderr='',bytes=0,settled=false;
-    const finish=(error,value)=>{
-      if(settled)return;
-      settled=true;
-      clearTimeout(timer);
-      if(error)reject(error);else resolve(value);
-    };
-    const consume=(chunk,kind)=>{
-      bytes+=chunk.length;
-      if(bytes>MAX_OUTPUT_BYTES){
-        child.kill('SIGKILL');
-        finish(Object.assign(new Error('INSTALLER_DEPENDENCY_OUTPUT_TOO_LARGE'),{code:'INSTALLER_DEPENDENCY_OUTPUT_TOO_LARGE'}));
-        return;
-      }
-      if(kind==='stdout')stdout+=chunk.toString('utf8');else stderr+=chunk.toString('utf8');
-    };
-    child.stdout.on('data',chunk=>consume(chunk,'stdout'));
-    child.stderr.on('data',chunk=>consume(chunk,'stderr'));
-    child.once('error',()=>finish(Object.assign(new Error('INSTALLER_DEPENDENCY_VERIFIER_UNAVAILABLE'),{code:'INSTALLER_DEPENDENCY_VERIFIER_UNAVAILABLE'})));
-    child.once('close',code=>{
-      if(code!==0){
-        const error=new Error('INSTALLER_DEPENDENCY_VERIFICATION_REFUSED');
-        error.code='INSTALLER_DEPENDENCY_VERIFICATION_REFUSED';
-        error.exit_code=code;
-        error.stderr=stderr.slice(0,4096);
-        return finish(error);
-      }
-      finish(null,{stdout,stderr});
-    });
-    const timer=setTimeout(()=>{
-      child.kill('SIGKILL');
-      finish(Object.assign(new Error('INSTALLER_DEPENDENCY_VERIFICATION_TIMEOUT'),{code:'INSTALLER_DEPENDENCY_VERIFICATION_TIMEOUT'}));
-    },timeout_ms);
+  const result=await runInstallerReadOnly(args,{
+    timeout_ms,
+    prefix:'INSTALLER_DEPENDENCY',
   });
 
   let parsed;
