@@ -25,6 +25,7 @@ const value={
  owner_repo:'owner/provider',
  accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,
+ binding_sha256:'d'.repeat(64),
  runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
  fields:{provider_module:${JSON.stringify(target)}},
  provider_effect:false,effect_authority:false,custody_verified:true
@@ -56,6 +57,7 @@ test('SDK consumes Installer VERIFIED projection through fixed argv command',asy
   assert.equal(result.owner_repo,'owner/provider');
   assert.equal(result.accepted_generation,'a'.repeat(40));
   assert.equal(result.fields.provider_module,f.target);
+  assert.equal(result.binding_sha256,'d'.repeat(64));
   assert.equal(result.custody_verified,true);
   assert.equal(result.authority_granted,false);
   assert.equal(result.provider_effect,false);
@@ -67,6 +69,26 @@ test('SDK refuses identity substitution even after verifier process exits zero',
   await assert.rejects(
     withPath(f.bin,()=>readVerifiedInstallerDependencyBinding(request(f))),
     /INSTALLER_DEPENDENCY_RESULT_UNVERIFIED/,
+  );
+});
+
+test('SDK refuses malformed Installer binding receipt digest',async t=>{
+  const f=fixture(t);
+  const script=path.join(f.bin,'xi-io-installer');
+  fs.writeFileSync(script,`#!/usr/bin/env node
+const path=require('node:path');
+const args=process.argv.slice(2),receipt=args[1],target=path.join(path.dirname(receipt),'provider.mjs');
+process.stdout.write(JSON.stringify({
+ schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
+ dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
+ binding_receipt_path:receipt,binding_sha256:'not-a-digest',
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ fields:{provider_module:target},provider_effect:false,effect_authority:false,custody_verified:true
+}));
+`,{mode:0o755});
+  await assert.rejects(
+    withPath(f.bin,()=>readVerifiedInstallerDependencyBinding(request(f))),
+    /INSTALLER_DEPENDENCY_BINDING_DIGEST_INVALID/,
   );
 });
 
@@ -102,6 +124,7 @@ process.stdout.write(JSON.stringify({
  schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
  dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,
+ binding_sha256:'d'.repeat(64),
  runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
  fields:{provider_module:${JSON.stringify(f.target)}},provider_effect:false,effect_authority:false,custody_verified:true
 }));
@@ -114,6 +137,28 @@ process.stdout.write(JSON.stringify({
   assert.equal(result.module_sha256,'b'.repeat(64));
   assert.equal(result.authority_granted,false);
   assert.equal(fs.readFileSync(calls,'utf8').trim().split(/\n/).length,2);
+});
+
+test('module import refuses if only Installer binding receipt digest changes',async t=>{
+  const f=fixture(t);
+  const script=path.join(f.bin,'xi-io-installer');
+  fs.writeFileSync(script,`#!/usr/bin/env node
+const fs=require('node:fs'),path=require('node:path');
+const args=process.argv.slice(2),receipt=args[1],target=path.join(path.dirname(receipt),'provider.mjs'),counter=receipt+'.calls';
+let n=0;try{n=Number(fs.readFileSync(counter,'utf8'))||0}catch{}
+n++;fs.writeFileSync(counter,String(n));
+process.stdout.write(JSON.stringify({
+ schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
+ dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
+ binding_receipt_path:receipt,binding_sha256:(n===1?'d':'e').repeat(64),
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ fields:{provider_module:target},provider_effect:false,effect_authority:false,custody_verified:true
+}));
+`,{mode:0o755});
+  await assert.rejects(
+    withPath(f.bin,()=>importVerifiedInstallerDependencyModule({...request(f),export_name:'provider_module'})),
+    /INSTALLER_DEPENDENCY_MODULE_CHANGED_DURING_IMPORT/,
+  );
 });
 
 test('module import refuses if Installer projection changes across import boundary',async t=>{
@@ -129,6 +174,7 @@ process.stdout.write(JSON.stringify({
  schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
  dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,
+ binding_sha256:'d'.repeat(64),
  runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:(n===1?'b':'c').repeat(64),mode:'0644'}},
  fields:{provider_module:${JSON.stringify(f.target)}},provider_effect:false,effect_authority:false,custody_verified:true
 }));

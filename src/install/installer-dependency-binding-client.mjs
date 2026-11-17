@@ -34,6 +34,7 @@ function stableProjection(value,{dependencyId,ownerRepo,generation}){
      row.provider_effect!==false||row.effect_authority!==false){
     fail('INSTALLER_DEPENDENCY_RESULT_UNVERIFIED');
   }
+  if(typeof row.binding_sha256!=='string'||!/^[0-9a-f]{64}$/.test(row.binding_sha256))fail('INSTALLER_DEPENDENCY_BINDING_DIGEST_INVALID');
   const fields=object(row.fields,'INSTALLER_DEPENDENCY_FIELDS_INVALID');
   const exports=object(row.runtime_exports,'INSTALLER_DEPENDENCY_EXPORTS_INVALID');
   const fieldKeys=Object.keys(fields).sort(),exportKeys=Object.keys(exports).sort();
@@ -65,6 +66,7 @@ function stableProjection(value,{dependencyId,ownerRepo,generation}){
     owner_repo:ownerRepo,
     accepted_generation:generation,
     binding_receipt_path:text(row.binding_receipt_path,'INSTALLER_DEPENDENCY_RECEIPT_PATH_INVALID',4096),
+    binding_sha256:row.binding_sha256,
     fields:Object.freeze(outFields),
     runtime_exports:Object.freeze(outExports),
     custody_verified:true,
@@ -175,6 +177,7 @@ export async function importVerifiedInstallerDependencyModule({
      before.owner_repo!==after.owner_repo||
      before.accepted_generation!==after.accepted_generation||
      before.binding_receipt_path!==after.binding_receipt_path||
+     before.binding_sha256!==after.binding_sha256||
      !sameExport(before,after,name)){
     fail('INSTALLER_DEPENDENCY_MODULE_CHANGED_DURING_IMPORT');
   }
