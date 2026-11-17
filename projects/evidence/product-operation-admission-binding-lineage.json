@@ -1,0 +1,11 @@
+{
+  "schema": "xiio.admission-lineage/v1",
+  "chain": [
+    "api_declaration_generation",
+    "entitlement_generation",
+    "access_grant_generation",
+    "billing_admission_generation",
+    "provider_attempt_receipt",
+    "independent_result_readback"
+  ]
+}
