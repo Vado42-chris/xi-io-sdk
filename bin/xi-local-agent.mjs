@@ -9,6 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { evaluateAgentResponseRealization } from '../src/evaluation/tool-verb-fidelity.mjs';
 import { startLocalAgentServer } from '../src/cli/local-agent-http.mjs';
+import { requireLoopbackUrl } from '../src/mcp/stdio-tool-server.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 import { resolveLexiconCommand } from '../src/lexicon/resolve-token.mjs';
 import { commandLexicon } from '../src/cli/public-exports.mjs';
@@ -20,7 +21,16 @@ const execute = process.argv.includes('--execute');
 const once = process.argv.includes('--once');
 const serve = process.argv.includes('--serve');
 const model = process.env.XIIO_OLLAMA_MODEL || 'llama3.1:8b';
-const ollama = 'http://127.0.0.1:11434';
+// Resolve the existing deployment setting once; it never grants remote authority.
+// Keep invalid raw settings out of status output (they may contain credentials).
+const ollama = (() => {
+  try { return requireLoopbackUrl(process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434').origin; }
+  catch { return null; }
+})();
+function ollamaEndpoint(route) {
+  if (!ollama) throw new Error('OLLAMA_DEPLOYMENT_INVALID');
+  return ollama + route;
+}
 const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local/state'), 'xi-io', 'cli');
 const workspaceId = createHash('sha256').update(cwd).digest('hex').slice(0, 16);
 const sessionFile = path.join(stateDir, `session-${workspaceId}.json`);
@@ -150,14 +160,14 @@ export async function localRuntimeStatus() {
   let ollamaState='UNREACHABLE';
   let availableModels=[];
   try {
-    const res=await fetch(ollama+'/api/tags',{redirect:'error',signal:AbortSignal.timeout(1500)});
+    const res=await fetch(ollamaEndpoint('/api/tags'),{redirect:'error',signal:AbortSignal.timeout(1500)});
     if(res.ok){
       const body=await res.json();
       availableModels=(body.models||[]).map((row)=>row?.name).filter(Boolean);
       ollamaState=availableModels.includes(model)?'READY_MODEL_PRESENT':'READY_MODEL_NOT_LISTED';
     } else ollamaState='HTTP_'+res.status;
   } catch(error) {
-    ollamaState='UNREACHABLE';
+    ollamaState=error?.message==='OLLAMA_DEPLOYMENT_INVALID'?'DEPLOYMENT_INVALID':'UNREACHABLE';
   }
   return {
     schema:'xiio.cli.local-runtime-status/v1',
@@ -469,7 +479,7 @@ async function chat(messages,{signal}={}){
   for(let spin=0;spin<6;spin++){
     if(signal?.aborted) throw new Error('TURN_ABORTED');
     const bound=signal?AbortSignal.any([signal,AbortSignal.timeout(300000)]):AbortSignal.timeout(300000);
-    const res=await fetch(ollama+'/api/chat',{redirect:'error',method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:bound});
+    const res=await fetch(ollamaEndpoint('/api/chat'),{redirect:'error',method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages,tools,stream:false}),signal:bound});
     if(!res.ok) throw new Error('OLLAMA_HTTP_'+res.status);
     const body=await res.json(), msg=body.message||{}; messages.push(msg);
     if(!msg.tool_calls?.length) {
