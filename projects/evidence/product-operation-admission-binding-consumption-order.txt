@@ -1,0 +1,8 @@
+SDK typed bindings
+Framework admission consumption
+Inbox route consumption
+Installed authority-store readback
+Provider attempt
+Independent result readback
+Consumed return
+Restart/reopen
