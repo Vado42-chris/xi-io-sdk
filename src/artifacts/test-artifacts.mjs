@@ -1,3 +1,5 @@
+import { snapshotSemanticPayload } from '../documents/immutable-structure.mjs';
+
 export const BLANK_TEST_BED_SCHEMA = 'xiio.sdk.blank-test-bed/v1';
 export const BLANK_TEST_PROJECTION_SCHEMA = 'xiio.sdk.blank-test-projection/v1';
 export const CUBE_SLOTS = Object.freeze(['PERSPECTIVE','ORTHO_XY','ORTHO_YZ','ORTHO_XZ']);
@@ -29,6 +31,7 @@ function rejectPrivate(input,label){
 }
 
 export function compileBlankTestBed(input={}){
+  input=snapshotSemanticPayload(input);
   rejectPrivate(input,'Blank Test Bed');
   return freeze({
     schema:BLANK_TEST_BED_SCHEMA,
@@ -60,6 +63,7 @@ export function compileBlankTestBed(input={}){
 }
 
 export function compileBlankTestProjection(input={}){
+  input=snapshotSemanticPayload(input);
   rejectPrivate(input,'Blank Test Projection');
   const slots=Array.isArray(input.slots)?input.slots.map((raw,index)=>{
     const id=text(raw?.id,`slots[${index}].id`).toUpperCase();
@@ -104,6 +108,7 @@ function stable(value){
 }
 function canonicalArtifact(value){
   if(!value||typeof value!=='object'||Array.isArray(value))throw new TypeError('compiled artifact required');
+  value=snapshotSemanticPayload(value);
   rejectPrivate(value,'Test Artifact');
   let expected;
   if(value.schema===BLANK_TEST_BED_SCHEMA){
