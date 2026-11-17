@@ -1,0 +1,5 @@
+{
+  "schema": "xiio.closure-summary/v1",
+  "closed": ["typed AccessGrant binding", "typed billing admission binding", "admin and superadmin bypass refusal", "live currentness clone refusal"],
+  "open": ["Framework consumer", "Inbox route consumer", "installed authority stores", "operational transaction"]
+}
