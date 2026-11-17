@@ -75,13 +75,15 @@ export function compileContractSurfaceRecord(input={}){
   if(stateFlags.qualified&&!optionalRef(input.qualification_ref,'CONTRACT_SURFACE_QUALIFICATION_REF_INVALID'))blockers.push('QUALIFIED_REQUIRES_QUALIFICATION_REF');
   if(stateFlags.current&&invalidator_refs.length>0)blockers.push('CURRENT_WITH_ACTIVE_INVALIDATORS');
 
-  const callable=
+  const structurally_callable=
     stateFlags.declared&&
     stateFlags.implemented&&
     stateFlags.applicable&&
     stateFlags.qualified&&
     stateFlags.current&&
     availability==='AVAILABLE';
+  const requires_effect_admission=effect_class==='MUTATION'||effect_class==='EXTERNAL_EFFECT';
+  const callable=structurally_callable&&!requires_effect_admission;
 
   return Object.freeze({
     schema:CONTRACT_SURFACE_INVENTORY_SCHEMA,
@@ -106,9 +108,11 @@ export function compileContractSurfaceRecord(input={}){
     availability,
     blocker_refs,
     invalidator_refs,
+    structurally_callable,
+    requires_effect_admission,
     callable,
     blockers:Object.freeze(blockers),
-    state:blockers.length?'REFUSED':callable?'CURRENT_SUPPORTED':'STRUCTURAL_ONLY',
+    state:blockers.length?'REFUSED':structurally_callable?'CURRENT_SUPPORTED':'STRUCTURAL_ONLY',
     authority_granted:false,
     provider_effect:false,
     hard:Object.freeze([
@@ -124,6 +128,8 @@ export function compileContractSurfaceRecord(input={}){
       'RESULT!=PROVIDER_READBACK',
       'READBACK!=RETURN_APPLIED',
       'INVENTORY_STATUS!=EFFECT_AUTHORITY',
+      'CURRENT_MUTATION_SURFACE!=CALLABLE_EFFECT',
+      'CURRENT_EXTERNAL_EFFECT_SURFACE!=CALLABLE_EFFECT',
     ]),
   });
 }
