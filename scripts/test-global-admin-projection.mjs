@@ -60,6 +60,27 @@ test('refuses secrets, forged observations and duplicate metering rows', () => {
   assert.throws(()=>projectGlobalAdmin({...base,usage:[base.usage[0],base.usage[0]]}),/GLOBAL_ADMIN_USAGE_DUPLICATE/);
 });
 
+test('uses shared credential custody for nested data and accessors', () => {
+  assert.throws(
+    ()=>projectGlobalAdmin({...base,widget:{settings:{provider_credentials:{access_token:'nested-secret'}}}}),
+    /GLOBAL_ADMIN_SECRET_FIELD_REFUSED/
+  );
+
+  let reads=0;
+  const accessorInput={...base};
+  Object.defineProperty(accessorInput,'widget',{
+    enumerable:true,
+    get(){ reads+=1; return {authorization:'getter-secret'}; }
+  });
+  assert.throws(()=>projectGlobalAdmin(accessorInput),/GLOBAL_ADMIN_ACCESSOR_FIELD_REFUSED/);
+  assert.equal(reads,0);
+
+  const metadata={label:'safe'};
+  metadata.self=metadata;
+  const projection=projectGlobalAdmin({...base,metadata});
+  assert.equal(projection.principal_ref,principal_ref);
+});
+
 test('usage visibility cannot claim a billing effect', () => {
   const projection = projectGlobalAdmin({...base,usage:[{...base.usage[0],billing_effect:true}]});
   assert.equal(projection.usage[0].billing_effect,false);
