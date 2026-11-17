@@ -263,4 +263,6 @@ the configured receiver. Run `npm run check:cli-compass`, included in the existi
 runtime ROTFL denominator. See [qualification and claim limits](docs/compass-receiver-identity-qualification.md).
 
 Local-agent model requests preserve receiver continuity: both model discovery and
-chat refuse HTTP redirects. See [qualification and remaining deployment debt](docs/local-agent-receiver-qualification.md).
+chat refuse HTTP redirects. The local agent consumes the existing `OLLAMA_HOST`
+setting through the SDK loopback validator; an invalid explicit binding refuses
+instead of falling back to another model server. See [qualification and remaining deployment debt](docs/local-agent-receiver-qualification.md).
