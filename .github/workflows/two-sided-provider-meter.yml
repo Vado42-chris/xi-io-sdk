@@ -1,0 +1,28 @@
+name: Two-sided provider meter
+
+on:
+  pull_request:
+    paths:
+      - 'src/acks/two-sided-provider-meter.mjs'
+      - 'scripts/validate-two-sided-provider-meter.mjs'
+      - '.github/workflows/two-sided-provider-meter.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/acks/two-sided-provider-meter.mjs'
+      - 'scripts/validate-two-sided-provider-meter.mjs'
+      - '.github/workflows/two-sided-provider-meter.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check src/acks/two-sided-provider-meter.mjs
+      - run: node scripts/validate-two-sided-provider-meter.mjs
