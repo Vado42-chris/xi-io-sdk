@@ -27,21 +27,30 @@ for(let i=0;i<100;i++){
   x.owner_to_ibal.typed_block='WAIT_PROVIDER_OR_ADMISSION';
   const out=compileTwoSidedProviderMeterGate(x);
   assert.equal(out.ibal_to_provider.provider_attempt_allowed,false);
+  assert.equal(out.provider_to_ibal.state,'REFUSE_UNADMITTED_PROVIDER_RETURN');
+  assert.equal(out.provider_to_ibal.billing_commit_allowed,false);
+  assert.equal(out.provider_to_ibal.apply_return_allowed,false);
   assert.equal(out.communication_ready,false);
   ingressRejected++;
 }
 let egressRejected=0;
-for(let i=0;i<100;i++){
+for(let i=0;i<140;i++){
   const x=structuredClone(base());
-  switch(i%5){
+  switch(i%7){
     case 0:x.ibal_to_provider.local_available=true;break;
-    case 1:x.ibal_to_provider.rate_card_state='MISSING';break;
-    case 2:x.ibal_to_provider.budget_state='MISSING';break;
-    case 3:x.ibal_to_provider.provider_startability='WAIT';break;
-    case 4:x.ibal_to_provider.effect_admission='WAIT';break;
+    case 1:x.ibal_to_provider.local_available=true;x.ibal_to_provider.local_substitute_used=true;break;
+    case 2:x.ibal_to_provider.provider_attempt_requested=false;break;
+    case 3:x.ibal_to_provider.rate_card_state='MISSING';break;
+    case 4:x.ibal_to_provider.budget_state='MISSING';break;
+    case 5:x.ibal_to_provider.provider_startability='WAIT';break;
+    case 6:x.ibal_to_provider.effect_admission='WAIT';break;
   }
   const out=compileTwoSidedProviderMeterGate(x);
   assert.equal(out.ibal_to_provider.provider_attempt_allowed,false);
+  assert.equal(out.provider_to_ibal.state,'REFUSE_UNADMITTED_PROVIDER_RETURN');
+  assert.equal(out.provider_to_ibal.return_allowed,false);
+  assert.equal(out.provider_to_ibal.billing_commit_allowed,false);
+  assert.equal(out.provider_to_ibal.apply_return_allowed,false);
   egressRejected++;
 }
 let returnRejected=0;
@@ -59,13 +68,13 @@ for(let i=0;i<100;i++){
   returnRejected++;
 }
 assert.equal(ingressRejected,100);
-assert.equal(egressRejected,100);
+assert.equal(egressRejected,140);
 assert.equal(returnRejected,100);
 
 console.log(JSON.stringify({
   schema:'xiio.sdk.two-sided-provider-meter-check/v1',
   ingress_hostiles:100,
-  egress_hostiles:100,
+  egress_hostiles:140,
   return_hostiles:100,
   false_green:0,
   result:'PASS',
