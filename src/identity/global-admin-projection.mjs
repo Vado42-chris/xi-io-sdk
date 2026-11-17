@@ -1,8 +1,10 @@
 import { ACCOUNT_BINDING_SCHEMA, assertCredentialFreeRecord, observeAccount } from './account-binding.mjs';
 
+import { PRODUCT_ENTITLEMENT_STATES } from '../billing/product-entitlement.mjs';
+
 export const GLOBAL_ADMIN_PROJECTION_SCHEMA = 'xiio.sdk.global-admin-projection/v1';
 const CONNECTION_STATES = new Set(['BOUND','UNBOUND','STALE','REVOKED','UNREAD','REFUSED']);
-const ENTITLEMENT_STATES = new Set(['ACTIVE','INACTIVE','STALE','REVOKED','UNREAD','REFUSED']);
+const ENTITLEMENT_STATES = new Set([...PRODUCT_ENTITLEMENT_STATES,'INACTIVE','STALE','UNREAD','REFUSED']);
 const PROVISIONING_STATES = new Set(['READY','PENDING','BLOCKED','FAILED','PROVISIONED','UNREAD','REFUSED']);
 const SECRET_KEY = /token|password|secret|credential|api.?key|authorization/i;
 
@@ -24,6 +26,14 @@ function text(value, code, max = 128) {
 
 function principalMatch(row, principalRef, code) {
   if (ref(row?.principal_ref, code) !== principalRef) fail(code);
+}
+
+// Preserve supplied scope, never infer tenancy or authorize an aggregate view.
+// Legacy unscoped observations remain unscoped, not implicitly tenant-wide.
+function tenantObservation(row) {
+  return Object.hasOwn(row, 'tenant_ref')
+    ? { tenant_ref: ref(row.tenant_ref, 'GLOBAL_ADMIN_TENANT_REF_INVALID') }
+    : {};
 }
 
 function optionalRows(value, code) {
@@ -134,6 +144,7 @@ export function projectGlobalAdmin(input = {}) {
     return {
       principal_ref,
       entitlement_ref,
+      ...tenantObservation(row),
       product_ref: ref(row.product_ref, 'GLOBAL_ADMIN_PRODUCT_REF_REQUIRED'),
       state,
       authority_granted: false,
@@ -152,6 +163,7 @@ export function projectGlobalAdmin(input = {}) {
     return {
       principal_ref,
       usage_ref,
+      ...tenantObservation(row),
       product_ref: ref(row.product_ref, 'GLOBAL_ADMIN_PRODUCT_REF_REQUIRED'),
       quantity,
       unit,
@@ -195,6 +207,8 @@ export function projectGlobalAdmin(input = {}) {
       'CONNECTED_ACCOUNT_UI!=CREDENTIAL_STORE',
       'ACCOUNT_BOUND!=PROVIDER_AUTHORIZED',
       'ENTITLEMENT_VISIBLE!=EFFECT_AUTHORIZED',
+      'TENANT_OBSERVATION!=TENANT_ACCESS_GRANT',
+      'TENANT_ABSENT!=AGGREGATE_PRIVILEGE',
       'ADMIN_ROLE!=ENTITLEMENT',
       'SUPERADMIN_ROLE!=ENTITLEMENT',
     ]),

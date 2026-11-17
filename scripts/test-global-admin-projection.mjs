@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chooseAccount, observeAccount } from '../src/identity/account-binding.mjs';
 import { projectGlobalAdmin } from '../src/identity/global-admin-projection.mjs';
+import { PRODUCT_ENTITLEMENT_STATES } from '../src/billing/product-entitlement.mjs';
+import { compileProductEntitlementBinding } from '../src/billing/product-entitlement-binding.mjs';
 
 const principal_ref = 'customer:1';
 const observed = observeAccount({
@@ -20,6 +22,54 @@ const base = {
   usage:[{principal_ref,usage_ref:'usage:1',product_ref:'product:sam-law',quantity:2,unit:'operation'}],
   provisioning:{principal_ref,state:'READY',node_refs:['node:1']},
 };
+
+test('projects every canonical entitlement lifecycle state without granting access', () => {
+  for (const state of PRODUCT_ENTITLEMENT_STATES) {
+    const binding = compileProductEntitlementBinding({
+      principal_ref, tenant_ref:'tenant:1', entitlement_ref:'entitlement:1',
+      product_ref:'product:sam-law', api_declaration_ref:'api:1',
+      api_declaration_generation:'generation:1', tier:'free', state,
+      issued_at:'2026-11-17T00:00:00Z', valid_from:'2026-11-17T00:00:00Z',
+      scopes:[{entitlement_capability_ref:'forms',product_capability_ref:'forms',operation_refs:['form:read']}],
+    });
+    const row = Object.fromEntries(['principal_ref','tenant_ref','entitlement_ref','product_ref','state'].map(key=>[key,binding[key]]));
+    const result = projectGlobalAdmin({...base,entitlements:[row]});
+    assert.equal(result.entitlements[0].state,state);
+    assert.equal(result.entitlements[0].tenant_ref,'tenant:1');
+    assert.equal(result.entitlements[0].authority_granted,false);
+    assert.equal(result.authority_granted,false);
+    assert.equal(result.provider_effect,false);
+    assert.equal(result.billing_effect,false);
+  }
+});
+
+test('preserves explicit tenant identity on entitlement and usage observations without inferring it', () => {
+  for (const collection of ['entitlements','usage']) {
+    const first = projectGlobalAdmin({...base,[collection]:[{...base[collection][0],tenant_ref:'tenant:1'}]});
+    const second = projectGlobalAdmin({...base,[collection]:[{...base[collection][0],tenant_ref:'tenant:2'}]});
+    assert.equal(first[collection][0].tenant_ref,'tenant:1');
+    assert.equal(second[collection][0].tenant_ref,'tenant:2');
+    assert.notDeepEqual(first,second);
+    assert.equal(Object.hasOwn(projectGlobalAdmin(base)[collection][0],'tenant_ref'),false);
+    assert.equal(first.authority_granted,false);
+    assert.equal(first.provider_effect,false);
+  }
+});
+
+test('refuses malformed explicit tenant identities rather than dropping them', () => {
+  for (const collection of ['entitlements','usage']) {
+    for (const tenant_ref of [null,undefined,'',' ',false,1,{},'tenant:with space']) {
+      assert.throws(()=>projectGlobalAdmin({...base,[collection]:[{...base[collection][0],tenant_ref}]}),/GLOBAL_ADMIN_TENANT_REF_INVALID/);
+    }
+  }
+});
+
+test('tenant observation never bypasses principal or lifecycle validation', () => {
+  for (const collection of ['entitlements','usage']) {
+    assert.throws(()=>projectGlobalAdmin({...base,[collection]:[{...base[collection][0],tenant_ref:'tenant:1',principal_ref:'customer:2'}]}),/FOREIGN_PRINCIPAL/);
+  }
+  assert.throws(()=>projectGlobalAdmin({...base,entitlements:[{...base.entitlements[0],tenant_ref:'tenant:1',state:'ADMIN'}]}),/GLOBAL_ADMIN_ENTITLEMENT_STATE_INVALID/);
+});
 
 test('projects one principal-conserving widget without granting authority', () => {
   const projection = projectGlobalAdmin(base);

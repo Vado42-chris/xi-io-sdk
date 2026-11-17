@@ -1,3 +1,5 @@
+// Canonical lifecycle vocabulary shared by producer bindings and read-only UI projections.
+export const PRODUCT_ENTITLEMENT_STATES=Object.freeze(['ACTIVE','PENDING','SUSPENDED','REVOKED','EXPIRED']);
 export const PRODUCT_ENTITLEMENT_SCHEMA='xiio.sdk.product-entitlement/v1';
 export const ENTITLEMENT_TIER=Object.freeze({FREE:'free',ORCHESTRATED:'orchestrated'});
 export const PRODUCT_CAPABILITIES=Object.freeze([

@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/identity/account-binding.mjs'
       - 'src/identity/global-admin-projection.mjs'
+      - 'src/billing/product-entitlement.mjs'
+      - 'src/billing/product-entitlement-binding.mjs'
       - 'scripts/test-global-admin-projection.mjs'
       - 'package.json'
       - '.github/workflows/global-admin-projection.yml'
@@ -13,6 +15,8 @@ on:
     paths:
       - 'src/identity/account-binding.mjs'
       - 'src/identity/global-admin-projection.mjs'
+      - 'src/billing/product-entitlement.mjs'
+      - 'src/billing/product-entitlement-binding.mjs'
       - 'scripts/test-global-admin-projection.mjs'
       - 'package.json'
       - '.github/workflows/global-admin-projection.yml'
