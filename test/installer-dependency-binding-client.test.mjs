@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readVerifiedInstallerDependencyBinding } from '../src/install/installer-dependency-binding-client.mjs';
+import { readVerifiedInstallerDependencyBinding, importVerifiedInstallerDependencyModule } from '../src/install/installer-dependency-binding-client.mjs';
 
 function fixture(t,{mode='ok'}={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-sdk-installer-binding-'));
@@ -87,4 +87,54 @@ test('SDK requires absolute receipt path and exact generation syntax before proc
     binding_receipt_path:'/tmp/binding.json',expected_dependency_id:'provider-runtime',
     expected_owner_repo:'owner/provider',expected_generation:'not-a-generation',
   }),/INSTALLER_DEPENDENCY_GENERATION_INVALID/);
+});
+
+test('verified module import reopens Installer custody after import',async t=>{
+  const f=fixture(t);
+  const calls=path.join(f.root,'calls.txt');
+  const script=path.join(f.bin,'xi-io-installer');
+  fs.writeFileSync(script,`#!/usr/bin/env node
+const fs=require('node:fs');
+const args=process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(calls)},'1\\n');
+const receipt=args[1];
+process.stdout.write(JSON.stringify({
+ schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
+ dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
+ binding_receipt_path:receipt,
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ fields:{provider_module:${JSON.stringify(f.target)}},provider_effect:false,effect_authority:false,custody_verified:true
+}));
+`,{mode:0o755});
+  const result=await withPath(f.bin,()=>importVerifiedInstallerDependencyModule({...request(f),export_name:'provider_module'}));
+  assert.equal(result.schema,'xiio.sdk.installer-dependency-module-import/v1');
+  assert.equal(result.state,'VERIFIED');
+  assert.equal(result.module.x,1);
+  assert.equal(result.module_path,f.target);
+  assert.equal(result.module_sha256,'b'.repeat(64));
+  assert.equal(result.authority_granted,false);
+  assert.equal(fs.readFileSync(calls,'utf8').trim().split(/\n/).length,2);
+});
+
+test('module import refuses if Installer projection changes across import boundary',async t=>{
+  const f=fixture(t);
+  const calls=path.join(f.root,'calls.txt');
+  const script=path.join(f.bin,'xi-io-installer');
+  fs.writeFileSync(script,`#!/usr/bin/env node
+const fs=require('node:fs');
+const args=process.argv.slice(2),receipt=args[1];
+let n=0;try{n=Number(fs.readFileSync(${JSON.stringify(calls)},'utf8'))||0}catch{}
+n++;fs.writeFileSync(${JSON.stringify(calls)},String(n));
+process.stdout.write(JSON.stringify({
+ schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
+ dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
+ binding_receipt_path:receipt,
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:(n===1?'b':'c').repeat(64),mode:'0644'}},
+ fields:{provider_module:${JSON.stringify(f.target)}},provider_effect:false,effect_authority:false,custody_verified:true
+}));
+`,{mode:0o755});
+  await assert.rejects(
+    withPath(f.bin,()=>importVerifiedInstallerDependencyModule({...request(f),export_name:'provider_module'})),
+    /INSTALLER_DEPENDENCY_MODULE_CHANGED_DURING_IMPORT/,
+  );
 });
