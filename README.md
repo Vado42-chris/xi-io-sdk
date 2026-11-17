@@ -266,3 +266,7 @@ Local-agent model requests preserve receiver continuity: both model discovery an
 chat refuse HTTP redirects. The local agent consumes the existing `OLLAMA_HOST`
 setting through the SDK loopback validator; an invalid explicit binding refuses
 instead of falling back to another model server. See [qualification and remaining deployment debt](docs/local-agent-receiver-qualification.md).
+
+The CLI installer status probe consumes its compiled service endpoint and refuses
+redirects; a replacement receiver cannot establish that endpoint's status readback.
+Status observation remains separate from installed-generation and runtime identity.
