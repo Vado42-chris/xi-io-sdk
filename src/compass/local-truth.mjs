@@ -111,7 +111,7 @@ function frameworkIdentity(candidate,{exec=run,env=process.env,providerRead=true
 }
 async function probeJson(url,timeout=1500){
   try{
-    const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(timeout)});
+    const response=await fetch(url,{headers:{accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(timeout)});
     const text=await response.text();
     let body=null;
     try{body=JSON.parse(text);}catch{}
