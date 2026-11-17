@@ -30,3 +30,18 @@ absent-setting compatibility control pass (17/17). The invalid cases include
 credential-bearing URLs and verify that status/output does not echo those values.
 Existing `check-mcp-stdio-shared` controls retain IPv6 literal acceptance and the
 same strict URL policy. This is not proof of a live IPv6 or authorized remote host.
+
+## Installer status readback consumer
+
+The install command also consumes this boundary. Its status subprocess now takes
+its URL from the existing compiled service specification and refuses redirects.
+Previously a replacement HTTP receiver could supply the expected status fields
+and cause `ACTIVE_STATUS_VERIFIED` for the original endpoint.
+
+The existing service qualification now includes the actual install command in a
+disposable HOME, with a clearly synthetic systemctl process and real HTTP servers.
+Five redirect cases refused plus direct 200/503 controls pass (2/7 before, 7/7 after).
+No live systemd service is started, stopped or configured by this test. An occupied
+3109 port refuses the test. Service activation is a fixture, not installation proof.
+`status_readback` still means status observation only: runtime/generation booleans
+remain separate, and this repair grants no installed identity or Ward authority.

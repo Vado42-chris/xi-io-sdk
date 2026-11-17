@@ -201,7 +201,7 @@
     "check:flap-harvest": "node scripts/validate-flap-harvest.mjs",
     "check:snap55": "node test/hallbergmaths-snap55.sim200.mjs",
     "check:self-drive-continuation": "node scripts/validate-self-drive-continuation.mjs",
-    "check:local-agent-service": "node --test test/local-agent-service.test.mjs",
+    "check:local-agent-service": "node --test test/local-agent-service.test.mjs test/install-status-receiver.test.mjs",
     "check:byte-reader": "node scripts/validate-isolated-byte-reader.mjs && node scripts/validate-byte-reader-mutations.mjs && node scripts/validate-package-consumer.mjs",
     "check:interaction-platform-android": "node scripts/validate-interaction-platform-android.mjs",
     "check:addressable-transaction": "node --test test/addressable-transaction.test.mjs",

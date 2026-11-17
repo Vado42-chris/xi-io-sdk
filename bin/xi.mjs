@@ -510,7 +510,7 @@ function installLocalCli() {
         localAgentServiceState=localAgentServiceActive?'ACTIVE':'START_FAILED';
         if(localAgentServiceActive){
           const statusProbe=spawnSync(process.execPath,['-e',
-            "fetch('http://127.0.0.1:3109/v1/status',{signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();if(r.status!==200)process.exit(2);process.stdout.write(JSON.stringify(j));}).catch(()=>process.exit(3));"
+            `fetch(${JSON.stringify(serviceSpec.status_endpoint)},{redirect:'error',signal:AbortSignal.timeout(4000)}).then(async r=>{const j=await r.json();if(r.status!==200)process.exit(2);process.stdout.write(JSON.stringify(j));}).catch(()=>process.exit(3));`
           ],{encoding:'utf8',timeout:6000});
           if(statusProbe.status===0){
             try{
