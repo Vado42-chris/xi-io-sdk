@@ -1,0 +1,7 @@
+{
+  "schema": "xiio.acceptance-layer-status/v1",
+  "source": "PASS_LOCAL_6_OF_6",
+  "accepted_main": "PENDING",
+  "installed": "NOT_CLAIMED",
+  "operational": "NOT_CLAIMED"
+}
