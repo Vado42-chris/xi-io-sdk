@@ -7,7 +7,6 @@ export const INSTALLER_RUNTIME_ACTIVATION_CLIENT_SCHEMA='xiio.sdk.installer-runt
 const REF=/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 const REPO=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const GENERATION=/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const COORD=/^[A-Za-z0-9][A-Za-z0-9:_.-]{0,191}$/;
 const UNIT=/^[A-Za-z0-9_.@-]+\.service$/;
 const GENERATION_FIELD=/^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const MAX_OUTPUT_BYTES=256*1024;
@@ -196,7 +195,7 @@ function stableRuntimeActivationProjection(value,{profileId,productId,generation
   for(const raw of row.services){
     const service=object(raw,'INSTALLER_RUNTIME_ACTIVATION_SERVICE_INVALID');
     const serviceId=text(service.service_id,'INSTALLER_RUNTIME_ACTIVATION_SERVICE_ID_INVALID',192);
-    if(!COORD.test(serviceId)||seenServices.has(serviceId))fail('INSTALLER_RUNTIME_ACTIVATION_SERVICE_ID_INVALID');
+    if(seenServices.has(serviceId))fail('INSTALLER_RUNTIME_ACTIVATION_SERVICE_ID_INVALID');
     seenServices.add(serviceId);
     const unit=text(service.unit,'INSTALLER_RUNTIME_ACTIVATION_SERVICE_UNIT_INVALID',256);
     if(!UNIT.test(unit)||seenUnits.has(unit))fail('INSTALLER_RUNTIME_ACTIVATION_SERVICE_UNIT_INVALID');
@@ -207,8 +206,7 @@ function stableRuntimeActivationProjection(value,{profileId,productId,generation
       'INSTALLER_RUNTIME_ACTIVATION_COMPONENT_GENERATION_INVALID',
       192,
     );
-    if(!COORD.test(componentGeneration)||service.profile_generation!==generation||
-       service.active!==true){
+    if(service.profile_generation!==generation||service.active!==true){
       fail('INSTALLER_RUNTIME_ACTIVATION_SERVICE_NOT_CURRENT');
     }
     const readback=object(
@@ -283,9 +281,6 @@ export async function readVerifiedInstallerRuntimeActivation({
     'INSTALLER_RUNTIME_ACTIVATION_PROFILE_GENERATION_REQUIRED',
     192,
   );
-  if(!COORD.test(profileId))fail('INSTALLER_RUNTIME_ACTIVATION_PROFILE_ID_INVALID');
-  if(!COORD.test(productId))fail('INSTALLER_RUNTIME_ACTIVATION_PRODUCT_ID_INVALID');
-  if(!COORD.test(generation))fail('INSTALLER_RUNTIME_ACTIVATION_PROFILE_GENERATION_INVALID');
   if(!Number.isSafeInteger(timeout_ms)||timeout_ms<1000||timeout_ms>60000){
     fail('INSTALLER_RUNTIME_ACTIVATION_TIMEOUT_INVALID');
   }

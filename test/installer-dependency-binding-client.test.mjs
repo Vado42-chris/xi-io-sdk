@@ -305,13 +305,13 @@ process.stdout.write(JSON.stringify({
   );
 });
 
-test('SDK rejects runtime activation shell-shaped coordinates before process execution',async()=>{
+test('SDK preserves Installer identifier contract while refusing malformed argv text and relative paths',async()=>{
   await assert.rejects(readVerifiedInstallerRuntimeActivation({
     activation_receipt_path:'/tmp/activation.json',
-    expected_profile_id:'profile:one;touch',
+    expected_profile_id:'profile:one\nbad',
     expected_product_id:'product:one',
     expected_profile_generation:'composition:g2',
-  }),/INSTALLER_RUNTIME_ACTIVATION_PROFILE_ID_INVALID/);
+  }),/INSTALLER_RUNTIME_ACTIVATION_PROFILE_ID_REQUIRED/);
   await assert.rejects(readVerifiedInstallerRuntimeActivation({
     activation_receipt_path:'relative.json',
     expected_profile_id:'profile:one',
