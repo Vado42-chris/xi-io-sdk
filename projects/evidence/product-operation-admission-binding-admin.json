@@ -1,0 +1,11 @@
+{
+  "schema": "xiio.admin-role-boundary/v1",
+  "admin_is_role": true,
+  "superadmin_is_role": true,
+  "admin_is_entitlement": false,
+  "superadmin_is_entitlement": false,
+  "admin_is_access_grant": false,
+  "superadmin_is_access_grant": false,
+  "admin_is_billing_admission": false,
+  "superadmin_is_billing_admission": false
+}
