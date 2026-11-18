@@ -70,8 +70,10 @@ export function validateUniversalArtifact(doc){
   }
   const ids=new Set(),normalizedIds=new Set();
   for(const p of list(doc.primitives)){
-    const id=String(p?.identity||'').trim();
-    if(!id||normalizedIds.has(id)) return fail('PRIMITIVE_IDENTITY',`invalid primitive identity:${p?.identity||'missing'}`);
+    const rawId=p?.identity;
+    const id=typeof rawId==='string'?rawId.trim():'';
+    if(!id||rawId!==id||normalizedIds.has(id))
+      return fail('PRIMITIVE_IDENTITY',`invalid primitive identity:${p?.identity||'missing'}`);
     const primitiveContract=validatePrimitiveContract(p,contract);
     if(!primitiveContract.ok) return fail(primitiveContract.first_red,primitiveContract.detail);
     normalizedIds.add(id);
