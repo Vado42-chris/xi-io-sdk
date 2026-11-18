@@ -83,12 +83,14 @@ function billingCurrent(binding, overrides = {}) {
   });
 }
 
-test('exact access grant and billing admission permit one provider attempt without billing or effect authority', () => {
+test('exact access and billing records match structurally without granting action, provider attempt, billing, or effect authority', () => {
   const grant = access();
   const grantCurrent = accessCurrent(grant);
   const granted = resolveProductAccessGrantScope({ binding: grant, currentness: grantCurrent, ...scope, role: 'user' });
   assert.equal(granted.state, 'ACCESS_GRANTED_CURRENT');
-  assert.equal(granted.action_allowed, true);
+  assert.equal(granted.access_grant_matched, true);
+  assert.equal(granted.action_allowed, false);
+  assert.equal(granted.authority_granted, false);
   assert.equal(granted.effect_authority, false);
 
   const admission = billing(grant);
@@ -102,7 +104,8 @@ test('exact access grant and billing admission permit one provider attempt witho
     requested_quantity: 1,
   });
   assert.equal(admitted.state, 'BILLING_ADMITTED_CURRENT');
-  assert.equal(admitted.provider_attempt_allowed, true);
+  assert.equal(admitted.billing_admission_matched, true);
+  assert.equal(admitted.provider_attempt_allowed, false);
   assert.equal(admitted.billing_commit_allowed, false);
   assert.equal(admitted.billing_effect_authority, false);
   assert.equal(admitted.effect_authority, false);
