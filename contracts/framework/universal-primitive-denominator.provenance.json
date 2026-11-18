@@ -3,7 +3,7 @@
   "state": "CANDIDATE_PENDING_FRAMEWORK_1178_ACCEPTANCE",
   "framework_repo": "Vado42-chris/xi-io.net",
   "framework_pr": 1672,
-  "framework_generation": "30ded1bac84e4f298ca2252a92d8384b2b153c7b",
+  "framework_generation": "c36656683b886fb337ae1ab862d392cefa62d60b",
   "framework_path": "standards/primitives/universal-primitive-denominator.v1.json",
   "framework_blob_sha": "4c4bd9691749d83f963583022fc97fb63d2182ac",
   "file_sha256": "d102ce8ca504bf5e0478b8aa40d5d8efe86a6e0ebd90dd41ce22e11c3735c61a",
