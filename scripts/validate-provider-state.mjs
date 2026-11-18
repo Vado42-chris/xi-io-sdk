@@ -36,6 +36,27 @@ const evidencedRetry = normalizeProviderFailure({
   provider_status: 'RATE_LIMITED',
   headers: { 'retry-after': '3' },
 });
+const fixedNow='2026-11-17T18:00:00Z';
+const dateRetry=normalizeProviderFailure({
+  provider:'Synthetic Provider Date Retry',
+  operation:'generate',
+  http_status:429,
+  headers:{'retry-after':'Mon, 17 Nov 2026 18:00:05 GMT'},
+},{now:()=>fixedNow});
+assert.equal(dateRetry.retry_after_ms,5000);
+assert.equal(dateRetry.retry_timing_state,'EVIDENCED');
+const sameDateRetry=normalizeProviderFailure({
+  provider:'Synthetic Provider Date Retry',
+  operation:'generate',
+  http_status:429,
+  headers:{'retry-after':'Mon, 17 Nov 2026 18:00:05 GMT'},
+},{now:()=>fixedNow});
+assert.equal(sameDateRetry.retry_after_ms,dateRetry.retry_after_ms,'same evidence and injected clock must be deterministic');
+assert.throws(
+  ()=>normalizeProviderFailure({http_status:429},{now:()=> 'not-a-time'}),
+  /provider failure clock must return an ISO timestamp/,
+);
+
 assert.equal(evidencedRetry.failure_class, 'PROVIDER_RATE_LIMITED');
 assert.equal(evidencedRetry.retry_after_ms, 3000);
 assert.equal(evidencedRetry.retry_timing_state, 'EVIDENCED');
@@ -125,4 +146,4 @@ assert.equal(normalizeHostedRunnerObservation({runner_id:-1}).runner_id,-1);
 assert.equal(normalizeHostedRunnerObservation({runner_id:'bad',steps:[{}]}).admission_state,'START_OBSERVED','valid independent step evidence remains usable');
 assert.equal(normalizeProviderFailure({http_status:'401',retry_after_ms:'20'}).retry_after_ms,20);
 
-console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=8 numeric_hostiles=18 source_failure_false_green=0 invented_retry=0 fallback_authority=0 hosted_billing_preflight=1');
+console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=8 numeric_hostiles=18 deterministic_retry_clock=1 source_failure_false_green=0 invented_retry=0 fallback_authority=0 hosted_billing_preflight=1');
