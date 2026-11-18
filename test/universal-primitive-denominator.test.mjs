@@ -1,19 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {
   UNIVERSAL_PRIMITIVE_DENOMINATOR,
   UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE,
 } from '../src/flatpack/universal-primitive-denominator.mjs';
 
-test('SDK projection is byte-semantically bound to Framework #1178 denominator hash',()=>{
-  const hash=createHash('sha256').update(JSON.stringify(UNIVERSAL_PRIMITIVE_DENOMINATOR)).digest('hex');
-  assert.equal(hash,UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_sha256);
+const HERE=dirname(fileURLToPath(import.meta.url));
+const CONTRACT_PATH=join(HERE,'../src/flatpack/universal-primitive-denominator.v1.json');
+const gitBlobSha=bytes=>createHash('sha1')
+  .update(Buffer.concat([Buffer.from('blob '+bytes.length+'\0'),bytes]))
+  .digest('hex');
+
+test('SDK packaged denominator bytes are bound to the Framework #1178 blob',()=>{
+  const raw=readFileSync(CONTRACT_PATH);
+  assert.equal(gitBlobSha(raw),UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.framework_blob_sha);
+  assert.equal(gitBlobSha(raw),UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.packaged_blob_sha);
+  assert.equal(createHash('sha256').update(raw).digest('hex'),UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_sha256);
   assert.equal(UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_schema,UNIVERSAL_PRIMITIVE_DENOMINATOR.schema);
   assert.equal(UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_version,UNIVERSAL_PRIMITIVE_DENOMINATOR.version);
+  assert.equal(UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.source_state,'CANDIDATE_PENDING_FRAMEWORK_1178_ACCEPTANCE');
 });
 
-test('contract hash does not validate a primitive instance',async()=>{
+test('changing packaged denominator bytes without changing Framework blob identity is refused by custody equation',()=>{
+  const raw=readFileSync(CONTRACT_PATH);
+  const altered=Buffer.concat([raw,Buffer.from('\n')]);
+  assert.notEqual(gitBlobSha(altered),UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.framework_blob_sha);
+});
+
+test('contract custody does not validate a primitive instance',async()=>{
   const mod=await import('../src/flatpack/universal-primitive.mjs');
   const primitive={
     identity:'p:x',semantic_type:'made_up_type',coordinates:{},relationships:[],
