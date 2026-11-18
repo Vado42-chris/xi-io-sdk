@@ -1,0 +1,35 @@
+{
+  "schema": "xiio.sdk.product-capability-baseline-contract/v1",
+  "version": 1,
+  "cells": [
+    "REGISTRATION",
+    "PRODUCT_CLASSIFICATION",
+    "REPO_BINDING",
+    "DOMAIN_OWNER",
+    "IA_RECIPE",
+    "SDK_PRIMITIVE_CENSUS",
+    "BRAND_PROFILE",
+    "PERSONA_PROFILE",
+    "API_CONTRACT",
+    "SIMULATION_PROFILE",
+    "ACK_PROFILE",
+    "RETURN_READBACK"
+  ],
+  "observation_states": [
+    "PASS",
+    "PARTIAL",
+    "BLOCKED",
+    "UNKNOWN",
+    "N_A_WITH_EVIDENCE"
+  ],
+  "positive_states": [
+    "PASS",
+    "N_A_WITH_EVIDENCE"
+  ],
+  "hard": [
+    "CELL_DENOMINATOR_OWNED_BY_BASELINE_CONTRACT",
+    "POSITIVE_STATE_REQUIRES_PROOF_REF",
+    "SUPPLIED_COVERAGE!=VERIFIED_CLOSURE",
+    "PRODUCT_ROSTER_OWNED_BY_FRAMEWORK_REGISTRY_NOT_THIS_CONTRACT"
+  ]
+}
