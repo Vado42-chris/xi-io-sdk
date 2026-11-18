@@ -29,7 +29,7 @@ export function compileTwoSidedProviderMeterGate(input={}){
   const start=enumv(egress.provider_startability,START,'provider_startability');
   const effect=enumv(egress.effect_admission,EFFECT,'effect_admission');
 
-  let egressState='READY', egressNext=null, providerAttemptAllowed=false;
+  let egressState='READY', egressNext=null, providerAttemptReady=false;
   if(!ownerIngressOpen){
     egressState='WAIT_OWNER_TO_IBAL_INGRESS';
     egressNext=ownerIngressBlock?'WAKE_ON_TYPED_INGRESS_BLOCK':'BIND_TYPED_INGRESS_BLOCK';
@@ -55,9 +55,9 @@ export function compileTwoSidedProviderMeterGate(input={}){
     egressState='ATTEMPT_0';
     egressNext='WAIT_FOR_ADMITTED_ATTEMPT_REQUEST';
   }else{
-    egressState='ATTEMPT_ADMITTED';
-    egressNext='OBSERVE_PROVIDER_RESULT';
-    providerAttemptAllowed=true;
+    egressState='ATTEMPT_READY_UNVERIFIED';
+    egressNext='OBTAIN_SWITCHBOARD_WARD_ATTEMPT_ADMISSION';
+    providerAttemptReady=true;
   }
 
   const resultState=enumv(ret.provider_result_state,RESULT,'provider_result_state');
@@ -68,8 +68,8 @@ export function compileTwoSidedProviderMeterGate(input={}){
   const applyRequested=bool(ret.apply_return_requested,'apply_return_requested');
 
   let returnState='WAIT_PROVIDER_RESULT', returnNext='WAIT_PROVIDER_RESULT';
-  let returnAllowed=false, applyReturnAllowed=false;
-  if((resultState==='RESULT'||resultState==='ERROR')&&!providerAttemptAllowed){
+  let returnReady=false, applyReturnReady=false;
+  if((resultState==='RESULT'||resultState==='ERROR')&&!providerAttemptReady){
     returnState='REFUSE_UNADMITTED_PROVIDER_RETURN';
     returnNext='BIND_ADMITTED_PROVIDER_ATTEMPT';
   }else if(resultState==='RESULT'||resultState==='ERROR'){
@@ -80,14 +80,14 @@ export function compileTwoSidedProviderMeterGate(input={}){
     }else if(reconciliation!=='PASS'){
       returnState='WAIT_RATE_RECONCILIATION'; returnNext='RECONCILE_MEASURED_USAGE_TO_ACTIVE_RATE_CARD';
     }else{
-      returnState='RETURN_READY'; returnAllowed=true;
-      returnNext=applyRequested?'APPLY_RETURN':'RETURN';
-      applyReturnAllowed=applyRequested;
+      returnState='RETURN_READY_UNVERIFIED'; returnReady=true;
+      returnNext=applyRequested?'VERIFY_APPLY_RETURN_AUTHORITY':'VERIFY_RETURN_AUTHORITY';
+      applyReturnReady=applyRequested;
     }
   }
 
-  const billingCommitAllowed=providerAttemptAllowed&&returnAllowed&&usageState==='KNOWN'&&receiptState==='PRESENT'&&reconciliation==='PASS';
-  const communicationReady=ownerIngressOpen && (providerAttemptAllowed || egressState==='LOCAL_SUBSTITUTE' || egressState==='ATTEMPT_0');
+  const billingCommitReady=providerAttemptReady&&returnReady&&usageState==='KNOWN'&&receiptState==='PRESENT'&&reconciliation==='PASS';
+  const communicationReady=ownerIngressOpen && (providerAttemptReady || egressState==='LOCAL_SUBSTITUTE' || egressState==='ATTEMPT_0');
 
   return Object.freeze({
     schema:TWO_SIDED_PROVIDER_METER_SCHEMA,
@@ -99,14 +99,15 @@ export function compileTwoSidedProviderMeterGate(input={}){
     ibal_to_provider:Object.freeze({
       state:egressState,next:egressNext,
       local_available:localAvailable,local_substitute_used:localSubstituteUsed,
-      provider_attempt_requested:attemptRequested,provider_attempt_allowed:providerAttemptAllowed,
+      provider_attempt_requested:attemptRequested,provider_attempt_ready:providerAttemptReady,provider_attempt_allowed:false,
       rate_card_state:rate,budget_state:budget,provider_startability:start,effect_admission:effect
     }),
     provider_to_ibal:Object.freeze({
       state:returnState,next:returnNext,provider_result_state:resultState,
       provider_usage_state:usageState,measured_time_ms:measuredTime,receipt_state:receiptState,
-      rate_reconciliation:reconciliation,return_allowed:returnAllowed,
-      apply_return_allowed:applyReturnAllowed,billing_commit_allowed:billingCommitAllowed
+      rate_reconciliation:reconciliation,return_ready:returnReady,return_allowed:false,
+      apply_return_ready:applyReturnReady,apply_return_allowed:false,
+      billing_commit_ready:billingCommitReady,billing_commit_allowed:false
     }),
     communication_ready:communicationReady,
     owner_relay_required:false,
@@ -119,6 +120,10 @@ export function compileTwoSidedProviderMeterGate(input={}){
       'ONE_SIDED_PROVIDER_GATE!=COMMUNICATION_HEALTH',
       'LOCAL_AVAILABLE+EXTERNAL_FIRST=FAIL',
       'BILLING_HOLD=>PROVIDER_ATTEMPT_0',
+      'PROVIDER_ATTEMPT_READY!=PROVIDER_ATTEMPT_ALLOWED',
+      'RETURN_READY!=RETURN_ALLOWED',
+      'APPLY_RETURN_READY!=APPLY_RETURN_ALLOWED',
+      'BILLING_COMMIT_READY!=BILLING_COMMIT_ALLOWED',
       'PROVIDER_RESULT!=RETURNED_RESULT',
       'UNADMITTED_PROVIDER_RESULT=>NO_RETURN_NO_BILLING',
       'USAGE_UNKNOWN!=ZERO_USAGE',
