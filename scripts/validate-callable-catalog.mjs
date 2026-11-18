@@ -18,9 +18,17 @@ assert.equal(validation.state,'VALID');
 assert.equal(validation.primitive_count,2);
 assert.equal(validation.identity_unique,true);
 assert.equal(validation.callable_uuid_unique,true);
-assert.equal(resolveCallable(catalog,A).id,'alpha');
+const resolvedAlpha=resolveCallable(catalog,A);
+assert.equal(resolvedAlpha.id,'alpha');
 assert.equal(callableUuidFor(catalog,'beta'),B);
-assert.equal(listCallablePrimitives(catalog).length,2);
+const listed=listCallablePrimitives(catalog);
+assert.equal(listed.length,2);
+assert.equal(Object.isFrozen(resolvedAlpha),true);
+assert.equal(Object.isFrozen(resolvedAlpha.styles),true);
+assert.equal(Object.isFrozen(listed),true);
+assert.equal(Object.isFrozen(listed[0]),true);
+assert.throws(()=>{resolvedAlpha.specifier='@xi-io/sdk/other';},TypeError);
+assert.throws(()=>{listed[0].styles.push('@xi-io/sdk/other.css');},TypeError);
 
 assert.throws(
   ()=>validateCallableCatalog({primitives:[catalog.primitives[0],{...catalog.primitives[1],id:'alpha'}]}),
@@ -46,5 +54,7 @@ console.log(JSON.stringify({
   callable_uuid_collision_refused:true,
   invalid_uuid_refused:true,
   first_match_wins_removed:true,
+  resolved_snapshot_immutable:true,
+  listed_snapshot_immutable:true,
   effects:0,
 }));
