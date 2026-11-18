@@ -129,25 +129,74 @@ test('ACTIONABLE_INTERNAL_INBOX_IS_WORK_TO_EAT', () => {
   assert.equal(result.worker_inbox.actionable_count, 2);
 });
 
-test('ALREADY_APPLIED_RETURN_IS_NOT_STRANDED', () => {
+const verifiedAppliedReturn = (overrides = {}) => ({
+  id: 'apply:1',
+  state: 'APPLY_RETURN',
+  applied: true,
+  result_ref: 'result:1',
+  return_ref: 'return:1',
+  apply_return_ref: 'apply-return:1',
+  readback_ref: 'readback:1',
+  consumer_ref: 'consumer:1',
+  ...overrides,
+});
+
+test('APPLIED_RETURN_WITH_COMPLETE_RETURN_AND_READBACK_COORDINATES_IS_NOT_STRANDED', () => {
   const input = base();
-  input.returns = [{ id: 'apply:1', state: 'APPLY_RETURN', applied: true }];
+  input.returns = [verifiedAppliedReturn()];
   const result = compileContinuationCycle(input);
   assert.equal(result.returns.stranded.length, 0);
+  assert.deepEqual(result.returns.applied, ['apply:1']);
   assert.equal(result.disposition, 'TERMINAL_FIXED_POINT');
 });
 
 
-test('UNCONFIRMED_APPLY_RETURN_CANNOT_LAUNDER_TERMINAL_CLOSURE', () => {
-  for (const applied of [false, undefined, null]) {
+test('UNCONFIRMED_OR_INCOMPLETE_APPLY_RETURN_CANNOT_LAUNDER_TERMINAL_CLOSURE', () => {
+  const hostiles = [
+    { applied: false },
+    { applied: undefined },
+    { applied: null },
+    { result_ref: null },
+    { return_ref: null },
+    { apply_return_ref: null },
+    { readback_ref: null },
+    { consumer_ref: null },
+  ];
+  for (const patch of hostiles) {
     const input = base();
-    input.returns = [{ id: 'apply:unverified', state: 'APPLY_RETURN', applied }];
+    input.returns = [verifiedAppliedReturn({ id: 'apply:unverified', ...patch })];
     const result = compileContinuationCycle(input);
     assert.equal(result.terminal, false);
     assert.equal(result.disposition, 'EAT_REQUIRED');
     assert.deepEqual(result.returns.applied, []);
     assert.deepEqual(result.returns.stranded, ['apply:unverified']);
   }
+});
+
+
+
+test('RETURNED_RESULT_STAYS_STRANDED_WITHOUT_EXACT_PHASE10_COORDINATES', () => {
+  const input = base();
+  input.returns = [{
+    id:'result:sent',state:'RESULT',returned:true,applied:true,
+    result_ref:'result:1',return_ref:'return:1',
+    apply_return_ref:'apply-return:1',readback_ref:null,consumer_ref:'consumer:1',
+  }];
+  const result=compileContinuationCycle(input);
+  assert.equal(result.disposition,'EAT_REQUIRED');
+  assert.deepEqual(result.returns.stranded,['result:sent']);
+});
+
+test('RETURN_STATE_WITH_APPLIED_LABEL_STAYS_STRANDED_WITHOUT_READBACK', () => {
+  const input=base();
+  input.returns=[{
+    id:'return:sent',state:'RETURN',applied:true,
+    result_ref:'result:1',return_ref:'return:1',
+    apply_return_ref:'apply-return:1',readback_ref:null,consumer_ref:'consumer:1',
+  }];
+  const result=compileContinuationCycle(input);
+  assert.equal(result.disposition,'EAT_REQUIRED');
+  assert.deepEqual(result.returns.stranded,['return:sent']);
 });
 
 test('PASS_ALONE_WITH_NONCURRENT_100S_DOES_NOT_STOP', () => {
@@ -211,7 +260,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 20,
+  cases: 23,
   self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,
