@@ -1,0 +1,15 @@
+{
+  "schema": "xiio.sdk.materialized-framework-contract/v1",
+  "state": "CANDIDATE_PENDING_FRAMEWORK_1178_ACCEPTANCE",
+  "framework_repo": "Vado42-chris/xi-io.net",
+  "framework_pr": 1672,
+  "framework_generation": "30ded1bac84e4f298ca2252a92d8384b2b153c7b",
+  "framework_path": "standards/primitives/universal-primitive-denominator.v1.json",
+  "framework_blob_sha": "4c4bd9691749d83f963583022fc97fb63d2182ac",
+  "file_sha256": "d102ce8ca504bf5e0478b8aa40d5d8efe86a6e0ebd90dd41ce22e11c3735c61a",
+  "semantic_json_sha256": "d95710a7d097f2239dc4b230516a2280a0286b70a0990b92d3ad69a35d423952",
+  "contract_schema": "xiio.universal-primitive-denominator/v1",
+  "contract_version": 1,
+  "accepted_generation": false,
+  "effect_authority": 0
+}
