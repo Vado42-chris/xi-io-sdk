@@ -5,6 +5,7 @@ set -uo pipefail
 
 REPO=${1:?owner/repo}; SHA=${2:?commit sha}; GATE=${3:-}; WD=${4:-.}
 PROFILE_REF=${XIIO_REPLAY_PROFILE:-}
+PROFILE_CUSTODY_REF=${XIIO_REPLAY_PROFILE_CUSTODY:-}
 LEGACY_REQUIRED_GATE_CSV=${XIIO_REPLAY_REQUIRED_GATES:-}
 LEGACY_REQUESTED_GATE_CSV=${XIIO_REPLAY_REQUESTED_GATES:-}
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "XIIO_REPLAY=BLOCKED first_red=INVALID_REPO_REF"; exit 2; }
@@ -179,6 +180,48 @@ PROFILE_AUTHORITY_REF=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.wri
 PROFILE_SHA256=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_JSON).profile_sha256)')
 REQUIRED_GATES_JSON=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.env.PROFILE_JSON).steps.map(x=>x.id)))')
 
+if [ -z "$PROFILE_CUSTODY_REF" ]; then
+  blocked GATE_PROFILE_CUSTODY_REQUIRED independent_product_profile_acceptance
+  exit 2
+fi
+CUSTODY_PATH=$(realpath -e "$PROFILE_CUSTODY_REF" 2>>"$LOG") || {
+  blocked GATE_PROFILE_CUSTODY_MISSING independent_product_profile_acceptance
+  exit 2
+}
+case "$CUSTODY_PATH" in
+  "$SOURCE_ROOT"|"$SOURCE_ROOT"/*)
+    blocked GATE_PROFILE_CUSTODY_NOT_INDEPENDENT independent_product_profile_acceptance
+    exit 2
+    ;;
+esac
+[ -f "$CUSTODY_PATH" ] && [ ! -L "$CUSTODY_PATH" ] || {
+  blocked GATE_PROFILE_CUSTODY_NOT_FILE independent_product_profile_acceptance
+  exit 2
+}
+
+CUSTODY_NORMALIZED="$WORK/profile-custody.normalized.json"
+CUSTODY_RC=0
+XIIO_CUSTODY_PATH="$CUSTODY_PATH" XIIO_PROFILE_SHA256="$PROFILE_SHA256" XIIO_PROFILE_REF="$PROFILE_REF" REPO="$REPO" SHA="$SHA" PROFILE_AUTHORITY_REF="$PROFILE_AUTHORITY_REF" node - <<'NODE' >"$CUSTODY_NORMALIZED" || CUSTODY_RC=$?
+const fs=require("fs");
+const c=JSON.parse(fs.readFileSync(process.env.XIIO_CUSTODY_PATH,"utf8"));
+const fail=code=>{console.error(code);process.exit(22)};
+if(c?.schema!=="xiio.repo-gate-profile-custody/v1") fail("PROFILE_CUSTODY_SCHEMA_INVALID");
+if(c?.state!=="ACCEPTED_READBACK") fail("PROFILE_CUSTODY_STATE_INVALID");
+if(c?.repository!==process.env.REPO) fail("PROFILE_CUSTODY_REPOSITORY_MISMATCH");
+if(c?.head_sha!==process.env.SHA) fail("PROFILE_CUSTODY_HEAD_MISMATCH");
+if(c?.profile_ref!==process.env.XIIO_PROFILE_REF) fail("PROFILE_CUSTODY_REF_MISMATCH");
+if(c?.profile_sha256!==process.env.XIIO_PROFILE_SHA256) fail("PROFILE_CUSTODY_SHA_MISMATCH");
+if(c?.authority_ref!==process.env.PROFILE_AUTHORITY_REF) fail("PROFILE_CUSTODY_AUTHORITY_MISMATCH");
+if(typeof c?.readback_ref!=="string"||!c.readback_ref.trim()) fail("PROFILE_CUSTODY_READBACK_REQUIRED");
+process.stdout.write(JSON.stringify(c));
+NODE
+if [ "$CUSTODY_RC" -ne 0 ] || [ ! -s "$CUSTODY_NORMALIZED" ]; then
+  blocked GATE_PROFILE_CUSTODY_INVALID independent_product_profile_acceptance
+  exit 2
+fi
+PROFILE_CUSTODY_JSON=$(cat "$CUSTODY_NORMALIZED")
+PROFILE_CUSTODY_READBACK_REF=$(PROFILE_CUSTODY_JSON="$PROFILE_CUSTODY_JSON" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_CUSTODY_JSON).readback_ref)')
+
 if [ ! -f package.json ]; then
   blocked PACKAGE_JSON_REQUIRED accepted_product_gate_profile
   exit 2
@@ -292,7 +335,7 @@ MISSING_GATES_JSON=$(PROFILE_EVAL="$PROFILE_EVAL" node -e 'process.stdout.write(
 FIRST_RED=$(PROFILE_EVAL="$PROFILE_EVAL" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_EVAL).first_red||"")')
 LOG_SHA=$(sha256sum "$LOG" | cut -d' ' -f1)
 export REPO SHA CMD OUTCOME TREE WD INSTALL_RC GATE_RC NODE_V BUN_V LOG_SHA OUT
-export PROFILE_REF PRODUCT_REF PROFILE_AUTHORITY_REF PROFILE_SHA256
+export PROFILE_REF PRODUCT_REF PROFILE_AUTHORITY_REF PROFILE_SHA256 PROFILE_CUSTODY_READBACK_REF
 export REQUIRED_GATES_JSON EXECUTED_GATES_JSON ARTIFACT_EVIDENCE_JSON GATE_PROFILE_STATUS GATE_PROFILE_COMPLETE MISSING_GATES_JSON FIRST_RED
 RECEIPT_RC=0
 node -e '
@@ -300,7 +343,8 @@ const e=process.env,r={schema:"xiio.repo-gate-receipt/v1",repository:e.REPO,head
  ref:null,event:"replay",run_id:null,runner:"replay:"+require("os").hostname(),command:e.CMD||null,
  outcome:e.OUTCOME,written_at:new Date().toISOString(),work_ref:e.XIIO_REPLAY_WORK_REF||null,
  product_ref:e.PRODUCT_REF,gate_profile_ref:e.PROFILE_REF,gate_profile_authority_ref:e.PROFILE_AUTHORITY_REF,
- gate_profile_sha256:e.PROFILE_SHA256,required_gates:JSON.parse(e.REQUIRED_GATES_JSON),
+ gate_profile_sha256:e.PROFILE_SHA256,gate_profile_custody_readback_ref:e.PROFILE_CUSTODY_READBACK_REF,
+ required_gates:JSON.parse(e.REQUIRED_GATES_JSON),
  executed_gates:JSON.parse(e.EXECUTED_GATES_JSON),artifact_evidence:JSON.parse(e.ARTIFACT_EVIDENCE_JSON),
  missing_required_gates:JSON.parse(e.MISSING_GATES_JSON),first_red:e.FIRST_RED||null,
  gate_profile_status:e.GATE_PROFILE_STATUS,gate_profile_complete:e.GATE_PROFILE_COMPLETE==="true",
