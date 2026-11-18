@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import './validate-self-drive-continuation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
+import { compileWorkerAdapterConformance, WORKER_ADAPTER_REQUIRED_BINDINGS } from '../src/worker/lifecycle.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 
 const base = () => ({
@@ -199,6 +200,50 @@ test('RETURN_STATE_WITH_APPLIED_LABEL_STAYS_STRANDED_WITHOUT_READBACK', () => {
   assert.deepEqual(result.returns.stranded,['return:sent']);
 });
 
+
+
+test('CONTINUATION_COORDINATES_DO_NOT_OVERRIDE_MISSING_LIFECYCLE_RETURN_OR_READBACK_EVIDENCE', () => {
+  const input=base();
+  input.returns=[verifiedAppliedReturn()];
+  const continuation=compileContinuationCycle(input);
+  assert.equal(continuation.disposition,'TERMINAL_FIXED_POINT');
+
+  const bindings=Object.fromEntries(WORKER_ADAPTER_REQUIRED_BINDINGS.map(id=>[
+    id,{verified:true,evidence_ref:'evidence:'+id}
+  ]));
+  bindings.work_generation={...bindings.work_generation,work_ref:'work:one',generation_ref:'generation:one'};
+  bindings.currentness_recovery={...bindings.currentness_recovery,currentness_ref:'currentness:one',recovery_ref:'recovery:one',hallberg_recovery_ref:'hallberg:one',lifecycle_selected:true,ordinary_work_covered:true};
+  bindings.admission={...bindings.admission,assignment_ref:'assignment:one',principal_ref:'principal:one',admission_ref:'admission:one',current:true};
+  bindings.tool_capability={...bindings.tool_capability,capability_ref:'capability:one',tool_catalog_ref:'tools:one',qualified:true,current:true};
+  bindings.ack={...bindings.ack,ack_ref:'ack:one',sow_ref:'sow:one'};
+  bindings.privacy_effect={...bindings.privacy_effect,privacy_ref:'privacy:one',effect_ceiling:'READ_ONLY'};
+  bindings.bounded_execution={...bindings.bounded_execution,attempt_ref:'attempt:one',execution_ref:'execution:one',bounded:true};
+  bindings.yar={...bindings.yar,yar_ref:'yar:one',interrupted_return_reconciled:true};
+  bindings.result_return={verified:false,evidence_ref:null};
+  bindings.verified_readback={verified:false,evidence_ref:null};
+  bindings.affected_recompile={...bindings.affected_recompile,affected_set_ref:'affected:one',recompile_ref:'recompile:one',all_and_only:true};
+  bindings.restart_reconciliation={...bindings.restart_reconciliation,coverage_ref:'restart:one',covered_boundaries:['RECOVERY','ADMISSION','EXECUTION','YAR','APPLY_RETURN','READBACK']};
+  bindings.qualification_independence={...bindings.qualification_independence,domains:Object.fromEntries(['recovery_wake','admission','affected_return'].map(domain=>[domain,{
+    execution_ref:'execution:'+domain,hostile_ref:'hostile:'+domain,independent_review_ref:'review:'+domain,
+    executor_principal_ref:'executor:'+domain,hostile_principal_ref:'hostile-principal:'+domain,reviewer_principal_ref:'reviewer:'+domain
+  }]))};
+  bindings.installed_consumer={...bindings.installed_consumer,installed_generation:'source:g1',lifecycle_generation:'lifecycle:g1'};
+
+  const conformance=compileWorkerAdapterConformance({
+    adapter_id:'adapter:test',
+    adapter_kind:'test',
+    source_generation:'source:g1',
+    installed_generation:'source:g1',
+    lifecycle_generation:'lifecycle:g1',
+    bindings,
+  });
+  assert.equal(conformance.supplied_complete,false);
+  assert.equal(conformance.cells.find(x=>x.id==='result_return').state,'UNVERIFIED');
+  assert.equal(conformance.cells.find(x=>x.id==='verified_readback').state,'UNVERIFIED');
+  assert.equal(conformance.runtime_complete,false);
+  assert.equal(conformance.release_eligible,false);
+});
+
 test('PASS_ALONE_WITH_NONCURRENT_100S_DOES_NOT_STOP', () => {
   const input = base();
   input.four_scale.MACRO = 'NOT_100';
@@ -260,7 +305,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 23,
+  cases: 24,
   self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,
