@@ -114,12 +114,8 @@ if [ -f bun.lock ] || [ -f bun.lockb ]; then
   [ "$BUN_V" = missing ] && { blocked BUN_REQUIRED qualified_bun_runtime; exit 2; }
 fi
 
-INSTALL_RC=0
-if [ -f bun.lock ] || [ -f bun.lockb ]; then step bun install --frozen-lockfile; bun install --frozen-lockfile >>"$LOG" 2>&1 || INSTALL_RC=$?
-elif [ -f pnpm-lock.yaml ]; then step pnpm install --frozen-lockfile; (corepack enable && pnpm install --frozen-lockfile) >>"$LOG" 2>&1 || INSTALL_RC=$?
-elif [ -f package-lock.json ]; then step npm ci; npm ci --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
-elif [ -f package.json ]; then step npm install --no-audit --no-fund; npm install --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
-fi
+# Validate the product-owned gate profile before dependency installation.
+# Checkout bytes are observation; they do not earn install effects until the required proof denominator is accepted.
 if [ -z "$PROFILE_REF" ]; then
   blocked GATE_PROFILE_REQUIRED accepted_product_gate_profile
   exit 2
@@ -202,6 +198,15 @@ NODE
   exit 2
 }
 
+
+INSTALL_RC=0
+if [ -f bun.lock ] || [ -f bun.lockb ]; then step bun install --frozen-lockfile; bun install --frozen-lockfile >>"$LOG" 2>&1 || INSTALL_RC=$?
+elif [ -f pnpm-lock.yaml ]; then step pnpm install --frozen-lockfile; (corepack enable && pnpm install --frozen-lockfile) >>"$LOG" 2>&1 || INSTALL_RC=$?
+elif [ -f package-lock.json ]; then step npm ci; npm ci --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
+elif [ -f package.json ]; then
+  blocked LOCKFILE_REQUIRED deterministic_dependency_denominator
+  exit 2
+fi
 GATE_RC=0
 OUTCOME=success
 EXECUTED_GATES_JSON='[]'
