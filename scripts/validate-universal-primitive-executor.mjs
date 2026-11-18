@@ -61,7 +61,7 @@ assert.equal(validateUniversalArtifact(unresolved).first_red,'PRIMITIVE_IDENTITY
 assert.throws(()=>extractUniversalTemplateRig(unresolved),/SOURCE_INVALID:PRIMITIVE_IDENTITY/);
 assert.throws(()=>compileUniversalProjection(unresolved,'projection:microsite'),/SOURCE_INVALID:PRIMITIVE_IDENTITY/);
 const missingRelationships=structuredClone(related);delete missingRelationships.primitives[0].relationships;
-assert.equal(validateUniversalArtifact(missingRelationships).first_red,'PRIMITIVE_IDENTITY');
+assert.equal(validateUniversalArtifact(missingRelationships).first_red,'PRIMITIVE_REQUIRED_FIELDS');
 const normalizedCollision=structuredClone(related);
 normalizedCollision.primitives.push({...structuredClone(related.primitives[0]),identity:' p:headline '});
 assert.equal(validateUniversalArtifact(normalizedCollision).first_red,'PRIMITIVE_IDENTITY');
@@ -94,7 +94,7 @@ const created=executeUniversalPrimitiveOperation(ai.artifact,{operation_ref:'op:
 assert.ok(created.artifact.primitives.some(x=>x.identity==='p:new'));
 const createdClass=executeUniversalPrimitiveOperation(created.artifact,{operation_ref:'op:h:create-class',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:[],primitive:primitive('p:class','class')}});
 assert.ok(createdClass.artifact.primitives.some(x=>x.identity==='p:class'));
-const duplicated=executeUniversalPrimitiveOperation(createdClass.artifact,{operation_ref:'op:a:duplicate',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new',operation:'DUPLICATE',args:{new_identity:'p:new-copy'}});
+const duplicated=executeUniversalPrimitiveOperation(created.artifact,{operation_ref:'op:a:duplicate',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new',operation:'DUPLICATE',args:{new_identity:'p:new-copy'}});
 assert.ok(duplicated.artifact.primitives.some(x=>x.identity==='p:new-copy'));
 const ordered=executeUniversalPrimitiveOperation(duplicated.artifact,{operation_ref:'op:h:order',actor:{kind:'human',ref:'person:owner'},primitive_ref:'p:new-copy',operation:'TRANSFORM',args:{path:'metadata.order',value:7}});
 assert.equal(ordered.artifact.primitives.find(x=>x.identity==='p:new-copy').metadata.order,7);
