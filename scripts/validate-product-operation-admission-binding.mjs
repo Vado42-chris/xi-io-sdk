@@ -47,6 +47,11 @@ const accessResolution = resolveProductAccessGrantScope({
   role: 'user',
 });
 assert.equal(accessResolution.state, 'ACCESS_GRANTED_CURRENT');
+assert.equal(accessResolution.access_grant_matched, true);
+assert.equal(accessResolution.action_allowed, false);
+assert.equal(accessResolution.authority_granted, false);
+assert.equal(accessResolution.effect_authority, false);
+assert.ok(accessResolution.hard.includes('CURRENTNESS_READBACK!=PROVIDER_AUTHENTICATION'));
 
 const billing = compileProductBillingAdmissionBinding({
   billing_admission_ref: 'billing-admission:inbox:owner:send',
@@ -102,5 +107,6 @@ console.log(JSON.stringify({
   exact_meter_and_quantity_bound: true,
   billing_admission_not_provider_attempt: true,
   provider_attempt_not_billing_commit: true,
+  access_grant_match_not_action_allowed: true,
   action_allowed_not_effect_authority: true,
 }, null, 2));
