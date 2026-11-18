@@ -73,6 +73,18 @@ assert.equal(permission.failure_class, 'PROVIDER_PERMISSION_DENIED');
 assert.equal(permission.auth_state, 'UNKNOWN', '403 alone must not invent authenticated identity');
 assert.equal(permission.fallback_authorized, false);
 
+const suppliedAuthenticated = normalizeProviderFailure({
+  provider:'Synthetic Provider F',
+  operation:'write',
+  http_status:403,
+  auth_state:'AUTHENTICATED',
+});
+assert.equal(suppliedAuthenticated.supplied_auth_state,'AUTHENTICATED');
+assert.equal(suppliedAuthenticated.auth_state,'UNKNOWN');
+assert.equal(suppliedAuthenticated.provider_authenticated,false);
+assert.equal(suppliedAuthenticated.automatic_retry_authorized,false);
+assert.equal(suppliedAuthenticated.fallback_authorized,false);
+
 const githubBillingMessage = 'The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the Billing & plans section in your settings';
 const githubBilling = normalizeProviderFailure({
   provider: 'GitHub Actions',
@@ -146,4 +158,4 @@ assert.equal(normalizeHostedRunnerObservation({runner_id:-1}).runner_id,-1);
 assert.equal(normalizeHostedRunnerObservation({runner_id:'bad',steps:[{}]}).admission_state,'START_OBSERVED','valid independent step evidence remains usable');
 assert.equal(normalizeProviderFailure({http_status:'401',retry_after_ms:'20'}).retry_after_ms,20);
 
-console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=8 numeric_hostiles=18 deterministic_retry_clock=1 source_failure_false_green=0 invented_retry=0 fallback_authority=0 hosted_billing_preflight=1');
+console.log('XIIO_SDK_PROVIDER_STATE PASS fixtures=8 numeric_hostiles=18 deterministic_retry_clock=1 supplied_auth_not_authenticated=1 source_failure_false_green=0 invented_retry=0 fallback_authority=0 hosted_billing_preflight=1');
