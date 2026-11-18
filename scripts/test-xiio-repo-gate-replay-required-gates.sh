@@ -21,6 +21,9 @@ JSON
 {"scripts":{"verify":"true","qa:release":"true"}}
 JSON
   fi
+  if [ "${XIIO_TEST_LOCK_MODE:-present}" = present ]; then
+    printf '{"lockfileVersion":3,"packages":{}}\n' > "$dest/package-lock.json"
+  fi
   cat > "$dest/.xiio/replay-profile.json" <<'JSON'
 {
   "schema":"xiio.repo-gate-profile/v1",
@@ -52,7 +55,10 @@ chmod +x "$TEMP/bin/node"
 
 cat > "$TEMP/bin/npm" <<'MOCK'
 #!/usr/bin/env bash
-if [ "$1" = install ] || [ "$1" = ci ]; then exit 0; fi
+if [ "$1" = install ] || [ "$1" = ci ]; then
+  [ -n "${XIIO_TEST_INSTALL_MARKER:-}" ] && : > "$XIIO_TEST_INSTALL_MARKER"
+  exit 0
+fi
 if [ "$1" = run ] && [ "$2" = verify ]; then exit 0; fi
 if [ "$1" = run ] && [ "$2" = qa:release ]; then
   rc="${XIIO_TEST_QA_RC:-0}"
@@ -70,15 +76,17 @@ run_replay() {
   local out=$1
   mkdir -p "$out"
   local rc=0
-  XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_OUT="$out" XIIO_REPLAY_PROFILE='.xiio/replay-profile.json'     XIIO_REPLAY_WORK_REF='game:159'     XIIO_TEST_PACKAGE_MODE="${XIIO_TEST_PACKAGE_MODE:-full}"     XIIO_TEST_QA_RC="${XIIO_TEST_QA_RC:-0}"     XIIO_TEST_ARTIFACT_MODE="${XIIO_TEST_ARTIFACT_MODE:-present}"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$out/stdout.log" 2>"$out/stderr.log" || rc=$?
+  XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_OUT="$out" XIIO_REPLAY_PROFILE='.xiio/replay-profile.json'     XIIO_REPLAY_WORK_REF='game:159'     XIIO_TEST_PACKAGE_MODE="${XIIO_TEST_PACKAGE_MODE:-full}"     XIIO_TEST_QA_RC="${XIIO_TEST_QA_RC:-0}"     XIIO_TEST_ARTIFACT_MODE="${XIIO_TEST_ARTIFACT_MODE:-present}"     XIIO_TEST_LOCK_MODE="${XIIO_TEST_LOCK_MODE:-present}"     XIIO_TEST_INSTALL_MARKER="${XIIO_TEST_INSTALL_MARKER:-}"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$out/stdout.log" 2>"$out/stderr.log" || rc=$?
   echo "$rc"
 }
 
 # No accepted product profile means there is no qualification denominator.
 OUT0="$TEMP/no-profile"; mkdir -p "$OUT0"; rc=0
-XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" XIIO_REPLAY_OUT="$OUT0"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$OUT0/stdout.log" 2>"$OUT0/stderr.log" || rc=$?
+INSTALL_MARKER0="$OUT0/install-called"
+XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" XIIO_REPLAY_OUT="$OUT0" XIIO_TEST_INSTALL_MARKER="$INSTALL_MARKER0"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$OUT0/stdout.log" 2>"$OUT0/stderr.log" || rc=$?
 [ "$rc" = 2 ] || { echo "FAIL: no-profile returned $rc"; exit 1; }
 grep -q 'first_red=GATE_PROFILE_REQUIRED' "$OUT0/stdout.log"
+[ ! -e "$INSTALL_MARKER0" ] || { echo "FAIL: install ran before profile validation"; exit 1; }
 
 # Accepted profile requires qa:release; product source omitting that named script is blocked.
 OUT1="$TEMP/omitted-qa"
@@ -137,6 +145,17 @@ if(r.gate_profile_complete!==false||r.release_qualified!==false) throw Error('mi
 if(!String(r.first_red).startsWith('REQUIRED_ARTIFACT_MISSING:qa-release:artifacts/release.json'))
   throw Error('first missing artifact not preserved');
 NODE
+
+# Accepted profile with package.json but no lockfile must refuse before dependency install.
+OUTLOCK="$TEMP/no-lockfile"
+XIIO_TEST_LOCK_MODE=missing
+INSTALL_MARKER_LOCK="$OUTLOCK/install-called"
+XIIO_TEST_INSTALL_MARKER="$INSTALL_MARKER_LOCK"
+rc=$(run_replay "$OUTLOCK")
+unset XIIO_TEST_LOCK_MODE XIIO_TEST_INSTALL_MARKER
+[ "$rc" = 2 ] || { echo "FAIL: no-lockfile returned $rc"; exit 1; }
+grep -q 'first_red=LOCKFILE_REQUIRED' "$OUTLOCK/stdout.log"
+[ ! -e "$INSTALL_MARKER_LOCK" ] || { echo "FAIL: unlocked install executed"; exit 1; }
 
 # Legacy caller-owned gate lists are no longer an admission surface.
 OUT5="$TEMP/legacy-list"; mkdir -p "$OUT5"; rc=0
