@@ -1,13 +1,25 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { bindHexFloorCurrentness } from '../currentness/hex-floor.mjs';
 
 export const PRODUCT_BASELINE_SCHEMA = 'xiio.sdk.product-capability-baseline/v1';
-export const PRODUCT_BASELINE_CELLS = Object.freeze([
-  'REGISTRATION','PRODUCT_CLASSIFICATION','REPO_BINDING','DOMAIN_OWNER','IA_RECIPE','SDK_PRIMITIVE_CENSUS',
-  'BRAND_PROFILE','PERSONA_PROFILE','API_CONTRACT','SIMULATION_PROFILE','ACK_PROFILE','RETURN_READBACK',
-]);
-const INPUT_STATES = new Set(['PASS','PARTIAL','BLOCKED','UNKNOWN','N_A_WITH_EVIDENCE']);
-const POSITIVE = new Set(['PASS','N_A_WITH_EVIDENCE']);
+export const PRODUCT_BASELINE_CONTRACT=Object.freeze(JSON.parse(
+  fs.readFileSync(new URL('./product-capability-contract.v1.json',import.meta.url),'utf8')
+));
+if(PRODUCT_BASELINE_CONTRACT?.schema!=='xiio.sdk.product-capability-baseline-contract/v1'||
+   PRODUCT_BASELINE_CONTRACT?.version!==1)
+  throw new TypeError('PRODUCT_BASELINE_CONTRACT_INVALID');
+const exactUnique=(values,code)=>{
+  if(!Array.isArray(values)||values.length===0||values.some(v=>typeof v!=='string'||!v.trim())||
+     new Set(values).size!==values.length)throw new TypeError(code);
+  return Object.freeze([...values]);
+};
+export const PRODUCT_BASELINE_CELLS=exactUnique(PRODUCT_BASELINE_CONTRACT.cells,'PRODUCT_BASELINE_CELL_DENOMINATOR_INVALID');
+export const PRODUCT_BASELINE_INPUT_STATES=exactUnique(PRODUCT_BASELINE_CONTRACT.observation_states,'PRODUCT_BASELINE_STATE_DENOMINATOR_INVALID');
+export const PRODUCT_BASELINE_POSITIVE_STATES=exactUnique(PRODUCT_BASELINE_CONTRACT.positive_states,'PRODUCT_BASELINE_POSITIVE_DENOMINATOR_INVALID');
+const INPUT_STATES = new Set(PRODUCT_BASELINE_INPUT_STATES);
+const POSITIVE = new Set(PRODUCT_BASELINE_POSITIVE_STATES);
+for(const state of POSITIVE)if(!INPUT_STATES.has(state))throw new TypeError('PRODUCT_BASELINE_POSITIVE_STATE_FOREIGN');
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
