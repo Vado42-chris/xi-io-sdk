@@ -4,14 +4,11 @@
 set -uo pipefail
 
 REPO=${1:?owner/repo}; SHA=${2:?commit sha}; GATE=${3:-}; WD=${4:-.}
-REQUIRED_GATE_CSV=${XIIO_REPLAY_REQUIRED_GATES:-}
-REQUESTED_GATE_CSV=${XIIO_REPLAY_REQUESTED_GATES:-}
+PROFILE_REF=${XIIO_REPLAY_PROFILE:-}
+LEGACY_REQUIRED_GATE_CSV=${XIIO_REPLAY_REQUIRED_GATES:-}
+LEGACY_REQUESTED_GATE_CSV=${XIIO_REPLAY_REQUESTED_GATES:-}
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "XIIO_REPLAY=BLOCKED first_red=INVALID_REPO_REF"; exit 2; }
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "XIIO_REPLAY=BLOCKED first_red=SHA_NOT_FULL_40_HEX"; exit 2; }
-if [ -n "$GATE" ] && [ -n "$REQUESTED_GATE_CSV" ]; then
-  echo "XIIO_REPLAY=BLOCKED first_red=AMBIGUOUS_GATE_INPUT"
-  exit 2
-fi
 OUT=${XIIO_REPLAY_OUT:-$PWD/xiio-replay-$(echo "$REPO" | tr / _)-${SHA:0:12}}
 mkdir -p "$OUT" || exit 2
 OUT=$(realpath -e "$OUT") || exit 2
@@ -75,6 +72,17 @@ blocked(){
   return 2
 }
 
+# Replay never accepts caller-selected shell commands or inferred gate lists.
+# The product owner supplies one accepted source-bound profile from the exact checkout.
+if [ -n "$GATE" ]; then
+  blocked ARBITRARY_GATE_COMMAND_REFUSED accepted_product_gate_profile
+  exit 2
+fi
+if [ -n "$LEGACY_REQUIRED_GATE_CSV" ] || [ -n "$LEGACY_REQUESTED_GATE_CSV" ]; then
+  blocked LEGACY_GATE_LIST_REFUSED accepted_product_gate_profile
+  exit 2
+fi
+
 # Checkout is deliberately fresh. The authorized worker supplies its normal
 # credential helper, if any. Never export a connector token to git or stdout.
 step git clone "https://github.com/$REPO" '[temporary checkout]'
@@ -112,121 +120,184 @@ elif [ -f pnpm-lock.yaml ]; then step pnpm install --frozen-lockfile; (corepack 
 elif [ -f package-lock.json ]; then step npm ci; npm ci --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
 elif [ -f package.json ]; then step npm install --no-audit --no-fund; npm install --no-audit --no-fund >>"$LOG" 2>&1 || INSTALL_RC=$?
 fi
-normalize_gate_csv() {
-  local csv=$1
-  node - "$csv" <<'NODE'
-const raw=process.argv[2]||"";
-const parts=raw===""?[]:raw.split(",");
-if(parts.some(x=>!/^[A-Za-z0-9:_-]+$/.test(x))) process.exit(2);
-if(new Set(parts).size!==parts.length) process.exit(3);
-process.stdout.write(JSON.stringify(parts));
-NODE
+if [ -z "$PROFILE_REF" ]; then
+  blocked GATE_PROFILE_REQUIRED accepted_product_gate_profile
+  exit 2
+fi
+PROFILE_PATH=$(realpath -e "$SOURCE_ROOT/$PROFILE_REF" 2>>"$LOG") || {
+  blocked GATE_PROFILE_MISSING accepted_product_gate_profile
+  exit 2
 }
+case "$PROFILE_PATH" in
+  "$SOURCE_ROOT"/*) [ -f "$PROFILE_PATH" ] || { blocked GATE_PROFILE_NOT_FILE accepted_product_gate_profile; exit 2; } ;;
+  *) blocked GATE_PROFILE_ESCAPE accepted_product_gate_profile; exit 2 ;;
+esac
 
-REQUIRED_GATES_JSON=$(normalize_gate_csv "$REQUIRED_GATE_CSV") || {
-  rc=$?
-  if [ "$rc" = 3 ]; then blocked DUPLICATE_REQUIRED_GATE exact_release_gate_profile
-  else blocked INVALID_REQUIRED_GATE exact_release_gate_profile
-  fi
-  exit 2
-}
-REQUESTED_GATES_JSON=$(normalize_gate_csv "$REQUESTED_GATE_CSV") || {
-  rc=$?
-  if [ "$rc" = 3 ]; then blocked DUPLICATE_REQUESTED_GATE exact_release_gate_profile
-  else blocked INVALID_REQUESTED_GATE exact_release_gate_profile
-  fi
-  exit 2
-}
-if [ "$REQUIRED_GATES_JSON" != "[]" ] && [ "$REQUESTED_GATES_JSON" = "[]" ]; then
-  blocked REQUESTED_GATE_LIST_REQUIRED exact_release_gate_profile
-  exit 2
-fi
-if [ "$REQUESTED_GATES_JSON" != "[]" ] && [ ! -f package.json ]; then
-  blocked PACKAGE_JSON_REQUIRED exact_release_gate_profile
-  exit 2
-fi
-if [ "$REQUIRED_GATES_JSON" != "[]" ] || [ "$REQUESTED_GATES_JSON" != "[]" ]; then
-  REQUIRED_GATES_JSON="$REQUIRED_GATES_JSON" REQUESTED_GATES_JSON="$REQUESTED_GATES_JSON" node - <<'NODE' || {
+PROFILE_NORMALIZED="$WORK/profile.normalized.json"
+PROFILE_RC=0
+XIIO_PROFILE_PATH="$PROFILE_PATH" XIIO_PROFILE_SHA="$SHA" node - <<'NODE' >"$PROFILE_NORMALIZED" || PROFILE_RC=$?
 const fs=require("fs");
+const crypto=require("crypto");
+const path=require("path");
+const p=JSON.parse(fs.readFileSync(process.env.XIIO_PROFILE_PATH,"utf8"));
+const fail=(code)=>{ console.error(code); process.exit(20); };
+if(p?.schema!=="xiio.repo-gate-profile/v1") fail("PROFILE_SCHEMA_UNSUPPORTED");
+if(p?.acceptance?.status!=="ACCEPTED" || typeof p?.acceptance?.authority_ref!=="string" || !p.acceptance.authority_ref.trim())
+  fail("PROFILE_NOT_ACCEPTED");
+if(typeof p?.product_ref!=="string" || !p.product_ref.trim()) fail("PROFILE_PRODUCT_REF_MISSING");
+if(p?.head_sha!==process.env.XIIO_PROFILE_SHA) fail("PROFILE_HEAD_SHA_MISMATCH");
+if(!Array.isArray(p?.steps) || !p.steps.length) fail("PROFILE_STEPS_MISSING");
+const ids=new Set();
+const scripts=new Set();
+for(const step of p.steps){
+  if(!step || typeof step.id!=="string" || !/^[A-Za-z0-9:_-]+$/.test(step.id)) fail("PROFILE_STEP_ID_INVALID");
+  if(ids.has(step.id)) fail("PROFILE_STEP_ID_DUPLICATE");
+  ids.add(step.id);
+  if(typeof step.script!=="string" || !/^[A-Za-z0-9:_-]+$/.test(step.script)) fail("PROFILE_STEP_SCRIPT_INVALID");
+  if(scripts.has(step.script)) fail("PROFILE_STEP_SCRIPT_DUPLICATE");
+  scripts.add(step.script);
+  const artifacts=step.artifacts??[];
+  if(!Array.isArray(artifacts)) fail("PROFILE_ARTIFACTS_INVALID");
+  const artifactPaths=new Set();
+  for(const artifact of artifacts){
+    if(!artifact || typeof artifact.path!=="string" || !artifact.path.trim()) fail("PROFILE_ARTIFACT_PATH_INVALID");
+    if(path.isAbsolute(artifact.path) || artifact.path.split(/[\\/]+/).includes("..")) fail("PROFILE_ARTIFACT_PATH_ESCAPE");
+    if(artifactPaths.has(artifact.path)) fail("PROFILE_ARTIFACT_DUPLICATE");
+    artifactPaths.add(artifact.path);
+  }
+}
+const raw=fs.readFileSync(process.env.XIIO_PROFILE_PATH);
+process.stdout.write(JSON.stringify({
+  ...p,
+  profile_sha256:crypto.createHash("sha256").update(raw).digest("hex")
+}));
+NODE
+if [ "$PROFILE_RC" -ne 0 ] || [ ! -s "$PROFILE_NORMALIZED" ]; then
+  blocked GATE_PROFILE_INVALID accepted_product_gate_profile
+  exit 2
+fi
+
+PROFILE_JSON=$(cat "$PROFILE_NORMALIZED")
+PRODUCT_REF=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_JSON).product_ref)')
+PROFILE_AUTHORITY_REF=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_JSON).acceptance.authority_ref)')
+PROFILE_SHA256=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_JSON).profile_sha256)')
+REQUIRED_GATES_JSON=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.env.PROFILE_JSON).steps.map(x=>x.id)))')
+
+if [ ! -f package.json ]; then
+  blocked PACKAGE_JSON_REQUIRED accepted_product_gate_profile
+  exit 2
+fi
+PROFILE_JSON="$PROFILE_JSON" node - <<'NODE' || {
+const fs=require("fs");
+const p=JSON.parse(process.env.PROFILE_JSON);
 const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));
-for(const [kind,key] of [["required","REQUIRED_GATES_JSON"],["requested","REQUESTED_GATES_JSON"]]){
-  for(const gate of JSON.parse(process.env[key])){
-    if(typeof pkg.scripts?.[gate] !== "string" || !pkg.scripts[gate].trim()){
-      process.exit(kind==="required"?21:22);
-    }
+for(const step of p.steps){
+  if(typeof pkg.scripts?.[step.script]!=="string" || !pkg.scripts[step.script].trim()){
+    console.error("PROFILE_STEP_SCRIPT_NOT_DECLARED:"+step.id+":"+step.script);
+    process.exit(21);
   }
 }
 NODE
-    rc=$?
-    if [ "$rc" = 21 ]; then blocked REQUIRED_GATE_NOT_DECLARED exact_release_gate_profile
-    else blocked REQUESTED_GATE_NOT_DECLARED exact_release_gate_profile
-    fi
-    exit 2
-  }
-fi
+  blocked PROFILE_STEP_SCRIPT_NOT_DECLARED exact_profile_step
+  exit 2
+}
 
-CMD="$GATE"
-GATE_RC=2
+GATE_RC=0
+OUTCOME=success
 EXECUTED_GATES_JSON='[]'
-if [ "$INSTALL_RC" = 0 ] && [ "$REQUESTED_GATES_JSON" != "[]" ]; then
-  GATE_RC=0
-  mapfile -t REQUESTED_GATES < <(REQUESTED_GATES_JSON="$REQUESTED_GATES_JSON" node -e 'for(const x of JSON.parse(process.env.REQUESTED_GATES_JSON)) console.log(x)')
-  for gate in "${REQUESTED_GATES[@]}"; do
-    cmd="npm run $gate"
-    step "$cmd"
-    rc=0
-    npm run "$gate" >>"$LOG" 2>&1 || rc=$?
-    EXECUTED_GATES_JSON=$(EXECUTED_GATES_JSON="$EXECUTED_GATES_JSON" GATE_NAME="$gate" GATE_COMMAND="$cmd" GATE_EXIT="$rc" node -e '
-      const xs=JSON.parse(process.env.EXECUTED_GATES_JSON);
-      xs.push({gate:process.env.GATE_NAME,command:process.env.GATE_COMMAND,exit:+process.env.GATE_EXIT});
-      process.stdout.write(JSON.stringify(xs));')
-    if [ "$rc" -ne 0 ]; then GATE_RC=$rc; break; fi
-  done
-  CMD=$(REQUESTED_GATES_JSON="$REQUESTED_GATES_JSON" node -e 'process.stdout.write(JSON.parse(process.env.REQUESTED_GATES_JSON).map(x=>"npm run "+x).join(" && "))')
-elif [ "$INSTALL_RC" = 0 ]; then
-  if [ -z "$CMD" ] && [ -f package.json ]; then
-    for s in check verify test; do node -e "process.exit(require('./package.json').scripts?.['$s'] ? 0 : 1)" && { CMD="npm run $s"; break; }; done
+ARTIFACT_EVIDENCE_JSON='[]'
+FIRST_RED=''
+mapfile -t PROFILE_STEPS < <(PROFILE_JSON="$PROFILE_JSON" node -e 'for(const x of JSON.parse(process.env.PROFILE_JSON).steps) console.log(Buffer.from(JSON.stringify(x)).toString("base64"))')
+for encoded in "${PROFILE_STEPS[@]}"; do
+  step_json=$(printf '%s' "$encoded" | base64 -d)
+  gate_id=$(STEP_JSON="$step_json" node -e 'process.stdout.write(JSON.parse(process.env.STEP_JSON).id)')
+  gate_script=$(STEP_JSON="$step_json" node -e 'process.stdout.write(JSON.parse(process.env.STEP_JSON).script)')
+  cmd="npm run $gate_script"
+  step "$cmd"
+  rc=0
+  npm run "$gate_script" >>"$LOG" 2>&1 || rc=$?
+  EXECUTED_GATES_JSON=$(EXECUTED_GATES_JSON="$EXECUTED_GATES_JSON" GATE_NAME="$gate_id" GATE_SCRIPT="$gate_script" GATE_COMMAND="$cmd" GATE_EXIT="$rc" node -e '
+    const xs=JSON.parse(process.env.EXECUTED_GATES_JSON);
+    xs.push({gate:process.env.GATE_NAME,script:process.env.GATE_SCRIPT,command:process.env.GATE_COMMAND,exit:+process.env.GATE_EXIT});
+    process.stdout.write(JSON.stringify(xs));')
+  if [ "$rc" -ne 0 ]; then
+    GATE_RC=$rc
+    OUTCOME=failure
+    FIRST_RED="REQUIRED_GATE_FAILED:$gate_id"
+    break
   fi
-  if [ -n "$CMD" ]; then
-    step "$CMD"
-    bash -eo pipefail -c "$CMD" >>"$LOG" 2>&1
-    GATE_RC=$?
-  fi
-fi
 
-OUTCOME=$([ "$INSTALL_RC" = 0 ] && [ "$GATE_RC" = 0 ] && echo success || echo failure)
-PROFILE_EVAL=$(REQUIRED_GATES_JSON="$REQUIRED_GATES_JSON" EXECUTED_GATES_JSON="$EXECUTED_GATES_JSON" OUTCOME="$OUTCOME" node - <<'NODE'
+  mapfile -t STEP_ARTIFACTS < <(STEP_JSON="$step_json" node -e 'for(const x of (JSON.parse(process.env.STEP_JSON).artifacts??[])) console.log(x.path)')
+  for artifact_ref in "${STEP_ARTIFACTS[@]}"; do
+    artifact_path=$(realpath -e "$TARGET/$artifact_ref" 2>>"$LOG") || {
+      OUTCOME=incomplete
+      GATE_RC=3
+      FIRST_RED="REQUIRED_ARTIFACT_MISSING:$gate_id:$artifact_ref"
+      break 2
+    }
+    case "$artifact_path" in
+      "$TARGET"/*) [ -f "$artifact_path" ] || {
+        OUTCOME=incomplete
+        GATE_RC=3
+        FIRST_RED="REQUIRED_ARTIFACT_NOT_FILE:$gate_id:$artifact_ref"
+        break 2
+      } ;;
+      *)
+        OUTCOME=blocked
+        GATE_RC=2
+        FIRST_RED="REQUIRED_ARTIFACT_ESCAPE:$gate_id:$artifact_ref"
+        break 2
+        ;;
+    esac
+    artifact_sha=$(sha256sum "$artifact_path" | cut -d' ' -f1)
+    artifact_bytes=$(wc -c <"$artifact_path" | tr -d ' ')
+    ARTIFACT_EVIDENCE_JSON=$(ARTIFACT_EVIDENCE_JSON="$ARTIFACT_EVIDENCE_JSON" GATE_NAME="$gate_id" ARTIFACT_REF="$artifact_ref" ARTIFACT_SHA="$artifact_sha" ARTIFACT_BYTES="$artifact_bytes" node -e '
+      const xs=JSON.parse(process.env.ARTIFACT_EVIDENCE_JSON);
+      xs.push({gate:process.env.GATE_NAME,path:process.env.ARTIFACT_REF,sha256:process.env.ARTIFACT_SHA,bytes:+process.env.ARTIFACT_BYTES,readback:"LOCAL_FILE_SHA256"});
+      process.stdout.write(JSON.stringify(xs));')
+  done
+done
+
+CMD=$(PROFILE_JSON="$PROFILE_JSON" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_JSON).steps.map(x=>"npm run "+x.script).join(" && "))')
+PROFILE_EVAL=$(REQUIRED_GATES_JSON="$REQUIRED_GATES_JSON" EXECUTED_GATES_JSON="$EXECUTED_GATES_JSON" OUTCOME="$OUTCOME" FIRST_RED="$FIRST_RED" node - <<'NODE'
 const required=JSON.parse(process.env.REQUIRED_GATES_JSON);
 const executed=JSON.parse(process.env.EXECUTED_GATES_JSON);
-if(!required.length){
-  process.stdout.write(JSON.stringify({status:"NO_REQUIRED_GATE_PROFILE",complete:false,missing:[]}));
-  process.exit(0);
-}
 const attempted=new Map(executed.map(x=>[x.gate,x.exit]));
 const missing=required.filter(x=>!attempted.has(x));
 const failed=required.filter(x=>attempted.has(x) && attempted.get(x)!==0);
-if(missing.length){
-  process.stdout.write(JSON.stringify({status:"INCOMPLETE_REQUIRED_GATES",complete:false,missing}));
-} else if(failed.length || process.env.OUTCOME!=="success"){
-  process.stdout.write(JSON.stringify({status:"REQUIRED_GATE_FAILURE",complete:false,missing:[]}));
-} else {
-  process.stdout.write(JSON.stringify({status:"GATE_PROFILE_COMPLETE_PENDING_EXECUTOR_QUALIFICATION",complete:true,missing:[]}));
+let status,complete=false;
+if(process.env.OUTCOME==="incomplete"){
+  status="INCOMPLETE_REQUIRED_ARTIFACTS";
+}else if(process.env.OUTCOME==="blocked"){
+  status="BLOCKED_REQUIRED_ARTIFACT_READBACK";
+}else if(missing.length){
+  status="INCOMPLETE_REQUIRED_GATES";
+}else if(failed.length || process.env.OUTCOME==="failure"){
+  status="REQUIRED_GATE_FAILURE";
+}else{
+  status="GATE_PROFILE_COMPLETE_PENDING_EXECUTOR_QUALIFICATION";
+  complete=true;
 }
+process.stdout.write(JSON.stringify({status,complete,missing,first_red:process.env.FIRST_RED||null}));
 NODE
 )
 GATE_PROFILE_STATUS=$(PROFILE_EVAL="$PROFILE_EVAL" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_EVAL).status)')
 GATE_PROFILE_COMPLETE=$(PROFILE_EVAL="$PROFILE_EVAL" node -e 'process.stdout.write(String(JSON.parse(process.env.PROFILE_EVAL).complete))')
 MISSING_GATES_JSON=$(PROFILE_EVAL="$PROFILE_EVAL" node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.env.PROFILE_EVAL).missing))')
+FIRST_RED=$(PROFILE_EVAL="$PROFILE_EVAL" node -e 'process.stdout.write(JSON.parse(process.env.PROFILE_EVAL).first_red||"")')
 LOG_SHA=$(sha256sum "$LOG" | cut -d' ' -f1)
 export REPO SHA CMD OUTCOME TREE WD INSTALL_RC GATE_RC NODE_V BUN_V LOG_SHA OUT
-export REQUIRED_GATES_JSON REQUESTED_GATES_JSON EXECUTED_GATES_JSON GATE_PROFILE_STATUS GATE_PROFILE_COMPLETE MISSING_GATES_JSON
+export PROFILE_REF PRODUCT_REF PROFILE_AUTHORITY_REF PROFILE_SHA256
+export REQUIRED_GATES_JSON EXECUTED_GATES_JSON ARTIFACT_EVIDENCE_JSON GATE_PROFILE_STATUS GATE_PROFILE_COMPLETE MISSING_GATES_JSON FIRST_RED
 RECEIPT_RC=0
 node -e '
 const e=process.env,r={schema:"xiio.repo-gate-receipt/v1",repository:e.REPO,head_sha:e.SHA,
  ref:null,event:"replay",run_id:null,runner:"replay:"+require("os").hostname(),command:e.CMD||null,
  outcome:e.OUTCOME,written_at:new Date().toISOString(),work_ref:e.XIIO_REPLAY_WORK_REF||null,
- required_gates:JSON.parse(e.REQUIRED_GATES_JSON),requested_gates:JSON.parse(e.REQUESTED_GATES_JSON),
- executed_gates:JSON.parse(e.EXECUTED_GATES_JSON),missing_required_gates:JSON.parse(e.MISSING_GATES_JSON),
+ product_ref:e.PRODUCT_REF,gate_profile_ref:e.PROFILE_REF,gate_profile_authority_ref:e.PROFILE_AUTHORITY_REF,
+ gate_profile_sha256:e.PROFILE_SHA256,required_gates:JSON.parse(e.REQUIRED_GATES_JSON),
+ executed_gates:JSON.parse(e.EXECUTED_GATES_JSON),artifact_evidence:JSON.parse(e.ARTIFACT_EVIDENCE_JSON),
+ missing_required_gates:JSON.parse(e.MISSING_GATES_JSON),first_red:e.FIRST_RED||null,
  gate_profile_status:e.GATE_PROFILE_STATUS,gate_profile_complete:e.GATE_PROFILE_COMPLETE==="true",
  release_qualified:false,
  hard:["GATE_PASS != LIVE","RECEIPT != OWNER_ACCEPTANCE","REPLAY_RECEIPT != GITHUB_CHECK",
@@ -242,9 +313,13 @@ if [ "$RECEIPT_RC" -ne 0 ] || [ ! -s "$OUT/xiio-gate-receipt.json" ]; then
   echo "XIIO_REPLAY=BLOCKED first_red=RECEIPT_WRITE_FAILED"
   exit 2
 fi
-if [ "$OUTCOME" != success ]; then exit 1; fi
-if [ "$REQUIRED_GATES_JSON" != "[]" ] && [ "$GATE_PROFILE_COMPLETE" != true ]; then
-  echo "XIIO_REPLAY=INCOMPLETE first_red=REQUIRED_GATES_NOT_ALL_EXECUTED"
+if [ "$OUTCOME" = failure ]; then exit 1; fi
+if [ "$OUTCOME" = blocked ]; then
+  echo "XIIO_REPLAY=BLOCKED first_red=$FIRST_RED"
+  exit 2
+fi
+if [ "$OUTCOME" = incomplete ] || [ "$GATE_PROFILE_COMPLETE" != true ]; then
+  echo "XIIO_REPLAY=INCOMPLETE first_red=${FIRST_RED:-REQUIRED_PROFILE_NOT_COMPLETE}"
   exit 3
 fi
 exit 0
