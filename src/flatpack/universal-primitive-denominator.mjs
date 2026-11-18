@@ -1,36 +1,44 @@
+import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const HERE=dirname(fileURLToPath(import.meta.url));
+const CONTRACT_PATH=join(HERE,'universal-primitive-denominator.v1.json');
+const RAW_DENOMINATOR=readFileSync(CONTRACT_PATH);
+const gitBlobSha=createHash('sha1')
+  .update(Buffer.concat([Buffer.from('blob '+RAW_DENOMINATOR.length+'\0'),RAW_DENOMINATOR]))
+  .digest('hex');
+const rawSha256=createHash('sha256').update(RAW_DENOMINATOR).digest('hex');
+const parsed=JSON.parse(RAW_DENOMINATOR);
+
 export const UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE=Object.freeze({
   schema:'xiio.universal-primitive-denominator-source/v1',
   framework_ref:'Vado42-chris/xi-io.net#1178:standards/primitives/universal-primitive-denominator.v1.json',
   source_state:'CANDIDATE_PENDING_FRAMEWORK_1178_ACCEPTANCE',
-  framework_generation:null,
+  framework_generation:'30ded1bac84e4f298ca2252a92d8384b2b153c7b',
+  framework_blob_sha:'4c4bd9691749d83f963583022fc97fb63d2182ac',
+  packaged_blob_sha:gitBlobSha,
   contract_schema:'xiio.universal-primitive-denominator/v1',
   contract_version:1,
-  contract_sha256:'d95710a7d097f2239dc4b230516a2280a0286b70a0990b92d3ad69a35d423952',
+  contract_sha256:rawSha256,
 });
 
-export const UNIVERSAL_PRIMITIVE_DENOMINATOR=Object.freeze({
-  schema:'xiio.universal-primitive-denominator/v1',
-  id:'XIIO_UNIVERSAL_PRIMITIVE_DENOMINATOR',
-  version:1,
-  purpose:'Canonical invariant denominator for primitive semantic families, structural operations and universal required primitive fields. Runtime currentness, authority, effects and readback remain separate receipts.',
-  required_fields:Object.freeze(['identity','semantic_type','coordinates','relationships','operations','provenance','authority','state','version','projection']),
-  families:Object.freeze({
-    visual:Object.freeze(['rectangle','text','image','group','layer','constraint','connection']),
-    document:Object.freeze(['paragraph','heading','table','cell','citation','media','section']),
-    code:Object.freeze(['module','class','component','function','route','schema','property','test','api_operation']),
-    studio:Object.freeze(['product','tool','setting','drawer','offering','plugin','service','person','agent','project']),
-    work:Object.freeze(['task','check','action','input','command','selection','composer','stateful_control']),
-  }),
-  structural_operations:Object.freeze(['CREATE','SELECT','INSPECT','MOVE','RESIZE','TRANSFORM','GROUP','CONNECT','DUPLICATE','VERSION','DIFF','UNDO','DELETE','PUBLISH']),
-  hard:Object.freeze([
-    'CONTRACT_HASH_MATCH!=PRIMITIVE_INSTANCE_VALID',
-    'ROOT_SUBSET_PRESENT!=EXACT_CANONICAL_DENOMINATOR',
-    'NONEMPTY_FAMILY!=SEMANTIC_PARITY',
-    'DUPLICATE_SEMANTIC_TYPE=FAIL',
-    'DUPLICATE_OPERATION=FAIL',
-    'REPRESENTATION_LOCAL_EXTENSION_WITHOUT_DENOMINATOR_VERSION=FAIL',
-  ]),
-});
+if(UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.packaged_blob_sha!==UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.framework_blob_sha)
+  throw new Error('PRIMITIVE_DENOMINATOR_FRAMEWORK_BLOB_MISMATCH');
+if(parsed?.schema!==UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_schema||
+   parsed?.version!==UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_version)
+  throw new Error('PRIMITIVE_DENOMINATOR_SCHEMA_VERSION_MISMATCH');
+
+const freezeDeep=value=>{
+  if(value&&typeof value==='object'){
+    for(const child of Object.values(value))freezeDeep(child);
+    Object.freeze(value);
+  }
+  return value;
+};
+
+export const UNIVERSAL_PRIMITIVE_DENOMINATOR=freezeDeep(parsed);
 
 export const UNIVERSAL_PRIMITIVE_SEMANTIC_TYPES=Object.freeze(
   Object.values(UNIVERSAL_PRIMITIVE_DENOMINATOR.families).flat()
