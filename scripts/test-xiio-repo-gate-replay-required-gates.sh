@@ -7,6 +7,19 @@ REAL_NODE=$(command -v node)
 trap 'rm -rf -- "$TEMP"' EXIT
 mkdir -p "$TEMP/bin"
 
+cat > "$TEMP/profile-template.json" <<'JSON'
+{
+  "schema":"xiio.repo-gate-profile/v1",
+  "product_ref":"game:veilrift",
+  "head_sha":"975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e",
+  "acceptance":{"status":"ACCEPTED","authority_ref":"product-profile:test-owner"},
+  "steps":[
+    {"id":"verify","script":"verify","artifacts":[]},
+    {"id":"qa-release","script":"qa:release","artifacts":[{"path":"artifacts/release.json"}]}
+  ]
+}
+JSON
+
 cat > "$TEMP/bin/git" <<'MOCK'
 #!/usr/bin/env bash
 if [ "$1" = clone ]; then
@@ -24,18 +37,7 @@ JSON
   if [ "${XIIO_TEST_LOCK_MODE:-present}" = present ]; then
     printf '{"lockfileVersion":3,"packages":{}}\n' > "$dest/package-lock.json"
   fi
-  cat > "$dest/.xiio/replay-profile.json" <<'JSON'
-{
-  "schema":"xiio.repo-gate-profile/v1",
-  "product_ref":"game:veilrift",
-  "head_sha":"975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e",
-  "acceptance":{"status":"ACCEPTED","authority_ref":"product-profile:test-owner"},
-  "steps":[
-    {"id":"verify","script":"verify","artifacts":[]},
-    {"id":"qa-release","script":"qa:release","artifacts":[{"path":"artifacts/release.json"}]}
-  ]
-}
-JSON
+  cp "$XIIO_TEST_PROFILE_TEMPLATE" "$dest/.xiio/replay-profile.json"
   exit 0
 fi
 if [ "$1" = -C ] && [ "$3" = checkout ]; then exit 0; fi
@@ -75,18 +77,34 @@ chmod +x "$TEMP/bin/npm"
 run_replay() {
   local out=$1
   mkdir -p "$out"
+  local profile_sha custody="$out/profile-custody.json"
+  profile_sha="$(sha256sum "$TEMP/profile-template.json" | cut -d' ' -f1)"
+  cat > "$custody" <<JSON
+{"schema":"xiio.repo-gate-profile-custody/v1","state":"ACCEPTED_READBACK","repository":"Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026","head_sha":"$SHA","profile_ref":".xiio/replay-profile.json","profile_sha256":"$profile_sha","authority_ref":"product-profile:test-owner","readback_ref":"readback:test-profile:$SHA"}
+JSON
   local rc=0
-  XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_OUT="$out" XIIO_REPLAY_PROFILE='.xiio/replay-profile.json'     XIIO_REPLAY_WORK_REF='game:159'     XIIO_TEST_PACKAGE_MODE="${XIIO_TEST_PACKAGE_MODE:-full}"     XIIO_TEST_QA_RC="${XIIO_TEST_QA_RC:-0}"     XIIO_TEST_ARTIFACT_MODE="${XIIO_TEST_ARTIFACT_MODE:-present}"     XIIO_TEST_LOCK_MODE="${XIIO_TEST_LOCK_MODE:-present}"     XIIO_TEST_INSTALL_MARKER="${XIIO_TEST_INSTALL_MARKER:-}"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$out/stdout.log" 2>"$out/stderr.log" || rc=$?
+  XIIO_TEST_REAL_NODE="$REAL_NODE" XIIO_TEST_PROFILE_TEMPLATE="$TEMP/profile-template.json" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_OUT="$out" XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_PROFILE_CUSTODY="$custody"     XIIO_REPLAY_WORK_REF='game:159'     XIIO_TEST_PACKAGE_MODE="${XIIO_TEST_PACKAGE_MODE:-full}"     XIIO_TEST_QA_RC="${XIIO_TEST_QA_RC:-0}"     XIIO_TEST_ARTIFACT_MODE="${XIIO_TEST_ARTIFACT_MODE:-present}"     XIIO_TEST_LOCK_MODE="${XIIO_TEST_LOCK_MODE:-present}"     XIIO_TEST_INSTALL_MARKER="${XIIO_TEST_INSTALL_MARKER:-}"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$out/stdout.log" 2>"$out/stderr.log" || rc=$?
   echo "$rc"
 }
 
 # No accepted product profile means there is no qualification denominator.
 OUT0="$TEMP/no-profile"; mkdir -p "$OUT0"; rc=0
 INSTALL_MARKER0="$OUT0/install-called"
-XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" XIIO_REPLAY_OUT="$OUT0" XIIO_TEST_INSTALL_MARKER="$INSTALL_MARKER0"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$OUT0/stdout.log" 2>"$OUT0/stderr.log" || rc=$?
+XIIO_TEST_REAL_NODE="$REAL_NODE" XIIO_TEST_PROFILE_TEMPLATE="$TEMP/profile-template.json" PATH="$TEMP/bin:$PATH" XIIO_REPLAY_OUT="$OUT0" XIIO_TEST_INSTALL_MARKER="$INSTALL_MARKER0"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$OUT0/stdout.log" 2>"$OUT0/stderr.log" || rc=$?
 [ "$rc" = 2 ] || { echo "FAIL: no-profile returned $rc"; exit 1; }
 grep -q 'first_red=GATE_PROFILE_REQUIRED' "$OUT0/stdout.log"
 [ ! -e "$INSTALL_MARKER0" ] || { echo "FAIL: install ran before profile validation"; exit 1; }
+
+# Checkout self-declaration is not independent profile acceptance.
+OUTC="$TEMP/no-custody"; mkdir -p "$OUTC"; rc=0
+INSTALL_MARKER_C="$OUTC/install-called"
+XIIO_TEST_REAL_NODE="$REAL_NODE" XIIO_TEST_PROFILE_TEMPLATE="$TEMP/profile-template.json" PATH="$TEMP/bin:$PATH" \
+  XIIO_REPLAY_OUT="$OUTC" XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_TEST_INSTALL_MARKER="$INSTALL_MARKER_C" \
+  bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" \
+  >"$OUTC/stdout.log" 2>"$OUTC/stderr.log" || rc=$?
+[ "$rc" = 2 ] || { echo "FAIL: no-custody returned $rc"; exit 1; }
+grep -q 'first_red=GATE_PROFILE_CUSTODY_REQUIRED' "$OUTC/stdout.log"
+[ ! -e "$INSTALL_MARKER_C" ] || { echo "FAIL: install ran without independent profile custody"; exit 1; }
 
 # Accepted profile requires qa:release; product source omitting that named script is blocked.
 OUT1="$TEMP/omitted-qa"
