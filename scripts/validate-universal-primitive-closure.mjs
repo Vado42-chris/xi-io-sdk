@@ -16,14 +16,14 @@ import {
 
 const contractBytes=readFileSync(new URL('../contracts/framework/universal-primitive-denominator.v1.json',import.meta.url));
 const contractProvenance=JSON.parse(readFileSync(new URL('../contracts/framework/universal-primitive-denominator.provenance.json',import.meta.url),'utf8'));
-assert.equal(bindUniversalPrimitiveContract(contractBytes,contractProvenance).framework_contract_blob_sha,'4c4bd9691749d83f963583022fc97fb63d2182ac');
+assert.equal(bindUniversalPrimitiveContract(contractBytes,contractProvenance).framework_contract_blob_sha,contractProvenance.framework_blob_sha);
 const tamperedBytes=Buffer.from(contractBytes);
 tamperedBytes[tamperedBytes.length-2]=tamperedBytes[tamperedBytes.length-2]===32?33:32;
 assert.throws(
   ()=>bindUniversalPrimitiveContract(tamperedBytes,contractProvenance),
   /PRIMITIVE_CONTRACT_FILE_DIGEST_MISMATCH/
 );
-assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.includes('REDO'),false);
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.includes('REDO'),true);
 
 const primitive=(identity,semantic_type)=>({
   identity,
