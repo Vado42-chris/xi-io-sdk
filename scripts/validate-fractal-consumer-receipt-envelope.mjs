@@ -66,6 +66,17 @@ assert.throws(()=>compileFractalConsumerReceiptEnvelope({
   applicability:'N_A'
 }),/NA_EVIDENCE_REF_REQUIRED/);
 
+for(const field of ['affected_refs','return_targets']){
+  assert.throws(()=>compileFractalConsumerReceiptEnvelope({
+    consumer_id:'HEX',
+    scale:'MICRO',
+    producer_ref:'p',
+    observer_ref:'o',
+    source_ref:'s',
+    conserved:{...conserved,[field]:['duplicate','duplicate']}
+  }),/REFS_DUPLICATE/);
+}
+
 
 
 // VeilRIFT B1 backfeed: retain caller-provided history without authenticating it.
@@ -104,5 +115,6 @@ console.log(JSON.stringify({
   state:'PASS',
   scales:FRACTAL_SCALES,
   emitter_self_verification:false,
+  duplicate_denominator_refs_refused:true,
   effect_authority:0
 },null,2));
