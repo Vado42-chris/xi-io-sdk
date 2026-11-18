@@ -38,9 +38,11 @@ const doc={
   contextual_settings:[{setting_ref:'setting:density',owner:'ARTICLES',admitted:true,value:'comfortable'}]}
 };
 assert.equal(validateUniversalArtifact(doc).ok,true);
-assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_blob_sha,'f9e7778a3ca81e486ceeb764c3ab84eb4a14af3d');
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_blob_sha,'4c4bd9691749d83f963583022fc97fb63d2182ac');
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_file_sha256,'d102ce8ca504bf5e0478b8aa40d5d8efe86a6e0ebd90dd41ce22e11c3735c61a');
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_semantic_sha256,'d95710a7d097f2239dc4b230516a2280a0286b70a0990b92d3ad69a35d423952');
 assert.ok(UNIVERSAL_PRIMITIVE_CONTRACT.semantic_families.code.includes('class'));
-assert.ok(UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.includes('REDO'));
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.includes('REDO'),false);
 assert.equal(validatePrimitiveAgainstUniversalContract(primitive('p:class','class')).ok,true);
 for(const field of UNIVERSAL_PRIMITIVE_CONTRACT.required_fields){
   const candidate=primitive('p:missing:'+field,'heading');delete candidate[field];
