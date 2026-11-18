@@ -37,6 +37,10 @@ export function validateUniversalPrimitiveDenominatorContract(value){
   if(!Array.isArray(row.structural_operations)||!row.structural_operations.length||
      new Set(row.structural_operations).size!==row.structural_operations.length||
      row.structural_operations.some(op=>typeof op!=='string'||!op.trim())) fail('PRIMITIVE_DENOMINATOR_OPERATIONS_INVALID');
+  if(!Array.isArray(row.universal_api_verbs)||!row.universal_api_verbs.length||
+     new Set(row.universal_api_verbs).size!==row.universal_api_verbs.length||
+     row.universal_api_verbs.some(verb=>typeof verb!=='string'||!verb.trim()))
+    fail('PRIMITIVE_DENOMINATOR_API_VERBS_INVALID');
   return row;
 }
 
