@@ -85,9 +85,11 @@ const billingResolution = resolveProductBillingAdmissionScope({
   requested_quantity: 1,
 });
 assert.equal(billingResolution.state, 'BILLING_ADMITTED_CURRENT');
-assert.equal(billingResolution.provider_attempt_allowed, true);
+assert.equal(billingResolution.billing_admission_matched, true);
+assert.equal(billingResolution.provider_attempt_allowed, false);
 assert.equal(billingResolution.billing_commit_allowed, false);
 assert.equal(billingResolution.effect_authority, false);
+assert.ok(billingResolution.hard.includes('PROVIDER_ATTEMPT_REQUIRES_SWITCHBOARD_ADMISSION'));
 
 console.log(JSON.stringify({
   check: 'PRODUCT_OPERATION_ADMISSION_BINDING',
@@ -98,6 +100,7 @@ console.log(JSON.stringify({
   superadmin_bypass_refused: true,
   currentness_clone_refused: true,
   exact_meter_and_quantity_bound: true,
+  billing_admission_not_provider_attempt: true,
   provider_attempt_not_billing_commit: true,
   action_allowed_not_effect_authority: true,
 }, null, 2));
