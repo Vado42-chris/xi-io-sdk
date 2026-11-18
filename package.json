@@ -122,7 +122,8 @@
     "./install/dependency-binding-client": "./src/install/installer-dependency-binding-client.mjs",
     "./worker/installed-observation": "./src/worker/installed-observation.mjs",
     "./catalog/contract-surface-inventory": "./src/catalog/contract-surface-inventory.mjs",
-    "./billing/product-operation-admission-binding": "./src/billing/product-operation-admission-binding.mjs"
+    "./billing/product-operation-admission-binding": "./src/billing/product-operation-admission-binding.mjs",
+    "./flatpack/universal-primitive-contract": "./src/flatpack/universal-primitive-contract.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
