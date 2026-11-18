@@ -15,9 +15,14 @@ const base=()=>({
 
 const clean=compileTwoSidedProviderMeterGate(base());
 assert.equal(clean.owner_to_ibal.open,true);
-assert.equal(clean.ibal_to_provider.provider_attempt_allowed,true);
-assert.equal(clean.provider_to_ibal.billing_commit_allowed,true);
-assert.equal(clean.provider_to_ibal.apply_return_allowed,true);
+assert.equal(clean.ibal_to_provider.provider_attempt_ready,true);
+assert.equal(clean.ibal_to_provider.provider_attempt_allowed,false);
+assert.equal(clean.provider_to_ibal.return_ready,true);
+assert.equal(clean.provider_to_ibal.return_allowed,false);
+assert.equal(clean.provider_to_ibal.apply_return_ready,true);
+assert.equal(clean.provider_to_ibal.apply_return_allowed,false);
+assert.equal(clean.provider_to_ibal.billing_commit_ready,true);
+assert.equal(clean.provider_to_ibal.billing_commit_allowed,false);
 assert.equal(clean.owner_relay_required,false);
 
 let ingressRejected=0;
@@ -26,8 +31,10 @@ for(let i=0;i<100;i++){
   x.owner_to_ibal.open=false;
   x.owner_to_ibal.typed_block='WAIT_PROVIDER_OR_ADMISSION';
   const out=compileTwoSidedProviderMeterGate(x);
+  assert.equal(out.ibal_to_provider.provider_attempt_ready,false);
   assert.equal(out.ibal_to_provider.provider_attempt_allowed,false);
   assert.equal(out.provider_to_ibal.state,'REFUSE_UNADMITTED_PROVIDER_RETURN');
+  assert.equal(out.provider_to_ibal.billing_commit_ready,false);
   assert.equal(out.provider_to_ibal.billing_commit_allowed,false);
   assert.equal(out.provider_to_ibal.apply_return_allowed,false);
   assert.equal(out.communication_ready,false);
@@ -48,8 +55,11 @@ for(let i=0;i<140;i++){
   const out=compileTwoSidedProviderMeterGate(x);
   assert.equal(out.ibal_to_provider.provider_attempt_allowed,false);
   assert.equal(out.provider_to_ibal.state,'REFUSE_UNADMITTED_PROVIDER_RETURN');
+  assert.equal(out.provider_to_ibal.return_ready,false);
   assert.equal(out.provider_to_ibal.return_allowed,false);
+  assert.equal(out.provider_to_ibal.billing_commit_ready,false);
   assert.equal(out.provider_to_ibal.billing_commit_allowed,false);
+  assert.equal(out.provider_to_ibal.apply_return_ready,false);
   assert.equal(out.provider_to_ibal.apply_return_allowed,false);
   egressRejected++;
 }
@@ -77,6 +87,10 @@ console.log(JSON.stringify({
   egress_hostiles:140,
   return_hostiles:100,
   false_green:0,
+  readiness_not_authority:true,
+  provider_attempt_allowed:false,
+  billing_commit_allowed:false,
+  apply_return_allowed:false,
   result:'PASS',
   effect_authority:0
 },null,2));
