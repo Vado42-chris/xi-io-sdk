@@ -22,6 +22,20 @@ function catalogPrimitives(catalog) {
   return catalog.primitives;
 }
 
+function frozenCallable(item) {
+  const styles = Array.isArray(item.styles) ? Object.freeze([...item.styles]) : Object.freeze([]);
+  return Object.freeze({
+    id: item.id,
+    callable_uuid: item.callable_uuid,
+    family: item.family,
+    kind: item.kind,
+    export: item.export,
+    specifier: item.specifier,
+    styles,
+    maturity: item.maturity,
+  });
+}
+
 export function validateCallableCatalog(catalog) {
   const primitives = catalogPrimitives(catalog);
   return Object.freeze({
@@ -39,7 +53,8 @@ export function resolveCallable(catalog, callableUuid) {
   const primitives = catalogPrimitives(catalog);
   const uuid = String(callableUuid ?? '').trim().toLowerCase();
   if (!UUID.test(uuid)) return null;
-  return primitives.find(item => String(item.callable_uuid).toLowerCase() === uuid) ?? null;
+  const found = primitives.find(item => String(item.callable_uuid).toLowerCase() === uuid);
+  return found ? frozenCallable(found) : null;
 }
 
 export function callableUuidFor(catalog, primitiveId) {
@@ -50,14 +65,5 @@ export function callableUuidFor(catalog, primitiveId) {
 
 export function listCallablePrimitives(catalog) {
   const primitives = catalogPrimitives(catalog);
-  return primitives.map(({ id, callable_uuid, family, kind, export: exportName, specifier, styles = [], maturity }) => ({
-    id,
-    callable_uuid,
-    family,
-    kind,
-    export: exportName,
-    specifier,
-    styles: [...styles],
-    maturity,
-  }));
+  return Object.freeze(primitives.map((item) => frozenCallable(item)));
 }
