@@ -58,7 +58,7 @@ export function admitEvent(intent,admission={},now=()=>new Date().toISOString(),
   return Object.freeze({...intent,state:'ADMITTED',admission_ref:admission.admission_ref,lease_ref:admission.lease_ref,expires_at:expires,admission_provenance_ref:ref(verified.provenance_ref,'ADMISSION_PROVENANCE_REF_REQUIRED'),authority_granted:false});
 }
 
-function verifyReceipt(admitted,receipt){
+function validateReceiptShape(admitted,receipt){
   if(receipt?.schema!=='xiio.consumer.apply-return-readback/v1'||receipt.state!=='APPLY_RETURN_READ_BACK')throw new TypeError('APPLY_RETURN_READBACK_REQUIRED');
   for(const key of [...REF_FIELDS,'consumption_identity_sha256','dedupe_ref','effect_idempotency_key']){
     if(receipt[key]!==admitted[key])throw new TypeError('CONSUMPTION_RECEIPT_IDENTITY_MISMATCH');
@@ -73,7 +73,7 @@ function verifyReceipt(admitted,receipt){
  * The store owns duplicate detection and atomic record creation. SDK never
  * treats a caller-supplied history list as proof that an occurrence is new.
  */
-export async function consumeEvent(admitted,{readConsumption,consumeOnce,clock=()=>new Date().toISOString()}={},receipt={}){
+export async function consumeEvent(admitted,{readConsumption,consumeOnce,verifyReceipt,clock=()=>new Date().toISOString()}={},receipt={}){
   if(admitted?.schema!==EVENT_CONSUMPTION_SCHEMA||admitted.state!=='ADMITTED')throw new TypeError('ADMITTED_EVENT_REQUIRED');
   const recomputed=createEventIntent(admitted);
   if(recomputed.consumption_identity_sha256!==admitted.consumption_identity_sha256||recomputed.dedupe_ref!==admitted.dedupe_ref||recomputed.effect_idempotency_key!==admitted.effect_idempotency_key)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
@@ -82,6 +82,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce,clock=(
   ref(admitted.admission_provenance_ref,'ADMISSION_PROVENANCE_REF_REQUIRED');
   const expiresAt=Date.parse(instant(admitted.expires_at,'ADMISSION_EXPIRES_AT_REQUIRED'));
   if(typeof readConsumption!=='function'||typeof consumeOnce!=='function')throw new TypeError('DURABLE_CONSUMPTION_STORE_REQUIRED');
+  if(typeof verifyReceipt!=='function')throw new TypeError('TRUSTED_CONSUMPTION_RECEIPT_VERIFIER_REQUIRED');
   if(typeof clock!=='function')throw new TypeError('CONSUMPTION_CLOCK_REQUIRED');
   const prior=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(prior){
@@ -91,7 +92,15 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce,clock=(
     }
     return Object.freeze({...admitted,state:'DUPLICATE',consumed:false,duplicate:true,first_red:'EVENT_ALREADY_CONSUMED',consumption_record_ref:ref(prior.consumption_record_ref,'CONSUMPTION_RECORD_REF_REQUIRED')});
   }
-  verifyReceipt(admitted,receipt);
+  validateReceiptShape(admitted,receipt);
+  const verifiedReceipt=await verifyReceipt({admitted,receipt});
+  if(!verifiedReceipt||verifiedReceipt.state!=='VERIFIED'||
+     verifiedReceipt.apply_return_ref!==receipt.apply_return_ref||
+     verifiedReceipt.readback_ref!==receipt.readback_ref||
+     verifiedReceipt.consumption_record_ref!==receipt.consumption_record_ref){
+    throw new TypeError('CONSUMPTION_RECEIPT_PROVENANCE_UNVERIFIED');
+  }
+  const receipt_provenance_ref=ref(verifiedReceipt.provenance_ref,'CONSUMPTION_RECEIPT_PROVENANCE_REF_REQUIRED');
   const consumeNow=Date.parse(instant(clock(),'CLOCK_INVALID'));
   if(expiresAt<=consumeNow)throw new TypeError('EVENT_ADMISSION_EXPIRED');
   const stored=await consumeOnce({admitted,receipt});
@@ -111,13 +120,13 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce,clock=(
   return Object.freeze({
     ...admitted,state:'CONSUMED',consumed:true,duplicate:false,
     apply_return_ref:receipt.apply_return_ref,readback_ref:receipt.readback_ref,
-    consumption_record_ref:stored.consumption_record_ref,authority_granted:false,
+    consumption_record_ref:stored.consumption_record_ref,receipt_provenance_ref,authority_granted:false,
     hard:Object.freeze([
       'SOURCE_ID != DELIVERY_ID','DELIVERY_ID != EVENT_ID','DELIVERY_ID != CONSUMPTION_ID','EVENT_ID != OCCURRENCE_ID','EVENT_ID != GENERATION','EVENT_ID != PAYLOAD_DIGEST',
       'CONSUMPTION_ID != EVENT_ID','EFFECT_IDEMPOTENCY_KEY != EFFECT_AUTHORITY','DELIVERED != CONSUMED',
       'SAME_OCCURRENCE_NEW_GENERATION != DUPLICATE_EVENT',
       'ACK != APPLY_RETURN','APPLY_RETURN != READ_BACK','DUPLICATE_EVENT != SECOND_EFFECT',
-      'EVENT_ADDRESS != AUTHORITY','CALLER_HISTORY != DEDUPE_AUTHORITY','CALLER_ADMISSION != TRUSTED_ADMISSION',
+      'EVENT_ADDRESS != AUTHORITY','CALLER_HISTORY != DEDUPE_AUTHORITY','CALLER_ADMISSION != TRUSTED_ADMISSION','CALLER_RECEIPT != TRUSTED_RECEIPT',
       'EXPIRED_ADMISSION != NEW_EFFECT','DUPLICATE_READBACK != NEW_EFFECT',
       'CONSUMPTION_WRITE != CONSUMPTION_READBACK',
     ]),
