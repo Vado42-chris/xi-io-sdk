@@ -6,13 +6,14 @@ const digest=createHash('sha256').update('payload').digest('hex');
 const intent=createEventIntent({source_ref:'source:provider:object:1',delivery_ref:'delivery:1',event_ref:'event:save',occurrence_ref:'occurrence:1',producer_ref:'product:a',consumer_ref:'product:b',work_ref:'work:1',generation:'g1',payload_sha256:digest});
 const admission={schema:'xiio.ward.event-consumption-admission/v1',state:'ADMITTED',...Object.fromEntries(['source_ref','delivery_ref','event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation','consumption_identity_sha256','dedupe_ref','effect_idempotency_key'].map(k=>[k,intent[k]])),admission_ref:'admission:1',lease_ref:'lease:1',expires_at:'2099-01-01T00:00:00Z'};
 const trustedAdmission={verifyAdmission:({admission})=>({state:'VERIFIED',admission_ref:admission.admission_ref,lease_ref:admission.lease_ref,provenance_ref:'switchboard:ward:verified:1'})};
+const trustedReceipt={verifyReceipt:({receipt})=>({state:'VERIFIED',apply_return_ref:receipt.apply_return_ref,readback_ref:receipt.readback_ref,consumption_record_ref:receipt.consumption_record_ref,provenance_ref:'consumer:apply-return:verified:1'})};
 const admitted=admitEvent(intent,admission,()=> '2026-11-16T17:00:00Z',trustedAdmission);
 const receipt={schema:'xiio.consumer.apply-return-readback/v1',state:'APPLY_RETURN_READ_BACK',...Object.fromEntries(['source_ref','delivery_ref','event_ref','occurrence_ref','producer_ref','consumer_ref','work_ref','generation','consumption_identity_sha256','dedupe_ref','effect_idempotency_key'].map(k=>[k,intent[k]])),apply_return_ref:'apply:1',readback_ref:'readback:1',consumption_record_ref:'consumption:1',applied:true,read_back:true};
 
 function store(initialRecord=null){
  let record=initialRecord,effects=0;
  return {
-  ports:{readConsumption:async()=>record,consumeOnce:async({admitted,receipt})=>{
+  ports:{...trustedReceipt,readConsumption:async()=>record,consumeOnce:async({admitted,receipt})=>{
    if(record)return {state:'DUPLICATE',...record};
    effects++;record={state:'CONSUMED',dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref,consumption_identity_sha256:admitted.consumption_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};return record;
   }},
@@ -32,7 +33,9 @@ function expiredConsumptionAdmission(){
 test('requires durable write plus independent reopen',async()=>{
  const s=store();const done=await consumeEvent(admitted,s.ports,receipt);
  assert.equal(done.state,'CONSUMED');assert.equal(s.effects(),1);
+ assert.equal(done.receipt_provenance_ref,'consumer:apply-return:verified:1');
  assert.ok(done.hard.includes('CALLER_HISTORY != DEDUPE_AUTHORITY'));
+ assert.ok(done.hard.includes('CALLER_RECEIPT != TRUSTED_RECEIPT'));
  assert.ok(done.hard.includes('EXPIRED_ADMISSION != NEW_EFFECT'));
 });
 test('same event after restart cannot cause second effect',async()=>{
@@ -83,7 +86,7 @@ test('admitted record must retain lease and trusted provenance coordinates',asyn
  }
 });
 test('unverified durable write or reopen is refused',async()=>{
- await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:'wrong'})},receipt),/DURABLE_CONSUMPTION_WRITE_UNVERIFIED/);
+ await assert.rejects(()=>consumeEvent(admitted,{...trustedReceipt,readConsumption:async()=>null,consumeOnce:async()=>({state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:'wrong'})},receipt),/DURABLE_CONSUMPTION_WRITE_UNVERIFIED/);
 });
 
 test('same provider object with a new generation is a distinct consumable event',async()=>{
@@ -99,6 +102,18 @@ test('same provider object with a new generation is a distinct consumable event'
  assert.equal(s.effects(),1);
 });
 
+test('caller-shaped APPLY_RETURN receipt cannot substitute for trusted receipt provenance',async()=>{
+ const s=store();
+ await assert.rejects(
+   ()=>consumeEvent(admitted,{...s.ports,verifyReceipt:undefined},receipt),
+   /TRUSTED_CONSUMPTION_RECEIPT_VERIFIER_REQUIRED/,
+ );
+ await assert.rejects(
+   ()=>consumeEvent(admitted,{...s.ports,verifyReceipt:()=>({state:'VERIFIED',apply_return_ref:'apply:forged',readback_ref:receipt.readback_ref,consumption_record_ref:receipt.consumption_record_ref,provenance_ref:'consumer:forged'})},receipt),
+   /CONSUMPTION_RECEIPT_PROVENANCE_UNVERIFIED/,
+ );
+});
+
 test('caller-shaped admission cannot substitute for trusted admission provenance',()=>{
  assert.throws(()=>admitEvent(intent,admission,()=> '2026-11-16T17:00:00Z'),/TRUSTED_ADMISSION_VERIFIER_REQUIRED/);
  assert.throws(()=>admitEvent(intent,admission,()=> '2026-11-16T17:00:00Z',{verifyAdmission:()=>({state:'VERIFIED',admission_ref:'admission:forged',lease_ref:'lease:1',provenance_ref:'provider:caller'})}),/EVENT_ADMISSION_PROVENANCE_UNVERIFIED/);
@@ -107,14 +122,14 @@ test('caller-shaped admission cannot substitute for trusted admission provenance
 
 test('pending durable record is not completed consumption and must not silently drop event',async()=>{
  const pending={state:'EFFECT_STARTED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:'consumption:pending'};
- await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>pending,consumeOnce:async()=>{throw Error('must not blindly retry')}},receipt),/DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED/);
+ await assert.rejects(()=>consumeEvent(admitted,{...trustedReceipt,readConsumption:async()=>pending,consumeOnce:async()=>{throw Error('must not blindly retry')}},receipt),/DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED/);
 });
 test('reopened record for another product cannot verify consumption',async()=>{
  let reads=0;const record={state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};
- await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>++reads===1?null:{...record,consumer_ref:'product:other'},consumeOnce:async()=>record},receipt),/DURABLE_CONSUMPTION_READBACK_UNVERIFIED/);
+ await assert.rejects(()=>consumeEvent(admitted,{...trustedReceipt,readConsumption:async()=>++reads===1?null:{...record,consumer_ref:'product:other'},consumeOnce:async()=>record},receipt),/DURABLE_CONSUMPTION_READBACK_UNVERIFIED/);
 });
 test('atomic duplicate result from different identity must not drop this event',async()=>{
- await assert.rejects(()=>consumeEvent(admitted,{readConsumption:async()=>null,consumeOnce:async()=>({state:'DUPLICATE',dedupe_ref:'wrong',consumer_ref:'product:other',consumption_identity_sha256:'wrong',consumption_record_ref:'consumption:other'})},receipt),/DURABLE_CONSUMPTION_RECORD_MISMATCH/);
+ await assert.rejects(()=>consumeEvent(admitted,{...trustedReceipt,readConsumption:async()=>null,consumeOnce:async()=>({state:'DUPLICATE',dedupe_ref:'wrong',consumer_ref:'product:other',consumption_identity_sha256:'wrong',consumption_record_ref:'consumption:other'})},receipt),/DURABLE_CONSUMPTION_RECORD_MISMATCH/);
 });
 test('changed consumer retaining stale hash is refused even with verified admission reference',()=>{
  const altered={...intent,consumer_ref:'product:other'};
