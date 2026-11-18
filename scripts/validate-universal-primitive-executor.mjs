@@ -10,7 +10,7 @@ import {
 } from '../src/flatpack/universal-primitive-contract.mjs';
 
 const ops=['SELECT','INSPECT','MOVE','RESIZE','TRANSFORM','DUPLICATE','DELETE'];
-const primitive=(identity,semantic_type)=>({identity,semantic_type,coordinates:{value:identity,axis:['x','y','z'],scale:'5s',plane:'plane:one',direction:'forward',orientation:'screen',projection:'article'},relationships:[],operations:ops,provenance:{source:'fixture'},authority:{visibility:'PUBLIC',effect_ceiling:'READ_ONLY'},state:'CURRENT',version:'1',projection:['article','microsite'],geometry:{x:0,y:0,width:100,height:40},content:{text:identity},style:{}});
+const primitive=(identity,semantic_type)=>({identity,semantic_type,coordinates:{value:identity,axis:['x','y','z'],scale:'5s',plane:'plane:one',direction:'forward',orientation:'screen',projection:'article'},relationships:[],operations:[...ops],provenance:{source:'fixture'},authority:{visibility:'PUBLIC',effect_ceiling:'READ_ONLY'},state:'CURRENT',version:'1',projection:['article','microsite'],geometry:{x:0,y:0,width:100,height:40},content:{text:identity},style:{}});
 const doc={
  schema:'xiio.flatpack/v1',
  artifact:{artifact_ref:'artifact:one',version_ref:'version:one@1',template_ref:'template:one'},
