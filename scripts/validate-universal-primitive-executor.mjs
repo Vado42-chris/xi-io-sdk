@@ -82,6 +82,12 @@ assert.equal(validateUniversalArtifact(duplicateOperation).first_red,'PRIMITIVE_
 const missingRequiredPrimitiveField=structuredClone(doc);delete missingRequiredPrimitiveField.primitives[0].projection;
 assert.equal(validateUniversalArtifact(missingRequiredPrimitiveField).first_red,'PRIMITIVE_REQUIRED_FIELD');
 
+for(const field of syntheticDenominator.required_fields){
+  const missing=structuredClone(doc);
+  delete missing.primitives[0][field];
+  assert.equal(validateUniversalArtifact(missing).first_red,'PRIMITIVE_REQUIRED_FIELD',field);
+}
+
 for(const [field,value] of [
   ['coordinates',null],['provenance',[]],['authority',null],
   ['relationships',{}],['projection',{}],['state',''],['version','']
@@ -90,12 +96,14 @@ for(const [field,value] of [
   assert.equal(validateUniversalArtifact(malformed).first_red,'PRIMITIVE_FIELD_SHAPE',field);
 }
 
+const beforeInvalidCreate=structuredClone(doc);
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
   operation_ref:'op:create:invalid-type',
   actor:{kind:'human',ref:'person:owner'},
   operation:'CREATE',
   args:{patch_ref:'patch:a',primitive:{...primitive('p:invalid','paragraph'),semantic_type:'made_up_type'}}
 }),/RESULT_INVALID:PRIMITIVE_SEMANTIC_TYPE/);
+assert.deepEqual(doc,beforeInvalidCreate);
 
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
   operation_ref:'op:create:invalid-operation',
