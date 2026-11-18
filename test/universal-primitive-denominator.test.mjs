@@ -14,6 +14,7 @@ const synthetic=Object.freeze({
   required_fields:['identity','semantic_type','coordinates','relationships','operations','provenance','authority','state','version','projection'],
   families:{fixture:['heading','image','paragraph']},
   structural_operations:['SELECT','INSPECT','MOVE','RESIZE','TRANSFORM','DUPLICATE','DELETE'],
+  universal_api_verbs:['IDENTIFY','READ','RETURN'],
   hard:['TEST_ONLY_NOT_FRAMEWORK_AUTHORITY'],
 });
 const sourceFor=(contract,overrides={})=>({
@@ -30,6 +31,15 @@ const sourceFor=(contract,overrides={})=>({
 
 test('synthetic unit denominator validates without claiming Framework custody',()=>{
   assert.equal(validateUniversalPrimitiveDenominatorContract(synthetic).version,1);
+});
+
+test('missing or duplicate universal API verbs refuse denominator binding',()=>{
+  const missing=structuredClone(synthetic);
+  delete missing.universal_api_verbs;
+  assert.throws(()=>validateUniversalPrimitiveDenominatorContract(missing),/PRIMITIVE_DENOMINATOR_API_VERBS_INVALID/);
+  const duplicate=structuredClone(synthetic);
+  duplicate.universal_api_verbs.push('RETURN');
+  assert.throws(()=>validateUniversalPrimitiveDenominatorContract(duplicate),/PRIMITIVE_DENOMINATOR_API_VERBS_INVALID/);
 });
 
 test('caller-updated denominator plus stale owner digest refuses',()=>{
