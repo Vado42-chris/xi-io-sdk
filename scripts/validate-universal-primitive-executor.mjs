@@ -44,7 +44,7 @@ const syntheticDenominator={
   version:1,
   purpose:'TEST_ONLY_SYNTHETIC_DENOMINATOR',
   required_fields:syntheticRequiredFields,
-  families:{fixture:['heading','image','paragraph']},
+  families:{fixture:['heading','image','paragraph','class']},
   structural_operations:[...ops],
   universal_api_verbs:['IDENTIFY','READ','QUERY','ATTACH','SELECT','TRANSFORM','VALIDATE','PROJECT','EXECUTE','OBSERVE','RETURN'],
   hard:['TEST_ONLY_NOT_FRAMEWORK_AUTHORITY'],
@@ -151,6 +151,17 @@ assert.equal(human.receipt.before_digest_ref,null);
 assert.equal(human.receipt.primitive_denominator_sha256,baselineValidation.primitive_denominator_sha256);
 assert.equal(human.receipt.primitive_denominator_version,1);
 assert.equal(ai.receipt.after_digest_ref,null);
+const classPrimitive=primitive('p:class','class');
+const classCreated=executeUniversalPrimitiveOperation(ai.artifact,{
+  operation_ref:'op:h:create-class',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',
+  args:{patch_ref:'patch:a',projection_refs:['projection:microsite','projection:hex'],primitive:classPrimitive}
+});
+assert.equal(classCreated.receipt.primitive_ref,'p:class');
+assert.equal(extractUniversalTemplateRig(classCreated.artifact).primitive_graph.find(p=>p.primitive_ref==='p:class').semantic_type,'class');
+const classProjection=compileUniversalProjection(classCreated.artifact,'projection:microsite');
+assert.equal(classProjection.blocks.find(b=>b.primitive_ref==='p:class').semantic_type,'class');
+assert.equal(reverseUniversalProjectionReadback(classCreated.artifact,classProjection).ok,true);
+
 const created=executeUniversalPrimitiveOperation(ai.artifact,{operation_ref:'op:h:create',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:['projection:microsite','projection:hex'],primitive:primitive('p:new','paragraph')}});
 assert.ok(created.artifact.primitives.some(x=>x.identity==='p:new'));
 const duplicated=executeUniversalPrimitiveOperation(created.artifact,{operation_ref:'op:a:duplicate',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new',operation:'DUPLICATE',args:{new_identity:'p:new-copy'}});
