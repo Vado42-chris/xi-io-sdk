@@ -439,10 +439,17 @@ export function resolveProductBillingAdmissionScope(input = {}) {
     requested_quantity,
     maximum_quantity: binding.maximum_quantity,
     ...expected,
-    provider_attempt_allowed: blockers.length === 0,
+    billing_admission_matched: blockers.length === 0,
+    provider_attempt_allowed: false,
     billing_commit_allowed: false,
     billing_effect_authority: false,
     provider_effect: false,
     effect_authority: false,
+    hard: Object.freeze([
+      'BILLING_ADMISSION_MATCH!=PROVIDER_ATTEMPT',
+      'BILLING_ADMISSION_MATCH!=BILLING_COMMIT',
+      'BILLING_ADMISSION_MATCH!=EFFECT_AUTHORITY',
+      'PROVIDER_ATTEMPT_REQUIRES_SWITCHBOARD_ADMISSION',
+    ]),
   });
 }
