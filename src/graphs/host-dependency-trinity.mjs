@@ -13,7 +13,10 @@ export function hostDependencyTrinity(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('HOST_TRINITY_INVALID');
   const schema = ownData(input, 'schema', 'HOST_TRINITY_ACCESSOR_REFUSED');
   const environments = ownData(input, 'environments', 'HOST_TRINITY_ACCESSOR_REFUSED');
-  const requiredInput = Object.getOwnPropertyDescriptor(input, 'required_environment_refs')?.value;
+  const requiredDescriptor = Object.getOwnPropertyDescriptor(input, 'required_environment_refs');
+  if (requiredDescriptor && !Object.hasOwn(requiredDescriptor, 'value')) throw new TypeError('HOST_TRINITY_ACCESSOR_REFUSED');
+  const requiredInput = requiredDescriptor?.value;
+  if (requiredDescriptor && !Array.isArray(requiredInput)) throw new TypeError('HOST_TRINITY_REQUIRED_ENVIRONMENT_INVALID');
   if (schema !== 'xiio.host-dependency-trinity/v1' || !environments ||
       typeof environments !== 'object' || Array.isArray(environments)) {
     throw new TypeError('HOST_TRINITY_INVALID');
@@ -23,7 +26,8 @@ export function hostDependencyTrinity(input) {
   if (!keys.length || keys.some(key => typeof key !== 'string' || !KEY.test(key) ||
       !Object.hasOwn(descriptors[key], 'value'))) throw new TypeError('HOST_TRINITY_ENVIRONMENTS_INVALID');
   const declared = Array.isArray(requiredInput)
-    ? requiredInput.map((ref) => {
+    ? Array.from({ length: requiredInput.length }, (_, index) => {
+        const ref = ownData(requiredInput, String(index), 'HOST_TRINITY_REQUIRED_ENVIRONMENT_INVALID');
         if (typeof ref !== 'string' || !KEY.test(ref)) throw new TypeError('HOST_TRINITY_REQUIRED_ENVIRONMENT_INVALID');
         return ref;
       })
@@ -75,3 +79,4 @@ export function hostDependencyTrinity(input) {
     state: 'UNKNOWN', currentness: 'UNKNOWN', provider_effect: false, authority_granted: false,
   });
 }
+
