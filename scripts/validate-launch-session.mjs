@@ -13,19 +13,18 @@ const choice = chooseAccount([work], 'Vado42-chris', { chosen_by: 'person:owner'
 const session = openSession(choice, { session_id: 'sess:launcher-0001', credential_ref: 'keyring:xiio/hex/vado42', opened_at: t0, expires_at: '2026-10-19T19:00:00-06:00' });
 assert.equal(session.principal_ref, 'github:2222');
 assert.equal(session.session_verified, false);
-const verifySession = (candidate) => ({
-  state: 'VERIFIED',
-  session_id: candidate.session_id,
-  principal_ref: candidate.principal_ref,
-  provenance_ref: 'runtime:session:verified:1',
-});
-const verifyTicket = (ticket) => ({
-  state: 'VERIFIED',
-  session_id: ticket.session_id,
-  principal_ref: ticket.principal_ref,
-  product: ticket.product,
-  provenance_ref: 'runtime:ticket:verified:1',
-});
+const verifySession = (candidate) => (
+  candidate?.session_id === 'sess:launcher-0001' && candidate?.principal_ref === 'github:2222'
+    ? {state:'VERIFIED',session_id:'sess:launcher-0001',principal_ref:'github:2222',provenance_ref:'runtime:session:verified:1'}
+    : {state:'REFUSED'}
+);
+const verifyTicket = (ticket) => (
+  ticket?.session_id === 'sess:launcher-0001' &&
+  ticket?.principal_ref === 'github:2222' &&
+  ticket?.product === 'inbox'
+    ? {state:'VERIFIED',session_id:'sess:launcher-0001',principal_ref:'github:2222',product:'inbox',provenance_ref:'runtime:ticket:verified:1'}
+    : {state:'REFUSED'}
+);
 
 /* The owner's rule: once signed in, nothing asks again. */
 for (const surface of ['hex-launcher', 'desktop', 'inbox', 'zed-editor', 'sam_law']) {
