@@ -243,11 +243,18 @@ export function resolveProductAccessGrantScope(input = {}) {
     currentness_ref: currentness.currentness_ref,
     ...expected,
     role,
-    action_allowed: blockers.length === 0,
+    access_grant_matched: blockers.length === 0,
+    action_allowed: false,
     authority_granted: false,
     provider_effect: false,
     billing_effect: false,
     effect_authority: false,
+    hard: Object.freeze([
+      'ACCESS_GRANT_MATCH!=ACTION_ALLOWED',
+      'ACCESS_GRANT_MATCH!=WARD_EFFECT_AUTHORITY',
+      'ACCESS_GRANT_MATCH!=PROVIDER_EFFECT',
+      'CURRENTNESS_READBACK!=PROVIDER_AUTHENTICATION',
+    ]),
   });
 }
 
