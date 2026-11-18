@@ -34,7 +34,38 @@ const doc={
   ],
   contextual_settings:[{setting_ref:'setting:density',owner:'ARTICLES',admitted:true,value:'comfortable'}]}
 };
-assert.equal(validateUniversalArtifact(doc).ok,true);
+const baselineValidation=validateUniversalArtifact(doc);
+assert.equal(baselineValidation.ok,true);
+assert.equal(baselineValidation.primitive_denominator_version,1);
+assert.match(baselineValidation.primitive_denominator_sha256,/^[a-f0-9]{64}$/);
+
+
+const arbitrarySemantic=structuredClone(doc);arbitrarySemantic.primitives[0].semantic_type='made_up_type';
+assert.equal(validateUniversalArtifact(arbitrarySemantic).first_red,'PRIMITIVE_SEMANTIC_TYPE');
+
+const foreignOperation=structuredClone(doc);foreignOperation.primitives[0].operations.push('TELEPORT');
+assert.equal(validateUniversalArtifact(foreignOperation).first_red,'PRIMITIVE_OPERATIONS');
+
+const duplicateOperation=structuredClone(doc);duplicateOperation.primitives[0].operations.push('SELECT');
+assert.equal(validateUniversalArtifact(duplicateOperation).first_red,'PRIMITIVE_OPERATIONS');
+
+const missingRequiredPrimitiveField=structuredClone(doc);delete missingRequiredPrimitiveField.primitives[0].projection;
+assert.equal(validateUniversalArtifact(missingRequiredPrimitiveField).first_red,'PRIMITIVE_REQUIRED_FIELD');
+
+assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
+  operation_ref:'op:create:invalid-type',
+  actor:{kind:'human',ref:'person:owner'},
+  operation:'CREATE',
+  args:{patch_ref:'patch:a',primitive:{...primitive('p:invalid','paragraph'),semantic_type:'made_up_type'}}
+}),/RESULT_INVALID:PRIMITIVE_SEMANTIC_TYPE/);
+
+assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
+  operation_ref:'op:create:invalid-operation',
+  actor:{kind:'human',ref:'person:owner'},
+  operation:'CREATE',
+  args:{patch_ref:'patch:a',primitive:{...primitive('p:invalid-op','paragraph'),operations:['SELECT','TELEPORT']}}
+}),/RESULT_INVALID:PRIMITIVE_OPERATIONS/);
+
 // Same string-reference relationship rule as the canonical flatpack validator.
 const related=structuredClone(doc);related.primitives[0].relationships=['p:image'];
 assert.equal(validateUniversalArtifact(related).ok,true);
@@ -68,6 +99,8 @@ const ai=executeUniversalPrimitiveOperation(human.artifact,{operation_ref:'op:a1
 assert.equal(human.receipt.primitive_ref,ai.receipt.primitive_ref);
 assert.equal(human.receipt.bins_digest_state,'PENDING_BINS_CUSTODY');
 assert.equal(human.receipt.before_digest_ref,null);
+assert.equal(human.receipt.primitive_denominator_sha256,baselineValidation.primitive_denominator_sha256);
+assert.equal(human.receipt.primitive_denominator_version,1);
 assert.equal(ai.receipt.after_digest_ref,null);
 const created=executeUniversalPrimitiveOperation(ai.artifact,{operation_ref:'op:h:create',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:['projection:microsite','projection:hex'],primitive:primitive('p:new','paragraph')}});
 assert.ok(created.artifact.primitives.some(x=>x.identity==='p:new'));
