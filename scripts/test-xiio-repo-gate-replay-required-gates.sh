@@ -11,9 +11,27 @@ cat > "$TEMP/bin/git" <<'MOCK'
 #!/usr/bin/env bash
 if [ "$1" = clone ]; then
   dest="${@: -1}"
-  mkdir -p "$dest"
-  cat > "$dest/package.json" <<'JSON'
+  mkdir -p "$dest/.xiio"
+  if [ "${XIIO_TEST_PACKAGE_MODE:-full}" = verify_only ]; then
+    cat > "$dest/package.json" <<'JSON'
+{"scripts":{"verify":"true"}}
+JSON
+  else
+    cat > "$dest/package.json" <<'JSON'
 {"scripts":{"verify":"true","qa:release":"true"}}
+JSON
+  fi
+  cat > "$dest/.xiio/replay-profile.json" <<'JSON'
+{
+  "schema":"xiio.repo-gate-profile/v1",
+  "product_ref":"game:veilrift",
+  "head_sha":"975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e",
+  "acceptance":{"status":"ACCEPTED","authority_ref":"product-profile:test-owner"},
+  "steps":[
+    {"id":"verify","script":"verify","artifacts":[]},
+    {"id":"qa-release","script":"qa:release","artifacts":[{"path":"artifacts/release.json"}]}
+  ]
+}
 JSON
   exit 0
 fi
@@ -28,11 +46,7 @@ chmod +x "$TEMP/bin/git"
 
 cat > "$TEMP/bin/node" <<'MOCK'
 #!/usr/bin/env bash
-if [ "$1" = -v ]; then
-  echo v22.0.0
-else
-  exec "$XIIO_TEST_REAL_NODE" "$@"
-fi
+if [ "$1" = -v ]; then echo v22.0.0; else exec "$XIIO_TEST_REAL_NODE" "$@"; fi
 MOCK
 chmod +x "$TEMP/bin/node"
 
@@ -40,65 +54,94 @@ cat > "$TEMP/bin/npm" <<'MOCK'
 #!/usr/bin/env bash
 if [ "$1" = install ] || [ "$1" = ci ]; then exit 0; fi
 if [ "$1" = run ] && [ "$2" = verify ]; then exit 0; fi
-if [ "$1" = run ] && [ "$2" = qa:release ]; then exit "${XIIO_TEST_QA_RC:-0}"; fi
+if [ "$1" = run ] && [ "$2" = qa:release ]; then
+  rc="${XIIO_TEST_QA_RC:-0}"
+  if [ "$rc" = 0 ] && [ "${XIIO_TEST_ARTIFACT_MODE:-present}" = present ]; then
+    mkdir -p artifacts
+    printf '{"state":"PASS","source":"synthetic"}\n' > artifacts/release.json
+  fi
+  exit "$rc"
+fi
 exit 1
 MOCK
 chmod +x "$TEMP/bin/npm"
 
 run_replay() {
-  local out=$1 requested=$2 qa_rc=${3:-0}
+  local out=$1
   mkdir -p "$out"
   local rc=0
-  XIIO_TEST_REAL_NODE="$REAL_NODE" XIIO_TEST_QA_RC="$qa_rc" PATH="$TEMP/bin:$PATH" \
-    XIIO_REPLAY_OUT="$out" \
-    XIIO_REPLAY_WORK_REF='game:159' \
-    XIIO_REPLAY_REQUIRED_GATES='verify,qa:release' \
-    XIIO_REPLAY_REQUESTED_GATES="$requested" \
-    bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA" \
-      >"$out/stdout.log" 2>"$out/stderr.log" || rc=$?
+  XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_OUT="$out" XIIO_REPLAY_PROFILE='.xiio/replay-profile.json'     XIIO_REPLAY_WORK_REF='game:159'     XIIO_TEST_PACKAGE_MODE="${XIIO_TEST_PACKAGE_MODE:-full}"     XIIO_TEST_QA_RC="${XIIO_TEST_QA_RC:-0}"     XIIO_TEST_ARTIFACT_MODE="${XIIO_TEST_ARTIFACT_MODE:-present}"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$out/stdout.log" 2>"$out/stderr.log" || rc=$?
   echo "$rc"
 }
 
-OUT1="$TEMP/verify-only"
-rc=$(run_replay "$OUT1" 'verify')
-[ "$rc" = 3 ] || { echo "FAIL: verify-only returned $rc, expected 3"; exit 1; }
-node - "$OUT1/xiio-gate-receipt.json" <<'NODE'
-const r=require(process.argv[2]);
-if(r.outcome!=='success') throw Error('verify itself should have passed');
-if(r.gate_profile_status!=='INCOMPLETE_REQUIRED_GATES') throw Error(r.gate_profile_status);
-if(r.gate_profile_complete!==false || r.release_qualified!==false) throw Error('partial gate was credited');
-if(JSON.stringify(r.required_gates)!==JSON.stringify(['verify','qa:release'])) throw Error('required denominator drift');
-if(JSON.stringify(r.requested_gates)!==JSON.stringify(['verify'])) throw Error('requested gates drift');
-if(JSON.stringify(r.missing_required_gates)!==JSON.stringify(['qa:release'])) throw Error('missing browser gate not exposed');
-if(r.executed_gates?.length!==1 || r.executed_gates[0].gate!=='verify' || r.executed_gates[0].exit!==0)
-  throw Error('actual execution record incorrect');
-console.log('PASS: verify can pass while release gate profile remains incomplete');
-NODE
+# No accepted product profile means there is no qualification denominator.
+OUT0="$TEMP/no-profile"; mkdir -p "$OUT0"; rc=0
+XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" XIIO_REPLAY_OUT="$OUT0"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$OUT0/stdout.log" 2>"$OUT0/stderr.log" || rc=$?
+[ "$rc" = 2 ] || { echo "FAIL: no-profile returned $rc"; exit 1; }
+grep -q 'first_red=GATE_PROFILE_REQUIRED' "$OUT0/stdout.log"
 
+# Accepted profile requires qa:release; product source omitting that named script is blocked.
+OUT1="$TEMP/omitted-qa"
+XIIO_TEST_PACKAGE_MODE=verify_only
+rc=$(run_replay "$OUT1")
+unset XIIO_TEST_PACKAGE_MODE
+[ "$rc" = 2 ] || { echo "FAIL: omitted qa:release returned $rc"; exit 1; }
+grep -q 'first_red=PROFILE_STEP_SCRIPT_NOT_DECLARED' "$OUT1/stdout.log"
+
+# Full accepted profile executes every step and hashes the required artifact.
 OUT2="$TEMP/full"
-rc=$(run_replay "$OUT2" 'verify,qa:release')
-[ "$rc" = 0 ] || { echo "FAIL: full gate list returned $rc"; exit 1; }
+rc=$(run_replay "$OUT2")
+[ "$rc" = 0 ] || { echo "FAIL: full profile returned $rc"; exit 1; }
 node - "$OUT2/xiio-gate-receipt.json" <<'NODE'
 const r=require(process.argv[2]);
 if(r.gate_profile_status!=='GATE_PROFILE_COMPLETE_PENDING_EXECUTOR_QUALIFICATION')
   throw Error(r.gate_profile_status);
-if(r.gate_profile_complete!==true || r.release_qualified!==false)
-  throw Error('engine crossed qualification authority boundary');
-if(r.executed_gates?.map(x=>x.gate).join(',')!=='verify,qa:release')
-  throw Error('actual gate order/readback incorrect');
-if(r.executed_gates.some(x=>x.exit!==0)) throw Error('passing gates recorded red');
-console.log('PASS: complete gate profile remains pending #337 executor qualification');
+if(r.gate_profile_complete!==true||r.release_qualified!==false)
+  throw Error('profile completion crossed #337 authority boundary');
+if(r.required_gates?.join(',')!=='verify,qa-release') throw Error('required denominator drift');
+if(r.executed_gates?.map(x=>x.gate).join(',')!=='verify,qa-release') throw Error('step order drift');
+if(r.executed_gates.some(x=>x.exit!==0)) throw Error('passing steps recorded red');
+if(r.artifact_evidence?.length!==1) throw Error('required artifact not read back');
+const a=r.artifact_evidence[0];
+if(a.gate!=='qa-release'||a.path!=='artifacts/release.json'||!/^[a-f0-9]{64}$/.test(a.sha256)||a.bytes<=0)
+  throw Error('artifact evidence incomplete');
+if(r.replay?.equivalence_status!=='UNAPPROVED_PENDING_OWNER_REVIEW')
+  throw Error('replay self-approved executor');
 NODE
 
-OUT3="$TEMP/browser-red"
-rc=$(run_replay "$OUT3" 'verify,qa:release' 17)
-[ "$rc" = 1 ] || { echo "FAIL: browser-red returned $rc"; exit 1; }
+# An executed browser/release failure is a failure, not a missing step and not qualification.
+OUT3="$TEMP/qa-red"
+XIIO_TEST_QA_RC=17
+rc=$(run_replay "$OUT3")
+unset XIIO_TEST_QA_RC
+[ "$rc" = 1 ] || { echo "FAIL: qa-red returned $rc"; exit 1; }
 node - "$OUT3/xiio-gate-receipt.json" <<'NODE'
 const r=require(process.argv[2]);
-if(r.outcome!=='failure'||r.gate_profile_status!=='REQUIRED_GATE_FAILURE') throw Error('failed browser gate misclassified');
-if(r.missing_required_gates?.length!==0) throw Error('failed gate reported as missing');
-if(r.executed_gates?.at(-1)?.gate!=='qa:release'||r.executed_gates.at(-1).exit!==17)
-  throw Error('browser failure not recorded');
-if(r.release_qualified!==false) throw Error('failed gate credited');
-console.log('PASS: executed browser failure is distinct from missing browser gate');
+if(r.outcome!=='failure'||r.gate_profile_status!=='REQUIRED_GATE_FAILURE') throw Error('qa failure misclassified');
+if(r.executed_gates?.at(-1)?.gate!=='qa-release'||r.executed_gates.at(-1).exit!==17)
+  throw Error('qa failure not recorded');
+if(r.release_qualified!==false) throw Error('failed profile credited');
 NODE
+
+# A green step without its declared artifact is incomplete and cannot earn profile completion.
+OUT4="$TEMP/missing-artifact"
+XIIO_TEST_ARTIFACT_MODE=missing
+rc=$(run_replay "$OUT4")
+unset XIIO_TEST_ARTIFACT_MODE
+[ "$rc" = 3 ] || { echo "FAIL: missing artifact returned $rc"; exit 1; }
+node - "$OUT4/xiio-gate-receipt.json" <<'NODE'
+const r=require(process.argv[2]);
+if(r.outcome!=='incomplete'||r.gate_profile_status!=='INCOMPLETE_REQUIRED_ARTIFACTS')
+  throw Error('missing artifact misclassified');
+if(r.gate_profile_complete!==false||r.release_qualified!==false) throw Error('missing artifact credited');
+if(!String(r.first_red).startsWith('REQUIRED_ARTIFACT_MISSING:qa-release:artifacts/release.json'))
+  throw Error('first missing artifact not preserved');
+NODE
+
+# Legacy caller-owned gate lists are no longer an admission surface.
+OUT5="$TEMP/legacy-list"; mkdir -p "$OUT5"; rc=0
+XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH" XIIO_REPLAY_OUT="$OUT5"   XIIO_REPLAY_REQUIRED_GATES='verify,qa:release'   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$OUT5/stdout.log" 2>"$OUT5/stderr.log" || rc=$?
+[ "$rc" = 2 ] || { echo "FAIL: legacy gate list returned $rc"; exit 1; }
+grep -q 'first_red=LEGACY_GATE_LIST_REFUSED' "$OUT5/stdout.log"
+
+echo 'PASS: accepted profile denominator, step execution and artifact readback fail closed'
