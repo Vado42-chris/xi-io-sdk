@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {bindUniversalPrimitiveDenominator} from '../src/flatpack/universal-primitive-denominator.mjs';
 import {
   validateUniversalArtifact,executeUniversalPrimitiveOperation,resolveUniversalContextualTools,
   describeUniversalContextualTools,compileUniversalToolProjection,
@@ -34,9 +36,36 @@ const doc={
   ],
   contextual_settings:[{setting_ref:'setting:density',owner:'ARTICLES',admitted:true,value:'comfortable'}]}
 };
+const syntheticRequiredFields=Object.keys(primitive('p:contract','heading'))
+  .filter(key=>!['geometry','content','style'].includes(key));
+const syntheticDenominator={
+  schema:'xiio.universal-primitive-denominator/v1',
+  id:'XIIO_UNIVERSAL_PRIMITIVE_DENOMINATOR',
+  version:1,
+  purpose:'TEST_ONLY_SYNTHETIC_DENOMINATOR',
+  required_fields:syntheticRequiredFields,
+  families:{fixture:['heading','image','paragraph']},
+  structural_operations:[...ops],
+  hard:['TEST_ONLY_NOT_FRAMEWORK_AUTHORITY'],
+};
+bindUniversalPrimitiveDenominator({
+  contract:syntheticDenominator,
+  source:{
+    owner_repo:'Vado42-chris/xi-io.net',
+    dependency_id:'framework-runtime',
+    export_name:'universal_primitive_denominator_contract',
+    accepted_generation:'a'.repeat(40),
+    contract_sha256:createHash('sha256').update(JSON.stringify(syntheticDenominator)).digest('hex'),
+    binding_sha256:'b'.repeat(64),
+    contract_path:'/synthetic/framework/universal-primitive-denominator.v1.json',
+    custody_verified:true,
+  },
+});
 const baselineValidation=validateUniversalArtifact(doc);
 assert.equal(baselineValidation.ok,true);
 assert.equal(baselineValidation.primitive_denominator_version,1);
+assert.equal(baselineValidation.primitive_denominator_framework_generation,'a'.repeat(40));
+assert.equal(baselineValidation.primitive_denominator_binding_sha256,'b'.repeat(64));
 assert.match(baselineValidation.primitive_denominator_sha256,/^[a-f0-9]{64}$/);
 
 
