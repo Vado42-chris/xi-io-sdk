@@ -133,7 +133,8 @@ export function normalizeProviderFailure(input = {}, { now = () => new Date().to
   const message = providerMessage(input);
   const providerReached = input.provider_reached === true || httpStatus != null;
   const explicitAuth = normalizeToken(input.auth_state);
-  const authState = AUTH_STATES.has(explicitAuth) ? explicitAuth : httpStatus === 401 ? 'UNAUTHENTICATED' : 'UNKNOWN';
+  const suppliedAuthState = AUTH_STATES.has(explicitAuth) ? explicitAuth : 'UNKNOWN';
+  const authState = httpStatus === 401 ? 'UNAUTHENTICATED' : 'UNKNOWN';
   if (typeof now !== 'function') throw new TypeError('provider failure clock must be a function');
   const nowValue = now();
   const nowMs = Date.parse(nowValue);
@@ -152,6 +153,8 @@ export function normalizeProviderFailure(input = {}, { now = () => new Date().to
     provider_status: providerStatus || null,
     provider_reason: providerReason || null,
     auth_state: authState,
+    supplied_auth_state: suppliedAuthState,
+    provider_authenticated: false,
     failure_class: failureClass,
     operation_state: operationState(failureClass),
     retry_after_ms: Number.isInteger(retryAfterMs) && retryAfterMs >= 0 ? retryAfterMs : null,
