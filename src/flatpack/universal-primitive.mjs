@@ -15,6 +15,12 @@ function validatePrimitiveContract(p){
   }
   if(typeof p.semantic_type!=='string'||!CANONICAL_SEMANTIC_TYPES.has(p.semantic_type))
     return {ok:false,first_red:'PRIMITIVE_SEMANTIC_TYPE',detail:`${p?.identity||'missing'} semantic_type not canonical:${String(p?.semantic_type)}`};
+  const objectField=(name)=>p[name]&&typeof p[name]==='object'&&!Array.isArray(p[name]);
+  if(!objectField('coordinates')||!objectField('provenance')||!objectField('authority')||
+      !Array.isArray(p.relationships)||!Array.isArray(p.projection)||
+      typeof p.state!=='string'||!p.state.trim()||
+      typeof p.version!=='string'||!p.version.trim())
+    return {ok:false,first_red:'PRIMITIVE_FIELD_SHAPE',detail:`${p?.identity||'missing'} required field shape invalid`};
   if(!Array.isArray(p.operations))
     return {ok:false,first_red:'PRIMITIVE_OPERATIONS',detail:`${p?.identity||'missing'} operations must be array`};
   if(new Set(p.operations).size!==p.operations.length)
