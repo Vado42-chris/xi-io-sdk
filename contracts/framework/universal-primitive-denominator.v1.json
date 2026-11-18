@@ -91,5 +91,18 @@
     "DUPLICATE_SEMANTIC_TYPE=FAIL",
     "DUPLICATE_OPERATION=FAIL",
     "REPRESENTATION_LOCAL_EXTENSION_WITHOUT_DENOMINATOR_VERSION=FAIL"
+  ],
+  "universal_api_verbs": [
+    "IDENTIFY",
+    "READ",
+    "QUERY",
+    "ATTACH",
+    "SELECT",
+    "TRANSFORM",
+    "VALIDATE",
+    "PROJECT",
+    "EXECUTE",
+    "OBSERVE",
+    "RETURN"
   ]
 }
