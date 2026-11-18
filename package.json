@@ -189,6 +189,6 @@
     "check:addressable-transaction": "node --test test/addressable-transaction.test.mjs",
     "check:zed-products-mcp": "node scripts/check-zed-products-mcp.mjs",
     "check:mcp-stdio-shared": "node scripts/check-mcp-stdio-shared.mjs",
-    "check:repo-gate-replay": "bash scripts/test-xiio-repo-gate-replay-blocked.sh scripts/xiio-repo-gate-replay.sh"
+    "check:repo-gate-replay": "bash scripts/test-xiio-repo-gate-replay-blocked.sh scripts/xiio-repo-gate-replay.sh && bash scripts/test-xiio-repo-gate-replay-required-gates.sh scripts/xiio-repo-gate-replay.sh"
   }
 }
