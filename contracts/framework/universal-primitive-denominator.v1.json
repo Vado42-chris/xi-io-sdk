@@ -81,6 +81,7 @@
     "VERSION",
     "DIFF",
     "UNDO",
+    "REDO",
     "DELETE",
     "PUBLISH"
   ],
