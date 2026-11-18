@@ -37,6 +37,7 @@ const base={
 };
 
 let out=compileContractSurfaceRecord(base);
+assert.equal(out.semantic_owner_ref,'github:Vado42-chris/xi-io-sam_law-oct27_2026#15');
 assert.equal(out.schema,CONTRACT_SURFACE_INVENTORY_SCHEMA);
 assert.equal(out.state,'CURRENT_SUPPORTED');
 assert.equal(out.callable,true);
@@ -132,6 +133,16 @@ assert.throws(
   /CONTRACT_INVENTORY_DUPLICATE_SURFACE/,
 );
 checks++;
+
+assert.throws(
+  ()=>compileContractSurfaceRecord({...base,semantic_owner_ref:'github:owner/repo#15?token=bad'}),
+  /CONTRACT_SURFACE_OWNER_REQUIRED/,
+);
+assert.throws(
+  ()=>compileContractSurfaceRecord({...base,semantic_owner_ref:'github:owner/repo#15 extra'}),
+  /CONTRACT_SURFACE_OWNER_REQUIRED/,
+);
+checks+=3;
 
 console.log(JSON.stringify({
   mode:'CONTRACT_SURFACE_INVENTORY',
