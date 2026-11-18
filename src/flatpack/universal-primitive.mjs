@@ -118,6 +118,9 @@ export function executeUniversalPrimitiveOperation(source,command){
     const p=clone(command.args?.primitive);
     const patchRef=command.args?.patch_ref;
     if(!p?.identity||!patchRef) throw new Error('CREATE_REQUIRES_PRIMITIVE_AND_PATCH_REF');
+    const contract=currentPrimitiveContract();
+    const primitiveContract=validatePrimitiveContract(p,contract);
+    if(!primitiveContract.ok) throw new Error(`CREATE_PRIMITIVE_INVALID:${primitiveContract.first_red}`);
     if(list(doc.primitives).some(x=>x.identity===p.identity)) throw new Error(`PRIMITIVE_ALREADY_EXISTS:${p.identity}`);
     const patch=list(doc.local_control_patches).find(x=>x.patch_ref===patchRef);
     if(!patch) throw new Error(`PATCH_NOT_FOUND:${patchRef}`);
