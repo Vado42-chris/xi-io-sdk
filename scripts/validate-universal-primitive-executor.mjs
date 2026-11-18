@@ -83,7 +83,7 @@ assert.equal(validateUniversalArtifact(unresolved).first_red,'PRIMITIVE_IDENTITY
 assert.throws(()=>extractUniversalTemplateRig(unresolved),/SOURCE_INVALID:PRIMITIVE_IDENTITY/);
 assert.throws(()=>compileUniversalProjection(unresolved,'projection:microsite'),/SOURCE_INVALID:PRIMITIVE_IDENTITY/);
 const missingRelationships=structuredClone(related);delete missingRelationships.primitives[0].relationships;
-assert.equal(validateUniversalArtifact(missingRelationships).first_red,'PRIMITIVE_IDENTITY');
+assert.equal(validateUniversalArtifact(missingRelationships).first_red,'PRIMITIVE_REQUIRED_FIELD');
 const normalizedCollision=structuredClone(related);
 normalizedCollision.primitives.push({...structuredClone(related.primitives[0]),identity:' p:headline '});
 assert.equal(validateUniversalArtifact(normalizedCollision).first_red,'PRIMITIVE_IDENTITY');
