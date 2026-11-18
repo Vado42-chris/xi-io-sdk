@@ -3,11 +3,13 @@
   "state": "CANDIDATE_PENDING_FRAMEWORK_1178_ACCEPTANCE",
   "framework_repo": "Vado42-chris/xi-io.net",
   "framework_pr": 1672,
-  "framework_generation": "7bc39828175175ab4bf93070daf17aaa5bec951d",
+  "framework_generation": "956cd61751d301a51f196d2f357f059f13f1102b",
   "framework_path": "standards/primitives/universal-primitive-denominator.v1.json",
-  "framework_blob_sha": "afa61e638fca90570ba2fb8893fa05dc753c1111",
+  "framework_blob_sha": "a521dce21059acd261a5fac4b30ff37b137b5f8a",
   "contract_schema": "xiio.universal-primitive-denominator/v1",
   "contract_version": 1,
   "accepted_generation": false,
-  "effect_authority": 0
+  "effect_authority": 0,
+  "file_sha256": "84847e33c38da6f3218f4942718947218da65a21793bd05a4f96c2b32ab6a235",
+  "semantic_json_sha256": "52d364a9826c5e7540c9603e1ad2ddfbe06c879b5146bf5477ebd75207652437"
 }
