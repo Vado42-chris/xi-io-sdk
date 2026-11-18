@@ -16,15 +16,73 @@
     "projection"
   ],
   "families": {
-    "visual": ["rectangle","text","image","group","layer","constraint","connection"],
-    "document": ["paragraph","heading","table","cell","citation","media","section"],
-    "code": ["module","class","component","function","route","schema","property","test","api_operation"],
-    "studio": ["product","tool","setting","drawer","offering","plugin","service","person","agent","project"],
-    "work": ["task","check","action","input","command","selection","composer","stateful_control"]
+    "visual": [
+      "rectangle",
+      "text",
+      "image",
+      "group",
+      "layer",
+      "constraint",
+      "connection"
+    ],
+    "document": [
+      "paragraph",
+      "heading",
+      "table",
+      "cell",
+      "citation",
+      "media",
+      "section"
+    ],
+    "code": [
+      "module",
+      "class",
+      "component",
+      "function",
+      "route",
+      "schema",
+      "property",
+      "test",
+      "api_operation"
+    ],
+    "studio": [
+      "product",
+      "tool",
+      "setting",
+      "drawer",
+      "offering",
+      "plugin",
+      "service",
+      "person",
+      "agent",
+      "project"
+    ],
+    "work": [
+      "task",
+      "check",
+      "action",
+      "input",
+      "command",
+      "selection",
+      "composer",
+      "stateful_control"
+    ]
   },
   "structural_operations": [
-    "CREATE","SELECT","INSPECT","MOVE","RESIZE","TRANSFORM","GROUP","CONNECT",
-    "DUPLICATE","VERSION","DIFF","UNDO","DELETE","PUBLISH"
+    "CREATE",
+    "SELECT",
+    "INSPECT",
+    "MOVE",
+    "RESIZE",
+    "TRANSFORM",
+    "GROUP",
+    "CONNECT",
+    "DUPLICATE",
+    "VERSION",
+    "DIFF",
+    "UNDO",
+    "DELETE",
+    "PUBLISH"
   ],
   "hard": [
     "CONTRACT_HASH_MATCH!=PRIMITIVE_INSTANCE_VALID",
