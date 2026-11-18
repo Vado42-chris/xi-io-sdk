@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {
   validateUniversalArtifact,
   executeUniversalPrimitiveOperation,
@@ -9,8 +10,20 @@ import {
 } from '../src/flatpack/universal-primitive.mjs';
 import {
   UNIVERSAL_PRIMITIVE_CONTRACT,
+  bindUniversalPrimitiveContract,
   validatePrimitiveAgainstUniversalContract,
 } from '../src/flatpack/universal-primitive-contract.mjs';
+
+const contractBytes=readFileSync(new URL('../contracts/framework/universal-primitive-denominator.v1.json',import.meta.url));
+const contractProvenance=JSON.parse(readFileSync(new URL('../contracts/framework/universal-primitive-denominator.provenance.json',import.meta.url),'utf8'));
+assert.equal(bindUniversalPrimitiveContract(contractBytes,contractProvenance).framework_contract_blob_sha,'4c4bd9691749d83f963583022fc97fb63d2182ac');
+const tamperedBytes=Buffer.from(contractBytes);
+tamperedBytes[tamperedBytes.length-2]=tamperedBytes[tamperedBytes.length-2]===32?33:32;
+assert.throws(
+  ()=>bindUniversalPrimitiveContract(tamperedBytes,contractProvenance),
+  /PRIMITIVE_CONTRACT_FILE_DIGEST_MISMATCH/
+);
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.includes('REDO'),false);
 
 const primitive=(identity,semantic_type)=>({
   identity,
@@ -101,6 +114,8 @@ console.log(JSON.stringify({
   owner_ref:'Vado42-chris/xi-io-sdk#168',
   framework_contract_ref:UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_ref,
   framework_contract_blob_sha:UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_blob_sha,
+  framework_contract_file_sha256:UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_file_sha256,
+  framework_contract_semantic_sha256:UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_semantic_sha256,
   primitive_ref:'p:class',
   semantic_type:'class',
   validation:true,
