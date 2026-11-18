@@ -105,5 +105,13 @@
     "EXECUTE",
     "OBSERVE",
     "RETURN"
+  ],
+  "atomic_identity_required": [
+    "primitive_id",
+    "artifact_id",
+    "semantic_type",
+    "family",
+    "coordinates",
+    "version_ref"
   ]
 }
