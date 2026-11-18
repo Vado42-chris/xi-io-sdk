@@ -1,6 +1,8 @@
 import {
   getUniversalPrimitiveDenominatorBinding,
+  bindUniversalPrimitiveDenominatorFromInstaller,
 } from './universal-primitive-denominator.mjs';
+export {bindUniversalPrimitiveDenominatorFromInstaller};
 const clone=v=>structuredClone(v);
 const list=v=>Array.isArray(v)?v:[];
 
