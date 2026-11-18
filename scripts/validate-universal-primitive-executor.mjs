@@ -46,6 +46,7 @@ const syntheticDenominator={
   required_fields:syntheticRequiredFields,
   families:{fixture:['heading','image','paragraph']},
   structural_operations:[...ops],
+  universal_api_verbs:['IDENTIFY','READ','QUERY','ATTACH','SELECT','TRANSFORM','VALIDATE','PROJECT','EXECUTE','OBSERVE','RETURN'],
   hard:['TEST_ONLY_NOT_FRAMEWORK_AUTHORITY'],
 };
 bindUniversalPrimitiveDenominator({
