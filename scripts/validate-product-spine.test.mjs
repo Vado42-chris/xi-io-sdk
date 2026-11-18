@@ -9,7 +9,7 @@ const product=id=>({id,name:id,published:published.includes(id),classification:'
 const fixture=()=>({products:roster.map(product)});
 const canon=x=>JSON.stringify(x,(k,v)=>v&&!Array.isArray(v)&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 const pin=doc=>'sha256:'+createHash('sha256').update(canon(doc)).digest('hex');
-const opts=doc=>({roster:[...roster],publishedRoster:[...published],livePublishedRoster:[...published],sourcePin:pin(doc),livePin:pin(doc)});
+const opts=doc=>{const publishedRoster=[...published],livePublishedRoster=[...published];return {roster:[...roster],publishedRoster,livePublishedRoster,sourcePin:pin(doc),livePin:pin(doc),publishedPin:pin(publishedRoster),livePublishedPin:pin(livePublishedRoster)};};
 /* Re-pin only when both pins remain present and equal after mutate. Nulling
  * both used to compare equal and accidentally restore a valid pin. */
 const reject=(label,mutate,code)=>test(label,()=>{const doc=fixture(),o=opts(doc);mutate(doc,o);if(o.sourcePin&&o.livePin&&o.sourcePin===o.livePin){o.sourcePin=pin(doc);o.livePin=pin(doc);}const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.some(x=>x.startsWith(code)),JSON.stringify(r.failures));assert.equal(r.visible.length,0);});
@@ -49,9 +49,18 @@ reject('missing commercial dimension basis',(d)=>{delete d.products[0].basis.com
 reject('persona name used as grant',(d)=>{d.products[0].persona_name='Designer';d.products[0].authorization_ref='Designer';},'PERSONA_NOT_AUTHORIZATION');
 reject('price keyed directly by maturity label',(d)=>{d.products[0].pricing={SILVER:49};},'PRODUCT_PRICE_FORBIDDEN');
 
-reject('both published rosters collude on a tenth id',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);o.livePublishedRoster.push(d.products[9].id);},'LIVE_PUBLISHED_ROSTER_NOT_ACCEPTED_NINE');
+reject('both published rosters collude on a tenth id without updated custody pins',(d,o)=>{d.products[9].published=true;o.publishedRoster.push(d.products[9].id);o.livePublishedRoster.push(d.products[9].id);},'STALE_OR_MISSING_PUBLISHED_PIN');
 reject('unknown classification basis is not evidence',(d)=>{d.products[0].basis.classification='UNKNOWN';},'DIMENSION_BASIS_MISSING:classification');
 reject('price_amount product field prohibited',(d)=>{d.products[0].price_amount=20;},'PRODUCT_PRICE_FORBIDDEN');
 
 test('duplicate live-published identity is rejected even when its set matches',()=>{const doc=fixture(),o=opts(doc);o.livePublishedRoster=[...o.livePublishedRoster,o.livePublishedRoster[0]];const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.includes('LIVE_PUBLISHED_ROSTER_IDS_INVALID'));});
 test('empty live-published identity is rejected',()=>{const doc=fixture(),o=opts(doc);o.livePublishedRoster=[...o.livePublishedRoster,''];const r=validate(doc,o);assert.equal(r.ok,false);assert.ok(r.failures.includes('LIVE_PUBLISHED_ROSTER_IDS_INVALID'));});
+
+test('published roster pin changes independently from catalogue pin',()=>{
+ const doc=fixture(),o=opts(doc);
+ o.publishedRoster=[...o.publishedRoster,'invented-public'];
+ const r=validate(doc,o);
+ assert.equal(r.ok,false);
+ assert.ok(r.failures.includes('STALE_OR_MISSING_PUBLISHED_PIN'));
+ assert.equal(r.source_pin,pin(doc));
+});
