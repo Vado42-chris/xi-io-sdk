@@ -66,6 +66,7 @@ function bindUniversalPrimitiveDenominator({contract,source}={}){
       accepted_generation:acceptedGeneration,
       contract_ref:'Vado42-chris/xi-io.net:standards/primitives/universal-primitive-denominator.v1.json',
       contract_sha256:contractSha,
+      installed_file_sha256:text(provenance.installed_file_sha256,'PRIMITIVE_DENOMINATOR_INSTALLED_FILE_SHA_REQUIRED'),
       binding_sha256:text(provenance.binding_sha256,'PRIMITIVE_DENOMINATOR_BINDING_SHA_REQUIRED'),
       contract_path:text(provenance.contract_path,'PRIMITIVE_DENOMINATOR_CONTRACT_PATH_REQUIRED'),
       custody_verified:true,
@@ -77,6 +78,7 @@ function bindUniversalPrimitiveDenominator({contract,source}={}){
   if(activeBinding){
     if(activeBinding.source.accepted_generation!==next.source.accepted_generation||
        activeBinding.source.contract_sha256!==next.source.contract_sha256||
+       activeBinding.source.installed_file_sha256!==next.source.installed_file_sha256||
        activeBinding.source.binding_sha256!==next.source.binding_sha256)
       fail('PRIMITIVE_DENOMINATOR_REBIND_REFUSED');
     return activeBinding;
@@ -131,6 +133,7 @@ export async function bindUniversalPrimitiveDenominatorFromInstaller({
       export_name:exportName,
       accepted_generation:after.accepted_generation,
       contract_sha256:semanticSha,
+      installed_file_sha256:after.runtime_exports[exportName].sha256,
       binding_sha256:after.binding_sha256,
       contract_path:after.fields[exportName],
       custody_verified:true,
