@@ -97,6 +97,7 @@
     "./cadence/flatpack-continuation": "./src/cadence/flatpack-continuation.mjs",
     "./preflight/order-runtime": "./src/preflight/order-runtime.mjs",
     "./flatpack/universal-primitive": "./src/flatpack/universal-primitive.mjs",
+    "./flatpack/universal-primitive-denominator": "./src/flatpack/universal-primitive-denominator.mjs",
     "./mutation/addressable": "./src/mutation/addressable.mjs",
     "./worker/lifecycle": "./src/worker/lifecycle.mjs",
     "./worker/connection": "./src/worker/connection.mjs",
