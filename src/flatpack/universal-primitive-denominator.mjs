@@ -1,6 +1,8 @@
 export const UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE=Object.freeze({
   schema:'xiio.universal-primitive-denominator-source/v1',
   framework_ref:'Vado42-chris/xi-io.net#1178:standards/primitives/universal-primitive-denominator.v1.json',
+  source_state:'CANDIDATE_PENDING_FRAMEWORK_1178_ACCEPTANCE',
+  framework_generation:null,
   contract_schema:'xiio.universal-primitive-denominator/v1',
   contract_version:1,
   contract_sha256:'d95710a7d097f2239dc4b230516a2280a0286b70a0990b92d3ad69a35d423952',
