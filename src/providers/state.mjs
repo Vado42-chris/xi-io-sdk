@@ -10,13 +10,13 @@ function toInt(value) {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
-function parseRetryAfterMs(headers = {}) {
+function parseRetryAfterMs(headers = {}, nowMs = Date.now()) {
   const raw = headers['retry-after'] ?? headers['Retry-After'];
   if (raw == null) return null;
   const seconds = Number(raw);
   if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
   const when = Date.parse(String(raw));
-  if (Number.isFinite(when)) return Math.max(0, when - Date.now());
+  if (Number.isFinite(when)) return Math.max(0, when - nowMs);
   return null;
 }
 
@@ -122,7 +122,7 @@ export function normalizeHostedRunnerObservation(input = {}) {
   };
 }
 
-export function normalizeProviderFailure(input = {}) {
+export function normalizeProviderFailure(input = {}, { now = () => new Date().toISOString() } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('provider failure input must be an object');
 
   const provider = String(input.provider ?? '').trim() || 'Provider';
@@ -134,7 +134,11 @@ export function normalizeProviderFailure(input = {}) {
   const providerReached = input.provider_reached === true || httpStatus != null;
   const explicitAuth = normalizeToken(input.auth_state);
   const authState = AUTH_STATES.has(explicitAuth) ? explicitAuth : httpStatus === 401 ? 'UNAUTHENTICATED' : 'UNKNOWN';
-  const retryAfterMs = input.retry_after_ms != null ? toInt(input.retry_after_ms) : parseRetryAfterMs(input.headers);
+  if (typeof now !== 'function') throw new TypeError('provider failure clock must be a function');
+  const nowValue = now();
+  const nowMs = Date.parse(nowValue);
+  if (!Number.isFinite(nowMs)) throw new TypeError('provider failure clock must return an ISO timestamp');
+  const retryAfterMs = input.retry_after_ms != null ? toInt(input.retry_after_ms) : parseRetryAfterMs(input.headers, nowMs);
   const quotaResetAt = typeof input.quota_reset_at === 'string' && input.quota_reset_at.trim() ? input.quota_reset_at.trim() : null;
   const failureClass = classify({ httpStatus, providerStatus, providerReason, failureKind, message });
   const traceId = typeof input.provider_trace_id === 'string' && input.provider_trace_id.trim() ? input.provider_trace_id.trim() : null;
