@@ -60,6 +60,7 @@ export function bindUniversalPrimitiveDenominator({contract,source}={}){
       dependency_id:provenance.dependency_id,
       export_name:provenance.export_name,
       accepted_generation:acceptedGeneration,
+      contract_ref:'Vado42-chris/xi-io.net:standards/primitives/universal-primitive-denominator.v1.json',
       contract_sha256:contractSha,
       binding_sha256:text(provenance.binding_sha256,'PRIMITIVE_DENOMINATOR_BINDING_SHA_REQUIRED'),
       contract_path:text(provenance.contract_path,'PRIMITIVE_DENOMINATOR_CONTRACT_PATH_REQUIRED'),
