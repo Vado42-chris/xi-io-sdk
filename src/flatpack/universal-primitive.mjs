@@ -5,6 +5,30 @@ import {
 export {bindUniversalPrimitiveDenominatorFromInstaller};
 const clone=v=>structuredClone(v);
 const list=v=>Array.isArray(v)?v:[];
+function dataOnly(value,seen=new Set()){
+  if(value===null||['string','number','boolean','undefined'].includes(typeof value))return true;
+  if(typeof value!=='object'||seen.has(value))return false;
+  const isArray=Array.isArray(value);
+  const proto=Object.getPrototypeOf(value);
+  if(isArray ? proto!==Array.prototype : ![Object.prototype,null].includes(proto))return false;
+  seen.add(value);
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  if(isArray){
+    for(let i=0;i<value.length;i++){
+      const d=descriptors[String(i)];
+      if(!d||!Object.hasOwn(d,'value')||!dataOnly(d.value,seen))return false;
+    }
+    const extra=Reflect.ownKeys(descriptors).filter(k=>k!=='length'&&!/^\d+$/.test(String(k)));
+    if(extra.length)return false;
+  }else{
+    for(const key of Reflect.ownKeys(descriptors)){
+      const d=descriptors[key];
+      if(typeof key!=='string'||!d||!Object.hasOwn(d,'value')||!dataOnly(d.value,seen))return false;
+    }
+  }
+  seen.delete(value);
+  return true;
+}
 
 function currentPrimitiveContract(){
   const binding=getUniversalPrimitiveDenominatorBinding();
@@ -17,6 +41,7 @@ function currentPrimitiveContract(){
   });
 }
 function validatePrimitiveContract(p,contract){
+  if(!dataOnly(p))return {ok:false,first_red:'PRIMITIVE_FIELD_SHAPE',detail:'primitive must be recursively data-only'};
   for(const field of contract.denominator.required_fields){
     if(!Object.prototype.hasOwnProperty.call(p,field))
       return {ok:false,first_red:'PRIMITIVE_REQUIRED_FIELD',detail:`${p?.identity||'missing'} missing ${field}`};
@@ -115,12 +140,13 @@ export function executeUniversalPrimitiveOperation(source,command){
   let primitiveId=command.primitive_ref||null;
 
   if(command.operation==='CREATE'){
-    const p=clone(command.args?.primitive);
+    const candidate=command.args?.primitive;
     const patchRef=command.args?.patch_ref;
-    if(!p?.identity||!patchRef) throw new Error('CREATE_REQUIRES_PRIMITIVE_AND_PATCH_REF');
+    if(!candidate?.identity||!patchRef) throw new Error('CREATE_REQUIRES_PRIMITIVE_AND_PATCH_REF');
     const contract=currentPrimitiveContract();
-    const primitiveContract=validatePrimitiveContract(p,contract);
+    const primitiveContract=validatePrimitiveContract(candidate,contract);
     if(!primitiveContract.ok) throw new Error(`CREATE_PRIMITIVE_INVALID:${primitiveContract.first_red}`);
+    const p=clone(candidate);
     if(list(doc.primitives).some(x=>x.identity===p.identity)) throw new Error(`PRIMITIVE_ALREADY_EXISTS:${p.identity}`);
     const patch=list(doc.local_control_patches).find(x=>x.patch_ref===patchRef);
     if(!patch) throw new Error(`PATCH_NOT_FOUND:${patchRef}`);
