@@ -294,3 +294,24 @@ This is structural data conservation, not file custody, rendered-preview identit
 player authentication, owner approval or an installed-product result. VeilRIFT's
 asset delivery and card-preview owners remain separate consumers to qualify;
 this SDK change does not claim their automatic adoption.
+
+## Shared launch-session consumers
+
+`src/identity/launch-session.mjs` keeps launcher sign-in separate from product
+launching. Deserialized tickets require a schema, session/principal identity,
+exact product audience and finite positive interval of at most twelve hours.
+Prompt decisions and ticket issuance both require the session's bounded interval
+(at most thirty days) to be live, including its opening boundary. Invalid or
+future sessions return to the launcher rather than becoming a live session.
+The current Desktop/Zed profile/workspace path contract remains POSIX,
+not proof of Windows adapter support. The existing injected session/ticket provenance verifiers remain required.
+These additional structural checks do not implement signature verification,
+Ward admission or live login.
+
+This consumes the ticket-shape/time slice of donor PR #179; its remaining editor, AI-Mail,
+ACP and product-adapter work is not retired by this slice. Run
+`node scripts/validate-launch-session.mjs` and the mandatory `npm run check`.
+
+Launch plans still grant no effect authority. Product consumers, installed
+bindings, authenticated readback and RETURN remain separately qualified; an
+incomplete affected-consumer graph remains UNKNOWN, not adoption credit.

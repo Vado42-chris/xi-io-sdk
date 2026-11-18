@@ -85,10 +85,19 @@ export function openSession(choice, { session_id, credential_ref, opened_at, exp
   });
 }
 
+// Deserialised sessions must conserve the same bounded interval as openSession.
+function sessionWindow(session, now) {
+  const start = typeof session?.opened_at === 'string' ? Date.parse(session.opened_at) : NaN;
+  const end = typeof session?.expires_at === 'string' ? Date.parse(session.expires_at) : NaN;
+  const valid = Number.isFinite(start) && Number.isFinite(end)
+    && end > start && end - start <= MAX_SESSION_MS;
+  return { end, live: valid && start <= now && now < end };
+}
+
 /** Does the person have to be asked? Only at the launcher, and only when there is no live session. */
 export function mustPrompt(session, { surface, now, verifySession } = {}) {
   const verified = session?.kind === 'LAUNCH_SESSION' ? verifiedSession(session, verifySession) : null;
-  const live = Boolean(verified) && ms(now, 'NOW_REQUIRED') < Date.parse(session.expires_at);
+  const live = Boolean(verified) && session?.schema === LAUNCH_SESSION_SCHEMA && sessionWindow(session, ms(now, 'NOW_REQUIRED')).live;
   if (live) return Object.freeze({ prompt: false, reason: 'SESSION_VERIFIED_LIVE', session_provenance_ref: verified.provenance_ref });
   if (surface === PROMPT_SURFACE) {
     return Object.freeze({ prompt: true, reason: session ? (verified ? 'SESSION_EXPIRED' : 'SESSION_PROVENANCE_UNVERIFIED') : 'NO_SESSION' });
@@ -103,8 +112,9 @@ export function launchTicket(session, { product, now, link_ref = null, verifySes
   if (!verified) refuse('SESSION_PROVENANCE_UNVERIFIED');
   if (typeof product !== 'string' || !/^[a-z0-9_:-]{2,64}$/.test(product)) refuse('PRODUCT_REQUIRED');
   const t = ms(now, 'NOW_REQUIRED');
-  const end = Date.parse(session.expires_at);
+  const { end, live } = sessionWindow(session, t);
   if (t >= end) refuse('SESSION_EXPIRED_RETURN_TO_LAUNCHER');
+  if (!live) refuse('SESSION_NOT_LIVE_RETURN_TO_LAUNCHER');
   return Object.freeze({
     schema: LAUNCH_SESSION_SCHEMA,
     kind: 'LAUNCH_TICKET',
@@ -124,11 +134,22 @@ export function launchTicket(session, { product, now, link_ref = null, verifySes
 
 /** A sub-product accepts only a live ticket cut for itself. */
 export function acceptTicket(ticket, { product, now, verifyTicket } = {}) {
-  if (ticket?.kind !== 'LAUNCH_TICKET') return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
+  const current = ms(now, 'NOW_REQUIRED');
+  const issued = typeof ticket?.issued_at === 'string' ? Date.parse(ticket.issued_at) : NaN;
+  const expires = typeof ticket?.expires_at === 'string' ? Date.parse(ticket.expires_at) : NaN;
+  if (ticket?.kind !== 'LAUNCH_TICKET' || ticket.schema !== LAUNCH_SESSION_SCHEMA
+      || typeof ticket.session_id !== 'string' || !/^[A-Za-z0-9:_-]{8,128}$/.test(ticket.session_id)
+      || typeof ticket.principal_ref !== 'string' || !ticket.principal_ref.trim()
+      || typeof ticket.product !== 'string' || !/^[a-z0-9_:-]{2,64}$/.test(ticket.product)
+      || ticket.product !== ticket.audience
+      || !Number.isFinite(issued) || !Number.isFinite(expires)
+      || expires <= issued || expires - issued > TICKET_MS
+      || current < issued || current >= expires) {
+    return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
+  }
   const verified = verifiedTicket(ticket, verifyTicket);
   if (!verified) return Object.freeze({ ok: false, reason: 'TICKET_PROVENANCE_UNVERIFIED' });
   if (ticket.audience !== product) return Object.freeze({ ok: false, reason: 'TICKET_FOR_ANOTHER_PRODUCT' });
-  if (ms(now, 'NOW_REQUIRED') >= Date.parse(ticket.expires_at)) return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
   return Object.freeze({ ok: true, principal_ref: ticket.principal_ref, session_id: ticket.session_id, ticket_provenance_ref: verified.provenance_ref, authority_granted: false });
 }
 

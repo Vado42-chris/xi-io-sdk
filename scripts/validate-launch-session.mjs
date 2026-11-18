@@ -45,6 +45,45 @@ assert.equal(acceptTicket(inbox, { product: 'ward', now: later, verifyTicket }).
 assert.equal(acceptTicket(inbox, { product: 'inbox', now: '2026-10-14T19:00:00-06:00', verifyTicket }).reason, 'RETURN_TO_LAUNCHER', 'tickets are short; the session is not');
 assert.ok(Date.parse(inbox.expires_at) <= Date.parse(session.expires_at), 'a ticket never outlives its session');
 
+/* Deserialised tickets fail closed when incomplete, malformed, or not yet valid. */
+const invalidTickets = [
+  { kind: 'LAUNCH_TICKET', audience: 'inbox', expires_at: 'invalid' },
+  { ...inbox, schema: undefined },
+  { ...inbox, session_id: undefined },
+  { ...inbox, principal_ref: undefined },
+  { ...inbox, product: 'desktop' },
+  { ...inbox, issued_at: undefined },
+  { ...inbox, expires_at: 'invalid' },
+  { ...inbox, expires_at: undefined },
+  { ...inbox, issued_at: '2026-10-14T00:00:00Z' },
+  { ...inbox, expires_at: inbox.issued_at },
+  { ...inbox, expires_at: '2026-10-19T19:00:00-06:00' },
+];
+for (const ticket of invalidTickets) {
+  assert.equal(acceptTicket(ticket, { product: 'inbox', now: later, verifyTicket }).ok, false);
+}
+assert.equal(acceptTicket(inbox, { product: 'inbox', now: inbox.expires_at, verifyTicket }).ok, false, 'expiry boundary is exclusive');
+
+/* Session issuance and prompt decisions share the bounded live interval. */
+const invalidSessions = [
+  {...session, opened_at:'2030-01-01T00:00:00Z', expires_at:'2030-01-02T00:00:00Z'},
+  {...session, opened_at:undefined},
+  {...session, opened_at:'invalid'},
+  {...session, expires_at:undefined},
+  {...session, expires_at:'invalid'},
+  {...session, expires_at:session.opened_at},
+  {...session, expires_at:'2027-12-01T00:00:00Z'},
+];
+for(const invalid of invalidSessions){
+  assert.equal(mustPrompt(invalid,{surface:'hex-launcher',now:later,verifySession}).prompt,true);
+  assert.equal(mustPrompt(invalid,{surface:'inbox',now:later,verifySession}).reason,'RETURN_TO_LAUNCHER');
+  assert.throws(()=>launchTicket(invalid,{product:'inbox',now:later,verifySession}));
+}
+assert.equal(mustPrompt(session,{surface:'hex-launcher',now:session.opened_at,verifySession,verifyTicket}).prompt,false);
+assert.equal(acceptTicket(launchTicket(session,{product:'inbox',now:session.opened_at,verifySession,verifyTicket}),{product:'inbox',now:session.opened_at,verifySession,verifyTicket}).ok,true);
+assert.equal(mustPrompt(session,{surface:'hex-launcher',now:session.expires_at,verifySession}).prompt,true);
+refusal(()=>launchTicket(session,{product:'inbox',now:session.expires_at,verifySession}),'SESSION_EXPIRED_RETURN_TO_LAUNCHER');
+
 /* The launch the owner described: stable Desktop + linked Zed, zero prompts after sign-in. */
 const plan = planDesktopLaunch(session, { now: later, desktop_url: 'https://xi-io.base44.app/DesktopExperience', zed_profile_dir: '/home/user/.local/share/xi-io/zed-profile', zed_workspace: '/home/user/xi-io/studio', verifySession });
 assert.equal(plan.prompts_after_sign_in, 0);
@@ -79,5 +118,7 @@ console.log(JSON.stringify({
   schema: 'xiio.sdk.launch-session-check/v1',
   result: 'PASS',
   cases: 35,
+  deserialized_ticket_assertions: 12,
+  session_interval_assertions: 25,
   hard: ['ONE_SIGN_IN_AT_LAUNCHER', 'SUB_PRODUCT_PROMPT = NEVER', 'EXPIRED -> RETURN_TO_LAUNCHER', 'TICKET_PER_PRODUCT', 'CREDENTIAL_BY_REFERENCE', 'DESKTOP+ZED_ONE_LINK', 'STRUCTURAL_SESSION != AUTHENTICATED_SESSION', 'STRUCTURAL_TICKET != ACCEPTED_TICKET'],
 }, null, 2));
