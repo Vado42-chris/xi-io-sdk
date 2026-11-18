@@ -253,5 +253,19 @@ const collapsedDuplicate=structuredClone(duplicateView);collapsedDuplicate.block
 assert.equal(reverseUniversalProjectionReadback(duplicateSource,collapsedDuplicate).first_red,'PROJECTION_BLOCK_CONTENT');
 assert.deepEqual(triad.primitives.map(p=>({id:p.identity,ops:[...p.operations],rels:[...p.relationships],state:p.state})),sourceOps);
 
-console.log(JSON.stringify({schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,public_relationship_refs:true,explicit_unknown_state:true,reverse_readback_same_ids:true,reverse_readback_recipe_lineage_hostiles:readbackHostiles.length,public_subset_preserved:true,visibility_before_render:true,unadmitted_tools_hidden:true,editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0}));
+console.log(JSON.stringify({
+ schema:'xiio.sdk.universal-primitive-executor-check/v1',state:'PASS',
+ framework_contract_ref:UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_ref,
+ framework_contract_blob_sha:UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_blob_sha,
+ required_primitive_fields:UNIVERSAL_PRIMITIVE_CONTRACT.required_fields.length,
+ semantic_types:Object.values(UNIVERSAL_PRIMITIVE_CONTRACT.semantic_families).flat().length,
+ canonical_structural_operations:UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.length,
+ shared_plane:'5s',human_ai_same_ids:true,template_rig:true,contextual_z2:true,
+ self_describing_tools:true,tool_publisher_projection:true,publisher_projection:true,
+ public_relationship_refs:true,explicit_unknown_state:true,reverse_readback_same_ids:true,
+ reverse_readback_recipe_lineage_hostiles:readbackHostiles.length,public_subset_preserved:true,
+ visibility_before_render:true,unadmitted_tools_hidden:true,
+ editor_ops:'CREATE_DUPLICATE_ORDER_DELETE',z_not_order:true,
+ bins_digest_authority:'PENDING_BINS_CUSTODY',browser_safe:true,effects:0
+}));
 
