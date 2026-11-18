@@ -46,7 +46,9 @@ test('installer-backed binding preserves verified owner generation and custody c
   assert.equal(bound.source.accepted_generation,'a'.repeat(40));
   assert.equal(bound.source.custody_verified,true);
   assert.match(bound.source.contract_sha256,/^[a-f0-9]{64}$/);
+  assert.match(bound.source.installed_file_sha256,/^[a-f0-9]{64}$/);
   assert.match(bound.source.binding_sha256,/^[a-f0-9]{64}$/);
+  assert.notEqual(bound.source.contract_sha256,bound.source.installed_file_sha256,'semantic and raw-file digests are distinct custody coordinates');
 });
 
 test('verified denominator still does not validate an invalid primitive instance',async()=>{
