@@ -52,13 +52,27 @@ test('expired Ward admission is refused before consumption',()=>{
 });
 test('admission expiring after admission cannot authorize a first durable effect',async()=>{
  const s=store();
- await assert.rejects(()=>consumeEvent(expiredConsumptionAdmission(),s.ports,receipt),/EVENT_ADMISSION_EXPIRED/);
+ await assert.rejects(()=>consumeEvent(
+   expiredConsumptionAdmission(),
+   {...s.ports,clock:()=> '2026-11-16T18:00:01Z'},
+   receipt,
+ ),/EVENT_ADMISSION_EXPIRED/);
  assert.equal(s.effects(),0);
+});
+test('consumption uses the injected trusted clock rather than process wall time',async()=>{
+ const s=store();
+ const done=await consumeEvent(
+   expiredConsumptionAdmission(),
+   {...s.ports,clock:()=> '2026-11-16T17:30:00Z'},
+   receipt,
+ );
+ assert.equal(done.state,'CONSUMED');
+ assert.equal(s.effects(),1);
 });
 test('expired admission can reconcile an existing duplicate without a second effect',async()=>{
  const prior={state:'CONSUMED',dedupe_ref:intent.dedupe_ref,consumer_ref:intent.consumer_ref,consumption_identity_sha256:intent.consumption_identity_sha256,consumption_record_ref:receipt.consumption_record_ref};
  const s=store(prior);
- const done=await consumeEvent(expiredConsumptionAdmission(),s.ports,receipt);
+ const done=await consumeEvent(expiredConsumptionAdmission(),{...s.ports,clock:()=> '2026-11-16T19:00:00Z'},receipt);
  assert.equal(done.state,'DUPLICATE');
  assert.equal(done.consumed,false);
  assert.equal(s.effects(),0);
