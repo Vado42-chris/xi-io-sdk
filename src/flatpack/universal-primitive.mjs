@@ -89,7 +89,7 @@ export function validateUniversalArtifact(doc){
     for(const id of list(r.primitive_refs)) if(!ids.has(id)) return fail('PROJECTION_IDENTITY',`projection ref unresolved:${id}`);
   }
   if(!doc.authority?.visibility||doc.authority?.effect_ceiling===undefined) return fail('AUTHORITY','visibility/effect ceiling required');
-  return {ok:true,schema:'xiio.sdk.universal-artifact-validation/v1',artifact_ref:artifactRef,shared_plane_ref:planeRef,scale:'5s',primitive_count:ids.size,identity_preserved:true,primitive_denominator_ref:contract.binding.source.contract_path,primitive_denominator_sha256:contract.binding.source.contract_sha256,primitive_denominator_version:contract.denominator.version,primitive_denominator_framework_generation:contract.binding.source.accepted_generation,primitive_denominator_binding_sha256:contract.binding.source.binding_sha256,effect_authority:0,first_red:null};
+  return {ok:true,schema:'xiio.sdk.universal-artifact-validation/v1',artifact_ref:artifactRef,shared_plane_ref:planeRef,scale:'5s',primitive_count:ids.size,identity_preserved:true,primitive_denominator_ref:contract.binding.source.contract_ref,primitive_denominator_installed_path:contract.binding.source.contract_path,primitive_denominator_sha256:contract.binding.source.contract_sha256,primitive_denominator_version:contract.denominator.version,primitive_denominator_framework_generation:contract.binding.source.accepted_generation,primitive_denominator_binding_sha256:contract.binding.source.binding_sha256,effect_authority:0,first_red:null};
 }
 
 function primitiveById(doc,id){
@@ -153,7 +153,7 @@ export function executeUniversalPrimitiveOperation(source,command){
   if(doc.artifact.artifact_ref!==artifactId) throw new Error('IDENTITY_MUTATION_FORBIDDEN');
   const after=validateUniversalArtifact(doc);
   if(!after.ok) throw new Error(`RESULT_INVALID:${after.first_red}`);
-  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:primitiveId,artifact_ref:artifactId,operation:command.operation,primitive_denominator_ref:after.primitive_denominator_ref,primitive_denominator_sha256:after.primitive_denominator_sha256,primitive_denominator_version:after.primitive_denominator_version,primitive_denominator_framework_generation:after.primitive_denominator_framework_generation,primitive_denominator_binding_sha256:after.primitive_denominator_binding_sha256,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
+  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:primitiveId,artifact_ref:artifactId,operation:command.operation,primitive_denominator_ref:after.primitive_denominator_ref,primitive_denominator_installed_path:after.primitive_denominator_installed_path,primitive_denominator_sha256:after.primitive_denominator_sha256,primitive_denominator_version:after.primitive_denominator_version,primitive_denominator_framework_generation:after.primitive_denominator_framework_generation,primitive_denominator_binding_sha256:after.primitive_denominator_binding_sha256,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
   doc.receipts=[...list(doc.receipts),receipt];
   return {artifact:doc,receipt};
 }
