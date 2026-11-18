@@ -54,6 +54,17 @@ const duplicateOp=primitive('p:duplicate-op','heading');duplicateOp.operations.p
 assert.equal(validatePrimitiveAgainstUniversalContract(duplicateOp).first_red,'PRIMITIVE_OPERATIONS');
 const unknownOp=primitive('p:unknown-op','heading');unknownOp.operations.push('FOREIGN_OPERATION');
 assert.equal(validatePrimitiveAgainstUniversalContract(unknownOp).first_red,'PRIMITIVE_OPERATIONS');
+const redoOp=primitive('p:redo-op','heading');redoOp.operations.push('REDO');
+assert.equal(validatePrimitiveAgainstUniversalContract(redoOp).first_red,'PRIMITIVE_OPERATIONS');
+for(const pair of [
+  ['coordinates',null],['relationships',{}],['provenance',[]],
+  ['authority',null],['state',''],['version',''],['projection',{}]
+]){
+  const [field,value]=pair;
+  const malformed=primitive('p:malformed:'+field,'heading');
+  malformed[field]=value;
+  assert.notEqual(validatePrimitiveAgainstUniversalContract(malformed).ok,true,field);
+}
 // Same string-reference relationship rule as the canonical flatpack validator.
 const related=structuredClone(doc);related.primitives[0].relationships=['p:image'];
 assert.equal(validateUniversalArtifact(related).ok,true);
@@ -87,6 +98,9 @@ const ai=executeUniversalPrimitiveOperation(human.artifact,{operation_ref:'op:a1
 assert.equal(human.receipt.primitive_ref,ai.receipt.primitive_ref);
 assert.equal(human.receipt.bins_digest_state,'PENDING_BINS_CUSTODY');
 assert.equal(human.receipt.before_digest_ref,null);
+assert.equal(human.receipt.primitive_denominator_blob_sha,UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_blob_sha);
+assert.equal(human.receipt.primitive_denominator_file_sha256,UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_file_sha256);
+assert.equal(human.receipt.primitive_denominator_semantic_sha256,UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_semantic_sha256);
 assert.equal(ai.receipt.after_digest_ref,null);
 const sourceBeforeInvalidCreate=structuredClone(ai.artifact);
 const invalidCreate=primitive('p:bad-create','unknown_semantic');
