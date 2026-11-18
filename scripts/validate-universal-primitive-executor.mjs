@@ -58,6 +58,30 @@ assert.equal(baselineValidation.primitive_denominator_binding_sha256,'b'.repeat(
 assert.match(baselineValidation.primitive_denominator_sha256,/^[a-f0-9]{64}$/);
 
 
+const accessorPrimitive=structuredClone(doc);
+let accessorReads=0;
+Object.defineProperty(accessorPrimitive.primitives[0],'semantic_type',{
+  enumerable:true,
+  get(){accessorReads++;return accessorReads===1?'heading':'made_up_type';}
+});
+assert.equal(validateUniversalArtifact(accessorPrimitive).first_red,'PRIMITIVE_FIELD_SHAPE');
+assert.equal(accessorReads,0,'validator must reject accessor descriptor before invoking getter');
+const sparsePrimitive=structuredClone(doc);
+delete sparsePrimitive.primitives[0].operations[0];
+assert.equal(validateUniversalArtifact(sparsePrimitive).first_red,'PRIMITIVE_FIELD_SHAPE');
+
+const createAccessor=primitive('p:accessor','paragraph');
+let createAccessorReads=0;
+Object.defineProperty(createAccessor,'semantic_type',{
+  enumerable:true,
+  get(){createAccessorReads++;return createAccessorReads===1?'paragraph':'made_up_type';}
+});
+assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
+  operation_ref:'op:create:accessor',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',
+  args:{patch_ref:'patch:a',primitive:createAccessor}
+}),/CREATE_PRIMITIVE_INVALID:PRIMITIVE_FIELD_SHAPE/);
+assert.equal(createAccessorReads,0,'CREATE must reject descriptor before clone/getter execution');
+
 const arbitrarySemantic=structuredClone(doc);arbitrarySemantic.primitives[0].semantic_type='made_up_type';
 assert.equal(validateUniversalArtifact(arbitrarySemantic).first_red,'PRIMITIVE_SEMANTIC_TYPE');
 
