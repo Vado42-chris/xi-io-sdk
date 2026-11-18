@@ -102,7 +102,7 @@ assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
   actor:{kind:'human',ref:'person:owner'},
   operation:'CREATE',
   args:{patch_ref:'patch:a',primitive:{...primitive('p:invalid','paragraph'),semantic_type:'made_up_type'}}
-}),/RESULT_INVALID:PRIMITIVE_SEMANTIC_TYPE/);
+}),/CREATE_PRIMITIVE_INVALID:PRIMITIVE_SEMANTIC_TYPE/);
 assert.deepEqual(doc,beforeInvalidCreate);
 
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
@@ -110,7 +110,7 @@ assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
   actor:{kind:'human',ref:'person:owner'},
   operation:'CREATE',
   args:{patch_ref:'patch:a',primitive:{...primitive('p:invalid-op','paragraph'),operations:['SELECT','TELEPORT']}}
-}),/RESULT_INVALID:PRIMITIVE_OPERATIONS/);
+}),/CREATE_PRIMITIVE_INVALID:PRIMITIVE_OPERATIONS/);
 
 // Same string-reference relationship rule as the canonical flatpack validator.
 const related=structuredClone(doc);related.primitives[0].relationships=['p:image'];
