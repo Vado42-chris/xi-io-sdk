@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
-import {bindUniversalPrimitiveDenominator} from '../src/flatpack/universal-primitive-denominator.mjs';
+import {bindSyntheticFrameworkDenominatorThroughInstaller} from '../test/helpers/verified-framework-denominator-fixture.mjs';
 import {
   validateUniversalArtifact,executeUniversalPrimitiveOperation,resolveUniversalContextualTools,
   describeUniversalContextualTools,compileUniversalToolProjection,
@@ -49,19 +48,8 @@ const syntheticDenominator={
   universal_api_verbs:['IDENTIFY','READ','QUERY','ATTACH','SELECT','TRANSFORM','VALIDATE','PROJECT','EXECUTE','OBSERVE','RETURN'],
   hard:['TEST_ONLY_NOT_FRAMEWORK_AUTHORITY'],
 };
-bindUniversalPrimitiveDenominator({
-  contract:syntheticDenominator,
-  source:{
-    owner_repo:'Vado42-chris/xi-io.net',
-    dependency_id:'framework-runtime',
-    export_name:'universal_primitive_denominator_contract',
-    accepted_generation:'a'.repeat(40),
-    contract_sha256:createHash('sha256').update(JSON.stringify(syntheticDenominator)).digest('hex'),
-    binding_sha256:'b'.repeat(64),
-    contract_path:'/synthetic/framework/universal-primitive-denominator.v1.json',
-    custody_verified:true,
-  },
-});
+const denominatorFixture=await bindSyntheticFrameworkDenominatorThroughInstaller(syntheticDenominator);
+process.on('exit',()=>denominatorFixture.cleanup());
 const baselineValidation=validateUniversalArtifact(doc);
 assert.equal(baselineValidation.ok,true);
 assert.equal(baselineValidation.primitive_denominator_version,1);
