@@ -1,6 +1,6 @@
 export const CONTRACT_SURFACE_INVENTORY_SCHEMA='xiio.sdk.contract-surface-inventory/v1';
 
-const REF=/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,255}$/;
+const REF=/^[A-Za-z0-9][A-Za-z0-9:._/#-]{0,255}$/;
 const STATES=new Set(['DECLARED','IMPLEMENTED','APPLICABLE','QUALIFIED','CURRENT','AUTHORIZED','OBSERVED_VERIFIED']);
 const SURFACE_ROLES=new Set(['API','MCP','A2A','EVENT','ADAPTER','PROVIDER']);
 const EFFECT_CLASSES=new Set(['READ_ONLY','MUTATION','EXTERNAL_EFFECT','NONE']);
