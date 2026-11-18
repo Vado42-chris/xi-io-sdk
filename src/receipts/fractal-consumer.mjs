@@ -7,7 +7,9 @@ function text(v,k,max=1024){
 }
 function refs(v){
   if(!Array.isArray(v)) throw new TypeError('REFS_ARRAY_REQUIRED');
-  return Object.freeze([...new Set(v.map(x=>text(x,'REF')))].sort());
+  const normalized=v.map(x=>text(x,'REF'));
+  if(new Set(normalized).size!==normalized.length) throw new TypeError('REFS_DUPLICATE');
+  return Object.freeze([...normalized].sort());
 }
 function nullable(v){return v==null?null:String(v);}
 
