@@ -1,3 +1,4 @@
+import {validatePrimitiveAgainstUniversalContract} from './universal-primitive-contract.mjs';
 const clone=v=>structuredClone(v);
 const list=v=>Array.isArray(v)?v:[];
 
@@ -28,11 +29,12 @@ export function validateUniversalArtifact(doc){
   }
   const ids=new Set(),normalizedIds=new Set();
   for(const p of list(doc.primitives)){
-    const id=String(p?.identity||'').trim();
-    if(!id||normalizedIds.has(id)) return fail('PRIMITIVE_IDENTITY',`invalid primitive identity:${p?.identity||'missing'}`);
-    if(!Object.prototype.hasOwnProperty.call(p,'relationships')) return fail('PRIMITIVE_IDENTITY',`${p.identity} missing relationships`);
+    const admitted=validatePrimitiveAgainstUniversalContract(p);
+    if(!admitted.ok)return fail(admitted.first_red,`${String(p?.identity??'missing')}:${admitted.detail}`);
+    const id=p.identity;
+    if(normalizedIds.has(id)) return fail('PRIMITIVE_IDENTITY',`duplicate primitive identity:${id}`);
     normalizedIds.add(id);
-    ids.add(p.identity);
+    ids.add(id);
   }
   for(const p of list(doc.primitives)) for(const ref of list(p.relationships)){
     if(!ids.has(ref)) return fail('PRIMITIVE_IDENTITY',`${p.identity} relationship unresolved: ${ref}`);
@@ -73,6 +75,8 @@ export function executeUniversalPrimitiveOperation(source,command){
     const p=clone(command.args?.primitive);
     const patchRef=command.args?.patch_ref;
     if(!p?.identity||!patchRef) throw new Error('CREATE_REQUIRES_PRIMITIVE_AND_PATCH_REF');
+    const admission=validatePrimitiveAgainstUniversalContract(p);
+    if(!admission.ok) throw new Error(`CREATE_PRIMITIVE_INVALID:${admission.first_red}`);
     if(list(doc.primitives).some(x=>x.identity===p.identity)) throw new Error(`PRIMITIVE_ALREADY_EXISTS:${p.identity}`);
     const patch=list(doc.local_control_patches).find(x=>x.patch_ref===patchRef);
     if(!patch) throw new Error(`PATCH_NOT_FOUND:${patchRef}`);
