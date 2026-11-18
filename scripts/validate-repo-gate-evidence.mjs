@@ -18,6 +18,16 @@ for (const name of ['evidence_dir:', 'evidence_name:', 'id: evidence_scope',
   'EVIDENCE_DIR_ESCAPE', 'EVIDENCE_ARTIFACT_NAME_INVALID', 'EVIDENCE_DIR_UNSAFE']) {
   assert.ok(workflow.includes(name), 'EVIDENCE_CONTRACT_MISSING:' + name);
 }
+for (const name of [
+  "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+  "EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+  "XIIO_GATE_CHECKOUT_IDENTITY_MISMATCH",
+  "expected_source_sha:",
+  "checkout_matches_expected:",
+  "workflow_sha:",
+]) {
+  assert.ok(workflow.includes(name), 'EXACT_HEAD_CONTRACT_MISSING:' + name);
+}
 const upload = workflow.split('      - name: Upload product evidence from existing gate\n')[1];
 assert.ok(upload && upload.includes('if-no-files-found: error') &&
   upload.includes('steps.evidence_scope.outcome') &&
