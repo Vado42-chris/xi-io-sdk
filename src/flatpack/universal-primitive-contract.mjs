@@ -9,6 +9,9 @@ const provenance=JSON.parse(readFileSync(PROVENANCE_URL,'utf8'));
 const parsed=JSON.parse(raw.toString('utf8'));
 const fileSha256=createHash('sha256').update(raw).digest('hex');
 const semanticSha256=createHash('sha256').update(JSON.stringify(parsed)).digest('hex');
+const gitBlobSha=createHash('sha1')
+  .update(Buffer.concat([Buffer.from('blob '+raw.length+'\\0'),raw]))
+  .digest('hex');
 
 const fail=code=>{throw new Error(code);};
 if(provenance?.schema!=='xiio.sdk.materialized-framework-contract/v1')
@@ -19,10 +22,8 @@ if(provenance?.framework_path!=='standards/primitives/universal-primitive-denomi
   fail('PRIMITIVE_CONTRACT_PROVENANCE_PATH_INVALID');
 if(parsed?.schema!==provenance.contract_schema||parsed?.version!==provenance.contract_version)
   fail('PRIMITIVE_CONTRACT_SCHEMA_VERSION_MISMATCH');
-if(fileSha256!==provenance.file_sha256)
-  fail('PRIMITIVE_CONTRACT_FILE_DIGEST_MISMATCH');
-if(semanticSha256!==provenance.semantic_json_sha256)
-  fail('PRIMITIVE_CONTRACT_SEMANTIC_DIGEST_MISMATCH');
+if(gitBlobSha!==provenance.framework_blob_sha)
+  fail('PRIMITIVE_CONTRACT_FRAMEWORK_BLOB_MISMATCH');
 if(parsed?.schema!=='xiio.universal-primitive-denominator/v1'||
    parsed?.id!=='XIIO_UNIVERSAL_PRIMITIVE_DENOMINATOR'||parsed?.version!==1)
   fail('PRIMITIVE_CONTRACT_IDENTITY_INVALID');
@@ -38,6 +39,7 @@ export const UNIVERSAL_PRIMITIVE_CONTRACT=Object.freeze({
   framework_pr:provenance.framework_pr,
   framework_generation:provenance.framework_generation,
   framework_contract_blob_sha:provenance.framework_blob_sha,
+  materialized_contract_blob_sha:gitBlobSha,
   framework_contract_schema:parsed.schema,
   framework_contract_version:parsed.version,
   framework_contract_file_sha256:fileSha256,
@@ -47,6 +49,7 @@ export const UNIVERSAL_PRIMITIVE_CONTRACT=Object.freeze({
   required_fields:freezeList(parsed.required_fields),
   semantic_families:freezeFamilies(parsed.families),
   structural_operations:freezeList(parsed.structural_operations),
+  universal_api_verbs:freezeList(parsed.universal_api_verbs||[]),
   hard:freezeList(parsed.hard||[]),
 });
 
