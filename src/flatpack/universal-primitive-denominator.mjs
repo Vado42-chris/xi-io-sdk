@@ -44,7 +44,7 @@ export function validateUniversalPrimitiveDenominatorContract(value){
   return row;
 }
 
-export function bindUniversalPrimitiveDenominator({contract,source}={}){
+function bindUniversalPrimitiveDenominator({contract,source}={}){
   const denominator=validateUniversalPrimitiveDenominatorContract(contract);
   const provenance=plain(source,'PRIMITIVE_DENOMINATOR_SOURCE_REQUIRED');
   const acceptedGeneration=text(provenance.accepted_generation,'PRIMITIVE_DENOMINATOR_ACCEPTED_GENERATION_REQUIRED');
@@ -118,6 +118,10 @@ export async function bindUniversalPrimitiveDenominatorFromInstaller({
   if(before.binding_sha256!==after.binding_sha256||
      before.fields[exportName]!==after.fields[exportName]||
      before.runtime_exports[exportName]?.sha256!==after.runtime_exports[exportName]?.sha256)
+    fail('PRIMITIVE_DENOMINATOR_CHANGED_DURING_READ');
+  const afterBytes=await fs.readFile(after.fields[exportName]);
+  const afterFileSha=createHash('sha256').update(afterBytes).digest('hex');
+  if(afterFileSha!==after.runtime_exports[exportName].sha256||!bytes.equals(afterBytes))
     fail('PRIMITIVE_DENOMINATOR_CHANGED_DURING_READ');
   return bindUniversalPrimitiveDenominator({
     contract,
