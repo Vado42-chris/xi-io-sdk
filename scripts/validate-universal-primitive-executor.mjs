@@ -5,6 +5,9 @@ import {
   describeUniversalContextualTools,compileUniversalToolProjection,
   extractUniversalTemplateRig,compileUniversalProjection,reverseUniversalProjectionReadback
 } from '../src/flatpack/universal-primitive.mjs';
+import {
+  UNIVERSAL_PRIMITIVE_CONTRACT,validatePrimitiveAgainstUniversalContract
+} from '../src/flatpack/universal-primitive-contract.mjs';
 
 const ops=['SELECT','INSPECT','MOVE','RESIZE','TRANSFORM','DUPLICATE','DELETE'];
 const primitive=(identity,semantic_type)=>({identity,semantic_type,coordinates:{value:identity,axis:['x','y','z'],scale:'5s',plane:'plane:one',direction:'forward',orientation:'screen',projection:'article'},relationships:[],operations:ops,provenance:{source:'fixture'},authority:{visibility:'PUBLIC',effect_ceiling:'READ_ONLY'},state:'CURRENT',version:'1',projection:['article','microsite'],geometry:{x:0,y:0,width:100,height:40},content:{text:identity},style:{}});
@@ -35,6 +38,20 @@ const doc={
   contextual_settings:[{setting_ref:'setting:density',owner:'ARTICLES',admitted:true,value:'comfortable'}]}
 };
 assert.equal(validateUniversalArtifact(doc).ok,true);
+assert.equal(UNIVERSAL_PRIMITIVE_CONTRACT.framework_contract_blob_sha,'f9e7778a3ca81e486ceeb764c3ab84eb4a14af3d');
+assert.ok(UNIVERSAL_PRIMITIVE_CONTRACT.semantic_families.code.includes('class'));
+assert.ok(UNIVERSAL_PRIMITIVE_CONTRACT.structural_operations.includes('REDO'));
+assert.equal(validatePrimitiveAgainstUniversalContract(primitive('p:class','class')).ok,true);
+for(const field of UNIVERSAL_PRIMITIVE_CONTRACT.required_fields){
+  const candidate=primitive('p:missing:'+field,'heading');delete candidate[field];
+  assert.equal(validatePrimitiveAgainstUniversalContract(candidate).first_red,'PRIMITIVE_REQUIRED_FIELDS',field);
+}
+const unknownType=primitive('p:unknown-type','not_declared');
+assert.equal(validatePrimitiveAgainstUniversalContract(unknownType).first_red,'PRIMITIVE_SEMANTIC_TYPE');
+const duplicateOp=primitive('p:duplicate-op','heading');duplicateOp.operations.push(duplicateOp.operations[0]);
+assert.equal(validatePrimitiveAgainstUniversalContract(duplicateOp).first_red,'PRIMITIVE_OPERATIONS');
+const unknownOp=primitive('p:unknown-op','heading');unknownOp.operations.push('FOREIGN_OPERATION');
+assert.equal(validatePrimitiveAgainstUniversalContract(unknownOp).first_red,'PRIMITIVE_OPERATIONS');
 // Same string-reference relationship rule as the canonical flatpack validator.
 const related=structuredClone(doc);related.primitives[0].relationships=['p:image'];
 assert.equal(validateUniversalArtifact(related).ok,true);
@@ -69,9 +86,15 @@ assert.equal(human.receipt.primitive_ref,ai.receipt.primitive_ref);
 assert.equal(human.receipt.bins_digest_state,'PENDING_BINS_CUSTODY');
 assert.equal(human.receipt.before_digest_ref,null);
 assert.equal(ai.receipt.after_digest_ref,null);
+const sourceBeforeInvalidCreate=structuredClone(ai.artifact);
+const invalidCreate=primitive('p:bad-create','unknown_semantic');
+assert.throws(()=>executeUniversalPrimitiveOperation(ai.artifact,{operation_ref:'op:h:bad-create',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:[],primitive:invalidCreate}}),/CREATE_PRIMITIVE_INVALID:PRIMITIVE_SEMANTIC_TYPE/);
+assert.deepEqual(ai.artifact,sourceBeforeInvalidCreate);
 const created=executeUniversalPrimitiveOperation(ai.artifact,{operation_ref:'op:h:create',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:['projection:microsite','projection:hex'],primitive:primitive('p:new','paragraph')}});
 assert.ok(created.artifact.primitives.some(x=>x.identity==='p:new'));
-const duplicated=executeUniversalPrimitiveOperation(created.artifact,{operation_ref:'op:a:duplicate',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new',operation:'DUPLICATE',args:{new_identity:'p:new-copy'}});
+const createdClass=executeUniversalPrimitiveOperation(created.artifact,{operation_ref:'op:h:create-class',actor:{kind:'human',ref:'person:owner'},operation:'CREATE',args:{patch_ref:'patch:a',projection_refs:[],primitive:primitive('p:class','class')}});
+assert.ok(createdClass.artifact.primitives.some(x=>x.identity==='p:class'));
+const duplicated=executeUniversalPrimitiveOperation(createdClass.artifact,{operation_ref:'op:a:duplicate',actor:{kind:'ai',ref:'agent:ibal'},primitive_ref:'p:new',operation:'DUPLICATE',args:{new_identity:'p:new-copy'}});
 assert.ok(duplicated.artifact.primitives.some(x=>x.identity==='p:new-copy'));
 const ordered=executeUniversalPrimitiveOperation(duplicated.artifact,{operation_ref:'op:h:order',actor:{kind:'human',ref:'person:owner'},primitive_ref:'p:new-copy',operation:'TRANSFORM',args:{path:'metadata.order',value:7}});
 assert.equal(ordered.artifact.primitives.find(x=>x.identity==='p:new-copy').metadata.order,7);
