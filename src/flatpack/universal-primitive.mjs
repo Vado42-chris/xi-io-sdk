@@ -1,19 +1,25 @@
 import {
-  UNIVERSAL_PRIMITIVE_DENOMINATOR,
-  UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE,
-  UNIVERSAL_PRIMITIVE_SEMANTIC_TYPES,
+  getUniversalPrimitiveDenominatorBinding,
 } from './universal-primitive-denominator.mjs';
 const clone=v=>structuredClone(v);
 const list=v=>Array.isArray(v)?v:[];
 
-const CANONICAL_SEMANTIC_TYPES=new Set(UNIVERSAL_PRIMITIVE_SEMANTIC_TYPES);
-const CANONICAL_OPERATIONS=new Set(UNIVERSAL_PRIMITIVE_DENOMINATOR.structural_operations);
-function validatePrimitiveContract(p){
-  for(const field of UNIVERSAL_PRIMITIVE_DENOMINATOR.required_fields){
+function currentPrimitiveContract(){
+  const binding=getUniversalPrimitiveDenominatorBinding();
+  const denominator=binding.denominator;
+  return Object.freeze({
+    binding,
+    denominator,
+    semantic_types:new Set(Object.values(denominator.families).flat()),
+    operations:new Set(denominator.structural_operations),
+  });
+}
+function validatePrimitiveContract(p,contract){
+  for(const field of contract.denominator.required_fields){
     if(!Object.prototype.hasOwnProperty.call(p,field))
       return {ok:false,first_red:'PRIMITIVE_REQUIRED_FIELD',detail:`${p?.identity||'missing'} missing ${field}`};
   }
-  if(typeof p.semantic_type!=='string'||!CANONICAL_SEMANTIC_TYPES.has(p.semantic_type))
+  if(typeof p.semantic_type!=='string'||!contract.semantic_types.has(p.semantic_type))
     return {ok:false,first_red:'PRIMITIVE_SEMANTIC_TYPE',detail:`${p?.identity||'missing'} semantic_type not canonical:${String(p?.semantic_type)}`};
   const objectField=(name)=>p[name]&&typeof p[name]==='object'&&!Array.isArray(p[name]);
   if(!objectField('coordinates')||!objectField('provenance')||!objectField('authority')||
@@ -26,7 +32,7 @@ function validatePrimitiveContract(p){
   if(new Set(p.operations).size!==p.operations.length)
     return {ok:false,first_red:'PRIMITIVE_OPERATIONS',detail:`${p?.identity||'missing'} duplicate operations`};
   for(const op of p.operations){
-    if(typeof op!=='string'||!CANONICAL_OPERATIONS.has(op))
+    if(typeof op!=='string'||!contract.operations.has(op))
       return {ok:false,first_red:'PRIMITIVE_OPERATIONS',detail:`${p?.identity||'missing'} operation not canonical:${String(op)}`};
   }
   return {ok:true};
@@ -34,6 +40,9 @@ function validatePrimitiveContract(p){
 
 export function validateUniversalArtifact(doc){
   const fail=(first_red,detail)=>({ok:false,schema:'xiio.sdk.universal-artifact-validation/v1',first_red,detail,effect_authority:0});
+  let contract;
+  try{contract=currentPrimitiveContract();}
+  catch(error){return fail(String(error?.code||error?.message||error),'primitive denominator binding required');}
   if(!doc||typeof doc!=='object'||Array.isArray(doc)) return fail('ARTIFACT_IDENTITY','artifact must be object');
   if(doc.schema!=='xiio.flatpack/v1') return fail('ARTIFACT_IDENTITY','schema must be xiio.flatpack/v1');
   const artifactRef=String(doc.artifact?.artifact_ref||'').trim();
@@ -61,8 +70,8 @@ export function validateUniversalArtifact(doc){
   for(const p of list(doc.primitives)){
     const id=String(p?.identity||'').trim();
     if(!id||normalizedIds.has(id)) return fail('PRIMITIVE_IDENTITY',`invalid primitive identity:${p?.identity||'missing'}`);
-    const contract=validatePrimitiveContract(p);
-    if(!contract.ok) return fail(contract.first_red,contract.detail);
+    const primitiveContract=validatePrimitiveContract(p,contract);
+    if(!primitiveContract.ok) return fail(primitiveContract.first_red,primitiveContract.detail);
     normalizedIds.add(id);
     ids.add(p.identity);
   }
@@ -78,7 +87,7 @@ export function validateUniversalArtifact(doc){
     for(const id of list(r.primitive_refs)) if(!ids.has(id)) return fail('PROJECTION_IDENTITY',`projection ref unresolved:${id}`);
   }
   if(!doc.authority?.visibility||doc.authority?.effect_ceiling===undefined) return fail('AUTHORITY','visibility/effect ceiling required');
-  return {ok:true,schema:'xiio.sdk.universal-artifact-validation/v1',artifact_ref:artifactRef,shared_plane_ref:planeRef,scale:'5s',primitive_count:ids.size,identity_preserved:true,primitive_denominator_ref:UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.framework_ref,primitive_denominator_sha256:UNIVERSAL_PRIMITIVE_DENOMINATOR_SOURCE.contract_sha256,primitive_denominator_version:UNIVERSAL_PRIMITIVE_DENOMINATOR.version,effect_authority:0,first_red:null};
+  return {ok:true,schema:'xiio.sdk.universal-artifact-validation/v1',artifact_ref:artifactRef,shared_plane_ref:planeRef,scale:'5s',primitive_count:ids.size,identity_preserved:true,primitive_denominator_ref:contract.binding.source.contract_path,primitive_denominator_sha256:contract.binding.source.contract_sha256,primitive_denominator_version:contract.denominator.version,primitive_denominator_framework_generation:contract.binding.source.accepted_generation,primitive_denominator_binding_sha256:contract.binding.source.binding_sha256,effect_authority:0,first_red:null};
 }
 
 function primitiveById(doc,id){
@@ -142,7 +151,7 @@ export function executeUniversalPrimitiveOperation(source,command){
   if(doc.artifact.artifact_ref!==artifactId) throw new Error('IDENTITY_MUTATION_FORBIDDEN');
   const after=validateUniversalArtifact(doc);
   if(!after.ok) throw new Error(`RESULT_INVALID:${after.first_red}`);
-  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:primitiveId,artifact_ref:artifactId,operation:command.operation,primitive_denominator_ref:after.primitive_denominator_ref,primitive_denominator_sha256:after.primitive_denominator_sha256,primitive_denominator_version:after.primitive_denominator_version,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
+  const receipt={schema:'xiio.sdk.primitive-operation-receipt/v1',operation_ref:command.operation_ref,actor:command.actor,primitive_ref:primitiveId,artifact_ref:artifactId,operation:command.operation,primitive_denominator_ref:after.primitive_denominator_ref,primitive_denominator_sha256:after.primitive_denominator_sha256,primitive_denominator_version:after.primitive_denominator_version,primitive_denominator_framework_generation:after.primitive_denominator_framework_generation,primitive_denominator_binding_sha256:after.primitive_denominator_binding_sha256,bins_digest_state:'PENDING_BINS_CUSTODY',before_digest_ref:null,after_digest_ref:null,effect_ceiling:0};
   doc.receipts=[...list(doc.receipts),receipt];
   return {artifact:doc,receipt};
 }
