@@ -73,7 +73,7 @@ function verifyReceipt(admitted,receipt){
  * The store owns duplicate detection and atomic record creation. SDK never
  * treats a caller-supplied history list as proof that an occurrence is new.
  */
-export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},receipt={}){
+export async function consumeEvent(admitted,{readConsumption,consumeOnce,clock=()=>new Date().toISOString()}={},receipt={}){
   if(admitted?.schema!==EVENT_CONSUMPTION_SCHEMA||admitted.state!=='ADMITTED')throw new TypeError('ADMITTED_EVENT_REQUIRED');
   const recomputed=createEventIntent(admitted);
   if(recomputed.consumption_identity_sha256!==admitted.consumption_identity_sha256||recomputed.dedupe_ref!==admitted.dedupe_ref||recomputed.effect_idempotency_key!==admitted.effect_idempotency_key)throw new TypeError('EVENT_IDENTITY_DIGEST_MISMATCH');
@@ -82,6 +82,7 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
   ref(admitted.admission_provenance_ref,'ADMISSION_PROVENANCE_REF_REQUIRED');
   const expiresAt=Date.parse(instant(admitted.expires_at,'ADMISSION_EXPIRES_AT_REQUIRED'));
   if(typeof readConsumption!=='function'||typeof consumeOnce!=='function')throw new TypeError('DURABLE_CONSUMPTION_STORE_REQUIRED');
+  if(typeof clock!=='function')throw new TypeError('CONSUMPTION_CLOCK_REQUIRED');
   const prior=await readConsumption({dedupe_ref:admitted.dedupe_ref,consumer_ref:admitted.consumer_ref});
   if(prior){
     if(prior.state!=='CONSUMED')throw new TypeError('DURABLE_CONSUMPTION_RECONCILIATION_REQUIRED');
@@ -91,7 +92,8 @@ export async function consumeEvent(admitted,{readConsumption,consumeOnce}={},rec
     return Object.freeze({...admitted,state:'DUPLICATE',consumed:false,duplicate:true,first_red:'EVENT_ALREADY_CONSUMED',consumption_record_ref:ref(prior.consumption_record_ref,'CONSUMPTION_RECORD_REF_REQUIRED')});
   }
   verifyReceipt(admitted,receipt);
-  if(expiresAt<=Date.now())throw new TypeError('EVENT_ADMISSION_EXPIRED');
+  const consumeNow=Date.parse(instant(clock(),'CLOCK_INVALID'));
+  if(expiresAt<=consumeNow)throw new TypeError('EVENT_ADMISSION_EXPIRED');
   const stored=await consumeOnce({admitted,receipt});
   if(stored?.state==='DUPLICATE'){
     if(stored.dedupe_ref!==admitted.dedupe_ref||stored.consumer_ref!==admitted.consumer_ref||stored.consumption_identity_sha256!==admitted.consumption_identity_sha256)throw new TypeError('DURABLE_CONSUMPTION_RECORD_MISMATCH');
