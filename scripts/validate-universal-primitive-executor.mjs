@@ -52,6 +52,14 @@ assert.equal(validateUniversalArtifact(duplicateOperation).first_red,'PRIMITIVE_
 const missingRequiredPrimitiveField=structuredClone(doc);delete missingRequiredPrimitiveField.primitives[0].projection;
 assert.equal(validateUniversalArtifact(missingRequiredPrimitiveField).first_red,'PRIMITIVE_REQUIRED_FIELD');
 
+for(const [field,value] of [
+  ['coordinates',null],['provenance',[]],['authority',null],
+  ['relationships',{}],['projection',{}],['state',''],['version','']
+]){
+  const malformed=structuredClone(doc);malformed.primitives[0][field]=value;
+  assert.equal(validateUniversalArtifact(malformed).first_red,'PRIMITIVE_FIELD_SHAPE',field);
+}
+
 assert.throws(()=>executeUniversalPrimitiveOperation(doc,{
   operation_ref:'op:create:invalid-type',
   actor:{kind:'human',ref:'person:owner'},
