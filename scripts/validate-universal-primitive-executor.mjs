@@ -73,7 +73,8 @@ assert.equal(validateUniversalArtifact(missingRequiredPrimitiveField).first_red,
 for(const field of syntheticDenominator.required_fields){
   const missing=structuredClone(doc);
   delete missing.primitives[0][field];
-  assert.equal(validateUniversalArtifact(missing).first_red,'PRIMITIVE_REQUIRED_FIELD',field);
+  const expected=field==='identity'?'PRIMITIVE_IDENTITY':'PRIMITIVE_REQUIRED_FIELD';
+  assert.equal(validateUniversalArtifact(missing).first_red,expected,field);
 }
 
 for(const [field,value] of [
