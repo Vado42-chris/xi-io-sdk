@@ -40,6 +40,25 @@ const ms = (iso, code) => {
   if (Number.isNaN(t)) refuse(code);
   return t;
 };
+function verifiedSession(session, verifySession) {
+  if (typeof verifySession !== 'function') return null;
+  const verified = verifySession(session);
+  if (!verified || verified.state !== 'VERIFIED' ||
+      verified.session_id !== session?.session_id ||
+      verified.principal_ref !== session?.principal_ref) return null;
+  if (typeof verified.provenance_ref !== 'string' || !verified.provenance_ref.trim()) return null;
+  return verified;
+}
+function verifiedTicket(ticket, verifyTicket) {
+  if (typeof verifyTicket !== 'function') return null;
+  const verified = verifyTicket(ticket);
+  if (!verified || verified.state !== 'VERIFIED' ||
+      verified.session_id !== ticket?.session_id ||
+      verified.principal_ref !== ticket?.principal_ref ||
+      verified.product !== ticket?.product) return null;
+  if (typeof verified.provenance_ref !== 'string' || !verified.provenance_ref.trim()) return null;
+  return verified;
+}
 
 /** Open the one session, at the launcher, after the person chose their account. */
 export function openSession(choice, { session_id, credential_ref, opened_at, expires_at, surface = PROMPT_SURFACE, ...rest } = {}) {
@@ -61,22 +80,27 @@ export function openSession(choice, { session_id, credential_ref, opened_at, exp
     credential_ref,
     opened_at,
     expires_at,
+    session_verified: false,
     authority_granted: false,
   });
 }
 
 /** Does the person have to be asked? Only at the launcher, and only when there is no live session. */
-export function mustPrompt(session, { surface, now }) {
-  const live = session?.kind === 'LAUNCH_SESSION' && ms(now, 'NOW_REQUIRED') < Date.parse(session.expires_at);
-  if (live) return Object.freeze({ prompt: false, reason: 'SESSION_LIVE' });
-  if (surface === PROMPT_SURFACE) return Object.freeze({ prompt: true, reason: session ? 'SESSION_EXPIRED' : 'NO_SESSION' });
-  /* A sub-product never asks. It goes back to the launcher, which asks once. */
+export function mustPrompt(session, { surface, now, verifySession } = {}) {
+  const verified = session?.kind === 'LAUNCH_SESSION' ? verifiedSession(session, verifySession) : null;
+  const live = Boolean(verified) && ms(now, 'NOW_REQUIRED') < Date.parse(session.expires_at);
+  if (live) return Object.freeze({ prompt: false, reason: 'SESSION_VERIFIED_LIVE', session_provenance_ref: verified.provenance_ref });
+  if (surface === PROMPT_SURFACE) {
+    return Object.freeze({ prompt: true, reason: session ? (verified ? 'SESSION_EXPIRED' : 'SESSION_PROVENANCE_UNVERIFIED') : 'NO_SESSION' });
+  }
   return Object.freeze({ prompt: false, reason: 'RETURN_TO_LAUNCHER', return_to: PROMPT_SURFACE });
 }
 
 /** Cut a ticket for one product from the live session. No prompt, ever. */
-export function launchTicket(session, { product, now, link_ref = null } = {}) {
+export function launchTicket(session, { product, now, link_ref = null, verifySession } = {}) {
   if (session?.kind !== 'LAUNCH_SESSION' || session?.schema !== LAUNCH_SESSION_SCHEMA) refuse('NO_SESSION');
+  const verified = verifiedSession(session, verifySession);
+  if (!verified) refuse('SESSION_PROVENANCE_UNVERIFIED');
   if (typeof product !== 'string' || !/^[a-z0-9_:-]{2,64}$/.test(product)) refuse('PRODUCT_REQUIRED');
   const t = ms(now, 'NOW_REQUIRED');
   const end = Date.parse(session.expires_at);
@@ -89,6 +113,8 @@ export function launchTicket(session, { product, now, link_ref = null } = {}) {
     product,
     audience: product,
     link_ref,
+    session_provenance_ref: verified.provenance_ref,
+    ticket_verified: false,
     issued_at: new Date(t).toISOString(),
     expires_at: new Date(Math.min(end, t + TICKET_MS)).toISOString(),
     prompts_person: false,
@@ -97,24 +123,26 @@ export function launchTicket(session, { product, now, link_ref = null } = {}) {
 }
 
 /** A sub-product accepts only a live ticket cut for itself. */
-export function acceptTicket(ticket, { product, now }) {
+export function acceptTicket(ticket, { product, now, verifyTicket } = {}) {
   if (ticket?.kind !== 'LAUNCH_TICKET') return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
+  const verified = verifiedTicket(ticket, verifyTicket);
+  if (!verified) return Object.freeze({ ok: false, reason: 'TICKET_PROVENANCE_UNVERIFIED' });
   if (ticket.audience !== product) return Object.freeze({ ok: false, reason: 'TICKET_FOR_ANOTHER_PRODUCT' });
   if (ms(now, 'NOW_REQUIRED') >= Date.parse(ticket.expires_at)) return Object.freeze({ ok: false, reason: 'RETURN_TO_LAUNCHER' });
-  return Object.freeze({ ok: true, principal_ref: ticket.principal_ref, session_id: ticket.session_id });
+  return Object.freeze({ ok: true, principal_ref: ticket.principal_ref, session_id: ticket.session_id, ticket_provenance_ref: verified.provenance_ref, authority_granted: false });
 }
 
 /**
  * The launch the owner described: one sign-in at the launcher, then the stable
  * Desktop and a linked Zed editing session, both cut from that sign-in.
  */
-export function planDesktopLaunch(session, { now, desktop_url, zed_profile_dir, zed_workspace }) {
+export function planDesktopLaunch(session, { now, desktop_url, zed_profile_dir, zed_workspace, verifySession }) {
   if (typeof desktop_url !== 'string' || !/^https:\/\//.test(desktop_url)) refuse('DESKTOP_URL_HTTPS_REQUIRED');
   if (typeof zed_profile_dir !== 'string' || !zed_profile_dir.startsWith('/')) refuse('ZED_PROFILE_DIR_REQUIRED');
   if (typeof zed_workspace !== 'string' || !zed_workspace.startsWith('/')) refuse('ZED_WORKSPACE_REQUIRED');
   const link = `link:${session.session_id}:desktop+zed`;
-  const desktop = launchTicket(session, { product: 'desktop', now, link_ref: link });
-  const zed = launchTicket(session, { product: 'zed-editor', now, link_ref: link });
+  const desktop = launchTicket(session, { product: 'desktop', now, link_ref: link, verifySession });
+  const zed = launchTicket(session, { product: 'zed-editor', now, link_ref: link, verifySession });
   return Object.freeze({
     schema: LAUNCH_SESSION_SCHEMA,
     kind: 'DESKTOP_LAUNCH_PLAN',
