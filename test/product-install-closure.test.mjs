@@ -51,7 +51,7 @@ test('registry getter cannot cause an effect during planning',()=>{
   let effects=0;
   const malicious={...registry};
   Object.defineProperty(malicious,'ward',{enumerable:true,get(){effects++;return registry.ward;}});
-  assert.throws(()=>plan({registry:malicious}),/INSTALL_ACCESSOR_REFUSED/);
+  assert.throws(()=>plan({registry:malicious}), {name:'TypeError', message:'INSTALL_REGISTRY_ACCESSOR_REFUSED'});
   assert.equal(effects,0);
 });
 test('node and dependency-index getters cannot execute during planning',()=>{

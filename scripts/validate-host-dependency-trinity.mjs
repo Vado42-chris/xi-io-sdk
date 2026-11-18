@@ -56,4 +56,30 @@ assert.throws(()=>hostDependencyTrinity(malformed),/HOST_DEPENDENCY_REQUIREMENT_
 const forged=structuredClone(input);
 forged.environments.development.requirements[0].state='PASS';
 assert.equal(hostDependencyTrinity(forged).environments.development[0].state,'UNKNOWN');
+// An explicit required denominator must never collapse to the supplied subset.
+for (const invalid of [null, undefined, {}, 'env:development,env:test,env:production']) {
+  assert.throws(() => hostDependencyTrinity({...input, required_environment_refs:invalid,
+    environments:{development:env('development')}}), /HOST_TRINITY_REQUIRED_ENVIRONMENT_INVALID/);
+}
+let denominatorReads=0;
+const denominatorAccessor={...input};
+Object.defineProperty(denominatorAccessor,'required_environment_refs',{get(){denominatorReads++;return input.required_environment_refs;}});
+assert.throws(()=>hostDependencyTrinity(denominatorAccessor),/HOST_TRINITY_ACCESSOR_REFUSED/);
+const itemAccessor={...input,required_environment_refs:[...input.required_environment_refs]};
+Object.defineProperty(itemAccessor.required_environment_refs,'0',{get(){denominatorReads++;return 'env:development';}});
+assert.throws(()=>hostDependencyTrinity(itemAccessor),/HOST_TRINITY_REQUIRED_ENVIRONMENT_INVALID/);
+const sparse={...input,required_environment_refs:new Array(3)};
+assert.throws(()=>hostDependencyTrinity(sparse),/HOST_TRINITY_REQUIRED_ENVIRONMENT_INVALID/);
+assert.equal(denominatorReads,0);
+// White-label callers retain distinct product identity and configurable environment names.
+for(const product of ['school','law']) {
+ const configured={schema:'xiio.host-dependency-trinity/v1',required_environment_refs:['env:dev','env:test','env:live'],
+  environments:Object.fromEntries(['dev','test','live'].map(name=>[name,{...env(name),host_ref:`host:${product}`}]))};
+ const projected=hostDependencyTrinity(configured);
+ assert.equal(projected.host_ref,`host:${product}`);
+ assert.deepEqual(projected.required_environment_refs,['env:dev','env:test','env:live']);
+ assert.equal(projected.state,'UNKNOWN');
+ assert.equal(projected.authority_granted,false);
+}
 console.log('HOST_DEPENDENCY_TRINITY_PASS');
+
