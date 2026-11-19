@@ -145,9 +145,34 @@ class Element {
   reportValidity() { this.reports += 1; }
   async click() { for (const callback of [...this.listeners]) await callback(); }
 }
-function dom(fields = [], buttons = [new Element({ 'data-xiio-action': 'measure', 'data-xiio-action-disabled': 'false', 'data-xiio-action-pending': 'true' }, { disabled: true })]) {
+class ActionForm {
+  constructor(buttons = []) { this.buttons = buttons; this.listeners = new Set(); }
+  querySelectorAll(selector) { return selector === '[data-xiio-action]' ? this.buttons : []; }
+  addEventListener(event, callback) { if (event === 'submit') this.listeners.add(callback); }
+  removeEventListener(event, callback) { if (event === 'submit') this.listeners.delete(callback); }
+  async submit(submitter = null) {
+    let prevented = false;
+    const event = { submitter, preventDefault() { prevented = true; } };
+    for (const callback of [...this.listeners]) await callback(event);
+    return prevented;
+  }
+}
+function dom(
+  fields = [],
+  buttons = [new Element({ 'data-xiio-action': 'measure', 'data-xiio-action-disabled': 'false', 'data-xiio-action-pending': 'true' }, { disabled: true })],
+  forms = [],
+) {
   const result = { textContent: '' };
-  return { fields, buttons, result, querySelectorAll(selector) { return selector === '[data-xiio-field]' ? fields : buttons; }, querySelector() { return result; } };
+  return {
+    fields, buttons, forms, result,
+    querySelectorAll(selector) {
+      if (selector === '[data-xiio-field]') return fields;
+      if (selector === '[data-xiio-action]') return buttons;
+      if (selector === '[data-xiio-action-form]') return forms;
+      return [];
+    },
+    querySelector() { return result; },
+  };
 }
 const root = dom([new Element({ 'data-xiio-field': 'cost', min: '0', max: '10' }, { type: 'number', value: '3', required: true })]);
 let calls = [];
@@ -212,6 +237,56 @@ assert.equal(failedRoot.buttons[0].getAttribute('aria-busy'), 'false');
 assert.equal(failedRoot.buttons[0].disabled, true);
 stopFailed();
 
+// Governed forms normalize mouse-origin and Enter-origin submit through the same action lifecycle.
+const publishButton = new Element({
+  'data-xiio-action':'publisher.publish',
+  'data-xiio-action-disabled':'false',
+  'data-xiio-action-pending':'true',
+}, {disabled:true,type:'submit'});
+const publishFields = [
+  new Element({'data-xiio-field':'project_ref'}, {type:'hidden',value:'project:customer-site'}),
+  new Element({'data-xiio-field':'action_ref'}, {type:'hidden',value:'publisher:primary-action'}),
+];
+const publishForm = new ActionForm([publishButton]);
+const publishRoot = dom(publishFields,[publishButton],[publishForm]);
+const publishCalls=[];
+const stopPublish = bindProductSurface(publishRoot,{onAction:async value=>publishCalls.push(value)});
+assert.equal(await publishForm.submit(publishButton),true,'mouse-origin form submit must prevent native navigation');
+assert.equal(publishCalls.length,1);
+assert.equal(publishCalls[0].actionId,'publisher.publish');
+assert.deepEqual(publishCalls[0].values,{
+  project_ref:'project:customer-site',
+  action_ref:'publisher:primary-action',
+});
+assert.equal(await publishForm.submit(),true,'Enter-origin form submit must prevent native navigation');
+assert.equal(publishCalls.length,2);
+assert.equal(publishCalls[1].actionId,'publisher.publish');
+stopPublish();
+await publishForm.submit();
+assert.equal(publishCalls.length,2,'cleanup must remove governed form submit binding');
+
+// Repeated submits while the same governed action is pending remain single-flight.
+const pendingPublishButton = new Element({
+  'data-xiio-action':'publisher.publish',
+  'data-xiio-action-disabled':'false',
+  'data-xiio-action-pending':'true',
+}, {disabled:true,type:'submit'});
+const pendingPublishForm = new ActionForm([pendingPublishButton]);
+const pendingPublishRoot = dom([], [pendingPublishButton], [pendingPublishForm]);
+let finishPublish;
+const publishPending = new Promise(resolve=>{finishPublish=resolve;});
+let pendingPublishCalls=0;
+const stopPendingPublish=bindProductSurface(pendingPublishRoot,{onAction:async()=>{
+  pendingPublishCalls+=1;
+  await publishPending;
+}});
+const activePublish=pendingPublishForm.submit(pendingPublishButton);
+await pendingPublishForm.submit();
+assert.equal(pendingPublishCalls,1);
+finishPublish();
+await activePublish;
+stopPendingPublish();
+
 const hostDisabled = dom([], [new Element({ 'data-xiio-action': 'blocked', 'data-xiio-action-disabled': 'true', 'data-xiio-action-pending': 'true' }, { disabled: true })]);
 const stopDisabled = bindProductSurface(hostDisabled, { onAction: () => { throw new Error('host-disabled action invoked'); } });
 assert.equal(hostDisabled.buttons[0].disabled, true); await hostDisabled.buttons[0].click(); stopDisabled();
@@ -238,6 +313,7 @@ console.log(JSON.stringify({
   caller_verified_downgraded: true,
   host_observation_and_action_regressions: 'PASS',
   async_action_single_flight_rebind_and_rejection: 'PASS',
+  governed_form_submit_mouse_enter_single_flight: 'PASS',
   source_dom_contract_tests: true,
   browser_or_runtime_qualification_claim: false,
   semantic_status_preserved: true,
