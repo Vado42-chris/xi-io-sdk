@@ -333,6 +333,19 @@ export function bindProductSurface(root, { onAction = null } = {}) {
   activeBindings.get(root)?.();
   const cleanups = [];
   let active = true;
+
+  const governedForms = new Map();
+  for (const form of root.querySelectorAll('[data-xiio-action-form]')) {
+    if (!form || typeof form.querySelectorAll !== 'function') throw new TypeError('action form must support querySelectorAll');
+    const buttons = [...form.querySelectorAll('[data-xiio-action]')];
+    if (buttons.length === 0) throw new TypeError('action form must contain at least one data-xiio-action control');
+    for (const button of buttons) {
+      if (governedForms.has(button)) throw new TypeError('action control cannot belong to multiple action forms');
+      governedForms.set(button, form);
+    }
+  }
+
+  const invokers = new Map();
   for (const button of root.querySelectorAll('[data-xiio-action]')) {
     const pending = button.getAttribute('data-xiio-action-pending') === 'true';
     const hostDisabled = button.getAttribute('data-xiio-action-disabled') === 'true' || (button.disabled && !pending);
@@ -341,7 +354,8 @@ export function bindProductSurface(root, { onAction = null } = {}) {
     button.setAttribute('aria-disabled', String(button.disabled));
     button.setAttribute('data-xiio-action-pending', String(!onAction));
     button.setAttribute('aria-busy', String(pendingActions.has(button)));
-    const handler = async () => {
+
+    const invoke = async () => {
       if (!active || button.disabled || !onAction || pendingActions.has(button)) return;
       const validation = validateProductSurfaceValues(root);
       if (!validation.valid) {
@@ -365,9 +379,15 @@ export function bindProductSurface(root, { onAction = null } = {}) {
         button.setAttribute('aria-busy', 'false');
       }
     };
-    button.addEventListener('click', handler);
+    invokers.set(button, invoke);
+
+    if (!governedForms.has(button)) {
+      const clickHandler = async () => invoke();
+      button.addEventListener('click', clickHandler);
+      cleanups.push(() => button.removeEventListener('click', clickHandler));
+    }
+
     cleanups.push(() => {
-      button.removeEventListener('click', handler);
       const hostDisabledNow = hostDisabled || (!bindingDisabled && button.disabled);
       button.disabled = true;
       button.setAttribute('aria-disabled', 'true');
@@ -375,6 +395,22 @@ export function bindProductSurface(root, { onAction = null } = {}) {
       button.setAttribute('data-xiio-action-pending', String(!hostDisabledNow));
     });
   }
+
+  const boundForms = new Set(governedForms.values());
+  for (const form of boundForms) {
+    const buttons = [...form.querySelectorAll('[data-xiio-action]')];
+    const submitHandler = async (event) => {
+      event?.preventDefault?.();
+      if (!active) return;
+      const submitted = event?.submitter && invokers.has(event.submitter) ? event.submitter : null;
+      const button = submitted ?? (buttons.length === 1 ? buttons[0] : null);
+      if (!button) return;
+      await invokers.get(button)?.();
+    };
+    form.addEventListener('submit', submitHandler);
+    cleanups.push(() => form.removeEventListener('submit', submitHandler));
+  }
+
   const cleanup = () => {
     if (!active) return;
     active = false;
