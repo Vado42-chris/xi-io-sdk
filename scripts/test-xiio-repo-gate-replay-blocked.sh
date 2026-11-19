@@ -58,6 +58,27 @@ exit 1
 MOCK
 chmod +x "$TEMP/bin/npm"
 
+make_custody() {
+  local out=$1
+  local profile="$TEMP/profile-custody-source.json"
+  cat > "$profile" <<'JSON'
+{
+  "schema":"xiio.repo-gate-profile/v1",
+  "product_ref":"test:product",
+  "head_sha":"975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e",
+  "acceptance":{"status":"ACCEPTED","authority_ref":"test:owner"},
+  "steps":[{"id":"verify","script":"verify","artifacts":[{"path":"artifact.txt"}]}]
+}
+JSON
+  local profile_sha
+  profile_sha=$(sha256sum "$profile" | cut -d' ' -f1)
+  local custody="$out/profile-custody.json"
+  cat > "$custody" <<JSON
+{"schema":"xiio.repo-gate-profile-custody/v1","state":"ACCEPTED_READBACK","repository":"Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026","head_sha":"$SHA","profile_ref":".xiio/replay-profile.json","profile_sha256":"$profile_sha","authority_ref":"test:owner","readback_ref":"readback:test-profile:$SHA"}
+JSON
+  printf '%s\n' "$custody"
+}
+
 for mode in auth generic; do
   mkdir -p "$TEMP/out-$mode"
   actual_rc=0
@@ -97,7 +118,8 @@ XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PA
 grep -q 'first_red=ARBITRARY_GATE_COMMAND_REFUSED' "$TEMP/out-noop/stdout.log" || exit 1
 
 mkdir -p "$TEMP/out-success"
-XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"   XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_WORK_REF='game:159#sprite:188'   XIIO_REPLAY_OUT="$TEMP/out-success"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$TEMP/out-success/stdout.log"
+SUCCESS_CUSTODY=$(make_custody "$TEMP/out-success")
+XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"   XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_PROFILE_CUSTODY="$SUCCESS_CUSTODY" XIIO_REPLAY_WORK_REF='game:159#sprite:188'   XIIO_REPLAY_OUT="$TEMP/out-success"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"   >"$TEMP/out-success/stdout.log"
 node - "$TEMP/out-success/xiio-gate-receipt.json" <<'NODE'
 const r=require(process.argv[2]);
 if(r.outcome!=='success'||r.gate_profile_complete!==true||r.release_qualified!==false)
@@ -116,14 +138,14 @@ for rc in 0 17; do
   tag="rc$rc"
   mkdir -p "$TEMP/out-receipt-$tag/xiio-gate-receipt.json"
   actual_rc=0
-  XIIO_TEST_FAIL_MODE=success XIIO_TEST_GATE_RC="$rc" XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_WORK_REF='game:159#sprite:188'     XIIO_REPLAY_OUT="$TEMP/out-receipt-$tag"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$TEMP/out-receipt-$tag/stdout.log" 2>"$TEMP/out-receipt-$tag/stderr.log" || actual_rc=$?
+  XIIO_TEST_FAIL_MODE=success XIIO_TEST_GATE_RC="$rc" XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"     XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_PROFILE_CUSTODY="$SUCCESS_CUSTODY" XIIO_REPLAY_WORK_REF='game:159#sprite:188'     XIIO_REPLAY_OUT="$TEMP/out-receipt-$tag"     bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"       >"$TEMP/out-receipt-$tag/stdout.log" 2>"$TEMP/out-receipt-$tag/stderr.log" || actual_rc=$?
   [ "$actual_rc" = 2 ] || { echo "FAIL: unwritable receipt rc=$rc returned $actual_rc"; exit 1; }
   grep -q 'first_red=RECEIPT_WRITE_FAILED' "$TEMP/out-receipt-$tag/stdout.log" || exit 1
 done
 
 mkdir -p "$TEMP/out-gate-red"
 gate_rc=0
-XIIO_TEST_FAIL_MODE=success XIIO_TEST_GATE_RC=17 XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"   XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_WORK_REF='game:159#sprite:188'   XIIO_REPLAY_OUT="$TEMP/out-gate-red"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"     >"$TEMP/out-gate-red/stdout.log" || gate_rc=$?
+XIIO_TEST_FAIL_MODE=success XIIO_TEST_GATE_RC=17 XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"   XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_PROFILE_CUSTODY="$SUCCESS_CUSTODY" XIIO_REPLAY_WORK_REF='game:159#sprite:188'   XIIO_REPLAY_OUT="$TEMP/out-gate-red"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"     >"$TEMP/out-gate-red/stdout.log" || gate_rc=$?
 [ "$gate_rc" = 1 ] || { echo "FAIL: gate rejection returned $gate_rc"; exit 1; }
 node - "$TEMP/out-gate-red/xiio-gate-receipt.json" <<'NODE'
 const r=require(process.argv[2]);
@@ -139,7 +161,7 @@ grep -q 'first_red=SHA_NOT_FULL_40_HEX' "$TEMP/invalid.log" || exit 1
 
 before=$(sha256sum "$TEMP/out-success/xiio-gate-receipt.json" | cut -d' ' -f1)
 collision_rc=0
-XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"   XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_WORK_REF='game:159#sprite:188'   XIIO_REPLAY_OUT="$TEMP/out-success"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"     >"$TEMP/collision.log" || collision_rc=$?
+XIIO_TEST_FAIL_MODE=success XIIO_TEST_REAL_NODE="$REAL_NODE" PATH="$TEMP/bin:$PATH"   XIIO_REPLAY_PROFILE='.xiio/replay-profile.json' XIIO_REPLAY_PROFILE_CUSTODY="$SUCCESS_CUSTODY" XIIO_REPLAY_WORK_REF='game:159#sprite:188'   XIIO_REPLAY_OUT="$TEMP/out-success"   bash "$SCRIPT" Vado42-chris/VeilRIFT-Pandora-s-Cube--Nov-7-2026 "$SHA"     >"$TEMP/collision.log" || collision_rc=$?
 [ "$collision_rc" = 2 ] || { echo 'FAIL: existing receipt overwritten'; exit 1; }
 grep -q 'first_red=RECEIPT_ALREADY_EXISTS' "$TEMP/collision.log" || exit 1
 after=$(sha256sum "$TEMP/out-success/xiio-gate-receipt.json" | cut -d' ' -f1)
