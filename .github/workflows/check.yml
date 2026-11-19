@@ -3,7 +3,7 @@ name: Check
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, draft/repo-gate-replay]
   workflow_dispatch:
 
 permissions:
