@@ -23,6 +23,68 @@ function boundedBytes(value) {
   return value;
 }
 
+const GENERIC_RESOURCE_KEYS=new Set([
+  'state','resource_ref','version_ref','parent_version_ref','storage_binding_ref',
+  'sha256','byte_length','subject_ref'
+]);
+function genericResource(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))
+    throw new Error('BINS_VERSION_CONSUMER_RESOURCE_REQUIRED');
+  for(const key of Object.keys(value)) if(!GENERIC_RESOURCE_KEYS.has(key))
+    throw new Error('BINS_VERSION_CONSUMER_RESOURCE_FIELD_FORBIDDEN');
+  if(value.state!=='BINS_CUSTODIED')
+    throw new Error('BINS_VERSION_CONSUMER_RESOURCE_UNQUALIFIED');
+  const resourceRef=required(value.resource_ref,'BINS_VERSION_CONSUMER_RESOURCE_REQUIRED');
+  const versionRef=required(value.version_ref,'BINS_VERSION_CONSUMER_VERSION_REQUIRED');
+  const storageBindingRef=required(value.storage_binding_ref,'BINS_VERSION_CONSUMER_STORAGE_BINDING_REQUIRED');
+  if(typeof value.sha256!=='string'||!SHA.test(value.sha256))
+    throw new Error('BINS_VERSION_CONSUMER_DIGEST_INVALID');
+  const size=boundedBytes(value.byte_length);
+  return Object.freeze({
+    state:'BINS_CUSTODIED',
+    resource_ref:resourceRef,
+    version_ref:versionRef,
+    parent_version_ref:value.parent_version_ref==null?null:
+      required(value.parent_version_ref,'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'),
+    storage_binding_ref:storageBindingRef,
+    sha256:value.sha256,
+    byte_length:size,
+    subject_ref:value.subject_ref==null?null:
+      required(value.subject_ref,'BINS_VERSION_CONSUMER_SUBJECT_REF_INVALID'),
+  });
+}
+
+export function prepareBinsResourceVersionRead({resource,work,returned}={}){
+  const stored=genericResource(resource);
+  equal(work?.work_ref,returned?.work_ref,'BINS_VERSION_CONSUMER_WORK_MISMATCH');
+  equal(work?.work_generation,returned?.work_generation,
+    'BINS_VERSION_CONSUMER_WORK_GENERATION_MISMATCH');
+  equal(returned?.resource_ref,stored.resource_ref,'BINS_VERSION_CONSUMER_RETURN_RESOURCE_MISMATCH');
+  equal(returned?.version_ref,stored.version_ref,'BINS_VERSION_CONSUMER_RETURN_VERSION_MISMATCH');
+  equal(returned?.storage_binding_ref,stored.storage_binding_ref,'BINS_VERSION_CONSUMER_RETURN_BINDING_MISMATCH');
+  const scope=Object.freeze({
+    work_ref:required(work?.work_ref,'BINS_VERSION_CONSUMER_WORK_REQUIRED'),
+    work_generation:required(work?.work_generation,'BINS_VERSION_CONSUMER_WORK_GENERATION_REQUIRED'),
+    return_ref:required(returned?.return_ref,'BINS_VERSION_CONSUMER_RETURN_REQUIRED'),
+    resource_ref:stored.resource_ref,
+    version_ref:stored.version_ref,
+    storage_binding_ref:stored.storage_binding_ref,
+    expected_sha256:stored.sha256,
+    expected_bytes:stored.byte_length,
+  });
+  return Object.freeze({
+    schema:BINS_VERSION_CONSUMER_SCHEMA,
+    state:'REQUEST_SCOPE_PREPARED_UNVERIFIED',
+    subject_ref:stored.subject_ref,
+    parent_version_ref:stored.parent_version_ref,
+    scope,
+    authority_granted:false,
+    custody_independently_verified:false,
+    return_certified:false,
+    apply_return_verified:false,
+  });
+}
+
 /**
  * Event is the BINS owner's normalized record. Work and return coordinates
  * must come from the separately authenticated original requester/broker.
@@ -54,31 +116,24 @@ export function prepareBinsVersionRead({event, work, returned} = {}) {
   equal(event.source?.sha256, digest, 'BINS_VERSION_CONSUMER_SOURCE_DIGEST_MISMATCH');
   const size = boundedBytes(coordinate.byte_length);
   equal(event.source?.size_bytes, size, 'BINS_VERSION_CONSUMER_SOURCE_BYTES_MISMATCH');
-
-  equal(work?.work_ref, returned?.work_ref, 'BINS_VERSION_CONSUMER_WORK_MISMATCH');
-  equal(work?.work_generation, returned?.work_generation,
-    'BINS_VERSION_CONSUMER_WORK_GENERATION_MISMATCH');
-  equal(returned?.resource_ref, resourceRef, 'BINS_VERSION_CONSUMER_RETURN_RESOURCE_MISMATCH');
-  equal(returned?.version_ref, versionRef, 'BINS_VERSION_CONSUMER_RETURN_VERSION_MISMATCH');
-  equal(returned?.storage_binding_ref, storageBindingRef, 'BINS_VERSION_CONSUMER_RETURN_BINDING_MISMATCH');
-  const scope = Object.freeze({
-    work_ref: required(work.work_ref, 'BINS_VERSION_CONSUMER_WORK_REQUIRED'),
-    work_generation: required(work.work_generation, 'BINS_VERSION_CONSUMER_WORK_GENERATION_REQUIRED'),
-    return_ref: required(returned.return_ref, 'BINS_VERSION_CONSUMER_RETURN_REQUIRED'),
-    resource_ref: resourceRef, version_ref: versionRef,
-    storage_binding_ref: storageBindingRef, expected_sha256: digest, expected_bytes: size,
+  const prepared=prepareBinsResourceVersionRead({
+    resource:{
+      state:'BINS_CUSTODIED',
+      resource_ref:resourceRef,
+      version_ref:versionRef,
+      parent_version_ref:stored.parent_version_ref??null,
+      storage_binding_ref:storageBindingRef,
+      sha256:digest,
+      byte_length:size,
+      subject_ref:matterRef,
+    },
+    work,
+    returned,
   });
   return Object.freeze({
-    schema: BINS_VERSION_CONSUMER_SCHEMA,
-    state: 'REQUEST_SCOPE_PREPARED_UNVERIFIED',
-    matter_ref: matterRef,
-    event_id: required(event.event_id, 'BINS_VERSION_CONSUMER_EVENT_ID_REQUIRED'),
-    // BINS version ancestry is distinct from SDK previous_receipt.
-    parent_version_ref: stored.parent_version_ref == null ? null :
-      required(stored.parent_version_ref, 'BINS_VERSION_CONSUMER_PARENT_VERSION_INVALID'),
-    scope,
-    authority_granted: false, custody_independently_verified: false,
-    return_certified: false, apply_return_verified: false,
+    ...prepared,
+    matter_ref:matterRef,
+    event_id:required(event.event_id,'BINS_VERSION_CONSUMER_EVENT_ID_REQUIRED'),
   });
 }
 
