@@ -32,6 +32,23 @@ test('raw caller binding API is not exported',()=>{
   assert.equal(denominatorModule.bindUniversalPrimitiveDenominator,undefined);
 });
 
+
+test('verified export name and bytes cannot substitute a foreign runtime destination',async()=>{
+  await assert.rejects(
+    bindSyntheticFrameworkDenominatorThroughInstaller(synthetic,{
+      destination:'xi-io/framework/runtime/foreign/universal-primitive-denominator.v1.json',
+    }),
+    /PRIMITIVE_DENOMINATOR_EXPORT_DESTINATION_MISMATCH/,
+  );
+});
+
+test('verified export cannot substitute a foreign destination scope',async()=>{
+  await assert.rejects(
+    bindSyntheticFrameworkDenominatorThroughInstaller(synthetic,{destination_scope:'etc'}),
+    /PRIMITIVE_DENOMINATOR_EXPORT_DESTINATION_MISMATCH/,
+  );
+});
+
 await assert.rejects(
   bindSyntheticFrameworkDenominatorThroughInstaller(synthetic,{mutate_on_second_read:true}),
   /PRIMITIVE_DENOMINATOR_CHANGED_DURING_READ/,
