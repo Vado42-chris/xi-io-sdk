@@ -1,0 +1,10 @@
+{
+  "schema": "xiio.repo-gate-profile-custody/v1",
+  "state": "ACCEPTED_READBACK",
+  "repository": "Vado42-chris/xi-io.net",
+  "head_sha": "c3a4dc17eb70246be03e09ded941d49c05a628a1",
+  "profile_ref": ".xiio/replay-profile.installed-products.json",
+  "profile_sha256": "a5a7bdea3cc4fac0a700b5c3cfe77dbdb9c07141d0677c5038748983f2bd427e",
+  "authority_ref": "Vado42-chris/xi-io.net#337",
+  "readback_ref": "github:Vado42-chris/xi-io.net@c3a4dc17:.xiio/replay-profile.installed-products.json"
+}
