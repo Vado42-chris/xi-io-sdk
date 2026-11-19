@@ -5,6 +5,8 @@ import {createHash} from 'node:crypto';
 export const PRODUCT_SURFACE_RUNTIME_DEPENDENCY_ID='xiio-sdk-product-surface-runtime';
 export const PRODUCT_SURFACE_RUNTIME_OWNER_REPO='Vado42-chris/xi-io-sdk';
 export const PRODUCT_SURFACE_RUNTIME_EXPORT='product_surface_module';
+export const PRODUCT_SURFACE_RUNTIME_CORE_EXPORT='product_surface_core_module';
+export const PRODUCT_SURFACE_RUNTIME_SHELL_EXPORT='product_surface_shell_module';
 export const PRODUCT_SURFACE_RUNTIME_FILES=Object.freeze([
   'src/render/product-surface.mjs',
   'src/components/core.mjs',
@@ -69,6 +71,14 @@ export function buildProductSurfaceRuntimeDependencyDescriptor({
       [PRODUCT_SURFACE_RUNTIME_EXPORT]:Object.freeze({
         destination_scope:'xdg_data',
         destination:destination(accepted,'src/render/product-surface.mjs'),
+      }),
+      [PRODUCT_SURFACE_RUNTIME_CORE_EXPORT]:Object.freeze({
+        destination_scope:'xdg_data',
+        destination:destination(accepted,'src/components/core.mjs'),
+      }),
+      [PRODUCT_SURFACE_RUNTIME_SHELL_EXPORT]:Object.freeze({
+        destination_scope:'xdg_data',
+        destination:destination(accepted,'src/components/shell.mjs'),
       }),
     }),
     authority_granted:false,
