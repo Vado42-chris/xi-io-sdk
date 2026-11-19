@@ -6,7 +6,12 @@ import {bindUniversalPrimitiveDenominatorFromInstaller} from '../../src/flatpack
 
 const sha256=value=>createHash('sha256').update(value).digest('hex');
 
-export async function bindSyntheticFrameworkDenominatorThroughInstaller(contract,{generation='a'.repeat(40),mutate_on_second_read=false}={}){
+export async function bindSyntheticFrameworkDenominatorThroughInstaller(contract,{
+  generation='a'.repeat(40),
+  mutate_on_second_read=false,
+  destination='xi-io/framework/runtime/primitives/universal-primitive-denominator.v1.json',
+  destination_scope='xdg_data',
+}={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-sdk-primitive-denominator-'));
   const bin=path.join(root,'bin');fs.mkdirSync(bin);
   const contractPath=path.join(root,'universal-primitive-denominator.v1.json');
@@ -26,6 +31,8 @@ const receiptPath=${JSON.stringify(receiptPath)};
 const generation=${JSON.stringify(generation)};
 const fileSha=${JSON.stringify(fileSha)};
 const mutate=${JSON.stringify(Boolean(mutate_on_second_read))};
+const destination=${JSON.stringify(destination)};
+const destinationScope=${JSON.stringify(destination_scope)};
 let count=Number(fs.readFileSync(countPath,'utf8').trim()||'0')+1;
 fs.writeFileSync(countPath,String(count)+'\\n');
 if(mutate&&count===2)fs.appendFileSync(contractPath,' ');
@@ -39,8 +46,8 @@ const row={
  binding_sha256:'b'.repeat(64),
  fields:{universal_primitive_denominator_contract:contractPath},
  runtime_exports:{universal_primitive_denominator_contract:{
-  sha256:fileSha,mode:'0644',destination_scope:'xdg_data',
-  destination:'xi-io/framework/runtime/standards/primitives/universal-primitive-denominator.v1.json'
+  sha256:fileSha,mode:'0644',destination_scope:destinationScope,
+  destination
  }},
  custody_verified:true,authority_granted:false,provider_effect:false,effect_authority:false
 };
