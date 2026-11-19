@@ -16,6 +16,7 @@ if [ "${XIIO_TEST_FAIL_MODE:-auth}" = success ]; then
     cat > "$dest/package.json" <<'JSON'
 {"scripts":{"verify":"node -e \"require('fs').writeFileSync('artifact.txt','verified-artifact')\""}}
 JSON
+    printf '{"lockfileVersion":3,"packages":{}}\n' > "$dest/package-lock.json"
     cat > "$dest/.xiio/replay-profile.json" <<'JSON'
 {
   "schema":"xiio.repo-gate-profile/v1",
