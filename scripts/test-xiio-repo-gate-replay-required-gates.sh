@@ -11,7 +11,7 @@ cat > "$TEMP/profile-template.json" <<'JSON'
 {
   "schema":"xiio.repo-gate-profile/v1",
   "product_ref":"game:veilrift",
-  "head_sha":"975d23a2e5c4fc61fa7da6320b8ff659ffdb4d2e",
+  "head_binding":"INDEPENDENT_CUSTODY",
   "acceptance":{"status":"ACCEPTED","authority_ref":"product-profile:test-owner"},
   "steps":[
     {"id":"verify","script":"verify","artifacts":[]},
