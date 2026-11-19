@@ -1,0 +1,25 @@
+name: Stitch SDK adapter
+on:
+  pull_request:
+    paths:
+      - 'src/integrations/stitch-cli.mjs'
+      - 'scripts/prove-stitch-cli.mjs'
+      - 'bin/xi.mjs'
+      - '.github/workflows/stitch-sdk-adapter.yml'
+  workflow_dispatch:
+jobs:
+  adapter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check existing xi CLI
+        run: node --check bin/xi.mjs
+      - name: Run Stitch adapter hostile
+        run: node scripts/prove-stitch-cli.mjs
+      - name: Verify no live Stitch dependency required for dry-run
+        run: node bin/xi.mjs stitch doctor . | grep PLAN_ONLY
