@@ -11,6 +11,8 @@ import {
   PRODUCT_SURFACE_RUNTIME_DEPENDENCY_ID,
   PRODUCT_SURFACE_RUNTIME_FILES,
   PRODUCT_SURFACE_RUNTIME_EXPORT,
+  PRODUCT_SURFACE_RUNTIME_CORE_EXPORT,
+  PRODUCT_SURFACE_RUNTIME_SHELL_EXPORT,
 } from '../scripts/build-product-surface-runtime-installer-manifest.mjs';
 
 const G='a'.repeat(40);
@@ -24,7 +26,11 @@ test('SDK product-surface runtime exports complete import closure through Instal
   assert.equal(descriptor.schema,'xiio.installer-dependency-descriptor/v1');
   assert.equal(descriptor.dependency_id,PRODUCT_SURFACE_RUNTIME_DEPENDENCY_ID);
   assert.equal(descriptor.accepted_generation,G);
-  assert.deepEqual(Object.keys(descriptor.runtime_exports),[PRODUCT_SURFACE_RUNTIME_EXPORT]);
+  assert.deepEqual(Object.keys(descriptor.runtime_exports),[
+    PRODUCT_SURFACE_RUNTIME_EXPORT,
+    PRODUCT_SURFACE_RUNTIME_CORE_EXPORT,
+    PRODUCT_SURFACE_RUNTIME_SHELL_EXPORT,
+  ]);
   assert.match(
     descriptor.runtime_exports[PRODUCT_SURFACE_RUNTIME_EXPORT].destination,
     new RegExp('xi-io/sdk/'+G+'/product-surface/render/product-surface\\.mjs$'),
