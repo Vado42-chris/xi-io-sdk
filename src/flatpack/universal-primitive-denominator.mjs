@@ -6,6 +6,9 @@ import {
 
 const REF=/^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
 const GENERATION=/^[0-9a-f]{40}$/;
+const CANONICAL_EXPORT_NAME='universal_primitive_denominator_contract';
+const CANONICAL_DESTINATION_SCOPE='xdg_data';
+const CANONICAL_DESTINATION='xi-io/framework/runtime/primitives/universal-primitive-denominator.v1.json';
 let activeBinding=null;
 
 const fail=(code)=>{const error=new TypeError(code);error.code=code;throw error;};
@@ -106,10 +109,12 @@ export async function bindUniversalPrimitiveDenominatorFromInstaller({
     timeout_ms,
   };
   const before=await readVerifiedInstallerDependencyBinding(input);
-  const exportName='universal_primitive_denominator_contract';
+  const exportName=CANONICAL_EXPORT_NAME;
   const contractPath=before.fields[exportName];
   const metadata=before.runtime_exports[exportName];
   if(typeof contractPath!=='string'||!metadata)fail('PRIMITIVE_DENOMINATOR_EXPORT_UNBOUND');
+  if(metadata.destination_scope!==CANONICAL_DESTINATION_SCOPE||metadata.destination!==CANONICAL_DESTINATION)
+    fail('PRIMITIVE_DENOMINATOR_EXPORT_DESTINATION_MISMATCH');
   const bytes=await fs.readFile(contractPath);
   const fileSha=createHash('sha256').update(bytes).digest('hex');
   if(fileSha!==metadata.sha256)fail('PRIMITIVE_DENOMINATOR_INSTALLED_SHA_MISMATCH');
@@ -119,7 +124,9 @@ export async function bindUniversalPrimitiveDenominatorFromInstaller({
   const after=await readVerifiedInstallerDependencyBinding(input);
   if(before.binding_sha256!==after.binding_sha256||
      before.fields[exportName]!==after.fields[exportName]||
-     before.runtime_exports[exportName]?.sha256!==after.runtime_exports[exportName]?.sha256)
+     before.runtime_exports[exportName]?.sha256!==after.runtime_exports[exportName]?.sha256||
+     after.runtime_exports[exportName]?.destination_scope!==CANONICAL_DESTINATION_SCOPE||
+     after.runtime_exports[exportName]?.destination!==CANONICAL_DESTINATION)
     fail('PRIMITIVE_DENOMINATOR_CHANGED_DURING_READ');
   const afterBytes=await fs.readFile(after.fields[exportName]);
   const afterFileSha=createHash('sha256').update(afterBytes).digest('hex');
