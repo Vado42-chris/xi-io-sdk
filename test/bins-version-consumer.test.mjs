@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
-import {prepareBinsVersionRead,checkBinsVersionReadReturn,readBinsVersionWithWorker}
+import {prepareBinsVersionRead,prepareBinsResourceVersionRead,checkBinsVersionReadReturn,readBinsVersionWithWorker}
   from '../src/worker/bins-version-consumer.mjs';
 
 const content=Buffer.from('example');
@@ -238,4 +238,96 @@ test('worker refusal retains bounded repair route but refuses foreign scope and 
     {required_repair:{...refusal.required_repair,owner_approval_needed:'true'}},
     {required_repair:{...refusal.required_repair,get owner_ref(){return 'EXISTING_WARD_RUNTIME_OWNER';}}},
   ])await assert.rejects(run({...refusal,...patch}),/BINS_VERSION_CONSUMER_/);
+});
+
+
+test('generic BINS resource version prepares the same worker scope without legal identity',()=>{
+  const resource={
+    state:'BINS_CUSTODIED',
+    resource_ref:'resource:veilrift:pc03',
+    version_ref:'version:veilrift:pc03:v3',
+    parent_version_ref:'version:veilrift:pc03:v2',
+    storage_binding_ref:'binding:veilrift:pc03',
+    sha256:sha,
+    byte_length:content.length,
+    subject_ref:'subject:veilrift:hero-hq:slot-3',
+  };
+  const genericWork={work_ref:'work:veilrift:pc03',work_generation:'workgen:3'};
+  const genericReturn={
+    work_ref:'work:veilrift:pc03',work_generation:'workgen:3',
+    return_ref:'return:veilrift:pc03',
+    resource_ref:resource.resource_ref,version_ref:resource.version_ref,
+    storage_binding_ref:resource.storage_binding_ref,
+  };
+  const out=prepareBinsResourceVersionRead({resource,work:genericWork,returned:genericReturn});
+  assert.equal(out.schema,'xiio.sdk.bins-version-consumer/v1');
+  assert.equal(out.subject_ref,'subject:veilrift:hero-hq:slot-3');
+  assert.equal(out.parent_version_ref,'version:veilrift:pc03:v2');
+  assert.equal(out.scope.resource_ref,'resource:veilrift:pc03');
+  assert.equal(out.scope.version_ref,'version:veilrift:pc03:v3');
+  assert.equal(out.scope.storage_binding_ref,'binding:veilrift:pc03');
+  assert.equal(Object.hasOwn(out,'matter_ref'),false);
+});
+
+test('legal evidence adapter still preserves matter-specific validation',()=>{
+  const out=make();
+  assert.equal(out.matter_ref,'matter:1');
+  assert.equal(out.event_id,'event:1');
+  assert.equal(out.subject_ref,'matter:1');
+  assert.equal(out.scope.resource_ref,'resource:1');
+});
+
+test('generic resource consumer refuses product-specific or provider-path leakage fields',()=>{
+  const resource={
+    state:'BINS_CUSTODIED',
+    resource_ref:'resource:1',
+    version_ref:'version:1',
+    parent_version_ref:null,
+    storage_binding_ref:'binding:1',
+    sha256:sha,
+    byte_length:content.length,
+  };
+  const genericWork={work_ref:'work:generic',work_generation:'workgen:1'};
+  const genericReturn={
+    work_ref:'work:generic',work_generation:'workgen:1',return_ref:'return:generic',
+    resource_ref:'resource:1',version_ref:'version:1',storage_binding_ref:'binding:1',
+  };
+  for(const patch of [
+    {case_ref:'matter:forged'},
+    {matter_ref:'matter:forged'},
+    {provider_path:'/private/path'},
+    {url:'https://provider.example/private'},
+  ]){
+    assert.throws(()=>prepareBinsResourceVersionRead({
+      resource:{...resource,...patch},work:genericWork,returned:genericReturn,
+    }),/BINS_VERSION_CONSUMER_RESOURCE_FIELD_FORBIDDEN/);
+  }
+});
+
+test('generic resource consumer retains exact Work/resource/version/binding mismatch refusals',()=>{
+  const resource={
+    state:'BINS_CUSTODIED',
+    resource_ref:'resource:generic',
+    version_ref:'version:generic',
+    parent_version_ref:null,
+    storage_binding_ref:'binding:generic',
+    sha256:sha,
+    byte_length:content.length,
+  };
+  const workGeneric={work_ref:'work:generic',work_generation:'workgen:generic'};
+  const returnedGeneric={
+    work_ref:'work:generic',work_generation:'workgen:generic',return_ref:'return:generic',
+    resource_ref:'resource:generic',version_ref:'version:generic',storage_binding_ref:'binding:generic',
+  };
+  for(const patch of [
+    {work_ref:'work:other'},
+    {work_generation:'workgen:other'},
+    {resource_ref:'resource:other'},
+    {version_ref:'version:other'},
+    {storage_binding_ref:'binding:other'},
+  ]){
+    assert.throws(()=>prepareBinsResourceVersionRead({
+      resource,work:workGeneric,returned:{...returnedGeneric,...patch},
+    }),/MISMATCH/);
+  }
 });
