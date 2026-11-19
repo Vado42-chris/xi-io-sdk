@@ -4,13 +4,17 @@ on:
     branches: [main]
     paths:
       - 'src/identity/onboarding-current.mjs'
+      - 'src/identity/current-work-admission.mjs'
       - 'scripts/validate-onboarding-current.mjs'
+      - 'test/current-work-admission.test.mjs'
       - 'package.json'
       - '.github/workflows/sdk-onboarding-current.yml'
   pull_request:
     paths:
       - 'src/identity/onboarding-current.mjs'
+      - 'src/identity/current-work-admission.mjs'
       - 'scripts/validate-onboarding-current.mjs'
+      - 'test/current-work-admission.test.mjs'
       - 'package.json'
 permissions:
   contents: read
@@ -26,3 +30,4 @@ jobs:
       - run: |
           node --check src/identity/onboarding-current.mjs
           npm run check:onboarding-current
+          npm run check:current-work-admission
