@@ -28,21 +28,32 @@ export function validateUniversalPrimitiveDenominatorContract(value){
      row.id!=='XIIO_UNIVERSAL_PRIMITIVE_DENOMINATOR'||
      row.version!==1) fail('PRIMITIVE_DENOMINATOR_IDENTITY_INVALID');
   if(!Array.isArray(row.required_fields)||!row.required_fields.length||
-     new Set(row.required_fields).size!==row.required_fields.length) fail('PRIMITIVE_DENOMINATOR_REQUIRED_FIELDS_INVALID');
+     new Set(row.required_fields).size!==row.required_fields.length||
+     row.required_fields.some(field=>typeof field!=='string'||!field.trim()||field!==field.trim()))
+    fail('PRIMITIVE_DENOMINATOR_REQUIRED_FIELDS_INVALID');
   const families=plain(row.families,'PRIMITIVE_DENOMINATOR_FAMILIES_INVALID');
   const familyKeys=Object.keys(families);
-  if(!familyKeys.length||new Set(familyKeys).size!==familyKeys.length) fail('PRIMITIVE_DENOMINATOR_FAMILIES_INVALID');
+  if(!familyKeys.length||new Set(familyKeys).size!==familyKeys.length||
+     familyKeys.some(key=>!key.trim()||key!==key.trim()))
+    fail('PRIMITIVE_DENOMINATOR_FAMILIES_INVALID');
+  const seenSemanticTypes=new Set();
   for(const key of familyKeys){
     const members=families[key];
     if(!Array.isArray(members)||!members.length||new Set(members).size!==members.length||
-       members.some(member=>typeof member!=='string'||!member.trim())) fail('PRIMITIVE_DENOMINATOR_FAMILY_INVALID');
+       members.some(member=>typeof member!=='string'||!member.trim()||member!==member.trim()))
+      fail('PRIMITIVE_DENOMINATOR_FAMILY_INVALID');
+    for(const member of members){
+      if(seenSemanticTypes.has(member))fail('PRIMITIVE_DENOMINATOR_SEMANTIC_TYPE_DUPLICATE');
+      seenSemanticTypes.add(member);
+    }
   }
   if(!Array.isArray(row.structural_operations)||!row.structural_operations.length||
      new Set(row.structural_operations).size!==row.structural_operations.length||
-     row.structural_operations.some(op=>typeof op!=='string'||!op.trim())) fail('PRIMITIVE_DENOMINATOR_OPERATIONS_INVALID');
+     row.structural_operations.some(op=>typeof op!=='string'||!op.trim()||op!==op.trim()))
+    fail('PRIMITIVE_DENOMINATOR_OPERATIONS_INVALID');
   if(!Array.isArray(row.universal_api_verbs)||!row.universal_api_verbs.length||
      new Set(row.universal_api_verbs).size!==row.universal_api_verbs.length||
-     row.universal_api_verbs.some(verb=>typeof verb!=='string'||!verb.trim()))
+     row.universal_api_verbs.some(verb=>typeof verb!=='string'||!verb.trim()||verb!==verb.trim()))
     fail('PRIMITIVE_DENOMINATOR_API_VERBS_INVALID');
   return row;
 }
