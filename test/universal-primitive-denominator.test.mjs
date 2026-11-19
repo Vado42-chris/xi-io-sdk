@@ -87,3 +87,39 @@ test('verified denominator still does not validate an invalid primitive instance
   assert.equal(out.ok,false);
   assert.equal(out.first_red,'PRIMITIVE_SEMANTIC_TYPE');
 });
+
+
+test('semantic type duplicated across two families refuses the denominator',()=>{
+  const duplicate=structuredClone(synthetic);
+  duplicate.families.second=['heading'];
+  assert.throws(
+    ()=>denominatorModule.validateUniversalPrimitiveDenominatorContract(duplicate),
+    /PRIMITIVE_DENOMINATOR_SEMANTIC_TYPE_DUPLICATE/,
+  );
+});
+
+test('denominator names must be canonical trimmed strings',()=>{
+  for(const mutate of [
+    value=>{value.required_fields[0]=' identity ';},
+    value=>{value.structural_operations[0]=' SELECT ';},
+    value=>{value.universal_api_verbs[0]=' IDENTIFY ';},
+    value=>{value.families.fixture[0]=' heading ';},
+    value=>{value.families[' fixture ']=value.families.fixture;delete value.families.fixture;},
+  ]){
+    const candidate=structuredClone(synthetic);
+    mutate(candidate);
+    assert.throws(
+      ()=>denominatorModule.validateUniversalPrimitiveDenominatorContract(candidate),
+      /PRIMITIVE_DENOMINATOR_/,
+    );
+  }
+});
+
+test('required field entries cannot be non-string values',()=>{
+  const candidate=structuredClone(synthetic);
+  candidate.required_fields[0]=42;
+  assert.throws(
+    ()=>denominatorModule.validateUniversalPrimitiveDenominatorContract(candidate),
+    /PRIMITIVE_DENOMINATOR_REQUIRED_FIELDS_INVALID/,
+  );
+});
