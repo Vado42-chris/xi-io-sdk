@@ -142,7 +142,8 @@ if(p?.schema!=="xiio.repo-gate-profile/v1") fail("PROFILE_SCHEMA_UNSUPPORTED");
 if(p?.acceptance?.status!=="ACCEPTED" || typeof p?.acceptance?.authority_ref!=="string" || !p.acceptance.authority_ref.trim())
   fail("PROFILE_NOT_ACCEPTED");
 if(typeof p?.product_ref!=="string" || !p.product_ref.trim()) fail("PROFILE_PRODUCT_REF_MISSING");
-if(p?.head_sha!==process.env.XIIO_PROFILE_SHA) fail("PROFILE_HEAD_SHA_MISMATCH");
+const externalBinding=p?.head_binding==="INDEPENDENT_CUSTODY" && (p?.head_sha===undefined || p?.head_sha===null);
+if(!externalBinding && p?.head_sha!==process.env.XIIO_PROFILE_SHA) fail("PROFILE_HEAD_SHA_MISMATCH");
 if(!Array.isArray(p?.steps) || !p.steps.length) fail("PROFILE_STEPS_MISSING");
 const ids=new Set();
 const scripts=new Set();
@@ -166,6 +167,7 @@ for(const step of p.steps){
 const raw=fs.readFileSync(process.env.XIIO_PROFILE_PATH);
 process.stdout.write(JSON.stringify({
   ...p,
+  profile_head_binding:externalBinding?"INDEPENDENT_CUSTODY":"SELF_DECLARED_EXACT_HEAD",
   profile_sha256:crypto.createHash("sha256").update(raw).digest("hex")
 }));
 NODE
