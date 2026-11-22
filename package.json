@@ -83,6 +83,7 @@
     "./ibal/ack-rotfl-compiler": "./src/ibal/ack-rotfl-compiler.mjs",
     "./evaluation/transition-proof-reducer": "./src/evaluation/transition-proof-reducer.mjs",
     "./currentness/hex-floor": "./src/currentness/hex-floor.mjs",
+    "./currentness/runtime-snapshot": "./src/currentness/runtime-snapshot.mjs",
     "./documents/portable-semantic-file": "./src/documents/portable-semantic-file.mjs",
     "./documents/portable-artifact-cube": "./src/documents/portable-artifact-cube.mjs",
     "./documents/artifact-profiles": "./src/documents/artifact-profile-catalog.mjs",
