@@ -216,7 +216,7 @@
     "check:host-dependency-edges": "node scripts/validate-host-dependency-edges.mjs",
     "check:event-consumption": "node --test test/event-consumption.test.mjs",
     "check:product-entitlement": "node scripts/validate-product-entitlement.mjs",
-    "check:installer-dependency-binding-client": "node --test test/installer-dependency-binding-client.test.mjs",
+    "check:installer-dependency-binding-client": "node --test test/installer-dependency-binding-client.test.mjs test/installer-dependency-binding-trust.test.mjs",
     "check:worker-runtime-package": "node --test test/worker-runtime-package.test.mjs",
     "check:worker-runtime-installed": "node test/worker-runtime-installed-owner-join.mjs",
     "check:contract-surface-inventory": "node scripts/validate-contract-surface-inventory.mjs",

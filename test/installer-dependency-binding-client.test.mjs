@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readVerifiedInstallerDependencyBinding, importVerifiedInstallerDependencyModule, readVerifiedInstallerRuntimeActivation } from '../src/install/installer-dependency-binding-client.mjs';
+import { createHash } from 'node:crypto';
+const TARGET_SHA256=createHash('sha256').update('export const x=1;\n').digest('hex');
 
 function fixture(t,{mode='ok'}={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-sdk-installer-binding-'));
@@ -26,7 +28,7 @@ const value={
  accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,
  binding_sha256:'d'.repeat(64),
- runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:${JSON.stringify(TARGET_SHA256)},mode:'0644'}},
  fields:{provider_module:${JSON.stringify(target)}},
  provider_effect:false,effect_authority:false,custody_verified:true
 };
@@ -38,8 +40,13 @@ process.stdout.write(JSON.stringify(value));
 }
 async function withPath(bin,work){
   const prior=process.env.PATH;
+  const priorBin=process.env.XIIO_INSTALLER_BIN;
   process.env.PATH=bin+path.delimiter+prior;
-  try{return await work();}finally{process.env.PATH=prior;}
+  process.env.XIIO_INSTALLER_BIN=path.join(bin,'xi-io-installer');
+  try{return await work();}finally{
+    process.env.PATH=prior;
+    if(priorBin===undefined)delete process.env.XIIO_INSTALLER_BIN;else process.env.XIIO_INSTALLER_BIN=priorBin;
+  }
 }
 const request=f=>({
   binding_receipt_path:f.receipt,
@@ -82,7 +89,7 @@ process.stdout.write(JSON.stringify({
  schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
  dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,binding_sha256:'not-a-digest',
- runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:${JSON.stringify(TARGET_SHA256)},mode:'0644'}},
  fields:{provider_module:target},provider_effect:false,effect_authority:false,custody_verified:true
 }));
 `,{mode:0o755});
@@ -125,7 +132,7 @@ process.stdout.write(JSON.stringify({
  dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,
  binding_sha256:'d'.repeat(64),
- runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:${JSON.stringify(TARGET_SHA256)},mode:'0644'}},
  fields:{provider_module:${JSON.stringify(f.target)}},provider_effect:false,effect_authority:false,custody_verified:true
 }));
 `,{mode:0o755});
@@ -134,7 +141,7 @@ process.stdout.write(JSON.stringify({
   assert.equal(result.state,'VERIFIED');
   assert.equal(result.module.x,1);
   assert.equal(result.module_path,f.target);
-  assert.equal(result.module_sha256,'b'.repeat(64));
+  assert.equal(result.module_sha256,TARGET_SHA256);
   assert.equal(result.authority_granted,false);
   assert.equal(fs.readFileSync(calls,'utf8').trim().split(/\n/).length,2);
 });
@@ -151,7 +158,7 @@ process.stdout.write(JSON.stringify({
  schema:'xiio.installer-dependency-binding-receipt/v1',state:'VERIFIED',
  dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,binding_sha256:(n===1?'d':'e').repeat(64),
- runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:'b'.repeat(64),mode:'0644'}},
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:${JSON.stringify(TARGET_SHA256)},mode:'0644'}},
  fields:{provider_module:target},provider_effect:false,effect_authority:false,custody_verified:true
 }));
 `,{mode:0o755});
@@ -175,7 +182,7 @@ process.stdout.write(JSON.stringify({
  dependency_id:'provider-runtime',owner_repo:'owner/provider',accepted_generation:'a'.repeat(40),
  binding_receipt_path:receipt,
  binding_sha256:'d'.repeat(64),
- runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:(n===1?'b':'c').repeat(64),mode:'0644'}},
+ runtime_exports:{provider_module:{destination_scope:'xdg_data',destination:'xi-io/provider/provider.mjs',sha256:(n===1?${JSON.stringify(TARGET_SHA256)}:'c'.repeat(64)),mode:'0644'}},
  fields:{provider_module:${JSON.stringify(f.target)}},provider_effect:false,effect_authority:false,custody_verified:true
 }));
 `,{mode:0o755});

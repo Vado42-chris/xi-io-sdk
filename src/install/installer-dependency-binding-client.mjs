@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 export const INSTALLER_DEPENDENCY_BINDING_CLIENT_SCHEMA='xiio.sdk.installer-dependency-binding-client/v1';
 export const INSTALLER_RUNTIME_ACTIVATION_CLIENT_SCHEMA='xiio.sdk.installer-runtime-activation-client/v1';
@@ -29,10 +30,28 @@ function object(value,code){
   return value;
 }
 
+// Installer is never resolved through PATH. Callers must name an absolute binary.
+export function resolveInstallerBinary(env=process.env){
+  const value=env.XIIO_INSTALLER_BIN;
+  if(typeof value!=='string'||!value.trim())fail('INSTALLER_BINARY_PATH_REQUIRED');
+  if(!path.isAbsolute(value))fail('INSTALLER_BINARY_PATH_NOT_ABSOLUTE');
+  return value;
+}
+
+// Bytes are read once and hashed; the caller must import these bytes, never re-read the path.
+export async function readVerifiedModuleBytes(modulePath,expectedSha256){
+  if(typeof modulePath!=='string'||!path.isAbsolute(modulePath))fail('INSTALLER_DEPENDENCY_MODULE_PATH_INVALID');
+  if(typeof expectedSha256!=='string'||!/^[0-9a-f]{64}$/.test(expectedSha256))fail('INSTALLER_DEPENDENCY_MODULE_DIGEST_INVALID');
+  const bytes=await fs.readFile(modulePath);
+  const actual=createHash('sha256').update(bytes).digest('hex');
+  if(actual!==expectedSha256)fail('INSTALLER_DEPENDENCY_MODULE_DIGEST_MISMATCH');
+  return bytes;
+}
+
 async function runInstallerReadOnly(args,{timeout_ms,prefix}){
   const selectedPrefix=text(prefix,'INSTALLER_VERIFIER_PREFIX_REQUIRED',96);
   return await new Promise((resolve,reject)=>{
-    const child=spawn('xi-io-installer',args,{shell:false,stdio:['ignore','pipe','pipe']});
+    const child=spawn(resolveInstallerBinary(),args,{shell:false,stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',bytes=0,settled=false;
     const finish=(error,value)=>{
       if(settled)return;
@@ -324,9 +343,10 @@ export async function importVerifiedInstallerDependencyModule({
   const modulePath=before.fields[name];
   const metadata=before.runtime_exports[name];
   if(typeof modulePath!=='string'||!metadata)fail('INSTALLER_DEPENDENCY_EXPORT_UNBOUND');
+  const verifiedBytes=await readVerifiedModuleBytes(modulePath,metadata.sha256);
   let loaded;
   try{
-    loaded=await import(`${pathToFileURL(modulePath).href}?sha256=${metadata.sha256}`);
+    loaded=await import(`data:text/javascript;base64,${verifiedBytes.toString('base64')}`);
   }catch{
     fail('INSTALLER_DEPENDENCY_MODULE_IMPORT_FAILED');
   }
