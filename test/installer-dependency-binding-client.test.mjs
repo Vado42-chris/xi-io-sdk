@@ -43,9 +43,11 @@ async function withPath(bin,work){
   const priorBin=process.env.XIIO_INSTALLER_BIN;
   process.env.PATH=bin+path.delimiter+prior;
   process.env.XIIO_INSTALLER_BIN=path.join(bin,'xi-io-installer');
+  process.env.XIIO_INSTALLER_SHA256=createHash('sha256').update(fs.readFileSync(path.join(bin,'xi-io-installer'))).digest('hex');
   try{return await work();}finally{
     process.env.PATH=prior;
     if(priorBin===undefined)delete process.env.XIIO_INSTALLER_BIN;else process.env.XIIO_INSTALLER_BIN=priorBin;
+    delete process.env.XIIO_INSTALLER_SHA256;
   }
 }
 const request=f=>({

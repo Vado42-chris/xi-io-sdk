@@ -1,6 +1,6 @@
 // Regression contract for the installer dependency-binding consumer.
-// Consumed by: SDK check gate, Node vendored copy, and Ibal worker kits.
-// Covers SECURITY-NODE-INSTALLER-TRUST-001: PATH-planted installer, unverified module bytes, path swap after check.
+// Consumed by: SDK check gate, Node vendored copy (identical except import path), Ibal worker kits.
+// Covers SECURITY-NODE-INSTALLER-TRUST-001 and its review blockers (installer identity, ESM compatibility).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,11 +11,14 @@ import {
   readVerifiedInstallerDependencyBinding,
   importVerifiedInstallerDependencyModule,
   resolveInstallerBinary,
+  verifyInstallerBinary,
   readVerifiedModuleBytes,
+  assertSelfContainedModule,
 } from '../src/install/installer-dependency-binding-client.mjs';
 
 const GOOD = 'export const value = "verified";\n';
 const sha = (text) => createHash('sha256').update(text).digest('hex');
+const shaFile = (p) => createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const request = (receipt) => ({
   binding_receipt_path: receipt,
   expected_dependency_id: 'provider-runtime',
@@ -24,12 +27,12 @@ const request = (receipt) => ({
   export_name: 'provider_module',
 });
 
-// Fake installer that reports the digest of GOOD, plus a marker file it writes when run.
-function plantInstaller(t, { reportedSha, marker }) {
+// Fake installer: reports the digest of GOOD; optionally writes a marker when run.
+function plantInstaller(t, { reportedSha = sha(GOOD), marker } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xiio-sdk-trust-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const bin = path.join(root, 'bin');
-  fs.mkdirSync(bin);
+  fs.mkdirSync(bin, { mode: 0o755 });
   const target = path.join(root, 'provider.mjs');
   fs.writeFileSync(target, GOOD);
   const receipt = path.join(root, 'binding.json');
@@ -47,6 +50,7 @@ process.stdout.write(JSON.stringify({
  fields:{provider_module:${JSON.stringify(target)}},provider_effect:false,effect_authority:false,custody_verified:true
 }));
 `, { mode: 0o755 });
+  fs.chmodSync(script, 0o755);
   return { root, bin, target, receipt, script };
 }
 
@@ -57,54 +61,95 @@ async function withEnv(vars, work) {
     for (const k of Object.keys(prior)) { if (prior[k] === undefined) delete process.env[k]; else process.env[k] = prior[k]; }
   }
 }
+const pinned = (f) => ({ XIIO_INSTALLER_BIN: f.script, XIIO_INSTALLER_SHA256: shaFile(f.script) });
 
-test('PATH-planted installer is never executed; only an absolute XIIO_INSTALLER_BIN is accepted', async (t) => {
+test('PATH-planted installer is never executed; absolute path plus pinned digest are both required', async (t) => {
   const marker = path.join(os.tmpdir(), `xiio-trust-ran-${process.pid}-${Date.now()}`);
-  const f = plantInstaller(t, { reportedSha: sha(GOOD), marker });
+  const f = plantInstaller(t, { marker });
   const priorPath = process.env.PATH;
   try {
-    await withEnv({ PATH: `${f.bin}${path.delimiter}${priorPath}`, XIIO_INSTALLER_BIN: undefined }, async () => {
+    const onPath = { PATH: `${f.bin}${path.delimiter}${priorPath}` };
+    await withEnv({ ...onPath, XIIO_INSTALLER_BIN: undefined, XIIO_INSTALLER_SHA256: undefined }, async () => {
       assert.throws(() => resolveInstallerBinary(), { code: 'INSTALLER_BINARY_PATH_REQUIRED' });
       await assert.rejects(readVerifiedInstallerDependencyBinding(request(f.receipt)), { code: 'INSTALLER_BINARY_PATH_REQUIRED' });
     });
-    await withEnv({ PATH: `${f.bin}${path.delimiter}${priorPath}`, XIIO_INSTALLER_BIN: 'xi-io-installer' }, async () => {
+    await withEnv({ ...onPath, XIIO_INSTALLER_BIN: 'xi-io-installer', XIIO_INSTALLER_SHA256: shaFile(f.script) }, async () => {
       assert.throws(() => resolveInstallerBinary(), { code: 'INSTALLER_BINARY_PATH_NOT_ABSOLUTE' });
       await assert.rejects(readVerifiedInstallerDependencyBinding(request(f.receipt)), { code: 'INSTALLER_BINARY_PATH_NOT_ABSOLUTE' });
     });
-    assert.equal(fs.existsSync(marker), false, 'PATH-planted installer must not run');
-    await withEnv({ XIIO_INSTALLER_BIN: f.script }, async () => {
-      assert.equal(resolveInstallerBinary(), f.script);
+    await withEnv({ ...onPath, XIIO_INSTALLER_BIN: f.script, XIIO_INSTALLER_SHA256: undefined }, async () => {
+      assert.throws(() => resolveInstallerBinary(), { code: 'INSTALLER_BINARY_DIGEST_REQUIRED' });
     });
+    assert.equal(fs.existsSync(marker), false, 'PATH-planted installer must not run');
   } finally {
     process.env.PATH = priorPath;
     fs.rmSync(marker, { force: true });
   }
 });
 
+test('installer whose bytes do not match the pinned digest is refused and never runs', async (t) => {
+  const marker = path.join(os.tmpdir(), `xiio-trust-digest-${process.pid}-${Date.now()}`);
+  const f = plantInstaller(t, { marker });
+  try {
+    await withEnv({ XIIO_INSTALLER_BIN: f.script, XIIO_INSTALLER_SHA256: sha('something else') }, async () => {
+      await assert.rejects(verifyInstallerBinary(), { code: 'INSTALLER_BINARY_DIGEST_MISMATCH' });
+      await assert.rejects(readVerifiedInstallerDependencyBinding(request(f.receipt)), { code: 'INSTALLER_BINARY_DIGEST_MISMATCH' });
+    });
+    assert.equal(fs.existsSync(marker), false, 'digest-mismatched installer must not run');
+  } finally { fs.rmSync(marker, { force: true }); }
+});
+
+test('symlinked installer is refused even when its target digest matches', async (t) => {
+  const f = plantInstaller(t);
+  const link = path.join(f.root, 'link-installer');
+  fs.symlinkSync(f.script, link);
+  await withEnv({ XIIO_INSTALLER_BIN: link, XIIO_INSTALLER_SHA256: shaFile(f.script) }, async () => {
+    await assert.rejects(verifyInstallerBinary(), { code: 'INSTALLER_BINARY_UNTRUSTED' });
+  });
+});
+
+test('group- or world-writable installer is refused', async (t) => {
+  const f = plantInstaller(t);
+  fs.chmodSync(f.script, 0o777);
+  await withEnv(pinned(f), async () => {
+    await assert.rejects(verifyInstallerBinary(), { code: 'INSTALLER_BINARY_UNTRUSTED' });
+  });
+});
+
 test('module whose bytes do not match the receipt digest is refused and its code never runs', async (t) => {
   const probe = 'xiioTrustProbe';
-  const f = plantInstaller(t, { reportedSha: sha(GOOD) });
+  const f = plantInstaller(t);
   fs.writeFileSync(f.target, `globalThis.${probe}=true;\n${GOOD}`);
-  await withEnv({ XIIO_INSTALLER_BIN: f.script }, async () => {
-    await assert.rejects(
-      importVerifiedInstallerDependencyModule(request(f.receipt)),
-      { code: 'INSTALLER_DEPENDENCY_MODULE_DIGEST_MISMATCH' },
-    );
+  await withEnv(pinned(f), async () => {
+    await assert.rejects(importVerifiedInstallerDependencyModule(request(f.receipt)), { code: 'INSTALLER_DEPENDENCY_MODULE_DIGEST_MISMATCH' });
   });
   assert.equal(globalThis[probe], undefined, 'tampered module code must not execute');
 });
 
 test('the bytes that were verified are the bytes that run, even if the path is swapped afterwards', async (t) => {
-  const f = plantInstaller(t, { reportedSha: sha(GOOD) });
+  const f = plantInstaller(t);
   const verified = await readVerifiedModuleBytes(f.target, sha(GOOD));
   fs.writeFileSync(f.target, 'export const value = "swapped";\n');
   const mod = await import(`data:text/javascript;base64,${verified.toString('base64')}`);
   assert.equal(mod.value, 'verified');
 });
 
-test('an untampered module imports and returns the verified export', async (t) => {
-  const f = plantInstaller(t, { reportedSha: sha(GOOD) });
-  await withEnv({ XIIO_INSTALLER_BIN: f.script }, async () => {
+test('module with a relative, absolute or bare import is refused explicitly, not left to break', async (t) => {
+  for (const source of [
+    "import { x } from './sibling.mjs';\nexport const value = x;\n",
+    "export * from '../other.mjs';\n",
+    "import pkg from 'lodash';\nexport const value = pkg;\n",
+    "export const value = import.meta.url;\n",
+    "export const p = import('./lazy.mjs');\n",
+  ]) {
+    assert.throws(() => assertSelfContainedModule(source), { code: 'INSTALLER_DEPENDENCY_MODULE_NOT_SELF_CONTAINED' }, source);
+  }
+  assert.doesNotThrow(() => assertSelfContainedModule("import { readFileSync } from 'node:fs';\nexport const value = 1;\n"));
+});
+
+test('an untampered self-contained module imports and returns the verified export', async (t) => {
+  const f = plantInstaller(t);
+  await withEnv(pinned(f), async () => {
     const result = await importVerifiedInstallerDependencyModule(request(f.receipt));
     assert.equal(result.module.value, 'verified');
     assert.equal(result.module_sha256, sha(GOOD));

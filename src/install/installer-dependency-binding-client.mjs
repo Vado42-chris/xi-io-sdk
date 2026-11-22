@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
+const MAX_INSTALLER_BYTES=64*1024*1024;
+const MAX_MODULE_BYTES=4*1024*1024;
 import path from 'node:path';
 
 export const INSTALLER_DEPENDENCY_BINDING_CLIENT_SCHEMA='xiio.sdk.installer-dependency-binding-client/v1';
@@ -35,23 +37,56 @@ export function resolveInstallerBinary(env=process.env){
   const value=env.XIIO_INSTALLER_BIN;
   if(typeof value!=='string'||!value.trim())fail('INSTALLER_BINARY_PATH_REQUIRED');
   if(!path.isAbsolute(value))fail('INSTALLER_BINARY_PATH_NOT_ABSOLUTE');
-  return value;
+  const digest=env.XIIO_INSTALLER_SHA256;
+  if(typeof digest!=='string'||!/^[0-9a-f]{64}$/.test(digest))fail('INSTALLER_BINARY_DIGEST_REQUIRED');
+  return {path:value,sha256:digest};
+}
+
+// Regular file, not a symlink, bounded, not group/other-writable, owned by caller or root.
+async function statTrustedFile(filePath,maxBytes,code){
+  const st=await fs.lstat(filePath).catch(()=>fail(code));
+  if(!st.isFile()||st.isSymbolicLink())fail(code);
+  if(st.size>maxBytes)fail(code);
+  if((st.mode&0o022)!==0)fail(code);
+  const uid=typeof process.getuid==='function'?process.getuid():null;
+  if(uid!==null&&st.uid!==uid&&st.uid!==0)fail(code);
+  return st;
+}
+
+// Installer identity: the executed bytes must equal the digest the deployment pinned.
+export async function verifyInstallerBinary(env=process.env){
+  const {path:binary,sha256}=resolveInstallerBinary(env);
+  await statTrustedFile(binary,MAX_INSTALLER_BYTES,'INSTALLER_BINARY_UNTRUSTED');
+  const bytes=await fs.readFile(binary);
+  if(createHash('sha256').update(bytes).digest('hex')!==sha256)fail('INSTALLER_BINARY_DIGEST_MISMATCH');
+  return binary;
+}
+
+// Modules run in a data: URL, so they must be self-contained: no relative/absolute/bare
+// specifiers and no import.meta. Anything else is refused explicitly, not left to break.
+export function assertSelfContainedModule(source){
+  if(/\bimport\.meta\b/.test(source))fail('INSTALLER_DEPENDENCY_MODULE_NOT_SELF_CONTAINED');
+  if(/\b(?:from|import)\s*['"](?!node:)[^'"]*['"]/.test(source))fail('INSTALLER_DEPENDENCY_MODULE_NOT_SELF_CONTAINED');
+  if(/\bimport\s*\(\s*['"]/.test(source))fail('INSTALLER_DEPENDENCY_MODULE_NOT_SELF_CONTAINED');
 }
 
 // Bytes are read once and hashed; the caller must import these bytes, never re-read the path.
 export async function readVerifiedModuleBytes(modulePath,expectedSha256){
   if(typeof modulePath!=='string'||!path.isAbsolute(modulePath))fail('INSTALLER_DEPENDENCY_MODULE_PATH_INVALID');
   if(typeof expectedSha256!=='string'||!/^[0-9a-f]{64}$/.test(expectedSha256))fail('INSTALLER_DEPENDENCY_MODULE_DIGEST_INVALID');
+  await statTrustedFile(modulePath,MAX_MODULE_BYTES,'INSTALLER_DEPENDENCY_MODULE_UNTRUSTED');
   const bytes=await fs.readFile(modulePath);
   const actual=createHash('sha256').update(bytes).digest('hex');
   if(actual!==expectedSha256)fail('INSTALLER_DEPENDENCY_MODULE_DIGEST_MISMATCH');
+  assertSelfContainedModule(bytes.toString('utf8'));
   return bytes;
 }
 
 async function runInstallerReadOnly(args,{timeout_ms,prefix}){
   const selectedPrefix=text(prefix,'INSTALLER_VERIFIER_PREFIX_REQUIRED',96);
+  const binary=await verifyInstallerBinary();
   return await new Promise((resolve,reject)=>{
-    const child=spawn(resolveInstallerBinary(),args,{shell:false,stdio:['ignore','pipe','pipe']});
+    const child=spawn(binary,args,{shell:false,stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',bytes=0,settled=false;
     const finish=(error,value)=>{
       if(settled)return;
