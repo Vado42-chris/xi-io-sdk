@@ -158,11 +158,27 @@ function compilePublisherWindowBinding({ product_ref, publisher_recipe, sdk_regi
 }
 
 export function productWindowPublisherDeliveryStage(input = {}) {
-  const body = productWindowProductStage(input);
+  deliveryObject(input, 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID');
+  // Read every public input as own data before crossing into the legacy
+  // destructuring API. Getter-backed objects must not execute code merely
+  // because a Window projection is being inspected.
+  const safe = {
+    product_ref: ownDeliveryValue(input, 'product_ref', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+    project_ref: ownDeliveryValue(input, 'project_ref', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+    chat_ref: ownDeliveryValue(input, 'chat_ref', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+    body_ref: ownDeliveryValue(input, 'body_ref', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+    launch_surface: optionalDeliveryValue(input, 'launch_surface', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID') ?? null,
+    launch_surfaces: ownDeliveryValue(input, 'launch_surfaces', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+    studio_registry: ownDeliveryValue(input, 'studio_registry', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+    product_catalog: ownDeliveryValue(input, 'product_catalog', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID'),
+  };
+  const publisherRecipe = ownDeliveryValue(input, 'publisher_recipe', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID');
+  const sdkRegistry = ownDeliveryValue(input, 'sdk_registry', 'XIIO_PRODUCT_WINDOW_DELIVERY_INPUT_INVALID');
+  const body = productWindowProductStage(safe);
   const publisher = compilePublisherWindowBinding({
     product_ref: body.product.product_ref,
-    publisher_recipe: input.publisher_recipe,
-    sdk_registry: input.sdk_registry,
+    publisher_recipe: publisherRecipe,
+    sdk_registry: sdkRegistry,
   });
   return Object.freeze({
     ...body,
