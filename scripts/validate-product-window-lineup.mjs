@@ -110,6 +110,23 @@ assert.throws(()=>productWindowPublisherDeliveryStage({
   sdk_registry:{...deliverySdkRegistry,'sdk:action':{...deliverySdkRegistry['sdk:action'],interactions:['invoke','   ']}},
   ...options
 }),/SDK_INTERACTION_CONTRACT_MISSING/);
+
+let deliveryAccessorEffects=0;
+const hostileDelivery={
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',
+  launch_surfaces,publisher_recipe:publisherRecipe,sdk_registry:deliverySdkRegistry,...options
+};
+Object.defineProperty(hostileDelivery,'publisher_recipe',{enumerable:true,get(){deliveryAccessorEffects++;return publisherRecipe;}});
+assert.throws(()=>productWindowPublisherDeliveryStage(hostileDelivery),/DELIVERY_INPUT_INVALID/);
+assert.equal(deliveryAccessorEffects,0);
+
+const hostilePublisherRecipe={...publisherRecipe};
+Object.defineProperty(hostilePublisherRecipe,'composition',{enumerable:true,get(){deliveryAccessorEffects++;return publisherRecipe.composition;}});
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:hostilePublisherRecipe,sdk_registry:deliverySdkRegistry,...options
+}),/PUBLISHER_COMPOSITION_REQUIRED/);
+assert.equal(deliveryAccessorEffects,0);
 assert.throws(()=>compileProductWindowRegistry(),/STUDIO_REGISTRY_UNBOUND/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[...product_catalog,product_catalog[0]]}),/DUPLICATE/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[{...product_catalog[0],studio_product_id:'invented'}]}),/NOT_STUDIO_MEMBER/);
