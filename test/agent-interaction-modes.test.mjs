@@ -165,3 +165,20 @@ test('getter-backed array entries cannot execute during projection', () => {
   );
   assert.equal(effects, 0);
 });
+
+test('prototype-chain names are never accepted as interaction modes', () => {
+  for (const hostile of ['constructor', '__proto__']) {
+    assert.throws(
+      () => compileAgentInteractionProfile(profile({ supported_modes: [hostile] })),
+      /AGENT_INTERACTION_MODE_UNKNOWN/,
+    );
+    assert.throws(
+      () => compileAgentInteractionProfile(profile({ selected_mode: hostile })),
+      /AGENT_INTERACTION_MODE_UNKNOWN/,
+    );
+    assert.throws(
+      () => agentInteractionModeDefinition(hostile),
+      /AGENT_INTERACTION_MODE_UNKNOWN/,
+    );
+  }
+});
