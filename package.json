@@ -123,7 +123,8 @@
     "./install/dependency-binding-client": "./src/install/installer-dependency-binding-client.mjs",
     "./worker/installed-observation": "./src/worker/installed-observation.mjs",
     "./catalog/contract-surface-inventory": "./src/catalog/contract-surface-inventory.mjs",
-    "./billing/product-operation-admission-binding": "./src/billing/product-operation-admission-binding.mjs"
+    "./billing/product-operation-admission-binding": "./src/billing/product-operation-admission-binding.mjs",
+    "./install/consumer-ownership": "./src/install/installed-consumer-ownership.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
@@ -223,7 +224,8 @@
     "check:contract-surface-inventory": "node scripts/validate-contract-surface-inventory.mjs",
     "check:product-operation-admission-binding": "node scripts/validate-product-operation-admission-binding.mjs",
     "check:callable-catalog": "node scripts/validate-callable-catalog.mjs",
-    "check:shared-runtime-identity": "npm run check:account-binding && npm run check:launch-session && npm run check:installer-dependency-binding-client && npm run check:worker-runtime-package && npm run check:yar-return && npm run check:two-sided-provider-meter && npm run check:fractal-consumer-receipt && npm run check:fractal-consumer-receipt-cli",
-    "check:product-surface-runtime": "node --test test/product-surface-runtime-installer.test.mjs"
+    "check:shared-runtime-identity": "npm run check:account-binding && npm run check:launch-session && npm run check:installer-dependency-binding-client && npm run check:worker-runtime-package && npm run check:yar-return && npm run check:two-sided-provider-meter && npm run check:fractal-consumer-receipt && npm run check:fractal-consumer-receipt-cli && npm run check:installed-consumer-ownership",
+    "check:product-surface-runtime": "node --test test/product-surface-runtime-installer.test.mjs",
+    "check:installed-consumer-ownership": "node --test test/installed-consumer-ownership.test.mjs"
   }
 }
