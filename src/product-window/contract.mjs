@@ -90,9 +90,8 @@ function compilePublisherWindowBinding({ product_ref, publisher_recipe, sdk_regi
   if (ownDeliveryValue(recipe, 'schema', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_INVALID') !== 'xiio.publisher.template-recipe/v1') {
     throw new Error('XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_INVALID');
   }
-  if (ownDeliveryValue(recipe, 'ready', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_INVALID') !== true) {
-    throw new Error('XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_NOT_READY');
-  }
+  const declaredReady = ownDeliveryValue(recipe, 'ready', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_INVALID');
+  if (declaredReady !== true && declaredReady !== false) throw new Error('XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_INVALID');
   const recipeProduct = deliveryText(ownDeliveryValue(recipe, 'product_ref', 'XIIO_PRODUCT_WINDOW_PUBLISHER_PRODUCT_REQUIRED'), 'XIIO_PRODUCT_WINDOW_PUBLISHER_PRODUCT_REQUIRED');
   if (recipeProduct !== product_ref) throw new Error('XIIO_PRODUCT_WINDOW_PUBLISHER_PRODUCT_MISMATCH');
   const recipeRef = deliveryText(ownDeliveryValue(recipe, 'recipe_id', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_REF_REQUIRED'), 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_REF_REQUIRED');
@@ -161,7 +160,9 @@ function compilePublisherWindowBinding({ product_ref, publisher_recipe, sdk_regi
   if (accentToken && !brand) throw new Error('XIIO_PRODUCT_WINDOW_BRAND_BINDING_REQUIRED');
 
   return Object.freeze({
-    state: 'SUPPLIED_UNVERIFIED',
+    state: declaredReady ? 'SUPPLIED_UNVERIFIED' : 'DECLARED_NOT_READY',
+    qualification: 'UNVERIFIED',
+    declared_ready: declaredReady,
     recipe_ref: recipeRef,
     recipe_generation: recipeGeneration,
     product_ref: recipeProduct,
