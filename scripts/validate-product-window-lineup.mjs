@@ -42,6 +42,8 @@ assert.equal(body.chat,'SUPPLIED_UNVERIFIED');
 assert.equal(body.authority.body_mounted,false);
 assert.equal(body.authority.effect_authority,0);
 
+// Shape captured from the current Publisher TemplateRecipe contract. SDK does
+// not certify Publisher readiness; it only preserves supplied identities.
 const publisherRecipe={
   schema:'xiio.publisher.template-recipe/v1',
   recipe_id:'publisher:recipe:app-a',
@@ -51,13 +53,17 @@ const publisherRecipe={
   ready:true,
   composition:[
     {order:1,component_ref:'sdk:frame',uuid:'uuid-frame',specifier:'@xi-io/sdk/frame',role:'APP_SHELL',invariant:true},
-    {order:2,component_ref:'sdk:action',uuid:'uuid-action',specifier:'@xi-io/sdk/action',role:'ACTION',invariant:true},
+    {order:2,component_ref:'sdk:header',uuid:'uuid-header',specifier:'@xi-io/sdk/header',role:'PAGE_HEADER',invariant:true},
+    {order:3,component_ref:'sdk:status',uuid:'uuid-status',specifier:'@xi-io/sdk/status',role:'STATUS',invariant:true},
+    {order:4,component_ref:'sdk:action',uuid:'uuid-action',specifier:'@xi-io/sdk/action',role:'ACTION',invariant:true},
   ],
   variants:{accent_token:'brand:accent-primary'},
-  brand_binding:{ref:'brand:app-a',generation:'B1'},
+  brand_binding:{ref:'brand:app-a',generation:'B1',evidence_ref:'brand:evidence:B1',owner_ref:'brand:owner'},
 };
 const deliverySdkRegistry={
   'sdk:frame':{uuid:'uuid-frame',specifier:'@xi-io/sdk/frame',generation:'SDK1',interactions:['inspect']},
+  'sdk:header':{uuid:'uuid-header',specifier:'@xi-io/sdk/header',generation:'SDK1',interactions:['inspect']},
+  'sdk:status':{uuid:'uuid-status',specifier:'@xi-io/sdk/status',generation:'SDK1',interactions:['inspect']},
   'sdk:action':{uuid:'uuid-action',specifier:'@xi-io/sdk/action',generation:'SDK1',interactions:['invoke','inspect']},
 };
 const delivery=productWindowPublisherDeliveryStage({
@@ -71,8 +77,8 @@ assert.equal(delivery.publisher.product_ref,'product:a');
 assert.equal(delivery.publisher.recipe_ref,'publisher:recipe:app-a');
 assert.equal(delivery.publisher.recipe_generation,'P1');
 assert.equal(delivery.publisher.sdk_generation,'SDK1');
-assert.deepEqual(delivery.publisher.component_refs,['sdk:frame','sdk:action']);
-assert.equal(delivery.publisher.components[1].uuid,'uuid-action');
+assert.deepEqual(delivery.publisher.component_refs,['sdk:frame','sdk:header','sdk:status','sdk:action']);
+assert.equal(delivery.publisher.components[3].uuid,'uuid-action');
 assert.equal(delivery.publisher.chroma.accent_token,'brand:accent-primary');
 assert.equal(delivery.publisher.chroma.brand_ref,'brand:app-a');
 assert.equal(delivery.publisher.chroma.brand_generation,'B1');
@@ -126,6 +132,22 @@ assert.throws(()=>productWindowPublisherDeliveryStage({
   product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
   publisher_recipe:hostilePublisherRecipe,sdk_registry:deliverySdkRegistry,...options
 }),/PUBLISHER_COMPOSITION_REQUIRED/);
+assert.equal(deliveryAccessorEffects,0);
+
+const sparseComposition=[publisherRecipe.composition[0],,publisherRecipe.composition[2],publisherRecipe.composition[3]];
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:{...publisherRecipe,composition:sparseComposition},sdk_registry:deliverySdkRegistry,...options
+}),/PUBLISHER_COMPOSITION_REQUIRED/);
+
+const interactionGetterRegistry={...deliverySdkRegistry,'sdk:action':{...deliverySdkRegistry['sdk:action']}};
+const hostileInteractions=['invoke','inspect'];
+Object.defineProperty(hostileInteractions,'1',{enumerable:true,get(){deliveryAccessorEffects++;return 'inspect';}});
+interactionGetterRegistry['sdk:action'].interactions=hostileInteractions;
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:publisherRecipe,sdk_registry:interactionGetterRegistry,...options
+}),/SDK_INTERACTION_CONTRACT_MISSING/);
 assert.equal(deliveryAccessorEffects,0);
 assert.throws(()=>compileProductWindowRegistry(),/STUDIO_REGISTRY_UNBOUND/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[...product_catalog,product_catalog[0]]}),/DUPLICATE/);
