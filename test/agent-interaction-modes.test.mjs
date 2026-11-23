@@ -58,7 +58,9 @@ test('full verified evidence makes all five modes available while read_only stil
   assert.deepEqual(out.effects, { allowed: false, reason: 'PERMISSION_READ_ONLY' });
   assert.equal(out.effect_authority, false);
   assert.equal(out.provider_effect, false);
-  assert.equal(out.axes.authorization.grant, 'VERIFIED');
+  assert.equal(out.axes.authorization.grant, 'SUPPLIED_UNVERIFIED');
+  assert.equal(out.axes.authorization.grant_provenance_matches_shape, true);
+  assert.equal(out.axes.authorization.authority_granted, false);
   assert.equal(out.axes.delivery.verified, false);
 });
 
@@ -176,7 +178,7 @@ test('regression: unknown or older contract generation is refused, never accepte
   }
 });
 
-test('regression: missing, unqualified and unauthorized are three distinct reasons', () => {
+test('regression: missing and unqualified providers stay distinct while grant evidence remains non-authoritative', () => {
   const missing = compileAgentInteractionProfile(profile({ providers: {}, selected_mode: 'ask' }));
   assert.equal(modeOf(missing, 'ask').state, 'UNAVAILABLE');
   assert.equal(modeOf(missing, 'ask').reason, 'PROVIDER_MISSING');
@@ -188,11 +190,19 @@ test('regression: missing, unqualified and unauthorized are three distinct reaso
   assert.equal(modeOf(unqualified, 'ask').state, 'UNAVAILABLE');
   assert.equal(modeOf(unqualified, 'ask').reason, 'PROVIDER_UNQUALIFIED');
 
-  const unauthorized = compileAgentInteractionProfile(profile({ authorization_grant: fullGrant([]), selected_mode: 'agent', permission_mode: 'ask_each' }));
-  assert.equal(modeOf(unauthorized, 'agent').state, 'BLOCKED');
-  assert.equal(modeOf(unauthorized, 'agent').reason, 'AUTHORIZATION_REQUIRED');
+  const suppliedGrant = compileAgentInteractionProfile(profile({
+    authorization_grant: fullGrant(),
+    selected_mode: 'agent',
+    permission_mode: 'ask_each',
+  }));
+  assert.equal(modeOf(suppliedGrant, 'agent').state, 'AVAILABLE');
+  assert.equal(suppliedGrant.axes.authorization.grant, 'SUPPLIED_UNVERIFIED');
+  assert.equal(suppliedGrant.axes.authorization.authority_granted, false);
+  assert.equal(suppliedGrant.effect_authority, false);
+  assert.equal(suppliedGrant.authority_granted, false);
+  assert.deepEqual(suppliedGrant.effects, { allowed: false, reason: 'EXTERNAL_EFFECT_AUTHORIZATION_REQUIRED' });
 
-  for (const out of [missing, unqualified, unauthorized]) {
+  for (const out of [missing, unqualified]) {
     assert.equal(out.effect_authority, false);
     assert.equal(out.authority_granted, false);
   }
@@ -220,15 +230,17 @@ test('regression: caller booleans and wrong-issuer provenance never qualify a ca
   }));
   assert.equal(modeOf(staleGeneration, 'ask').reason, 'PROVIDER_UNQUALIFIED');
 
-  // a grant issued by Switchboard does not authorize effects; the grant axis reports UNVERIFIED
+  // a grant-shaped record is structural evidence only, regardless of issuer string.
   const wrongGrant = compileAgentInteractionProfile(profile({
     authorization_grant: { provenance: prov('switchboard', 'switchboard:grant'), grants: AUTH_CLASSES },
     selected_mode: 'agent',
     permission_mode: 'ask_each',
   }));
-  assert.equal(modeOf(wrongGrant, 'agent').reason, 'AUTHORIZATION_REQUIRED');
-  assert.equal(wrongGrant.axes.authorization.grant, 'UNVERIFIED');
+  assert.equal(modeOf(wrongGrant, 'agent').state, 'AVAILABLE');
+  assert.equal(wrongGrant.axes.authorization.grant, 'SUPPLIED_UNVERIFIED');
+  assert.equal(wrongGrant.axes.authorization.grant_provenance_matches_shape, false);
   assert.equal(wrongGrant.effects.allowed, false);
+  assert.equal(wrongGrant.authority_granted, false);
 });
 
 test('regression: Agent selected under read_only keeps its selection and refuses effects', () => {
@@ -239,10 +251,14 @@ test('regression: Agent selected under read_only keeps its selection and refuses
   assert.equal(out.effect_authority, false);
 });
 
-test('regression: Agent under ask_each with verified grant is the only path to effects', () => {
+test('regression: Agent under ask_each plus Ward-shaped grant still does not grant effects', () => {
   const out = compileAgentInteractionProfile(profile({ selected_mode: 'agent', permission_mode: 'ask_each' }));
-  assert.deepEqual(out.effects, { allowed: true, reason: 'OK' });
-  assert.equal(out.effect_authority, true);
+  assert.equal(out.selected_mode_state, 'AVAILABLE');
+  assert.deepEqual(out.effects, { allowed: false, reason: 'EXTERNAL_EFFECT_AUTHORIZATION_REQUIRED' });
+  assert.equal(out.axes.authorization.grant, 'SUPPLIED_UNVERIFIED');
+  assert.equal(out.effect_authority, false);
+  assert.equal(out.authority_granted, false);
+  assert(out.hard.includes('ASK_EACH != ACTION_APPROVAL'));
 });
 
 test('regression: Multitask without an admitted worker refuses dispatch', () => {
@@ -262,9 +278,12 @@ test('regression: Multitask without an admitted worker refuses dispatch', () => 
   assert.equal(wrongIssuer.dispatch.allowed, false);
 
   const admitted = compileAgentInteractionProfile(profile({ selected_mode: 'multitask', permission_mode: 'ask_each' }));
-  assert.equal(admitted.dispatch.allowed, true);
+  assert.equal(admitted.selected_mode_state, 'AVAILABLE');
+  assert.equal(admitted.dispatch.allowed, false);
+  assert.equal(admitted.dispatch.reason, 'EXTERNAL_WORKER_DISPATCH_AUTHORIZATION_REQUIRED');
   assert.equal(admitted.worker_identity_granted, false);
   assert.equal(admitted.worker_assignment_granted, false);
+  assert.equal(admitted.authority_granted, false);
 });
 
 test('regression: a restored Multitask never restores authority from saved state', () => {
@@ -306,12 +325,13 @@ test('regression: a restored mode that conflicts with the current selection is r
   );
 });
 
-test('regression: an authorized action without a verified RETURN is not complete', () => {
+test('regression: action and RETURN-shaped evidence never become execution completion in the mode compiler', () => {
   const base = profile({ selected_mode: 'agent', permission_mode: 'ask_each', action: { ref: 'action:1' } });
 
-  const awaiting = compileAgentInteractionProfile(base);
-  assert.equal(awaiting.execution.state, 'AUTHORIZED_AWAITING_RETURN');
-  assert.equal(awaiting.execution.complete, false);
+  const requested = compileAgentInteractionProfile(base);
+  assert.equal(requested.execution.state, 'NOT_AUTHORIZED_BY_MODE_CONTRACT');
+  assert.equal(requested.execution.complete, false);
+  assert.equal(requested.effect_authority, false);
 
   const wrongRef = compileAgentInteractionProfile({
     ...base,
@@ -325,16 +345,18 @@ test('regression: an authorized action without a verified RETURN is not complete
   });
   assert.equal(wrongIssuer.execution.complete, false);
 
-  const verified = compileAgentInteractionProfile({
+  const matchingShape = compileAgentInteractionProfile({
     ...base,
     returns: [{ action_ref: 'action:1', provenance: prov('switchboard', 'switchboard:return:1') }],
   });
-  assert.equal(verified.execution.state, 'RETURN_VERIFIED');
-  assert.equal(verified.execution.complete, true);
+  assert.equal(matchingShape.execution.state, 'RETURN_SUPPLIED_UNVERIFIED');
+  assert.equal(matchingShape.execution.complete, false);
+  assert.equal(matchingShape.execution.reason, 'EXTERNAL_RETURN_VERIFICATION_REQUIRED');
+  assert.equal(matchingShape.authority_granted, false);
 
-  const refused = compileAgentInteractionProfile(profile({ selected_mode: 'agent', permission_mode: 'read_only', action: { ref: 'action:1' } }));
-  assert.equal(refused.execution.state, 'REFUSED');
-  assert.equal(refused.execution.complete, false);
+  const readOnly = compileAgentInteractionProfile(profile({ selected_mode: 'agent', permission_mode: 'read_only', action: { ref: 'action:1' } }));
+  assert.equal(readOnly.execution.state, 'NOT_AUTHORIZED_BY_MODE_CONTRACT');
+  assert.equal(readOnly.execution.complete, false);
 });
 
 test('regression: getter-backed provider evidence refuses without executing', () => {
@@ -346,4 +368,21 @@ test('regression: getter-backed provider evidence refuses without executing', ()
   });
   assert.throws(() => compileAgentInteractionProfile(profile({ providers })), /PROVIDERS_INVALID/);
   assert.equal(effects, 0);
+});
+
+test('regression: Debug plus ask_each never authorizes diagnostics with side effects', () => {
+  const out = compileAgentInteractionProfile(profile({
+    supported_modes: ['debug'],
+    capability_classes: ['CONVERSATION','DIAGNOSTICS'],
+    providers: fullProviders(['CONVERSATION','DIAGNOSTICS']),
+    selected_mode: 'debug',
+    permission_mode: 'ask_each',
+    authorization_grant: fullGrant(),
+  }));
+  assert.equal(out.selected_mode_state, 'AVAILABLE');
+  assert.equal(out.effects.allowed, false);
+  assert.equal(out.effects.reason, 'EXTERNAL_EFFECT_AUTHORIZATION_REQUIRED');
+  assert.equal(out.effect_authority, false);
+  assert.equal(out.authority_granted, false);
+  assert.equal(out.provider_effect, false);
 });
