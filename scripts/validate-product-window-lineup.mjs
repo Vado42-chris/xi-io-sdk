@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { compileProductWindowRegistry, compileProductWindowSession, stampAllProducts } from '../src/product-window/registry.mjs';
-import { productWindowProductStage } from '../src/product-window/contract.mjs';
+import { productWindowProductStage, productWindowPublisherDeliveryStage } from '../src/product-window/contract.mjs';
 const product_catalog=[
   {studio_product_id:'app_a',product_ref:'product:a',label:'App A',family:'GAME'},
   {studio_product_id:'app_b',product_ref:'product:b',label:'App B',family:'LEGAL'},
@@ -41,6 +41,75 @@ assert.equal(body.project_management,'SUPPLIED_UNVERIFIED');
 assert.equal(body.chat,'SUPPLIED_UNVERIFIED');
 assert.equal(body.authority.body_mounted,false);
 assert.equal(body.authority.effect_authority,0);
+
+const publisherRecipe={
+  schema:'xiio.publisher.template-recipe/v1',
+  recipe_id:'publisher:recipe:app-a',
+  generation:'P1',
+  product_ref:'product:a',
+  sdk_generation:'SDK1',
+  ready:true,
+  composition:[
+    {order:1,component_ref:'sdk:frame',uuid:'uuid-frame',specifier:'@xi-io/sdk/frame',role:'APP_SHELL',invariant:true},
+    {order:2,component_ref:'sdk:action',uuid:'uuid-action',specifier:'@xi-io/sdk/action',role:'ACTION',invariant:true},
+  ],
+  variants:{accent_token:'brand:accent-primary'},
+  brand_binding:{ref:'brand:app-a',generation:'B1'},
+};
+const deliverySdkRegistry={
+  'sdk:frame':{uuid:'uuid-frame',specifier:'@xi-io/sdk/frame',generation:'SDK1',interactions:['inspect']},
+  'sdk:action':{uuid:'uuid-action',specifier:'@xi-io/sdk/action',generation:'SDK1',interactions:['invoke','inspect']},
+};
+const delivery=productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',
+  launch_surface:'surface:browser',launch_surfaces,
+  publisher_recipe:publisherRecipe,sdk_registry:deliverySdkRegistry,...options
+});
+assert.equal(delivery.schema,'xiio.product-window-delivery/v1');
+assert.equal(delivery.product.product_ref,'product:a');
+assert.equal(delivery.publisher.product_ref,'product:a');
+assert.equal(delivery.publisher.recipe_ref,'publisher:recipe:app-a');
+assert.equal(delivery.publisher.recipe_generation,'P1');
+assert.equal(delivery.publisher.sdk_generation,'SDK1');
+assert.deepEqual(delivery.publisher.component_refs,['sdk:frame','sdk:action']);
+assert.equal(delivery.publisher.components[1].uuid,'uuid-action');
+assert.equal(delivery.publisher.chroma.accent_token,'brand:accent-primary');
+assert.equal(delivery.publisher.chroma.brand_ref,'brand:app-a');
+assert.equal(delivery.publisher.chroma.brand_generation,'B1');
+assert.equal(delivery.delivery.renderer,'BROWSER_CAPABLE_WINDOW');
+assert.equal(delivery.authority.effect_authority,0);
+assert.equal(delivery.authority.publisher_recipe_authority,false);
+
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:{...publisherRecipe,product_ref:'product:b'},sdk_registry:deliverySdkRegistry,...options
+}),/PUBLISHER_PRODUCT_MISMATCH/);
+
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:publisherRecipe,
+  sdk_registry:{...deliverySdkRegistry,'sdk:action':{...deliverySdkRegistry['sdk:action'],uuid:'uuid-substituted'}},
+  ...options
+}),/SDK_COMPONENT_BINDING_UNVERIFIED/);
+
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:publisherRecipe,
+  sdk_registry:{...deliverySdkRegistry,'sdk:frame':{...deliverySdkRegistry['sdk:frame'],generation:'SDK0'}},
+  ...options
+}),/SDK_COMPONENT_BINDING_UNVERIFIED/);
+
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:{...publisherRecipe,brand_binding:null},sdk_registry:deliverySdkRegistry,...options
+}),/BRAND_BINDING_REQUIRED/);
+
+assert.throws(()=>productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:publisherRecipe,
+  sdk_registry:{...deliverySdkRegistry,'sdk:action':{...deliverySdkRegistry['sdk:action'],interactions:['invoke','   ']}},
+  ...options
+}),/SDK_INTERACTION_CONTRACT_MISSING/);
 assert.throws(()=>compileProductWindowRegistry(),/STUDIO_REGISTRY_UNBOUND/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[...product_catalog,product_catalog[0]]}),/DUPLICATE/);
 assert.throws(()=>compileProductWindowRegistry({...options,product_catalog:[{...product_catalog[0],studio_product_id:'invented'}]}),/NOT_STUDIO_MEMBER/);
