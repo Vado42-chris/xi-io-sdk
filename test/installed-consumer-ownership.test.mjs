@@ -123,6 +123,26 @@ test('accessor-backed evidence is refused without executing getter',()=>{
   let touched=false;
   const bad=input([consumer()]);
   Object.defineProperty(bad.coverage,'state',{get(){touched=true;return 'COMPLETE'}});
-  assert.throws(()=>classifyInstalledConsumerOwnership(bad),/COVERAGE_STATE_REQUIRED/);
+  assert.throws(()=>classifyInstalledConsumerOwnership(bad),/INSTALLED_CONSUMER_COVERAGE_INVALID/);
   assert.equal(touched,false);
+});
+
+test('accessor-backed consumer and evidence array elements are refused without getter execution',()=>{
+  let consumerTouched=false;
+  const badConsumer=input([consumer()]);
+  Object.defineProperty(badConsumer.consumers,'0',{get(){consumerTouched=true;return consumer()}});
+  assert.throws(()=>classifyInstalledConsumerOwnership(badConsumer),/INSTALLED_CONSUMER_ROWS_INVALID/);
+  assert.equal(consumerTouched,false);
+
+  let evidenceTouched=false;
+  const badEvidence=input([consumer()]);
+  Object.defineProperty(badEvidence.consumers[0].evidence_refs,'0',{get(){evidenceTouched=true;return 'receipt:forged'}});
+  assert.throws(()=>classifyInstalledConsumerOwnership(badEvidence),/INSTALLED_CONSUMER_ROW_EVIDENCE_INVALID/);
+  assert.equal(evidenceTouched,false);
+
+  let coverageEvidenceTouched=false;
+  const badCoverageEvidence=input([consumer()]);
+  Object.defineProperty(badCoverageEvidence.coverage.evidence_refs,'0',{get(){coverageEvidenceTouched=true;return 'receipt:forged'}});
+  assert.throws(()=>classifyInstalledConsumerOwnership(badCoverageEvidence),/INSTALLED_CONSUMER_COVERAGE_EVIDENCE_INVALID/);
+  assert.equal(coverageEvidenceTouched,false);
 });
