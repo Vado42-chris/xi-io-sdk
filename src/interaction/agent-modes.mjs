@@ -87,8 +87,8 @@ function ownDenseArray(value, code) {
   return rows;
 }
 
-function uniqueTextArray(value, code) {
-  const rows = ownDenseArray(value, code).map((entry) => text(entry, code));
+function uniqueTextArray(value, code, normalize = (entry) => entry) {
+  const rows = ownDenseArray(value, code).map((entry) => normalize(text(entry, code)));
   if (new Set(rows).size !== rows.length) throw new Error(code);
   return rows;
 }
@@ -129,14 +129,16 @@ export function compileAgentInteractionProfile(input = {}) {
   const supportedModes = uniqueTextArray(
     ownValue(input, 'supported_modes', 'AGENT_INTERACTION_SUPPORTED_MODES_REQUIRED'),
     'AGENT_INTERACTION_SUPPORTED_MODES_INVALID',
-  ).map((id) => id.toLowerCase());
+    (id) => id.toLowerCase(),
+  );
 
   for (const id of supportedModes) modeDefinition(id);
 
   const capabilityClasses = uniqueTextArray(
     ownValue(input, 'capability_classes', 'AGENT_INTERACTION_CAPABILITY_CLASSES_REQUIRED'),
     'AGENT_INTERACTION_CAPABILITY_CLASSES_INVALID',
-  ).map((entry) => entry.toUpperCase());
+    (entry) => entry.toUpperCase(),
+  );
   const capabilitySet = new Set(capabilityClasses);
 
   const selectedRaw = ownValue(input, 'selected_mode', 'AGENT_INTERACTION_SELECTED_MODE_INVALID', { optional: true });
