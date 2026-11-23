@@ -35,6 +35,27 @@ function object(value,code){
   }
   return value;
 }
+function arrayValues(value,code){
+  if(!Array.isArray(value))fail(code);
+  const descriptors=Object.getOwnPropertyDescriptors(value);
+  const lengthDescriptor=descriptors.length;
+  if(!lengthDescriptor||!Object.hasOwn(lengthDescriptor,'value')||
+     !Number.isSafeInteger(lengthDescriptor.value)||lengthDescriptor.value<0)fail(code);
+  const length=lengthDescriptor.value;
+  const output=[];
+  for(let index=0;index<length;index+=1){
+    const descriptor=descriptors[String(index)];
+    if(!descriptor||!Object.hasOwn(descriptor,'value'))fail(code);
+    output.push(descriptor.value);
+  }
+  for(const key of Reflect.ownKeys(descriptors)){
+    if(typeof key!=='string')fail(code);
+    if(key==='length')continue;
+    if(!/^(?:0|[1-9][0-9]*)$/.test(key)||Number(key)>=length||
+       !Object.hasOwn(descriptors[key],'value'))fail(code);
+  }
+  return output;
+}
 function text(value,code,max=512){
   if(typeof value!=='string'||!value||value!==value.trim()||value.length>max||/[\r\n\0]/.test(value))fail(code);
   return value;
@@ -43,9 +64,10 @@ function ref(value,code){const valueText=text(value,code);if(!REF.test(valueText
 function generation(value,code){const valueText=text(value,code,64);if(!GENERATION.test(valueText))fail(code);return valueText}
 function digest(value,code){const valueText=text(value,code,64);if(!SHA256.test(valueText))fail(code);return valueText}
 function refs(value,code){
-  if(!Array.isArray(value)||!value.length)fail(code);
+  const items=arrayValues(value,code);
+  if(!items.length)fail(code);
   const output=[];
-  for(const item of value){
+  for(const item of items){
     const selected=ref(item,code);
     if(!output.includes(selected))output.push(selected);
   }
@@ -105,8 +127,10 @@ export function classifyInstalledConsumerOwnership(input={}){
   const coverageObservedAt=timestamp(own(coverageRaw,'observed_at','INSTALLED_CONSUMER_COVERAGE_OBSERVED_AT_REQUIRED'),'INSTALLED_CONSUMER_COVERAGE_OBSERVED_AT_INVALID');
   const coverageEvidence=refs(own(coverageRaw,'evidence_refs','INSTALLED_CONSUMER_COVERAGE_EVIDENCE_REQUIRED'),'INSTALLED_CONSUMER_COVERAGE_EVIDENCE_INVALID');
 
-  const rawConsumers=own(candidate,'consumers','INSTALLED_CONSUMER_ROWS_REQUIRED');
-  if(!Array.isArray(rawConsumers))fail('INSTALLED_CONSUMER_ROWS_INVALID');
+  const rawConsumers=arrayValues(
+    own(candidate,'consumers','INSTALLED_CONSUMER_ROWS_REQUIRED'),
+    'INSTALLED_CONSUMER_ROWS_INVALID',
+  );
   const consumers=[];
   const ids=new Set();
   const evidence=[...coverageEvidence];
