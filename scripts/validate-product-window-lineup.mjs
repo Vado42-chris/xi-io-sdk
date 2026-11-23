@@ -77,6 +77,8 @@ assert.equal(delivery.publisher.product_ref,'product:a');
 assert.equal(delivery.publisher.recipe_ref,'publisher:recipe:app-a');
 assert.equal(delivery.publisher.recipe_generation,'P1');
 assert.equal(delivery.publisher.sdk_generation,'SDK1');
+assert.equal(delivery.publisher.declared_ready,true);
+assert.equal(delivery.publisher.qualification,'UNVERIFIED');
 assert.deepEqual(delivery.publisher.component_refs,['sdk:frame','sdk:header','sdk:status','sdk:action']);
 assert.equal(delivery.publisher.components[3].uuid,'uuid-action');
 assert.equal(delivery.publisher.chroma.accent_token,'brand:accent-primary');
@@ -90,6 +92,24 @@ assert.throws(()=>productWindowPublisherDeliveryStage({
   product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
   publisher_recipe:{...publisherRecipe,product_ref:'product:b'},sdk_registry:deliverySdkRegistry,...options
 }),/PUBLISHER_PRODUCT_MISMATCH/);
+
+const declaredNotReady=productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:{...publisherRecipe,ready:false},sdk_registry:deliverySdkRegistry,...options
+});
+assert.equal(declaredNotReady.publisher.state,'DECLARED_NOT_READY');
+assert.equal(declaredNotReady.publisher.qualification,'UNVERIFIED');
+
+const unknownRoleRecipe={
+  ...publisherRecipe,
+  composition:publisherRecipe.composition.map((part,index)=>index===1?{...part,role:'FUTURE_PUBLISHER_ROLE'}:part),
+};
+const unknownRoleDelivery=productWindowPublisherDeliveryStage({
+  product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
+  publisher_recipe:unknownRoleRecipe,sdk_registry:deliverySdkRegistry,...options
+});
+assert.equal(unknownRoleDelivery.publisher.qualification,'UNVERIFIED');
+assert.equal(unknownRoleDelivery.publisher.components[1].role,'FUTURE_PUBLISHER_ROLE');
 
 assert.throws(()=>productWindowPublisherDeliveryStage({
   product_ref:'product:a',project_ref:'p',chat_ref:'c',body_ref:'body',launch_surfaces,
