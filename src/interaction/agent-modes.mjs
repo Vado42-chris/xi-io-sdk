@@ -56,11 +56,6 @@ const MODE_DEFINITIONS = Object.freeze({
 });
 
 const DELIVERY_GATES = new Set(['PLAN', 'BUILD', 'DEV', 'TEST', 'LIVE']);
-// Modes whose selection may lead to side effects once authority is verified.
-const EFFECT_MODES = new Set(['debug', 'agent', 'multitask']);
-// Capability classes that need a Ward grant on top of a qualified provider.
-const AUTHORIZATION_CLASSES = new Set(['EFFECT_AUTHORIZATION', 'WORKER_ADMISSION', 'WORKER_DISPATCH', 'WORK_ASSIGNMENT']);
-const PERMISSION_MODES = new Set(['read_only', 'ask_each']);
 
 function object(value, code) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(code);
@@ -140,14 +135,20 @@ function providerEvidence(providers, capability) {
   };
 }
 
-function grantFrom(grant) {
-  if (grant == null) return { present: false, valid: false, classes: new Set() };
+function grantEvidence(grant) {
+  if (grant == null) return { present: false, provenance_matches_shape: false, classes: Object.freeze([]) };
   const CODE = 'AGENT_INTERACTION_AUTHORIZATION_GRANT_INVALID';
   object(grant, CODE);
-  const valid = provenanceValid(ownValue(grant, 'provenance', CODE, { optional: true }), 'ward');
   const rows = ownValue(grant, 'grants', CODE, { optional: true }) ?? [];
   const classes = ownDenseArray(rows, CODE).map((entry) => text(entry, CODE).toUpperCase());
-  return { present: true, valid, classes: new Set(valid ? classes : []) };
+  return {
+    present: true,
+    provenance_matches_shape: provenanceValid(
+      ownValue(grant, 'provenance', CODE, { optional: true }),
+      'ward',
+    ),
+    classes: Object.freeze([...classes]),
+  };
 }
 
 function countValidWorkerAdmissions(admissions) {
@@ -161,7 +162,7 @@ function countValidWorkerAdmissions(admissions) {
   }).length;
 }
 
-function executionReturnVerified(action, returns) {
+function suppliedReturnMatch(action, returns) {
   if (returns == null) return false;
   const CODE = 'AGENT_INTERACTION_RETURNS_INVALID';
   return ownDenseArray(returns, CODE).some((row) => {
@@ -255,7 +256,7 @@ export function compileAgentInteractionProfile(input = {}) {
   }
 
   const providers = ownValue(input, 'providers', 'AGENT_INTERACTION_PROVIDERS_INVALID', { optional: true });
-  const grant = grantFrom(ownValue(input, 'authorization_grant', 'AGENT_INTERACTION_AUTHORIZATION_GRANT_INVALID', { optional: true }));
+  const grant = grantEvidence(ownValue(input, 'authorization_grant', 'AGENT_INTERACTION_AUTHORIZATION_GRANT_INVALID', { optional: true }));
   const workerCount = countValidWorkerAdmissions(ownValue(input, 'worker_admissions', 'AGENT_INTERACTION_WORKER_ADMISSIONS_INVALID', { optional: true }));
 
   const classStatus = (capability) => {
@@ -264,9 +265,6 @@ export function compileAgentInteractionProfile(input = {}) {
     if (!evidence || !evidence.installed) return { state: 'UNAVAILABLE', reason: 'PROVIDER_MISSING' };
     if (!evidence.qualified || !provenanceValid(evidence.provenance, 'switchboard')) {
       return { state: 'UNAVAILABLE', reason: 'PROVIDER_UNQUALIFIED' };
-    }
-    if (AUTHORIZATION_CLASSES.has(capability) && !grant.classes.has(capability)) {
-      return { state: 'BLOCKED', reason: 'AUTHORIZATION_REQUIRED' };
     }
     return { state: 'AVAILABLE', reason: 'OK' };
   };
@@ -321,25 +319,20 @@ export function compileAgentInteractionProfile(input = {}) {
   const selected = effectiveSelected == null ? null : modes.find((mode) => mode.id === effectiveSelected);
   const selectedState = selected?.state ?? null;
 
-  // Execution authority is a separate decision from selection.
-  let effects;
-  if (effectiveSelected == null) {
-    effects = { allowed: false, reason: 'NO_SELECTION' };
-  } else if (!EFFECT_MODES.has(effectiveSelected)) {
-    effects = { allowed: false, reason: 'MODE_HAS_NO_EFFECTS' };
-  } else if (selectedState !== 'AVAILABLE') {
-    effects = { allowed: false, reason: selected.reason };
-  } else if (permissionMode === 'read_only') {
-    effects = { allowed: false, reason: 'PERMISSION_READ_ONLY' };
-  } else if (!PERMISSION_MODES.has(permissionMode)) {
-    effects = { allowed: false, reason: 'PERMISSION_UNBOUND' };
-  } else {
-    effects = { allowed: true, reason: 'OK' };
-  }
+  // Interaction mode is descriptive. Permission posture, Ward grants, Work
+  // assignment and provider receipts are evidence projected alongside it, never
+  // authority minted by this SDK compiler.
+  const effects = effectiveSelected == null
+    ? { allowed: false, reason: 'NO_SELECTION' }
+    : permissionMode === 'read_only'
+      ? { allowed: false, reason: 'PERMISSION_READ_ONLY' }
+      : { allowed: false, reason: 'EXTERNAL_EFFECT_AUTHORIZATION_REQUIRED' };
 
   const dispatch = effectiveSelected !== 'multitask'
     ? { allowed: false, reason: effectiveSelected == null ? 'NO_SELECTION' : 'MODE_HAS_NO_WORKER_DISPATCH', admission_required: true }
-    : { allowed: effects.allowed && workerCount > 0, reason: effects.allowed ? (workerCount > 0 ? 'OK' : 'WORKER_NOT_ADMITTED') : effects.reason, admission_required: true };
+    : workerCount === 0
+      ? { allowed: false, reason: 'WORKER_NOT_ADMITTED', admission_required: true }
+      : { allowed: false, reason: 'EXTERNAL_WORKER_DISPATCH_AUTHORIZATION_REQUIRED', admission_required: true };
 
   const actionRaw = ownValue(input, 'action', 'AGENT_INTERACTION_ACTION_INVALID', { optional: true });
   let execution;
@@ -348,15 +341,10 @@ export function compileAgentInteractionProfile(input = {}) {
   } else {
     object(actionRaw, 'AGENT_INTERACTION_ACTION_INVALID');
     const actionRef = text(ownValue(actionRaw, 'ref', 'AGENT_INTERACTION_ACTION_INVALID'), 'AGENT_INTERACTION_ACTION_INVALID');
-    if (!effects.allowed) {
-      execution = { state: 'REFUSED', complete: false, reason: effects.reason };
-    } else {
-      const returns = ownValue(input, 'returns', 'AGENT_INTERACTION_RETURNS_INVALID', { optional: true });
-      const verified = executionReturnVerified({ ref: actionRef }, returns);
-      execution = verified
-        ? { state: 'RETURN_VERIFIED', complete: true, reason: 'OK' }
-        : { state: 'AUTHORIZED_AWAITING_RETURN', complete: false, reason: 'RETURN_NOT_VERIFIED' };
-    }
+    const returns = ownValue(input, 'returns', 'AGENT_INTERACTION_RETURNS_INVALID', { optional: true });
+    execution = suppliedReturnMatch({ ref: actionRef }, returns)
+      ? { state: 'RETURN_SUPPLIED_UNVERIFIED', complete: false, reason: 'EXTERNAL_RETURN_VERIFICATION_REQUIRED' }
+      : { state: 'NOT_AUTHORIZED_BY_MODE_CONTRACT', complete: false, reason: 'EXTERNAL_EFFECT_AUTHORIZATION_REQUIRED' };
   }
 
   return Object.freeze({
@@ -384,7 +372,9 @@ export function compileAgentInteractionProfile(input = {}) {
         permission_mode: permissionMode,
         authorization_ref: authorizationRef,
         state: authorizationRef ? 'SUPPLIED_UNVERIFIED' : 'UNBOUND',
-        grant: !grant.present ? 'UNBOUND' : grant.valid ? 'VERIFIED' : 'UNVERIFIED',
+        grant: grant.present ? 'SUPPLIED_UNVERIFIED' : 'UNBOUND',
+        grant_provenance_matches_shape: grant.provenance_matches_shape,
+        authority_granted: false,
       }),
       delivery: Object.freeze({
         gate: deliveryGate,
@@ -392,9 +382,9 @@ export function compileAgentInteractionProfile(input = {}) {
         verified: false,
       }),
     }),
-    // Derived from current verified evidence. The compile itself performs no effect and mints no worker.
-    effect_authority: effects.allowed,
-    authority_granted: effects.allowed || dispatch.allowed,
+    // This compiler never grants an effect, worker identity, assignment or completion.
+    effect_authority: false,
+    authority_granted: false,
     provider_effect: false,
     worker_identity_granted: false,
     worker_assignment_granted: false,
@@ -404,6 +394,9 @@ export function compileAgentInteractionProfile(input = {}) {
       'ASK != AUTHORITY',
       'PLAN != EFFECT_AUTHORITY',
       'DEBUG != SHELL_EFFECT_AUTHORITY',
+      'ASK_EACH != ACTION_APPROVAL',
+      'WARD_SHAPED_REF != VERIFIED_WARD_GRANT',
+      'SWITCHBOARD_SHAPED_REF != VERIFIED_RETURN',
       'AGENT_SELECTED != WRITE_AUTHORIZED',
       'MULTITASK_SELECTED != WORKER_IDENTITY',
       'MULTITASK_SELECTED != WORK_ASSIGNMENT',
