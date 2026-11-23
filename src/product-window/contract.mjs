@@ -74,6 +74,17 @@ const optionalDeliveryValue = (object, key, code) => {
   return descriptor.value;
 };
 
+const ownDenseArray = (value, code) => {
+  if (!Array.isArray(value)) throw new Error(code);
+  const out = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new Error(code);
+    out.push(descriptor.value);
+  }
+  return out;
+};
+
 function compilePublisherWindowBinding({ product_ref, publisher_recipe, sdk_registry } = {}) {
   const recipe = deliveryObject(publisher_recipe, 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_REQUIRED');
   if (ownDeliveryValue(recipe, 'schema', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_INVALID') !== 'xiio.publisher.template-recipe/v1') {
@@ -87,8 +98,11 @@ function compilePublisherWindowBinding({ product_ref, publisher_recipe, sdk_regi
   const recipeRef = deliveryText(ownDeliveryValue(recipe, 'recipe_id', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_REF_REQUIRED'), 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_REF_REQUIRED');
   const recipeGeneration = deliveryText(ownDeliveryValue(recipe, 'generation', 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_GENERATION_REQUIRED'), 'XIIO_PRODUCT_WINDOW_PUBLISHER_RECIPE_GENERATION_REQUIRED');
   const sdkGeneration = deliveryText(ownDeliveryValue(recipe, 'sdk_generation', 'XIIO_PRODUCT_WINDOW_PUBLISHER_SDK_GENERATION_REQUIRED'), 'XIIO_PRODUCT_WINDOW_PUBLISHER_SDK_GENERATION_REQUIRED');
-  const composition = ownDeliveryValue(recipe, 'composition', 'XIIO_PRODUCT_WINDOW_PUBLISHER_COMPOSITION_REQUIRED');
-  if (!Array.isArray(composition) || composition.length === 0) throw new Error('XIIO_PRODUCT_WINDOW_PUBLISHER_COMPOSITION_REQUIRED');
+  const composition = ownDenseArray(
+    ownDeliveryValue(recipe, 'composition', 'XIIO_PRODUCT_WINDOW_PUBLISHER_COMPOSITION_REQUIRED'),
+    'XIIO_PRODUCT_WINDOW_PUBLISHER_COMPOSITION_REQUIRED',
+  );
+  if (composition.length === 0) throw new Error('XIIO_PRODUCT_WINDOW_PUBLISHER_COMPOSITION_REQUIRED');
 
   const registry = deliveryObject(sdk_registry, 'XIIO_PRODUCT_WINDOW_SDK_REGISTRY_REQUIRED');
   const components = composition.map((part, index) => {
@@ -103,12 +117,17 @@ function compilePublisherWindowBinding({ product_ref, publisher_recipe, sdk_regi
     const registeredUuid = deliveryText(ownDeliveryValue(registered, 'uuid', 'XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED'), 'XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED');
     const registeredSpecifier = deliveryText(ownDeliveryValue(registered, 'specifier', 'XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED'), 'XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED');
     const registeredGeneration = deliveryText(ownDeliveryValue(registered, 'generation', 'XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED'), 'XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED');
-    const interactions = ownDeliveryValue(registered, 'interactions', 'XIIO_PRODUCT_WINDOW_SDK_INTERACTION_CONTRACT_MISSING');
+    const interactions = ownDenseArray(
+      ownDeliveryValue(registered, 'interactions', 'XIIO_PRODUCT_WINDOW_SDK_INTERACTION_CONTRACT_MISSING'),
+      'XIIO_PRODUCT_WINDOW_SDK_INTERACTION_CONTRACT_MISSING',
+    );
     if (registeredUuid !== uuid || registeredSpecifier !== specifier || registeredGeneration !== sdkGeneration) {
       throw new Error('XIIO_PRODUCT_WINDOW_SDK_COMPONENT_BINDING_UNVERIFIED');
     }
-    if (!Array.isArray(interactions) || !interactions.every((value) => typeof value === 'string' && value.trim().length > 0)) {
-      throw new Error('XIIO_PRODUCT_WINDOW_SDK_INTERACTION_CONTRACT_MISSING');
+    for (const value of interactions) {
+      if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new Error('XIIO_PRODUCT_WINDOW_SDK_INTERACTION_CONTRACT_MISSING');
+      }
     }
     return Object.freeze({
       order: index + 1,
@@ -198,6 +217,7 @@ export function productWindowPublisherDeliveryStage(input = {}) {
     }),
     hard: Object.freeze([
       'PUBLISHER_RECIPE != WINDOW_AUTHORITY',
+      'PUBLISHER_READY_BIT != PUBLISHER_QUALIFICATION_RECEIPT',
       'SDK_COMPONENT_BINDING != EFFECT_AUTHORITY',
       'BRAND_REF != BRAND_TRUTH',
       'WINDOW_RENDER != RUNNING_NODE',
