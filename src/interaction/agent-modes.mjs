@@ -99,9 +99,8 @@ function maybeText(value, code) {
 }
 
 function modeDefinition(id) {
-  const mode = MODE_DEFINITIONS[id];
-  if (!mode) throw new Error('AGENT_INTERACTION_MODE_UNKNOWN');
-  return mode;
+  if (!Object.hasOwn(MODE_DEFINITIONS, id)) throw new Error('AGENT_INTERACTION_MODE_UNKNOWN');
+  return MODE_DEFINITIONS[id];
 }
 
 export function agentInteractionModeDefinition(id) {
