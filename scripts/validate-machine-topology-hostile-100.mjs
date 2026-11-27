@@ -80,18 +80,12 @@ opus = "=0.4.0"
   assert.equal(path.basename(declared),'001_Flatpack_installs');
   assert.equal(path.basename(path.dirname(declared)),'Storage 22');
   assert.notEqual(declared,path.resolve(process.cwd(),'001_Flatpack_installs'));
-  const missingInstallMount=inspectMachineTopology({
-    workspace:tmp,
-    env:{...process.env,HOME:os.homedir(),XDG_CACHE_HOME:execCache,
-      XIIO_FLATPACK_INSTALL_ROOT:installRoot},
-    exec:fakeExecFactory({missingTool:'cargo'})
-  });
-  assert.notEqual(missingInstallMount.state,'PASS');
   const registered={generation:'g1',install_root:'/media/chrishallberg/Storage 22/001_Flatpack_installs'};
   const observation={generation:'g1',install_root:registered.install_root,storage_state:'AVAILABLE'};
   const reconcile=(accepted,observed,authorizedChange)=>reconcileAcceptedMachineConfiguration({accepted,observed,authorizedChange});
   assert.equal(reconcile(registered,observation).state,'MATCH');
-  const unavailable=reconcile(registered,{storage_state:'UNAVAILABLE'});
+  // Missing installation volume is tested at the configuration boundary, not by breaking Cargo.
+  const unavailable=reconcile(registered,{generation:'g1',install_root:installRoot,storage_state:'UNAVAILABLE'});
   assert.equal(unavailable.state,'UNAVAILABLE');
   assert.deepEqual(unavailable.binding,{generation:'g1',install_root:registered.install_root});
   assert.equal(unavailable.may_continue,false);
@@ -108,6 +102,9 @@ opus = "=0.4.0"
   assert.equal(reconcile(registered,proposed,{...authorization,qualification_receipt_ref:''}).state,'DRIFT');
   assert.equal(reconcile({...registered,generation:'g2',install_root:proposed.install_root},proposed).state,'MATCH');
   assert.equal(reconcile(registered,observation).state,'MATCH');
+  // Reconnection requires a fresh observation, never a cached availability flag.
+  assert.equal(reconcile(registered,{...observation,storage_state:'UNAVAILABLE'}).may_continue,false);
+  assert.equal(reconcile(registered,{...observation,storage_state:'AVAILABLE'}).may_continue,true);
   const sharedConsumers=['bins','hex','installer'].map(consumer_ref=>({consumer_ref,observed:observation}));
   const sameGeneration=reconcileMachineConfigurationConsumers({accepted:registered,consumers:sharedConsumers});
   assert.equal(sameGeneration.state,'MATCH');
