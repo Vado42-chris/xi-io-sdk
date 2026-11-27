@@ -261,3 +261,37 @@ export function reconcileAcceptedMachineConfiguration({
   }
   return result('DRIFT','ACCEPTED_MACHINE_CONFIGURATION_MISMATCH',binding);
 }
+
+/**
+ * Universal receiving qualification. Every consumer independently observes
+ * the same registry generation; agreement between callers is not authority.
+ */
+export function reconcileMachineConfigurationConsumers({
+  accepted=null,consumers=[]
+}={}){
+  const fail=(first_red,results=[])=>({
+    schema:'xiio.machine-configuration-consumers/v1',state:'BLOCKED',
+    first_red,accepted_generation:accepted?.generation||null,results,
+    may_continue:false,authority_granted:false,provider_effect:false
+  });
+  if(!Array.isArray(consumers)||consumers.length===0)
+    return fail('MACHINE_CONSUMER_EVIDENCE_MISSING');
+  const seen=new Set(),results=[];
+  for(const entry of consumers){
+    if(typeof entry?.consumer_ref!=='string'||!entry.consumer_ref.trim()||
+       seen.has(entry.consumer_ref))
+      return fail('MACHINE_CONSUMER_IDENTITY_INVALID',results);
+    seen.add(entry.consumer_ref);
+    const decision=reconcileAcceptedMachineConfiguration({
+      accepted,observed:entry.observed
+    });
+    results.push({consumer_ref:entry.consumer_ref,state:decision.state,
+      first_red:decision.first_red,
+      observed_generation:entry.observed?.generation||null});
+    if(!decision.may_continue)
+      return fail('MACHINE_CONSUMER_'+decision.state,results);
+  }
+  return {schema:'xiio.machine-configuration-consumers/v1',state:'MATCH',
+    first_red:null,accepted_generation:accepted.generation,results,
+    may_continue:true,authority_granted:false,provider_effect:false};
+}
