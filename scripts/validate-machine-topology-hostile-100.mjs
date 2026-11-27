@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { inspectMachineTopology } from '../src/compass/machine-topology.mjs';
+import { inspectMachineTopology, reconcileAcceptedMachineConfiguration } from '../src/compass/machine-topology.mjs';
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-machine-topology-'));
 try{
@@ -87,6 +87,27 @@ opus = "=0.4.0"
     exec:fakeExecFactory({missingTool:'cargo'})
   });
   assert.notEqual(missingInstallMount.state,'PASS');
+  const registered={generation:'g1',install_root:'/media/chrishallberg/Storage 22/001_Flatpack_installs'};
+  const observation={generation:'g1',install_root:registered.install_root,storage_state:'AVAILABLE'};
+  const reconcile=(accepted,observed,authorizedChange)=>reconcileAcceptedMachineConfiguration({accepted,observed,authorizedChange});
+  assert.equal(reconcile(registered,observation).state,'MATCH');
+  const unavailable=reconcile(registered,{storage_state:'UNAVAILABLE'});
+  assert.equal(unavailable.state,'UNAVAILABLE');
+  assert.deepEqual(unavailable.binding,{generation:'g1',install_root:registered.install_root});
+  assert.equal(unavailable.may_continue,false);
+  assert.equal(reconcile(registered,{...observation,install_root:'/tmp/alternate'}).state,'DRIFT');
+  assert.equal(reconcile(registered,{...observation,install_root:process.cwd()}).state,'DRIFT');
+  assert.equal(reconcile(registered,{...observation,install_root:os.homedir()}).state,'DRIFT');
+  assert.equal(reconcile(null,observation).state,'UNBOUND');
+  assert.equal(reconcile(registered,{...observation,generation:'g2'}).state,'DRIFT');
+  const proposed={...observation,generation:'g2',install_root:'/mnt/new-registered-root'};
+  const authorization={state:'QUALIFIED',from_generation:'g1',to_generation:'g2',
+    install_root:proposed.install_root,authority_receipt_ref:'ward:receipt:1',
+    qualification_receipt_ref:'hex:receipt:1'};
+  assert.equal(reconcile(registered,proposed,authorization).state,'CHANGE_QUALIFIED');
+  assert.equal(reconcile(registered,proposed,{...authorization,qualification_receipt_ref:''}).state,'DRIFT');
+  assert.equal(reconcile({...registered,generation:'g2',install_root:proposed.install_root},proposed).state,'MATCH');
+  assert.equal(reconcile(registered,observation).state,'MATCH');
   const roots=[
     ['cargo','cargo'],
     ['pkg-config','pkg-config'],
