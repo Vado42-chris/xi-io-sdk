@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { inspectMachineTopology, reconcileAcceptedMachineConfiguration } from '../src/compass/machine-topology.mjs';
+import { inspectMachineTopology, reconcileAcceptedMachineConfiguration, reconcileMachineConfigurationConsumers } from '../src/compass/machine-topology.mjs';
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'xiio-machine-topology-'));
 try{
@@ -108,6 +108,18 @@ opus = "=0.4.0"
   assert.equal(reconcile(registered,proposed,{...authorization,qualification_receipt_ref:''}).state,'DRIFT');
   assert.equal(reconcile({...registered,generation:'g2',install_root:proposed.install_root},proposed).state,'MATCH');
   assert.equal(reconcile(registered,observation).state,'MATCH');
+  const sharedConsumers=['bins','hex','installer'].map(consumer_ref=>({consumer_ref,observed:observation}));
+  const sameGeneration=reconcileMachineConfigurationConsumers({accepted:registered,consumers:sharedConsumers});
+  assert.equal(sameGeneration.state,'MATCH');
+  assert.equal(sameGeneration.results.length,3);
+  assert.equal(sameGeneration.authority_granted,false);
+  const drifted=sharedConsumers.map(row=>row.consumer_ref==='hex'?{...row,observed:{...observation,generation:'g2'}}:row);
+  const disagreement=reconcileMachineConfigurationConsumers({accepted:registered,consumers:drifted});
+  assert.equal(disagreement.state,'BLOCKED');
+  assert.equal(disagreement.first_red,'MACHINE_CONSUMER_DRIFT');
+  assert.equal(reconcileMachineConfigurationConsumers({accepted:registered,consumers:[]}).state,'BLOCKED');
+  assert.equal(reconcileMachineConfigurationConsumers({accepted:registered,consumers:[sharedConsumers[0],sharedConsumers[0]]}).state,'BLOCKED');
+  assert.equal(reconcileMachineConfigurationConsumers({accepted:registered,consumers:sharedConsumers.map(row=>row.consumer_ref==='bins'?{...row,observed:{storage_state:'UNAVAILABLE'}}:row)}).first_red,'MACHINE_CONSUMER_UNAVAILABLE');
   const roots=[
     ['cargo','cargo'],
     ['pkg-config','pkg-config'],
