@@ -214,3 +214,50 @@ export function prepareCargoExecution({
     authority_granted:false,
   };
 }
+
+/**
+ * Compare an observed machine binding against the registry's accepted generation.
+ * This is a read-only decision. The caller owns registry writes and authorization.
+ * A retained binding never authorizes access or substitutes for live storage.
+ */
+export function reconcileAcceptedMachineConfiguration({
+  accepted=null,observed=null,authorizedChange=null
+}={}){
+  const result=(state,first_red,binding=null)=>({
+    schema:'xiio.machine-configuration-reconciliation/v1',state,first_red,
+    accepted_generation:accepted?.generation||null,binding,
+    may_continue:state==='MATCH',provider_effect:false,authority_granted:false
+  });
+  if(!accepted || typeof accepted!=='object' ||
+     typeof accepted.generation!=='string'||!accepted.generation.trim()||
+     typeof accepted.install_root!=='string'||!path.isAbsolute(accepted.install_root)||
+     !path.isAbsolute(accepted.install_root)||path.normalize(accepted.install_root)!==accepted.install_root)
+    return result('UNBOUND','ACCEPTED_MACHINE_CONFIGURATION_UNBOUND');
+  const binding=Object.freeze({generation:accepted.generation,install_root:accepted.install_root});
+  if(!observed || observed.storage_state==='UNAVAILABLE')
+    return result('UNAVAILABLE','REGISTERED_STORAGE_UNAVAILABLE',binding);
+  if(observed.storage_state!=='AVAILABLE')
+    return result('UNBOUND','STORAGE_OBSERVATION_UNVERIFIED',binding);
+  if(typeof observed.install_root!=='string'||!path.isAbsolute(observed.install_root))
+    return result('DRIFT','OBSERVED_INSTALL_ROOT_INVALID',binding);
+  if(observed.install_root===process.cwd()||observed.install_root===os.homedir())
+    return result('DRIFT','WORKDIR_OR_HOME_FALLBACK_REFUSED',binding);
+  if(observed.install_root===accepted.install_root &&
+     observed.generation===accepted.generation)
+    return result('MATCH',null,binding);
+  // An authorization reference alone cannot promote a new generation.
+  // Promotion requires an independently qualified observation bound to both
+  // the previous accepted generation and the exact proposed new binding.
+  if(authorizedChange?.state==='QUALIFIED' &&
+     authorizedChange?.from_generation===accepted.generation &&
+     authorizedChange?.to_generation===observed.generation &&
+     authorizedChange?.install_root===observed.install_root &&
+     typeof authorizedChange?.authority_receipt_ref==='string' &&
+     authorizedChange.authority_receipt_ref.trim() &&
+     typeof authorizedChange?.qualification_receipt_ref==='string' &&
+     authorizedChange.qualification_receipt_ref.trim()){
+    return {...result('CHANGE_QUALIFIED','REGISTRY_PROMOTION_REQUIRED',binding),
+      proposed_binding:{generation:observed.generation,install_root:observed.install_root}};
+  }
+  return result('DRIFT','ACCEPTED_MACHINE_CONFIGURATION_MISMATCH',binding);
+}
