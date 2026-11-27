@@ -72,6 +72,21 @@ opus = "=0.4.0"
   assert.equal(control.rust_requirements.gstreamer_min,'1.28');
   assert.equal(control.cells.find(x=>x.id==='GSTREAMER_METADATA').state,'PASS');
 
+  // Regression: preserve the user-approved install coordinate exactly, including spaces.
+  // The declared coordinate is not evidence that a volume is currently mounted.
+  const installRoot='/media/chrishallberg/Storage 22/001_Flatpack_installs';
+  const declared=path.resolve(installRoot);
+  assert.equal(declared,installRoot);
+  assert.equal(path.basename(declared),'001_Flatpack_installs');
+  assert.equal(path.basename(path.dirname(declared)),'Storage 22');
+  assert.notEqual(declared,path.resolve(process.cwd(),'001_Flatpack_installs'));
+  const missingInstallMount=inspectMachineTopology({
+    workspace:tmp,
+    env:{...process.env,HOME:os.homedir(),XDG_CACHE_HOME:execCache,
+      XIIO_FLATPACK_INSTALL_ROOT:installRoot},
+    exec:fakeExecFactory({missingTool:'cargo'})
+  });
+  assert.notEqual(missingInstallMount.state,'PASS');
   const roots=[
     ['cargo','cargo'],
     ['pkg-config','pkg-config'],
