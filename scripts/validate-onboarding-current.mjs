@@ -1,3 +1,4 @@
+import {classifyInstalledConsumerOwnership,INSTALLED_CONSUMER_OWNERSHIP_INPUT_SCHEMA} from '../src/install/installed-consumer-ownership.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {consumeOnboardingResponse,readCurrentOnboarding} from '../src/identity/onboarding-current.mjs';
@@ -93,4 +94,22 @@ test('C14 resumed same live session reads current each time, no cached grant',as
  assert.equal(a.state,'CONNECTION_CHOICE_REQUIRED');
  assert.equal(b.state,'OWNER_SIGNIN_REQUIRED');
  assert.equal(b.account_ref,undefined);assert.equal(calls,2);
+});
+
+test('C15 cold start: source-only product host is not an installed receiving consumer',()=>{
+ const generation='a'.repeat(40),digest='b'.repeat(64);
+ const dependency={dependency_id:'desktop-host',owner_repo:'Vado42-chris/xi-io-node',
+  accepted_generation:generation,binding_sha256:digest};
+ const observed_at='2026-10-28T20:00:00.000Z';
+ const consumer={consumer_id:'consumer:bins',product_id:'product:bins',
+  profile_id:'profile:bins',installation_ref:'installation:bins',
+  state:'SOURCE_ONLY',currentness:'CURRENT',...dependency,observed_at,
+  evidence_refs:['receipt:source-only']};
+ const result=classifyInstalledConsumerOwnership({
+  schema:INSTALLED_CONSUMER_OWNERSHIP_INPUT_SCHEMA,dependency,
+  coverage:{state:'COMPLETE',currentness:'CURRENT',observed_at,
+   evidence_refs:['receipt:denominator']},consumers:[consumer]});
+ assert.equal(result.classification,'UNKNOWN');
+ assert.equal(result.first_red,'CONSUMER_INSTALLED_READBACK_UNVERIFIED');
+ assert.equal(result.authority_granted,false);
 });
