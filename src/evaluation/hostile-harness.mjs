@@ -163,3 +163,86 @@ export function assertHostileHarness(result){
   }
   return result;
 }
+
+
+/**
+ * One hostile-harness denominator, reused across independent product/tenant
+ * coordinates. Product and tenant names are fixture data, never capability,
+ * authority or proof that code has run on an installed host.
+ *
+ * A single product cannot certify the universal kit. Two different subjects
+ * are necessary, and a caller cannot substitute the same underlying fixture
+ * while changing only the report label.
+ */
+export function runWhiteLabelHostileHarness({
+  subjects, compileFixture, validate, families,
+  min_unique_mutations_per_family=10,
+}={}) {
+  if (!Array.isArray(subjects) || subjects.length < 2)
+    throw new HostileHarnessError('WHITE_LABEL_SUBJECT_DENOMINATOR_REQUIRED');
+  if (typeof compileFixture !== 'function' || typeof validate !== 'function')
+    throw new HostileHarnessError('WHITE_LABEL_ADAPTERS_REQUIRED');
+  if (!Array.isArray(families) && typeof families !== 'function')
+    throw new HostileHarnessError('WHITE_LABEL_FAMILIES_REQUIRED');
+
+  const seenProducts=new Set(), seenTenants=new Set(), seenFixtures=new Set();
+  const results=[];
+  for (const raw of subjects) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      throw new HostileHarnessError('WHITE_LABEL_SUBJECT_INVALID');
+    const refs={};
+    for (const key of ['product_ref','tenant_ref','resource_ref']) {
+      const property=Object.getOwnPropertyDescriptor(raw,key);
+      if (!property || !Object.hasOwn(property,'value') ||
+          typeof property.value !== 'string' ||
+          !/^[a-z][a-z0-9._:-]{2,127}$/i.test(property.value) ||
+          ['__proto__','constructor','prototype'].includes(property.value))
+        throw new HostileHarnessError('WHITE_LABEL_SUBJECT_INVALID',key);
+      refs[key]=property.value;
+    }
+    if (seenProducts.has(refs.product_ref) || seenTenants.has(refs.tenant_ref))
+      throw new HostileHarnessError('WHITE_LABEL_SUBJECT_REUSED');
+    seenProducts.add(refs.product_ref); seenTenants.add(refs.tenant_ref);
+    const fixture=compileFixture(Object.freeze({...refs}));
+    if (!fixture || typeof fixture !== 'object' || Array.isArray(fixture) ||
+        Object.keys(refs).some(key=>fixture[key] !== refs[key]))
+      throw new HostileHarnessError('WHITE_LABEL_FIXTURE_IDENTITY_MISMATCH');
+    const identity=digest(fixture);
+    if (seenFixtures.has(identity))
+      throw new HostileHarnessError('WHITE_LABEL_FIXTURE_REUSED');
+    seenFixtures.add(identity);
+    const suite=typeof families === 'function'
+      ? families(Object.freeze({...refs})) : families;
+    const proof=runHostileHarness({
+      fixture, validate:v=>validate(v,Object.freeze({...refs})),
+      families:suite, min_unique_mutations_per_family,
+    });
+    results.push({subject:Object.freeze({...refs}), ...proof});
+  }
+  const denominator=results.reduce((sum,r)=>sum+r.denominator,0);
+  return Object.freeze({
+    schema:'xiio.sdk.white-label-hostile-matrix/v1',
+    subject_count:results.length,
+    denominator,
+    rejected:results.reduce((sum,r)=>sum+r.rejected,0),
+    false_green:results.reduce((sum,r)=>sum+r.false_green,0),
+    no_op_mutations:results.reduce((sum,r)=>sum+r.no_op_mutations,0),
+    wrong_invariant:results.reduce((sum,r)=>sum+r.wrong_invariant,0),
+    diversity_failures:results.reduce((sum,r)=>sum+r.diversity_failures,0),
+    strict_pass:results.every(r=>r.strict_pass),
+    fixture_only:true, installed_host_verified:false, authority_granted:false,
+    results:Object.freeze(results),
+    hard:Object.freeze([
+      'PRODUCT_LABEL!=RUNTIME_AUTHORITY',
+      'SYNTHETIC_DENOMINATOR!=INSTALLED_QUALIFICATION',
+      'MUTATION_REJECTION!=HOST_EFFECT',
+      'ONE_BRAND_PASS!=UNIVERSAL_PASS',
+    ]),
+  });
+}
+export function assertWhiteLabelHostileHarness(result) {
+  if (!result || result.strict_pass !== true ||
+      result.subject_count < 2 || result.denominator < result.subject_count)
+    throw new HostileHarnessError('WHITE_LABEL_HARNESS_FAIL');
+  return result;
+}

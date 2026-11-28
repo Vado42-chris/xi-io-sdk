@@ -2,6 +2,22 @@
 
 This repository owns the public reusable SDK substrate. It does not own Studio user intent, framework governance, Ward policy, Switchboard effect admission, or product-domain truth.
 
+## Universal regression kit, one-hop intake
+
+Before duplicating a product regression or claiming a test denominator, open
+`docs/quality/universal-regression-kit-adoption.md` (SDK #336) and use the
+existing `@xi-io/sdk/evaluation/hostile-harness` owner.
+The targeted command is `npm run check:hostile-harness`, which executes
+the incumbent mutation gate and the cross-product/tenant white-label matrix.
+`npm run check` must also consume that targeted gate, not silently skip it.
+
+The SDK owns the portable mutation, refusal and denominator contract.
+Switchboard, CLI, Installer, Ward, BINS and product hosts own their executable
+receiving tests and real authority. A fixture PASS, CI PASS or GitHub source
+does not certify an installed runtime, provisioned account, Ward grant, BINS
+version or RETURN/APPLY_RETURN. Report source head, executed tests, actual
+failure code and the separate installed closure gate.
+
 ## Managed cold start
 
 When work is entered from the xi-io managed suite, start from Studio current before selecting SDK work:
