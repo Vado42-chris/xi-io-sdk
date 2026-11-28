@@ -125,7 +125,9 @@
     "./catalog/contract-surface-inventory": "./src/catalog/contract-surface-inventory.mjs",
     "./billing/product-operation-admission-binding": "./src/billing/product-operation-admission-binding.mjs",
     "./install/consumer-ownership": "./src/install/installed-consumer-ownership.mjs",
-    "./interaction/agent-modes": "./src/interaction/agent-modes.mjs"
+    "./interaction/agent-modes": "./src/interaction/agent-modes.mjs",
+    "./identity/account-binding": "./src/identity/account-binding.mjs",
+    "./worker/execution-route": "./src/worker/execution-route.mjs"
   },
   "scripts": {
     "check:onboarding-current": "node --test scripts/validate-onboarding-current.mjs test/oath-ward-context.test.mjs",
