@@ -156,7 +156,7 @@
     "check:triage-ingress": "node scripts/validate-triage-ingress.mjs",
     "check:ibal-team-kit": "node scripts/validate-ibal-team-kit.mjs",
     "check:two-sided-provider-meter": "node scripts/validate-two-sided-provider-meter.mjs",
-    "check:hostile-harness": "node scripts/validate-hostile-harness.mjs",
+    "check:hostile-harness": "node scripts/validate-hostile-harness.mjs && node --test test/white-label-hostile-harness.test.mjs",
     "check:topography-coordinate": "node scripts/validate-topography-coordinate.mjs",
     "check:ibal-ack-rotfl-compiler": "node scripts/validate-ibal-ack-rotfl-compiler.mjs",
     "check:cli-sandbox-wargame": "node scripts/validate-cli-sandbox-wargame.mjs",
