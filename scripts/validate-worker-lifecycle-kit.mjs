@@ -8,6 +8,7 @@ import {
   WORKER_ADAPTER_REQUIRED_BINDINGS,
   WORKER_RESTART_BOUNDARIES,
   WORKER_QUALIFICATION_DOMAINS,
+  compileWorkerConsumptionDecision,
 } from '../src/worker/lifecycle.mjs';
 import primitiveCatalog from '../src/catalog/primitives.json' with { type: 'json' };
 import pkg from '../package.json' with { type: 'json' };
@@ -371,6 +372,54 @@ await assert.rejects(runWorkerLifecycleAttempt({
   }
   await assert.rejects(run(value=>({...value,wake_id:'foreign:wake'})),{code:'CONSUMER_WAKE_UNVERIFIED'});
   await assert.rejects(runWorkerLifecycleAttempt({binding,receiverBinding:{...receiverBinding,conversation_ref:''},jobId:'fixture:job'}),{code:'RECEIVER_BINDING_REQUIRED'});
+}
+
+
+// Consume-before-attempt is mandatory at the shared lifecycle boundary.
+// A satisfied gate with identical declared inputs consumes its receipt and may
+// not create another Attempt. Only an explicitly dirty/failed gate may advance.
+{
+  const base={
+    work_ref:'work:sam-law-release',
+    work_revision:'work-rev:42',
+    assignment_ref:'assignment:sam-owner',
+    requested_operation:'QUALIFY_NEXT_GATE',
+    dirty_gate:'sam-law:installer-apply',
+    currentness_state:'CURRENT',
+    assignment_current:true,
+    input_generation_set:['sam:be44e1d','installer:de89f3f'],
+    accepted_evidence:[{
+      receipt_ref:'receipt:sam-plan',
+      input_generation_set:['installer:de89f3f','sam:be44e1d'],
+    }],
+  };
+  const consumed=compileWorkerConsumptionDecision({...base,gate_state:'SATISFIED'});
+  assert.equal(consumed.decision,'CONSUME');
+  assert.equal(consumed.attempt_allowed,false);
+  assert.equal(consumed.redispatch_allowed,false);
+  assert.deepEqual(consumed.consumed_receipt_refs,['receipt:sam-plan']);
+
+  const changed=compileWorkerConsumptionDecision({
+    ...base,
+    gate_state:'DIRTY',
+    input_generation_set:['sam:new-generation','installer:de89f3f'],
+  });
+  assert.equal(changed.decision,'ADVANCE');
+  assert.equal(changed.attempt_allowed,true);
+  assert.equal(changed.reason_code,'DECLARED_INPUT_CHANGED');
+
+  const stale=compileWorkerConsumptionDecision({...base,gate_state:'DIRTY',currentness_state:'STALE'});
+  assert.equal(stale.decision,'WAIT');
+  assert.equal(stale.attempt_allowed,false);
+
+  const foreign=compileWorkerConsumptionDecision({...base,gate_state:'DIRTY',assignment_current:false});
+  assert.equal(foreign.decision,'REFUSE');
+  assert.equal(foreign.attempt_allowed,false);
+
+  const missingEvidence=compileWorkerConsumptionDecision({...base,gate_state:'SATISFIED',accepted_evidence:[]});
+  assert.equal(missingEvidence.decision,'WAIT');
+  assert.equal(missingEvidence.reason_code,'SATISFIED_EVIDENCE_NOT_CONSUMABLE');
+  assert.equal(missingEvidence.redispatch_allowed,false);
 }
 
 

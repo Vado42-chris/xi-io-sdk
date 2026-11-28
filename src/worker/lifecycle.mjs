@@ -440,3 +440,86 @@ export async function runWorkerLifecycleAttempt({
   await append(jobId,'WAKE_ACK',{...bound(binding),...(receiver||{}),wake_id:ack.wake_id,receipt_ref:ack.receipt_ref});
   return {state:'COMPLETE',job_id:jobId,result_ref:result.result_ref,return_ref:binding.return_ref};
 }
+
+
+export const WORKER_CONSUMPTION_DECISION_SCHEMA='xiio.sdk.worker-consumption-decision/v1';
+export const WORKER_CONSUMPTION_DECISIONS=Object.freeze(['CONSUME','ADVANCE','WAIT','REFUSE']);
+
+/**
+ * Compile the mandatory consume-before-attempt decision for an existing Work gate.
+ *
+ * This is deliberately effect-free. It does not authenticate a store, create an
+ * Attempt, mutate Work, or grant authority. Callers must supply current Work /
+ * assignment observations and accepted receipt identities from their incumbent
+ * owners. A SATISFIED gate with the same declared inputs is CONSUME, never a
+ * redispatch opportunity.
+ */
+export function compileWorkerConsumptionDecision(input={}){
+  const work_ref=text(input.work_ref,'work_ref');
+  const work_revision=text(input.work_revision,'work_revision');
+  const assignment_ref=text(input.assignment_ref,'assignment_ref');
+  const requested_operation=text(input.requested_operation,'requested_operation');
+  const dirty_gate=text(input.dirty_gate,'dirty_gate');
+  const currentness_state=String(input.currentness_state||'').trim().toUpperCase();
+  const gate_state=String(input.gate_state||'').trim().toUpperCase();
+  const assignment_current=input.assignment_current===true;
+  if(!['CURRENT','STALE','UNKNOWN'].includes(currentness_state)) throw new TypeError('currentness_state_INVALID');
+  if(!['SATISFIED','DIRTY','WAIT','FAILED','UNKNOWN'].includes(gate_state)) throw new TypeError('gate_state_INVALID');
+  if(!Array.isArray(input.input_generation_set)||input.input_generation_set.length===0)
+    throw new TypeError('input_generation_set_INVALID');
+  const generations=[...new Set(input.input_generation_set.map((value)=>text(value,'input_generation')))].sort();
+  const evidence=Array.isArray(input.accepted_evidence)?input.accepted_evidence:[];
+  const accepted=evidence.map((row,index)=>{
+    if(!row||typeof row!=='object'||Array.isArray(row)) throw new TypeError('accepted_evidence_'+index+'_INVALID');
+    const receipt_ref=text(row.receipt_ref,'accepted_evidence_'+index+'_receipt_ref');
+    if(!Array.isArray(row.input_generation_set)||row.input_generation_set.length===0)
+      throw new TypeError('accepted_evidence_'+index+'_input_generation_set_INVALID');
+    const set=[...new Set(row.input_generation_set.map((value)=>text(value,'accepted_evidence_'+index+'_generation')))].sort();
+    return Object.freeze({receipt_ref,input_generation_set:Object.freeze(set)});
+  });
+  const same=(a,b)=>a.length===b.length&&a.every((value,index)=>value===b[index]);
+  const consumed=accepted.filter((row)=>same(row.input_generation_set,generations)).map((row)=>row.receipt_ref);
+
+  let decision,reason_code;
+  if(!assignment_current){
+    decision='REFUSE';reason_code='ASSIGNMENT_NOT_CURRENT';
+  }else if(currentness_state!=='CURRENT'){
+    decision='WAIT';reason_code=currentness_state==='STALE'?'WORK_CURRENTNESS_STALE':'WORK_CURRENTNESS_UNKNOWN';
+  }else if(gate_state==='SATISFIED'){
+    if(consumed.length){
+      decision='CONSUME';reason_code='SATISFIED_SAME_INPUTS';
+    }else{
+      decision='WAIT';reason_code='SATISFIED_EVIDENCE_NOT_CONSUMABLE';
+    }
+  }else if(gate_state==='DIRTY'||gate_state==='FAILED'){
+    decision='ADVANCE';reason_code=gate_state==='DIRTY'?'DECLARED_INPUT_CHANGED':'GATE_FAILED_REPAIR_REQUIRED';
+  }else{
+    decision='WAIT';reason_code=gate_state==='WAIT'?'DEPENDENCY_WAIT':'GATE_STATE_UNKNOWN';
+  }
+
+  return Object.freeze({
+    schema:WORKER_CONSUMPTION_DECISION_SCHEMA,
+    decision,
+    work_ref,
+    work_revision,
+    assignment_ref,
+    requested_operation,
+    input_generation_set:Object.freeze(generations),
+    consumed_receipt_refs:Object.freeze(consumed),
+    dirty_gate,
+    reason_code,
+    attempt_allowed:decision==='ADVANCE',
+    redispatch_allowed:decision==='ADVANCE',
+    authority_granted:false,
+    provider_effect:false,
+    effect_authority:false,
+    hard:Object.freeze([
+      'SATISFIED_SAME_INPUTS=>CONSUME',
+      'CONSUME=>NO_REDISPATCH',
+      'MISSING_LOCAL_CONTEXT!=UPSTREAM_FAILURE',
+      'DOWNSTREAM_RED!=UPSTREAM_PASS_INVALIDATION',
+      'INPUT_CHANGE=>AFFECTED_GATE_ONLY',
+      'CONSUMPTION_DECISION!=EFFECT_AUTHORITY',
+    ]),
+  });
+}
