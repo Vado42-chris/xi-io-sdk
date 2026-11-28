@@ -78,16 +78,14 @@ function inspectRepo(candidate,{exec=run,env=process.env,providerRead=true}={}){
     branch:branch.stdout||null,local_head,provider_main,provider_state,relation,dirty_state,
   };
 }
-function candidateRepos({cwd=process.cwd(),env=process.env}={}){
+export function candidateRepos({cwd=process.cwd(),env=process.env}={}){
   const volume=volumeRoot(cwd,env);
-  const user=env.USER||path.basename(os.homedir());
   return uniq([
     env.XIIO_INBOX_REPO||null,
     volume?path.join(volume,'999_Work','003_Projects','017_xi-io_inbox'):null,
     volume?path.join(volume,'999_Work','003_Projects','003_xi-io-Inbox'):null,
     volume?path.join(volume,'999_Work','003_Projects','xi-io-Inbox'):null,
     path.join(os.homedir(),'.cache','xi-io-inbox-main-tip'),
-    path.join('/media',user,'Storage 22','999_Work','003_Projects','017_xi-io_inbox'),
   ]);
 }
 function chooseRepo(rows){
