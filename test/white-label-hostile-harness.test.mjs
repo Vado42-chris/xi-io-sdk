@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import {
   runWhiteLabelHostileHarness, assertWhiteLabelHostileHarness,
   HostileHarnessError,
@@ -107,4 +108,17 @@ test('an unrelated rejection cannot count toward the expected invariant',()=>{
  });
  assert.equal(result.wrong_invariant,20);
  assert.equal(result.strict_pass,false);
+});
+
+test('cold-start front door binds existing inventory and primary executable check',()=>{
+ const agents=readFileSync(new URL('../AGENTS.md',import.meta.url),'utf8');
+ const inventory=readFileSync(new URL('../docs/quality/universal-regression-kit-adoption.md',import.meta.url),'utf8');
+ const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ assert.match(agents,/## Universal regression kit, one-hop intake/);
+ assert.match(agents,/docs\/quality\/universal-regression-kit-adoption\.md/);
+ assert.match(agents,/npm run check:hostile-harness/);
+ assert.match(inventory,/Shared SDK owner:/);
+ assert.equal(pkg.scripts['check:hostile-harness'],
+  'node scripts/validate-hostile-harness.mjs && node --test test/white-label-hostile-harness.test.mjs');
+ assert.equal(pkg.scripts.check.startsWith('npm run check:hostile-harness && '),true);
 });
