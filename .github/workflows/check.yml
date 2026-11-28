@@ -17,10 +17,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - name: Run SDK checks
-        run: npm run check
       - name: Exercise shared white-label hostile harness and incumbent denominator
         run: npm run check:hostile-harness
+      - name: Run SDK checks
+        run: npm run check
       - name: Verify white-label consumer bindings and effect refusals
         run: |
           npm run check:crm-current-bridge
