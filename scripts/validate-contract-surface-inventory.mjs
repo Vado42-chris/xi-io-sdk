@@ -64,17 +64,39 @@ assert.equal(out.state,'STRUCTURAL_ONLY');
 assert.equal(out.callable,false);
 checks+=2;
 
-assert.throws(
-  ()=>compileContractSurfaceRecord({...base,declared:false}),
-  /IMPLEMENTED_REQUIRES_DECLARED/,
-);
-assert.throws(
-  ()=>compileContractSurfaceRecord({...base,qualified:false,current:true}),
-  /CURRENT_REQUIRES_QUALIFIED/,
-);
+out=compileContractSurfaceRecord({...base,declared:false});
+assert.equal(out.state,'REFUSED');
+assert.ok(out.blockers.includes('IMPLEMENTED_WITHOUT_DECLARATION'));
+out=compileContractSurfaceRecord({...base,implemented:false,applicable:true,qualified:false,current:false,availability:'BLOCKED'});
+assert.equal(out.state,'REFUSED');
+assert.equal(out.applicable,true);
+assert.equal(out.implemented,false);
+assert.ok(out.blockers.includes('APPLICABLE_SURFACE_NOT_IMPLEMENTED'));
+out=compileContractSurfaceRecord({...base,qualified:false,current:true});
+assert.equal(out.state,'REFUSED');
+assert.ok(out.blockers.includes('CURRENT_WITHOUT_QUALIFICATION'));
 out=compileContractSurfaceRecord({...base,authorized:true,authority_ref:null});
 assert.equal(out.state,'REFUSED');
 assert.ok(out.blockers.includes('AUTHORIZED_REQUIRES_AUTHORITY_REF'));
+checks+=9;
+
+
+out=compileContractSurfaceRecord({
+  ...base,
+  implementation_ref:null,
+  implemented:false,
+  applicable:true,
+  qualified:false,
+  current:false,
+  authorized:false,
+  observed_verified:false,
+  availability:'BLOCKED',
+  qualification_ref:null,
+});
+assert.equal(out.applicable,true);
+assert.equal(out.implemented,false);
+assert.equal(out.state,'REFUSED');
+assert.ok(out.blockers.includes('APPLICABLE_SURFACE_NOT_IMPLEMENTED'));
 checks+=4;
 
 out=compileContractSurfaceRecord({...base,availability:'N_A',applicable:false,qualified:false,current:false});

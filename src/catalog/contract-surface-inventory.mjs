@@ -50,13 +50,6 @@ export function compileContractSurfaceRecord(input={}){
     stateFlags[key]=exactBoolean(input[key],`CONTRACT_SURFACE_${state}_FLAG_REQUIRED`);
   }
 
-  if(stateFlags.implemented&&!stateFlags.declared)fail('IMPLEMENTED_REQUIRES_DECLARED');
-  if(stateFlags.applicable&&!stateFlags.implemented)fail('APPLICABLE_REQUIRES_IMPLEMENTED');
-  if(stateFlags.qualified&&!stateFlags.applicable)fail('QUALIFIED_REQUIRES_APPLICABLE');
-  if(stateFlags.current&&!stateFlags.qualified)fail('CURRENT_REQUIRES_QUALIFIED');
-  if(stateFlags.authorized&&!stateFlags.current)fail('AUTHORIZED_REQUIRES_CURRENT');
-  if(stateFlags.observed_verified&&!stateFlags.authorized)fail('OBSERVED_VERIFIED_REQUIRES_AUTHORIZED');
-
   const surface_role=text(input.surface_role,'CONTRACT_SURFACE_ROLE_REQUIRED',32);
   if(!SURFACE_ROLES.has(surface_role))fail('CONTRACT_SURFACE_ROLE_INVALID');
   const effect_class=text(input.effect_class,'CONTRACT_SURFACE_EFFECT_CLASS_REQUIRED',32);
@@ -68,6 +61,13 @@ export function compileContractSurfaceRecord(input={}){
   const invalidator_refs=list(input.invalidator_refs??[],'CONTRACT_SURFACE_INVALIDATOR_REF_INVALID');
 
   const blockers=[];
+  // Inventory dimensions are observations, not a ladder. Preserve contradictory
+  // states so the missing join remains visible instead of throwing the record away.
+  if(stateFlags.implemented&&!stateFlags.declared)blockers.push('IMPLEMENTED_WITHOUT_DECLARATION');
+  if(stateFlags.applicable&&!stateFlags.implemented)blockers.push('APPLICABLE_SURFACE_NOT_IMPLEMENTED');
+  if(stateFlags.qualified&&!stateFlags.applicable)blockers.push('QUALIFIED_WHILE_NOT_APPLICABLE');
+  if(stateFlags.current&&!stateFlags.qualified)blockers.push('CURRENT_WITHOUT_QUALIFICATION');
+  if(stateFlags.authorized&&!stateFlags.current)blockers.push('AUTHORIZED_WHILE_NOT_CURRENT');
   if(availability==='AVAILABLE'&&!stateFlags.current)blockers.push('AVAILABLE_REQUIRES_CURRENT');
   if(availability==='N_A'&&stateFlags.applicable)blockers.push('N_A_CANNOT_BE_APPLICABLE');
   if(stateFlags.authorized&&!optionalRef(input.authority_ref,'CONTRACT_SURFACE_AUTHORITY_REF_INVALID'))blockers.push('AUTHORIZED_REQUIRES_AUTHORITY_REF');
@@ -117,6 +117,7 @@ export function compileContractSurfaceRecord(input={}){
     provider_effect:false,
     hard:Object.freeze([
       'DECLARED!=IMPLEMENTED',
+      'APPLICABLE_REQUIRED_BUT_NOT_IMPLEMENTED=MISSING_IMPLEMENTATION',
       'IMPLEMENTED!=APPLICABLE',
       'APPLICABLE!=QUALIFIED',
       'QUALIFIED!=CURRENT',
