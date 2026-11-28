@@ -5,7 +5,9 @@ Plain status: read-only classification of the playground and CSS surfaces agains
 ## Reproduce the SDK numbers
 From the repo root: `node scripts/audit-playground-coverage.mjs`
 
-Output on this head: UI components 27; demo entries 26; without demo: `cadence-evidence-check-widget`; without renderer by name: `cadence-evidence-check-widget`; known gaps (not in catalog): `search-field, search-band, menu-button, popover-menu, choice-group, inline-status`. `toast` renders through `renderToastStack` (aliased in the script).
+Output on this head: UI components 27; demo entries 26; without demo: `cadence-evidence-check-widget` (its renderer is `renderCadenceEvidenceWidget`, aliased in the script; the earlier "no renderer" was a name-match error); the widget has PASS, RED and UNKNOWN states but no UNBOUND state; known gaps (not in catalog): `search-field, search-band, menu-button, popover-menu, choice-group, inline-status`. `toast` renders through `renderToastStack` (aliased in the script).
+
+Correction: the shell brand CSS reduced-motion rules are scoped to `.app-shell.is-owner-shell` (001 and 002c), so they are not a universal policy. Generalizing them is a design decision, implemented as a draft contract on `feat/motion-focus-contract-recovery`.
 
 The catalog's other 16 entries are compiler primitives, not UI, and are excluded from the UI denominator.
 

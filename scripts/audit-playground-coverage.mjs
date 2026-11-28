@@ -15,7 +15,7 @@ walk('src');
 const src = srcText.join('\n');
 const pascal = (s) => s.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join('');
 // Explicit aliases: catalog names whose renderer uses a different export name.
-const RENDERER_ALIASES = { toast: "renderToastStack" };
+const RENDERER_ALIASES = { toast: "renderToastStack", "cadence-evidence-check-widget": "renderCadenceEvidenceWidget" };
 const hasRenderer = (c) => new RegExp(`\\b${RENDERER_ALIASES[c] || `render${pascal(c)}`}\\b`).test(src);
 console.log(`UI_COMPONENTS ${comps.length}`);
 console.log(`DEMO_ENTRIES ${demos.length}`);
