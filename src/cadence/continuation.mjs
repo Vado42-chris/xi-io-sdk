@@ -66,21 +66,30 @@ function classifyBacklog(backlog) {
   return out;
 }
 
+function completeReturnReadback(item) {
+  return clean(item.result_ref) !== null
+    && clean(item.return_ref) !== null
+    && clean(item.apply_return_ref) !== null
+    && clean(item.readback_ref) !== null
+    && clean(item.consumer_ref) !== null;
+}
+
 function classifyReturns(returnRows) {
   const out = { results: [], returned: [], applied: [], stranded: [], unknown: [] };
   for (const item of rows(returnRows)) {
     const id = clean(item.id) ?? clean(item.result_ref) ?? clean(item.return_ref) ?? 'UNKNOWN_RETURN';
     const s = state(item.state);
+    const complete = item.applied === true && completeReturnReadback(item);
     if (s === 'RESULT') {
       out.results.push(id);
-      // Transport completion alone is not receiving-application completion.
-      if (item.returned !== true || item.applied !== true) out.stranded.push(id);
+      // Result transport, RETURN state and applied label are all weaker than
+      // the existing worker lifecycle's exact return + readback coordinates.
+      if (item.returned !== true || !complete) out.stranded.push(id);
     } else if (s === 'RETURN') {
       out.returned.push(id);
-      if (item.applied !== true) out.stranded.push(id);
+      if (!complete) out.stranded.push(id);
     } else if (s === 'APPLY_RETURN') {
-      // A state label without confirmed receiving application is not closure.
-      if (item.applied === true) out.applied.push(id);
+      if (complete) out.applied.push(id);
       else out.stranded.push(id);
     } else {
       out.unknown.push(id);

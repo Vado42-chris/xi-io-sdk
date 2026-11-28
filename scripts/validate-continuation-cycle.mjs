@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import './validate-self-drive-continuation.mjs';
 import { compileContinuationCycle } from '../src/cadence/continuation.mjs';
+import { compileWorkerAdapterConformance, WORKER_ADAPTER_REQUIRED_BINDINGS } from '../src/worker/lifecycle.mjs';
 import { commandCatalog } from '../src/lexicon/baseline-commands.mjs';
 
 const base = () => ({
@@ -129,25 +130,118 @@ test('ACTIONABLE_INTERNAL_INBOX_IS_WORK_TO_EAT', () => {
   assert.equal(result.worker_inbox.actionable_count, 2);
 });
 
-test('ALREADY_APPLIED_RETURN_IS_NOT_STRANDED', () => {
+const verifiedAppliedReturn = (overrides = {}) => ({
+  id: 'apply:1',
+  state: 'APPLY_RETURN',
+  applied: true,
+  result_ref: 'result:1',
+  return_ref: 'return:1',
+  apply_return_ref: 'apply-return:1',
+  readback_ref: 'readback:1',
+  consumer_ref: 'consumer:1',
+  ...overrides,
+});
+
+test('APPLIED_RETURN_WITH_COMPLETE_RETURN_AND_READBACK_COORDINATES_IS_NOT_STRANDED', () => {
   const input = base();
-  input.returns = [{ id: 'apply:1', state: 'APPLY_RETURN', applied: true }];
+  input.returns = [verifiedAppliedReturn()];
   const result = compileContinuationCycle(input);
   assert.equal(result.returns.stranded.length, 0);
+  assert.deepEqual(result.returns.applied, ['apply:1']);
   assert.equal(result.disposition, 'TERMINAL_FIXED_POINT');
 });
 
 
-test('UNCONFIRMED_APPLY_RETURN_CANNOT_LAUNDER_TERMINAL_CLOSURE', () => {
-  for (const applied of [false, undefined, null]) {
+test('UNCONFIRMED_OR_INCOMPLETE_APPLY_RETURN_CANNOT_LAUNDER_TERMINAL_CLOSURE', () => {
+  const hostiles = [
+    { applied: false },
+    { applied: undefined },
+    { applied: null },
+    { result_ref: null },
+    { return_ref: null },
+    { apply_return_ref: null },
+    { readback_ref: null },
+    { consumer_ref: null },
+  ];
+  for (const patch of hostiles) {
     const input = base();
-    input.returns = [{ id: 'apply:unverified', state: 'APPLY_RETURN', applied }];
+    input.returns = [verifiedAppliedReturn({ id: 'apply:unverified', ...patch })];
     const result = compileContinuationCycle(input);
     assert.equal(result.terminal, false);
     assert.equal(result.disposition, 'EAT_REQUIRED');
     assert.deepEqual(result.returns.applied, []);
     assert.deepEqual(result.returns.stranded, ['apply:unverified']);
   }
+});
+
+
+
+test('RETURNED_RESULT_STAYS_STRANDED_WITHOUT_EXACT_PHASE10_COORDINATES', () => {
+  const input = base();
+  input.returns = [{
+    id:'result:sent',state:'RESULT',returned:true,applied:true,
+    result_ref:'result:1',return_ref:'return:1',
+    apply_return_ref:'apply-return:1',readback_ref:null,consumer_ref:'consumer:1',
+  }];
+  const result=compileContinuationCycle(input);
+  assert.equal(result.disposition,'EAT_REQUIRED');
+  assert.deepEqual(result.returns.stranded,['result:sent']);
+});
+
+test('RETURN_STATE_WITH_APPLIED_LABEL_STAYS_STRANDED_WITHOUT_READBACK', () => {
+  const input=base();
+  input.returns=[{
+    id:'return:sent',state:'RETURN',applied:true,
+    result_ref:'result:1',return_ref:'return:1',
+    apply_return_ref:'apply-return:1',readback_ref:null,consumer_ref:'consumer:1',
+  }];
+  const result=compileContinuationCycle(input);
+  assert.equal(result.disposition,'EAT_REQUIRED');
+  assert.deepEqual(result.returns.stranded,['return:sent']);
+});
+
+
+
+test('CONTINUATION_COORDINATES_DO_NOT_OVERRIDE_MISSING_LIFECYCLE_RETURN_OR_READBACK_EVIDENCE', () => {
+  const input=base();
+  input.returns=[verifiedAppliedReturn()];
+  const continuation=compileContinuationCycle(input);
+  assert.equal(continuation.disposition,'TERMINAL_FIXED_POINT');
+
+  const bindings=Object.fromEntries(WORKER_ADAPTER_REQUIRED_BINDINGS.map(id=>[
+    id,{verified:true,evidence_ref:'evidence:'+id}
+  ]));
+  bindings.work_generation={...bindings.work_generation,work_ref:'work:one',generation_ref:'generation:one'};
+  bindings.currentness_recovery={...bindings.currentness_recovery,currentness_ref:'currentness:one',recovery_ref:'recovery:one',hallberg_recovery_ref:'hallberg:one',lifecycle_selected:true,ordinary_work_covered:true};
+  bindings.admission={...bindings.admission,assignment_ref:'assignment:one',principal_ref:'principal:one',admission_ref:'admission:one',current:true};
+  bindings.tool_capability={...bindings.tool_capability,capability_ref:'capability:one',tool_catalog_ref:'tools:one',qualified:true,current:true};
+  bindings.ack={...bindings.ack,ack_ref:'ack:one',sow_ref:'sow:one'};
+  bindings.privacy_effect={...bindings.privacy_effect,privacy_ref:'privacy:one',effect_ceiling:'READ_ONLY'};
+  bindings.bounded_execution={...bindings.bounded_execution,attempt_ref:'attempt:one',execution_ref:'execution:one',bounded:true};
+  bindings.yar={...bindings.yar,yar_ref:'yar:one',interrupted_return_reconciled:true};
+  bindings.result_return={verified:false,evidence_ref:null};
+  bindings.verified_readback={verified:false,evidence_ref:null};
+  bindings.affected_recompile={...bindings.affected_recompile,affected_set_ref:'affected:one',recompile_ref:'recompile:one',all_and_only:true};
+  bindings.restart_reconciliation={...bindings.restart_reconciliation,coverage_ref:'restart:one',covered_boundaries:['RECOVERY','ADMISSION','EXECUTION','YAR','APPLY_RETURN','READBACK']};
+  bindings.qualification_independence={...bindings.qualification_independence,domains:Object.fromEntries(['recovery_wake','admission','affected_return'].map(domain=>[domain,{
+    execution_ref:'execution:'+domain,hostile_ref:'hostile:'+domain,independent_review_ref:'review:'+domain,
+    executor_principal_ref:'executor:'+domain,hostile_principal_ref:'hostile-principal:'+domain,reviewer_principal_ref:'reviewer:'+domain
+  }]))};
+  bindings.installed_consumer={...bindings.installed_consumer,installed_generation:'source:g1',lifecycle_generation:'lifecycle:g1'};
+
+  const conformance=compileWorkerAdapterConformance({
+    adapter_id:'adapter:test',
+    adapter_kind:'test',
+    source_generation:'source:g1',
+    installed_generation:'source:g1',
+    lifecycle_generation:'lifecycle:g1',
+    bindings,
+  });
+  assert.equal(conformance.supplied_complete,false);
+  assert.equal(conformance.cells.find(x=>x.id==='result_return').state,'UNVERIFIED');
+  assert.equal(conformance.cells.find(x=>x.id==='verified_readback').state,'UNVERIFIED');
+  assert.equal(conformance.runtime_complete,false);
+  assert.equal(conformance.release_eligible,false);
 });
 
 test('PASS_ALONE_WITH_NONCURRENT_100S_DOES_NOT_STOP', () => {
@@ -211,7 +305,7 @@ test('DIRECT_XI_CADENCE_CONTINUE_MATCHES_CALLABLE', () => {
 
 console.log(JSON.stringify({
   status: 'PASS',
-  cases: 20,
+  cases: 24,
   self_drive_cases: 12,
   effects: 0,
   terminal_requires_four_scale_current: true,
