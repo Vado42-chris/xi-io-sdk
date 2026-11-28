@@ -43,3 +43,26 @@ The catalog's other 16 entries are compiler primitives, not UI, and are excluded
 - The brand folders in Node, ibal and the CLI cube were not compared.
 - The public-site playground's catalog coverage was not measured.
 - The Stitch applets were not inspected; their bytes are not in any repository.
+
+## Current-head receiving and functional-overlap cross-cut
+
+This section consumes the shared executable receiving evidence rather than creating
+a second primitive catalog or assuming the earlier playground audit qualifies adoption.
+
+| Existing canonical candidate | Verified source / consumer | Disposition |
+| --- | --- | --- |
+| `status-badge` | SDK `src/components/core.mjs`, blob `9028ab343806c9e0fcec8232d75ff07fa3c0d2b3`; existing `renderStatusBadge` | KEEP SDK renderer |
+| BINS operation outcome | Inbox #681 `public/src/ui/bins-admission-outcome.mjs`, blob `0c53eaedf7d8653d4d4f5d8aa40ae7ac88682f11` | RECYCLE semantic projection to SDK only after two independent receivers qualify |
+| Evidence / receipt / next action | SDK `renderEvidencePanel`, `renderReceiptRow`, `renderNextActionStrip` in same core renderer | COMPOSE, avoid new duplicate components |
+| Cadence evidence | SDK `src/cadence/evidence-check-widget.mjs`, blob `969cfbb2cca1a5aef161fa39824a27abf1646d53` | KEEP renderer, add missing playground demo and reconcile UNBOUND semantics |
+| Focus / reduced motion | SDK #334 `src/accessibility/focus-motion.css`, blob `cf9954a09c13f7556317ef09603c7c41502963fd` | ADOPT with opt-in `.xiio-surface` and host isolation |
+| Search/menu/choices | Catalog `src/catalog/primitives.json`, blob `6853a46229b68a3743143fc142d00b85e282e0f8` | Six existing gaps, remain unimplemented/unknown adoption |
+
+**Executed bounded receiving evidence, exact SHA heads.**
+SDK #334 `78bbd4279f694a1451ae452a25ab2805343cee5b`: local focused Node 3/3 PASS, headless Chromium computed-style/keyboard host isolation 7/7 PASS; global reduced-motion mutation caught. Hosted Check workflow 46122682395 executed successfully, with **258 TAP-reported tests / 258 pass / 0 fail / 0 skip** across 16 groups, plus other checks. This does not establish the previously reported 282-test denominator. The SDK CSS receiving proof is not Inbox CSS adoption.
+
+Inbox #681 `2a56423d75b8f8f1518c3f110ee860fe315ee9ef`: exact Git-blob files reconstructed and executed with Node 22.16.0, **12/12 PASS / 0 skip**, including UNVERIFIED vs DENIED, unbound vs unavailable and unknown-403 refusal. Hosted preview workflow 46125885086 has zero executed steps, so its failed conclusion is PRE_RUNNER, not a code-test failure. Inbox Integrations and full host CSS remain unqualified.
+
+**Reuse boundary.** `status-badge` and `inline-status` should consume one canonical semantic outcome classification, but neither SDK badge tone nor a product-local classifier can grant Ward authority or BINS bytes. SDK may validate/project verified outcomes; actual authority and custody remain with their producers. A shared source fixture must be exercised in at least two independent consumers before universal-adoption credit. No operation-outcome implementation or package export was added by this audit.
+
+The existing audit's 27 UI / 26 demonstrated / six known gaps remains its stated catalog denominator. Product-local duplicate implementation counts across Node/Cube/ibal/DataForge remain **UNMEASURED**: code-search name matches and offline byte-identical copies are not an independent implementation census. No installed, merge or APPLY_RETURN qualification is claimed.
