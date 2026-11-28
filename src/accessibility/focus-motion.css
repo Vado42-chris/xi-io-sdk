@@ -1,24 +1,24 @@
-/* Universal accessibility contract for SDK primitives.
-   Recovered intent from brand-shell-polish-002c (focus-visible, 2px ring with offset, reduced-motion)
-   and brand-shell-polish-001 (reduced-motion). Source rules were scoped to .app-shell.is-owner-shell;
-   this contract is universal and uses neutral fallbacks, not Inbox's blue. Generalizing the scope is
-   a design decision: products may override the token values, not remove these rules. */
+/* Universal accessibility contract for SDK primitives. Opt-in only: rules apply inside a .xiio-surface root,
+   so embedding pages and host UI are not restyled. Recovered intent from brand-shell-polish 002c (focus-visible
+   ring with tokenized width, offset, colour) and 001 (reduced motion). Neutral fallbacks; no product blue.
+   Products may override the token values on their surface, not remove these rules. */
 
-:root {
+.xiio-surface {
   --xiio-focus-ring-width: 2px;
   --xiio-focus-ring-offset: 2px;
   --xiio-focus-ring-color: currentColor;
 }
 
-:focus-visible {
+.xiio-surface :focus-visible {
   outline: var(--xiio-focus-ring-width) solid var(--xiio-focus-ring-color);
   outline-offset: var(--xiio-focus-ring-offset);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .xiio-surface,
+  .xiio-surface *,
+  .xiio-surface *::before,
+  .xiio-surface *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
